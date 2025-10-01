@@ -1,13 +1,55 @@
-@extends('layouts.app')
+@extends('layouts.my-okr')
 
 @section('title', 'My OKR')
 
 @section('content')
-<div class="container mx-auto px-4 py-8">
+<style>
+    .okr-container {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        min-height: 100vh;
+    }
+    .okr-header {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 0 0 20px 20px;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+    }
+    .okr-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e2e8f0;
+        transition: all 0.3s ease;
+    }
+    .okr-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    }
+    .stats-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        border-left: 4px solid #3b82f6;
+    }
+    .progress-bar {
+        background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+        border-radius: 10px;
+    }
+    .filter-section {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+    }
+</style>
+
+<div class="okr-container">
     <!-- Header -->
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">My OKR</h1>
-        <p class="text-gray-600">
+    <div class="okr-header">
+        <h1 class="text-4xl font-bold mb-2">My OKR</h1>
+        <p class="text-blue-100 text-lg">
             @if($currentCycle)
                 Chu kỳ: {{ $currentCycle->cycle_name }} ({{ $currentQuarter['label'] }})
             @else
@@ -45,65 +87,65 @@
     @if($currentCycle)
         <!-- Statistics Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="stats-card p-6">
                 <div class="flex items-center">
-                    <div class="p-2 bg-blue-100 rounded-lg">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="p-3 bg-blue-100 rounded-xl">
+                        <svg class="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Tổng số OKR</p>
-                        <p class="text-2xl font-bold text-gray-900">{{ $stats['total'] }}</p>
+                        <p class="text-3xl font-bold text-blue-600">{{ $stats['total'] }}</p>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="stats-card p-6">
                 <div class="flex items-center">
-                    <div class="p-2 bg-green-100 rounded-lg">
-                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="p-3 bg-green-100 rounded-xl">
+                        <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                         </svg>
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Hoàn thành</p>
-                        <p class="text-2xl font-bold text-green-600">{{ $stats['completed'] }}</p>
+                        <p class="text-3xl font-bold text-green-600">{{ $stats['completed'] }}</p>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="stats-card p-6">
                 <div class="flex items-center">
-                    <div class="p-2 bg-yellow-100 rounded-lg">
-                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="p-3 bg-yellow-100 rounded-xl">
+                        <svg class="w-7 h-7 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Đang thực hiện</p>
-                        <p class="text-2xl font-bold text-yellow-600">{{ $stats['in_progress'] }}</p>
+                        <p class="text-3xl font-bold text-yellow-600">{{ $stats['in_progress'] }}</p>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="stats-card p-6">
                 <div class="flex items-center">
-                    <div class="p-2 bg-purple-100 rounded-lg">
-                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="p-3 bg-purple-100 rounded-xl">
+                        <svg class="w-7 h-7 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                         </svg>
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Tiến độ TB</p>
-                        <p class="text-2xl font-bold text-purple-600">{{ $stats['average_progress'] }}%</p>
+                        <p class="text-3xl font-bold text-purple-600">{{ $stats['average_progress'] }}%</p>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Filters and Sort -->
-        <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <div class="filter-section p-6 mb-8">
             <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <!-- Status Filter -->
                 <div>
@@ -162,7 +204,7 @@
         @if($objectives->count() > 0)
             <div class="space-y-6">
                 @foreach($objectives as $objective)
-                    <div class="bg-white rounded-lg shadow-lg p-6">
+                    <div class="okr-card p-6">
                         <!-- Objective Header -->
                         <div class="flex items-start justify-between mb-4">
                             <div class="flex-1">
@@ -195,8 +237,8 @@
 
                         <!-- Progress Bar -->
                         <div class="mb-4">
-                            <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="progress-bar h-3 rounded-full transition-all duration-300" 
                                      style="width: {{ $objective->progress_percent }}%"></div>
                             </div>
                         </div>
@@ -219,7 +261,7 @@
                                                     <div class="text-sm font-medium text-gray-900">{{ $keyResult->progress_percent }}%</div>
                                                 </div>
                                                 <div class="w-16 bg-gray-200 rounded-full h-2">
-                                                    <div class="bg-green-600 h-2 rounded-full" 
+                                                    <div class="progress-bar h-2 rounded-full" 
                                                          style="width: {{ $keyResult->progress_percent }}%"></div>
                                                 </div>
                                             </div>
