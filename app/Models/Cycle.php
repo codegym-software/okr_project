@@ -15,9 +15,4 @@ class Cycle extends Model
     {
         return $this->hasMany(Objective::class, 'cycle_id', 'cycle_id');
     }
-
-    public function keyResults()
-    {
-        return $this->hasMany(KeyResult::class, 'cycle_id', 'cycle_id');
-    }
 }

@@ -98,7 +98,7 @@ class ObjectiveController extends Controller
 
        
         
-        return redirect()->route('objectives.index')
+        return redirect()->route('cycles.show', $validated['cycle_id'])
             ->with('success', 'Objective created successfully!');
     }
 

@@ -32,7 +32,14 @@ class CycleController extends Controller
     }
 
     public function show(Cycle $cycle) {
-        return view('cycles.show', compact('cycle'));
+        // Eager load objectives và user của objectives
+        $cycle->load(['objectives.user']);
+
+        // Trích xuất objectives từ cycle
+        $objectives = $cycle->objectives;
+
+        // Truyền cả $cycle và $objectives vào view
+        return view('cycles.show', compact('cycle', 'objectives'));
     }
 
     public function edit(Cycle $cycle) {

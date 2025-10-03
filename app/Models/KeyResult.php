@@ -36,14 +36,6 @@ class KeyResult extends Model
      */
     public function objective(): BelongsTo
     {
-        return $this->belongsTo(Objective::class, 'objective_id', 'objective_id');
-    }
-
-    /**
-     * Get the cycle that the key result belongs to.
-     */
-    public function cycle(): BelongsTo
-    {
-        return $this->belongsTo(Cycle::class, 'cycle_id', 'cycle_id');
+        return $this->belongsTo(Objective::class);
     }
 }

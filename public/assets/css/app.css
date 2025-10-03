@@ -304,3 +304,13 @@ textarea.form-control {
 .btn-secondary:hover {
     background-color: var(--btn-hover-secondary);
 }
+
+/* Profile Page CSS */
+
+.section-title {
+    font-size: 24px;
+    font-weight: bold;
+    padding-bottom: 10px;
+}
+
+/* OKR Page CSS */

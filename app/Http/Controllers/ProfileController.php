@@ -11,6 +11,9 @@ class ProfileController extends Controller
     public function show()
     {
         $user = Auth::user();
+        if (!$user) {
+            return redirect()->route('login')->withErrors('Bạn cần đăng nhập để xem hồ sơ.');
+        }
         return view('profile.show', compact('user'));
     }
 
@@ -19,18 +22,12 @@ class ProfileController extends Controller
         $user = Auth::user();
 
         $request->validate([
-            'full_name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email,' . $user->user_id . ',user_id',
-            'phone' => 'nullable|string|max:20',
-            'job_title' => 'nullable|string|max:255',
+            'full_name' => 'nullable|string|max:255',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         // Cập nhật thông tin cơ bản
         $user->full_name = $request->full_name;
-        $user->email = $request->email;
-        $user->phone = $request->phone;
-        $user->job_title = $request->job_title;
 
         // Xử lý upload avatar
         if ($request->hasFile('avatar')) {
