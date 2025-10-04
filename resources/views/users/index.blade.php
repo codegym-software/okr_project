@@ -320,6 +320,16 @@
     .alert i {
         font-size: 16px;
     }
+
+    /* User name clickable styling */
+    .user-details h3 {
+        cursor: pointer;
+        transition: color 0.2s ease;
+    }
+
+    .user-details h3:hover {
+        color: #2563eb !important;
+    }
 </style>
 
 <div class="users-container">
@@ -369,7 +379,6 @@
                             <th class="text-left p-4">Email</th>
                             <th class="text-left p-4">Vai trò</th>
                             <th class="text-left p-4">Trạng thái</th>
-                            <th class="text-left p-4">Hành động</th>
                         </tr>
                 </thead>
                 <tbody id="usersTableBody">
@@ -379,7 +388,7 @@
                             data-email="{{ strtolower($user->email) }}"
                             data-role="{{ $user->role ? strtolower($user->role->role_name) : '' }}"
                             data-status="active">
-                            <td class="p-4">
+                            <td class="p-4 cursor-pointer hover:bg-gray-50" onclick="viewUserDetail({{ $user->user_id }})">
                                 <div class="user-info">
                                     @if($user->avatar_url && Storage::disk('public')->exists($user->avatar_url))
                                         <img src="{{ Storage::url($user->avatar_url) }}" alt="Avatar" class="user-avatar">
@@ -389,7 +398,7 @@
                                         </div>
                                     @endif
                                     <div class="user-details">
-                                        <h3>{{ $user->full_name ?? 'Chưa cập nhật' }}</h3>
+                                        <h3 class="hover:text-blue-600 transition-colors">{{ $user->full_name ?? 'Chưa cập nhật' }}</h3>
                                         <p>ID: {{ $user->user_id }}</p>
                                     </div>
                                 </div>
@@ -446,24 +455,6 @@
                                         </option>
                                     </select>
                                 @endif
-                                </td>
-                                <td class="p-4">
-                                    <div class="action-buttons" style="display: flex; justify-content: center;">
-                                        <button onclick="viewUserDetail({{ $user->user_id }})" style="
-                                            background-color: transparent;
-                                            color: #333;
-                                            border: 1px solid #ccc;
-                                            padding: 6px 12px;
-                                            border-radius: 4px;
-                                            cursor: pointer;
-                                            font-size: 12px;
-                                            font-weight: 500;
-                                            transition: all 0.3s ease;
-                                        " onmouseover="this.style.backgroundColor='#f0f0f0'; this.style.borderColor='#999';"
-                                           onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='#ccc';">
-                                            Xem chi tiết
-                                        </button>
-                                    </div>
                                 </td>
                             </tr>
                         @endforeach

@@ -275,7 +275,7 @@ class AuthController extends Controller
 
         // Lấy role_id mặc định (Member) cho user mới
         $memberRoleId = \App\Models\Role::where('role_name', 'Member')->value('role_id');
-        
+
         // Lấy thông tin từ Google
         $fullName = $userData['name'] ?? ($userData['given_name'] ?? '') . ' ' . ($userData['family_name'] ?? '') ?? 'User';
         $avatarUrl = $userData['picture'] ?? null;

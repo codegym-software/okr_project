@@ -445,9 +445,9 @@
                             Objective Title <span class="required-asterisk">*</span>
                         </label>
                         <div class="relative">
-                            <input type="text" 
-                                   id="obj_title" 
-                                   name="obj_title" 
+                            <input type="text"
+                                   id="obj_title"
+                                   name="obj_title"
                                    value="{{ old('obj_title') }}"
                                    class="form-input @error('obj_title') error @enderror"
                                    placeholder="e.g., Increase quarterly revenue by 25%"
@@ -473,8 +473,8 @@
                         <label for="description" class="form-label">
                             Description
                         </label>
-                        <textarea id="description" 
-                                  name="description" 
+                        <textarea id="description"
+                                  name="description"
                                   rows="4"
                                   class="form-textarea @error('description') error @enderror"
                                   placeholder="Provide more context about this objective...">{{ old('description') }}</textarea>
@@ -503,7 +503,7 @@
                         </div>
                         @if(Auth::user()->isMember())
                             <p class="text-sm text-gray-600 mt-1">
-                                <i class="fas fa-info-circle"></i> 
+                                <i class="fas fa-info-circle"></i>
                                 Bạn chỉ có thể tạo OKR cấp cá nhân. Để tạo OKR cấp công ty/phòng ban, vui lòng liên hệ Admin.
                             </p>
                         @endif
@@ -534,9 +534,9 @@
                         <label for="progress_percent" class="form-label">
                             Progress Percent
                         </label>
-                        <input type="number" 
-                               id="progress_percent" 
-                               name="progress_percent" 
+                        <input type="number"
+                               id="progress_percent"
+                               name="progress_percent"
                                value="{{ old('progress_percent', 0) }}"
                                min="0" max="100" step="1"
                                class="form-input @error('progress_percent') error @enderror"
@@ -553,11 +553,11 @@
 
                     <!-- Submit Button -->
                     <div class="form-buttons">
-                        <a href="{{ route('cycles.show', $cycle_id) }}" 
+                        <a href="{{ route('cycles.show', $cycle_id) }}"
                            class="cancel-button">
                             Cancel
                         </a>
-                        <button type="submit" 
+                        <button type="submit"
                                 class="submit-button">
                             Create Objective
                         </button>

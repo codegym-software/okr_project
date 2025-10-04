@@ -27,7 +27,7 @@ class UserController extends Controller
                     ->orderBy('created_at', 'desc')
                     ->get();
             });
-            
+
             return view('users.index', compact('users'));
         } catch (\Exception $e) {
             \Log::error('Error loading users: ' . $e->getMessage());
