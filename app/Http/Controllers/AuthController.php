@@ -278,7 +278,6 @@ class AuthController extends Controller
 
         // Lấy thông tin từ Google
         $fullName = $userData['name'] ?? ($userData['given_name'] ?? '') . ' ' . ($userData['family_name'] ?? '') ?? 'User';
-        $avatarUrl = $userData['picture'] ?? null;
 
         // Lưu vào database với thông tin đầy đủ
         $user = User::updateOrCreate(
@@ -291,12 +290,6 @@ class AuthController extends Controller
                 'status' => 'active', // Gán status active mặc định
             ]
         );
-
-        // Cập nhật thông tin từ Google mỗi lần đăng nhập (để cập nhật avatar, tên mới)
-        $user->update([
-            'full_name' => $fullName,
-            'avatar_url' => $avatarUrl,
-        ]);
 
         // Kiểm tra trạng thái user
         if ($user->status === 'inactive') {
