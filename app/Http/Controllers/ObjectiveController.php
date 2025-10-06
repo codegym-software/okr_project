@@ -37,15 +37,25 @@ class ObjectiveController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Kiểm tra quyền tạo OKR theo level
+        $level = $request->input('level', 'Cá nhân');
+        $user = Auth::user();
+
+        if (in_array($level, ['Công ty', 'Phòng ban', 'Nhóm']) && !$user->canCreateCompanyOKR()) {
+            return redirect()->back()
+                ->withErrors(['level' => 'Bạn không có quyền tạo OKR cấp ' . $level . '. Chỉ Admin và Manager mới có thể tạo OKR cấp công ty/phòng ban.'])
+                ->withInput();
+        }
+
        $validated = $request->validate([
 
             // validate objective
             'obj_title'       => 'required|string|max:255',
-            'level' => 'nullable|string|max:255',
+            'level' => 'required|string|in:Công ty,Phòng ban,Nhóm,Cá nhân',
             'description' => 'nullable|string|max:1000',
             'status'      => 'required|in:draft,active,completed',
             'progress_percent'    => 'nullable|numeric|min:0|max:100',
-            'cycle_id' => 'nullable|integer|exists:cycles,cycle_id', 
+            'cycle_id' => 'nullable|integer|exists:cycles,cycle_id',
 
             // validate key results
             'key_results' => 'nullable|array',
@@ -56,7 +66,7 @@ class ObjectiveController extends Controller
             'key_results.*.status' => 'nullable|string|max:255',
             'key_results.*.weight' => 'nullable|integer|min:0|max:100',
             'key_results.*.progress_percent' => 'nullable|numeric|min:0|max:100',
-        ]); 
+        ]);
 
 
         DB::transaction(function() use ($validated, $request) {
@@ -69,7 +79,7 @@ class ObjectiveController extends Controller
                 'progress_percent' => $validated['progress_percent'],
                 'user_id' => Auth::id() ?? 2,
                 'cycle_id' => $validated['cycle_id'], // Mặc định cycle_id là 2
-            ];  
+            ];
             $objective = Objective::create($objectiveData);
 
             $keyResults = $request->input('key_results', []);
@@ -96,8 +106,8 @@ class ObjectiveController extends Controller
 
         });
 
-       
-        
+
+
         return redirect()->route('cycles.show', $validated['cycle_id'])
             ->with('success', 'Objective created successfully!');
     }
@@ -134,7 +144,7 @@ class ObjectiveController extends Controller
 
         $objective = Objective::findOrFail($id);
         $objective->update($validated);
-        
+
         return redirect()->route('objectives.index')
             ->with('success', 'Objective updated successfully!');
     }
@@ -146,7 +156,7 @@ class ObjectiveController extends Controller
     {
         $objective = Objective::findOrFail($id);
         $objective->delete();
-        
+
         return redirect()->route('objectives.index')
             ->with('success', 'Objective deleted successfully!');
     }

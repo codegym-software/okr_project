@@ -20,8 +20,20 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::with(['role', 'department'])->get();
-        return view('users.index', compact('users'));
+        try {
+            // Cache users data for 5 minutes to improve performance
+            $users = \Cache::remember('users_list', 300, function () {
+                return User::with(['role', 'department'])
+                    ->orderBy('user_id', 'asc')
+                    ->get();
+            });
+
+            return view('users.index', compact('users'));
+        } catch (\Exception $e) {
+            \Log::error('Error loading users: ' . $e->getMessage());
+            return view('users.index', ['users' => collect()])
+                ->with('error', 'Không thể tải danh sách người dùng. Vui lòng thử lại sau.');
+        }
     }
 
     public function show($id)
@@ -65,6 +77,9 @@ class UserController extends Controller
         $user->role_id = $request->role_id;
         $user->department_id = $request->department_id;
         $user->save();
+
+        // Clear cache when user is updated
+        \Cache::forget('users_list');
 
         // Reload relationship để có thể truy cập role mới
         $user->load('role');
@@ -115,6 +130,9 @@ class UserController extends Controller
 
         $user->status = $newStatus;
         $user->save();
+
+        // Clear cache when user status is updated
+        \Cache::forget('users_list');
 
         $statusText = $newStatus === 'active' ? 'Kích hoạt' : 'Vô hiệu hóa';
 

@@ -203,6 +203,8 @@
         border-radius: 6px;
         background-color: white;
         font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
         cursor: pointer;
         min-width: 120px;
         margin: 0 auto;
@@ -212,6 +214,11 @@
     .role-dropdown:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+    }
+
+    .role-dropdown option {
+        font-weight: 700;
+        text-transform: uppercase;
     }
 
     .table-custom td {
@@ -261,7 +268,7 @@
     .status-dropdown.status-active {
         background-color: #d1fae5;
         color: #065f46;
-        border: none;
+        border: 1px solid #065f46;
         border-radius: 12px;
         padding: 4px 8px;
         font-size: 0.75rem;
@@ -275,7 +282,7 @@
     .status-dropdown.status-inactive {
         background-color: #fee2e2;
         color: #991b1b;
-        border: none;
+        border: 1px solid #991b1b;
         border-radius: 12px;
         padding: 4px 8px;
         font-size: 0.75rem;
@@ -284,6 +291,44 @@
         width: auto;
         display: inline-block;
         text-transform: uppercase;
+    }
+
+    /* Alert styles */
+    .alert {
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .alert-success {
+        background-color: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        color: #065f46;
+    }
+
+    .alert-error {
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #b91c1c;
+    }
+
+    .alert i {
+        font-size: 16px;
+    }
+
+    /* User name clickable styling */
+    .user-details h3 {
+        cursor: pointer;
+        transition: color 0.2s ease;
+    }
+
+    .user-details h3:hover {
+        color: #2563eb !important;
     }
 </style>
 
@@ -312,13 +357,15 @@
     </div>
 
     @if(session('success'))
-        <div class="alert alert-success">
+        <div class="alert alert-success" id="successAlert">
+            <i class="fas fa-check-circle"></i>
             {{ session('success') }}
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-error">
+        <div class="alert alert-error" id="errorAlert">
+            <i class="fas fa-exclamation-circle"></i>
             {{ session('error') }}
         </div>
     @endif
@@ -332,7 +379,6 @@
                             <th class="text-left p-4">Email</th>
                             <th class="text-left p-4">Vai trò</th>
                             <th class="text-left p-4">Trạng thái</th>
-                            <th class="text-left p-4">Hành động</th>
                         </tr>
                 </thead>
                 <tbody id="usersTableBody">
@@ -342,17 +388,15 @@
                             data-email="{{ strtolower($user->email) }}"
                             data-role="{{ $user->role ? strtolower($user->role->role_name) : '' }}"
                             data-status="active">
-                            <td class="p-4">
+                            <td class="p-4 cursor-pointer hover:bg-gray-50" onclick="viewUserDetail({{ $user->user_id }})">
                                 <div class="user-info">
-                                    @if($user->avatar_url && Storage::disk('public')->exists($user->avatar_url))
-                                        <img src="{{ Storage::url($user->avatar_url) }}" alt="Avatar" class="user-avatar">
+                                    @if(!empty($user->avatar_url))
+                                        <img src="{{ $user->avatar_url }}" alt="Avatar" class="user-avatar">
                                     @else
-                                        <div class="user-avatar" style="background-color: var(--bg-primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold;">
-                                            {{ substr($user->full_name ?? $user->email, 0, 1) }}
-                                        </div>
+                                        <div class="user-avatar">{{ substr($user->full_name ?? $user->email, 0, 1) }}</div>
                                     @endif
                                     <div class="user-details">
-                                        <h3>{{ $user->full_name ?? 'Chưa cập nhật' }}</h3>
+                                        <h3 class="hover:text-blue-600 transition-colors">{{ $user->full_name ?? 'Chưa cập nhật' }}</h3>
                                         <p>ID: {{ $user->user_id }}</p>
                                     </div>
                                 </div>
@@ -409,24 +453,6 @@
                                         </option>
                                     </select>
                                 @endif
-                                </td>
-                                <td class="p-4">
-                                    <div class="action-buttons" style="display: flex; justify-content: center;">
-                                        <button onclick="viewUserDetail({{ $user->user_id }})" style="
-                                            background-color: transparent;
-                                            color: #333;
-                                            border: 1px solid #ccc;
-                                            padding: 6px 12px;
-                                            border-radius: 4px;
-                                            cursor: pointer;
-                                            font-size: 12px;
-                                            font-weight: 500;
-                                            transition: all 0.3s ease;
-                                        " onmouseover="this.style.backgroundColor='#f0f0f0'; this.style.borderColor='#999';"
-                                           onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='#ccc';">
-                                            Xem chi tiết
-                                        </button>
-                                    </div>
                                 </td>
                             </tr>
                         @endforeach
@@ -538,6 +564,36 @@ function updateStatus(userId, status) {
     form.submit();
 }
 
+// Hiển thị thông báo thành công
+function showSuccessMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success';
+    alertDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+
+    const container = document.querySelector('.users-container');
+    container.insertBefore(alertDiv, container.firstChild);
+
+    // Tự động ẩn sau 4 giây
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 4000);
+}
+
+// Hiển thị thông báo lỗi
+function showErrorMessage(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-error';
+    alertDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+
+    const container = document.querySelector('.users-container');
+    container.insertBefore(alertDiv, container.firstChild);
+
+    // Tự động ẩn sau 4 giây
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 4000);
+}
+
 // Cập nhật vai trò
 function updateRole(userId, roleId) {
     console.log('Updating user', userId, 'to role', roleId);
@@ -590,6 +646,22 @@ function updateRole(userId, roleId) {
 
 // Fallback cho event listener
 document.addEventListener('DOMContentLoaded', function() {
+    // Tự động ẩn thông báo session sau 4 giây
+    const successAlert = document.getElementById('successAlert');
+    const errorAlert = document.getElementById('errorAlert');
+
+    if (successAlert) {
+        setTimeout(() => {
+            successAlert.remove();
+        }, 4000);
+    }
+
+    if (errorAlert) {
+        setTimeout(() => {
+            errorAlert.remove();
+        }, 4000);
+    }
+
     const roleDropdowns = document.querySelectorAll('.role-dropdown');
     const statusDropdowns = document.querySelectorAll('.status-dropdown');
 
