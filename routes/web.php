@@ -101,6 +101,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
 
     Route::get('/objectives/{objective}/key-results/{key_result}', 
     [KeyResultController::class, 'show'])
+    ->whereNumber('key_result')
     ->name('key_results.show');
 
     // Form tạo mới Key Result
