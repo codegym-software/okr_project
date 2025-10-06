@@ -304,9 +304,7 @@ class AuthController extends Controller
             if (!$user->status) {
                 $user->status = 'active';
             }
-            // Luôn cập nhật tên và avatar mới nhất
-            $user->full_name = $fullName;
-            $user->avatar_url = $avatarUrl;
+            
             $user->save();
         }
 
