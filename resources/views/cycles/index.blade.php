@@ -252,7 +252,7 @@
                 @php
                 $isAdmin = Auth::user() && Auth::user() -> isAdmin();
                 @endphp
-                @if($isAdmin)
+                @if($isAdmin) 
                 <a href="{{ route('cycles.create') }}" class="add-cycle-button">
                     <i class="bi bi-plus-circle"></i> Tạo mới
                 </a>
