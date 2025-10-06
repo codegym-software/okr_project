@@ -249,9 +249,14 @@
         <div class="cycle-card">
             <div class="card-header">
                 <h3 class="card-header-title"><i class="bi bi-calendar3"></i> Danh sách chu kỳ</h3>
+                @php
+                $isAdmin = Auth::user() && Auth::user() -> isAdmin();
+                @endphp
+                @if($isAdmin)
                 <a href="{{ route('cycles.create') }}" class="add-cycle-button">
                     <i class="bi bi-plus-circle"></i> Tạo mới
                 </a>
+                @endif
             </div>
             <div class="card-body">
                 @if(session('success'))
