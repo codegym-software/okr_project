@@ -390,12 +390,10 @@
                             data-status="active">
                             <td class="p-4 cursor-pointer hover:bg-gray-50" onclick="viewUserDetail({{ $user->user_id }})">
                                 <div class="user-info">
-                                    @if($user->avatar_url && Storage::disk('public')->exists($user->avatar_url))
-                                        <img src="{{ Storage::url($user->avatar_url) }}" alt="Avatar" class="user-avatar">
+                                    @if(!empty($user->avatar_url))
+                                        <img src="{{ $user->avatar_url }}" alt="Avatar" class="user-avatar">
                                     @else
-                                        <div class="user-avatar" style="background-color: var(--bg-primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold;">
-                                            {{ substr($user->full_name ?? $user->email, 0, 1) }}
-                                        </div>
+                                        <div class="user-avatar">{{ substr($user->full_name ?? $user->email, 0, 1) }}</div>
                                     @endif
                                     <div class="user-details">
                                         <h3 class="hover:text-blue-600 transition-colors">{{ $user->full_name ?? 'Chưa cập nhật' }}</h3>

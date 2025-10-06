@@ -241,15 +241,11 @@
 <div class="user-detail-container">
     <!-- Header -->
     <div class="user-header">
-        @if($user->avatar_url && Storage::disk('public')->exists($user->avatar_url))
-            <img src="{{ Storage::url($user->avatar_url) }}?v={{ $user->updated_at?->timestamp ?? time() }}"
-                 alt="Avatar" class="user-avatar-large">
+        @if(!empty($user->avatar_url))
+            <img src="{{ $user->avatar_url }}" alt="Avatar" class="user-avatar-large">
         @else
-            <div class="user-avatar-placeholder">
-                {{ substr($user->full_name ?? $user->email, 0, 1) }}
-            </div>
+            <div class="user-avatar">{{ substr($user->full_name ?? $user->email, 0, 1) }}</div>
         @endif
-
         <div class="user-basic-info">
             <h1>{{ $user->full_name ?? 'Chưa cập nhật' }}</h1>
             <p>{{ $user->email }}</p>
