@@ -69,7 +69,11 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
 
     //Routes cho Cycle
-    Route::resource('cycles', CycleController::class);
+    Route::get('/cycles',[CycleController::class,'index']) -> name('cycles.index');
+    Route::get('/cycles/{cycles}/detail',[CycleController::class,'show']) -> name('cycles.show');
+    Route::get('/cycles/create',[CycleController::class,'create']) -> middleware('auth') -> name('cycles.create');
+    Route::post('/cycles/create',[CycleController::class,'store']) -> middleware('auth') -> name('cycles.store');
+    // Route::resource('cycles', CycleController::class) -> middleware('auth','admin') -> except(['index','show']);
 
     //Routes cho Department
     Route::resource('departments', DepartmentController::class);
@@ -92,7 +96,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     // Objectives Routes
     Route::resource('objectives', ObjectiveController::class);
     // Route::get('/dashboard', [ObjectiveController::class, 'dashboard'])->name('dashboard');
-    // Route::get('/objectives/create/tailwind', [ObjectiveController::class, 'createTailwind'])->name('objectives.create.tailwind');
 
     // Key Results Routes
     Route::get('/objectives/{objective}/key-results', 
