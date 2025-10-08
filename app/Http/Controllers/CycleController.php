@@ -23,8 +23,7 @@ class CycleController extends Controller
             'cycle_name' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
-            'status' => 'required|in:active,inactive',
-            'description' => 'nullable|string',
+            'is_active' => 'required|in:draft,active,completed',
         ]);
 
         Cycle::create($request->all());
@@ -51,8 +50,7 @@ class CycleController extends Controller
             'cycle_name' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
-            'status' => 'required|in:active,inactive',
-            'description' => 'nullable|string',
+            'is_active' => 'required|in:draft,active,completed',
         ]);
 
         $cycle->update($request->all());

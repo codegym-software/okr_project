@@ -33,21 +33,14 @@
             @enderror
         </div>
         <div class="mb-4 flex items-center gap-4">
-            <label for="status" class="w-32 font-semibold">Trạng thái</label>
-            <select name="status" id="status" 
+            <label for="is_active" class="w-32 font-semibold">Trạng thái</label>
+            <select name="is_active" id="is_active" 
                     class="form-control flex-1 rounded-full px-4 py-2 border-none focus:ring-2 focus:ring-[var(--bg-primary)]">
-                <option value="active" {{ old('status') == 'active' ? 'selected' : '' }}>Active</option>
-                <option value="inactive" {{ old('status') == 'inactive' ? 'selected' : '' }}>Inactive</option>
+                <option value="active" {{ old('is_active') == 'draft' ? 'selected' : '' }}>Draft</option>
+                <option value="active" {{ old('is_active') == 'active' ? 'selected' : '' }}>Active</option>
+                <option value="inactive" {{ old('is_active') == 'completed' ? 'selected' : '' }}>completed</option>
             </select>
-            @error('status') 
-                <div class="text-red-500 text-sm mt-1">{{ $message }}</div> 
-            @enderror
-        </div>
-        <div class="mb-4 flex items-start gap-4">
-            <label for="description" class="w-32 font-semibold">Mô tả</label>
-            <textarea name="description" id="description" 
-                      class="form-control flex-1 rounded-2xl px-4 py-2 border-none focus:ring-2 focus:ring-[var(--bg-primary)] min-h-[100px]">{{ old('description') }}</textarea>
-            @error('description') 
+            @error('is_active') 
                 <div class="text-red-500 text-sm mt-1">{{ $message }}</div> 
             @enderror
         </div>

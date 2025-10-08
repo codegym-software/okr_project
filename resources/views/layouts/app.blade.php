@@ -20,7 +20,7 @@
                 <div class="user-info container flex flex-row justify-center items-center">
                     @php
                         $user = Auth::user();
-                        $name = $user && $user->full_name ? $user->full_name : 'User';
+                        $name = $user && $user->user_name ? $user->user_name : 'User';
                         $raw = $user && $user->avatar_url ? $user->avatar_url : null;
                         $candidate = null;
                         if ($raw) {

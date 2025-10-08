@@ -13,6 +13,7 @@ use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
 use Aws\Exception\AwsException;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class AuthController extends Controller
 {
@@ -274,10 +275,11 @@ class AuthController extends Controller
         Log::info("Detected provider: " . $provider);
 
         // Lấy role_id mặc định (Member) cho user mới
-        $memberRoleId = \App\Models\Role::where('role_name', 'Member')->value('role_id');
+        $memberRole = \App\Models\User::where('role', 'Member')->value('role');
+        $status = \App\Models\User::where('status', 'active')->value('status');
 
         // Lấy thông tin từ Google
-        $fullName = $userData['name'] ?? ($userData['given_name'] ?? '') . ' ' . ($userData['family_name'] ?? '') ?? 'User';
+        $userName = $userData['name'] ?? ($userData['given_name'] ?? '') . ' ' . ($userData['family_name'] ?? '') ?? 'User';
         $avatarUrl = $userData['picture'] ?? null;
 
         // Tìm user theo email
@@ -289,17 +291,17 @@ class AuthController extends Controller
                 'sub' => $sub,
                 'email' => $email,
                 'google_id' => $provider === 'Google' ? ($userData['sub'] ?? null) : null,
-                'role_id' => $memberRoleId,
-                'status' => 'active',
-                'full_name' => $fullName,
+                'role' => $memberRole,
+                'status' => $status,
+                'user_name' => $userName,
                 'avatar_url' => $avatarUrl,
             ]);
         } else {
             // User cũ: KHÔNG ghi đè role/status nếu đã có
             $user->sub = $sub;
             $user->google_id = $provider === 'Google' ? ($userData['sub'] ?? null) : $user->google_id;
-            if (!$user->role_id) {
-                $user->role_id = $memberRoleId;
+            if (!$user->role) {
+                $user->role = $memberRole;
             }
             if (!$user->status) {
                 $user->status = 'active';
@@ -316,7 +318,7 @@ class AuthController extends Controller
         Log::info("User saved/updated: " . $user->email . " via " . $provider);
 
         // Xóa cache users list để admin thấy user mới ngay lập tức
-        \Cache::forget('users_list');
+        Cache::forget('users_list');
 
         Auth::login($user);
 

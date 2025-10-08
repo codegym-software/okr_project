@@ -459,7 +459,7 @@
                 </div>
 
                 <div class="d-flex justify-content-start">
-                    <a href="{{ route('key_results.create', $objective->objective_id) }}" class="add-kr-button">
+                    <a href="{{ route('key_results.create', $objective->obj_id) }}" class="add-kr-button">
                         <i class="bi bi-plus-circle"></i> Thêm KR
                     </a>
                 </div>

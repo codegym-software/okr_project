@@ -59,7 +59,7 @@
             <div class="border-t border-[#e3e3e0] dark:border-[#3E3E3A] pt-6">
                 <h3 class="text-lg font-semibold text-[#1b1b18] dark:text-[#EDEDEC] mb-4">Key Results</h3>
                 <div class="text-center">
-                    <a href="{{ route('key_results.create', $objective->objective_id) }}" 
+                    <a href="{{ route('key_results.create', $objective->obj_id) }}" 
                        class="bg-[#1b1b18] hover:bg-black dark:bg-[#3E3E3A] dark:hover:bg-white text-white dark:text-[#EDEDEC] dark:hover:text-[#1b1b18] px-4 py-2 rounded-lg font-medium transition-all">
                         + Add Key Result
                     </a>
@@ -72,11 +72,11 @@
                     Created {{ $objective->created_at ? $objective->created_at->format('M d, Y') : 'N/A' }}
                 </div>
                 <div class="flex flex-col lg:flex-row space-y-2 lg:space-y-0 lg:space-x-2 mt-2 lg:mt-0">
-                    <a href="{{ route('objectives.show', $objective->objective_id) }}" 
+                    <a href="{{ route('objectives.show', $objective->obj_id) }}" 
                        class="text-[#1b1b18] hover:text-black dark:text-[#EDEDEC] dark:hover:text-white text-sm font-medium underline underline-offset-4">View Details</a>
-                    <a href="{{ route('objectives.edit', $objective->objective_id) }}" 
+                    <a href="{{ route('objectives.edit', $objective->obj_id) }}" 
                        class="text-[#706f6c] hover:text-[#1b1b18] dark:text-[#A1A09A] dark:hover:text-[#EDEDEC] text-sm font-medium underline underline-offset-4">Edit</a>
-                    <form action="{{ route('objectives.destroy', $objective->objective_id) }}" method="POST" class="inline"
+                    <form action="{{ route('objectives.destroy', $objective->obj_id) }}" method="POST" class="inline"
                           onsubmit="return confirm('Delete this objective?')">
                         @csrf
                         @method('DELETE')

@@ -384,19 +384,19 @@
                 <tbody id="usersTableBody">
                     @foreach($users as $user)
                         <tr class="user-row"
-                            data-name="{{ strtolower($user->full_name ?? '') }}"
+                            data-name="{{ strtolower($user->user_name ?? '') }}"
                             data-email="{{ strtolower($user->email) }}"
-                            data-role="{{ $user->role ? strtolower($user->role->role_name) : '' }}"
+                            data-role="{{ $user->role ? strtolower($user->role) : '' }}"
                             data-status="active">
                             <td class="p-4 cursor-pointer hover:bg-gray-50" onclick="viewUserDetail({{ $user->user_id }})">
                                 <div class="user-info">
                                     @if(!empty($user->avatar_url))
                                         <img src="{{ $user->avatar_url }}" alt="Avatar" class="user-avatar">
                                     @else
-                                        <div class="user-avatar">{{ substr($user->full_name ?? $user->email, 0, 1) }}</div>
+                                        <div class="user-avatar">{{ substr($user->user_name ?? $user->email, 0, 1) }}</div>
                                     @endif
                                     <div class="user-details">
-                                        <h3 class="hover:text-blue-600 transition-colors">{{ $user->full_name ?? 'Chưa cập nhật' }}</h3>
+                                        <h3 class="hover:text-blue-600 transition-colors">{{ $user->user_name ?? 'Chưa cập nhật' }}</h3>
                                         <p>ID: {{ $user->user_id }}</p>
                                     </div>
                                 </div>
@@ -404,28 +404,22 @@
                             <td class="p-4">{{ $user->email }}</td>
                             <td class="p-4">
                                 @php
-                                    $roles = \App\Models\Role::all();
-                                    $isDisabled = $user->user_id === Auth::id() && !Auth::user()->isAdmin();
-                                    $isAdmin = $user->isAdmin();
+                                    $isDisabled = $user->user_id === Auth::id() && $user->role !== 'Admin';
                                 @endphp
 
-                                @if($isAdmin)
-                                    <!-- Hiển thị cố định cho Admin -->
+                                @if($user->role === 'Admin')
+                                    <!-- Display fixed badge for Admin -->
                                     <span class="role-badge role-admin" style="padding: 6px 16px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background-color: white; color: black; border: 1px solid #d1d5db; display: inline-block; margin: 0 auto;">
                                         Admin
                                     </span>
                                 @else
-                                    <!-- Dropdown chỉ cho phép Manager/Member -->
-                                    @php
-                                        $managerRoleId = \App\Models\Role::where('role_name', 'Manager')->value('role_id');
-                                        $memberRoleId = \App\Models\Role::where('role_name', 'Member')->value('role_id');
-                                    @endphp
+                                    <!-- Dropdown for Manager/Member -->
                                     <select class="role-dropdown"
                                             data-user-id="{{ $user->user_id }}"
                                             onchange="updateRole({{ $user->user_id }}, this.value)"
                                             {{ $isDisabled ? 'disabled' : '' }}>
-                                        <option value="{{ $managerRoleId }}" {{ $user->role_id == $managerRoleId ? 'selected' : '' }}>MANAGER</option>
-                                        <option value="{{ $memberRoleId }}" {{ $user->role_id == $memberRoleId ? 'selected' : '' }}>MEMBER</option>
+                                        <option value="Manager" {{ $user->role === 'Manager' ? 'selected' : '' }}>MANAGER</option>
+                                        <option value="Member" {{ $user->role === 'Member' ? 'selected' : '' }}>MEMBER</option>
                                     </select>
                                 @endif
                             </td>
@@ -594,49 +588,49 @@ function showErrorMessage(message) {
     }, 4000);
 }
 
-// Cập nhật vai trò
-function updateRole(userId, roleId) {
-    console.log('Updating user', userId, 'to role', roleId);
+// Update user role
+function updateRole(userId, role) {
+    console.log('Updating user', userId, 'to role', role);
 
-    if (!roleId) {
+    if (!role) {
         console.log('No role selected');
         return;
     }
 
-    // Disable dropdown trong lúc gửi
+    // Disable dropdown during submission
     const roleSelect = document.querySelector(`select.role-dropdown[data-user-id="${userId}"]`);
     if (roleSelect) {
         roleSelect.disabled = true;
     }
 
-    // Hiển thị overlay loading
+    // Show loading overlay
     const overlay = document.getElementById('globalLoading');
     if (overlay) overlay.style.display = 'flex';
 
-    // Tạo form để submit
+    // Create form for submission
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `/users/${userId}`;
 
-    // Thêm CSRF token
+    // Add CSRF token
     const csrfToken = document.createElement('input');
     csrfToken.type = 'hidden';
     csrfToken.name = '_token';
     csrfToken.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     form.appendChild(csrfToken);
 
-    // Thêm method override
+    // Add method override
     const methodOverride = document.createElement('input');
     methodOverride.type = 'hidden';
     methodOverride.name = '_method';
     methodOverride.value = 'PUT';
     form.appendChild(methodOverride);
 
-    // Thêm role_id
+    // Add role
     const roleInput = document.createElement('input');
     roleInput.type = 'hidden';
-    roleInput.name = 'role_id';
-    roleInput.value = roleId;
+    roleInput.name = 'role';
+    roleInput.value = role;
     form.appendChild(roleInput);
 
     // Submit form

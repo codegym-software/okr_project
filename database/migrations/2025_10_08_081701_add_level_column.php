@@ -11,8 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('status')->default('active')->after('role_id');
+        //
+        Schema::table('objectives', function (Blueprint $table) {
+            $table->string('level', 50)->charset('utf8mb4')->collation('utf8mb4_unicode_ci')->nullable();
         });
     }
 
@@ -21,8 +22,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('status');
+        //
+        Schema::table('objectives', function (Blueprint $table) {
+            $table->dropColumn('level');
         });
     }
 };

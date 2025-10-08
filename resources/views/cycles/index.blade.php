@@ -271,13 +271,13 @@
                             <a href="{{ route('cycles.show', $cycle) }}" class="cycle-item">
                                 <h6 class="cycle-title">{{ $cycle->cycle_name }}</h6>
                                 @php
-                                    $statusClass = match($cycle->status) {
+                                    $statusClass = match($cycle->is_active) {
                                         'draft' => 'draft',
                                         'active' => 'active',
                                         'completed' => 'completed',
-                                        default => 'default'
+                                        // default => 'default'
                                     };
-                                    $statusIcon = match($cycle->status) {
+                                    $statusIcon = match($cycle->is_active) {
                                         'draft' => 'bi-pencil-square',
                                         'active' => 'bi-play-circle',
                                         'completed' => 'bi-check-circle',
@@ -285,7 +285,7 @@
                                     };
                                 @endphp
                                 <span class="status-badge {{ $statusClass }}">
-                                    <i class="bi {{ $statusIcon }}"></i> {{ ucfirst($cycle->status) }}
+                                    <i class="bi {{ $statusIcon }}"></i> {{ ucfirst($cycle->is_active) }}
                                 </span>
                             </a>
                         @endforeach

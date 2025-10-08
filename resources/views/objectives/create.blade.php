@@ -470,15 +470,15 @@
 
                     <!-- Description -->
                     <div class="input-group">
-                        <label for="description" class="form-label">
+                        <label for="obj_desc" class="form-label">
                             Description
                         </label>
-                        <textarea id="description"
-                                  name="description"
+                        <textarea id="obj_desc"
+                                  name="obj_desc"
                                   rows="4"
-                                  class="form-textarea @error('description') error @enderror"
-                                  placeholder="Provide more context about this objective...">{{ old('description') }}</textarea>
-                        @error('description')
+                                  class="form-textarea @error('obj_desc') error @enderror"
+                                  placeholder="Provide more context about this objective...">{{ old('obj_desc') }}</textarea>
+                        @error('obj_desc')
                             <p class="error-text flex items-center">
                                 <svg class="error-icon" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
@@ -529,7 +529,7 @@
                     </div>
 
                     <!-- Progress Percent -->
-                    <div class="input-group">
+                    {{-- <div class="input-group">
                         <label for="progress_percent" class="form-label">
                             Progress Percent
                         </label>
@@ -548,7 +548,7 @@
                                 {{ $message }}
                             </p>
                         @enderror
-                    </div>
+                    </div> --}}
 
                     <!-- Submit Button -->
                     <div class="form-buttons">

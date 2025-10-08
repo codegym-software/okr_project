@@ -56,10 +56,6 @@
                     <th>Objective</th>
                     <td>{{ $keyResult->objective->obj_title }}</td>
                 </tr>
-                <tr>
-                    <th>Cycle</th>
-                    <td>{{ $keyResult->cycle->cycle_name }}</td>
-                </tr>
             </table>
         </div>
     </div>

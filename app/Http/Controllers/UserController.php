@@ -5,103 +5,97 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
-use App\Models\Role;
-use App\Models\Department;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class UserController extends Controller
 {
     public function __construct()
     {
-        // Middleware sẽ được áp dụng trong routes
+        // Middleware will be applied in routes
     }
 
     /**
-     * Hiển thị danh sách người dùng
+     * Display list of users
      */
     public function index()
     {
         try {
             // Cache users data for 5 minutes to improve performance
-            $users = \Cache::remember('users_list', 300, function () {
-                return User::with(['role', 'department'])
-                    ->orderBy('user_id', 'asc')
+            $users = Cache::remember('users_list', 300, function () {
+                return User::orderBy('user_id', 'asc')
                     ->get();
             });
 
             return view('users.index', compact('users'));
         } catch (\Exception $e) {
-            \Log::error('Error loading users: ' . $e->getMessage());
+            Log::error('Error loading users: ' . $e->getMessage());
             return view('users.index', ['users' => collect()])
-                ->with('error', 'Không thể tải danh sách người dùng. Vui lòng thử lại sau.');
+                ->with('error', 'Unable to load user list. Please try again later.');
         }
     }
 
     public function show($id)
     {
-        $user = User::with(['role', 'department'])->findOrFail($id);
+        $user = User::findOrFail($id);
         return view('users.show', compact('user'));
     }
 
     /**
-     * Cập nhật vai trò người dùng
+     * Update user role
      */
     public function update(Request $request, $id)
     {
-        // Middleware đã kiểm tra quyền Admin
+        // Middleware already checks for Admin rights
 
         $request->validate([
-            'role_id' => 'required|exists:roles,role_id',
-            'department_id' => 'nullable|exists:departments,department_id',
+            'role' => 'required|in:Admin,Manager,Member',
         ]);
 
         $user = User::findOrFail($id);
 
-        // Không cho phép thay đổi vai trò của Admin
-        if ($user->isAdmin()) {
+        // Prevent changing the role of an Admin
+        if ($user->role === 'Admin') {
             if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Không thể thay đổi vai trò của Admin.'], 400);
+                return response()->json(['success' => false, 'message' => 'Cannot change the role of an Admin.'], 400);
             }
-            return redirect()->back()->withErrors('Không thể thay đổi vai trò của Admin.');
+            return redirect()->back()->withErrors('Cannot change the role of an Admin.');
         }
 
-        // Kiểm tra xem có thể thay đổi vai trò không
-        if ($user->user_id === Auth::id() && !Auth::user()->isAdmin()) {
+        // Prevent non-Admin users from changing their own role
+        if ($user->user_id === Auth::id() && Auth::user()->role !== 'Admin') {
             if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Bạn không thể thay đổi vai trò của chính mình.'], 400);
+                return response()->json(['success' => false, 'message' => 'You cannot change your own role.'], 400);
             }
-            return redirect()->back()->withErrors('Bạn không thể thay đổi vai trò của chính mình.');
+            return redirect()->back()->withErrors('You cannot change your own role.');
         }
 
-        $oldRole = $user->role ? $user->role->role_name : 'Chưa có vai trò';
-
-        $user->role_id = $request->role_id;
-        $user->department_id = $request->department_id;
+        $oldRole = $user->role ?? 'No role assigned';
+        $user->role = $request->role;
         $user->save();
 
         // Clear cache when user is updated
-        \Cache::forget('users_list');
+        Cache::forget('users_list');
 
-        // Reload relationship để có thể truy cập role mới
-        $user->load('role');
-        $newRole = $user->role ? $user->role->role_name : 'Chưa có vai trò';
+        $newRole = $user->role ?? 'No role assigned';
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => "Đã cập nhật vai trò của {$user->full_name} từ {$oldRole} thành {$newRole}."
+                'message' => "Updated role of {$user->full_name} from {$oldRole} to {$newRole}."
             ]);
         }
 
         return redirect()->route('users.index')
-            ->with('success', "Đã cập nhật vai trò của {$user->full_name} từ {$oldRole} thành {$newRole}.");
+            ->with('success', "Updated role of {$user->full_name} from {$oldRole} to {$newRole}.");
     }
 
     /**
-     * Cập nhật trạng thái người dùng
+     * Update user status
      */
     public function updateStatus(Request $request, $id)
     {
-        // Middleware đã kiểm tra quyền Admin
+        // Middleware already checks for Admin rights
 
         $request->validate([
             'status' => 'required|in:active,inactive',
@@ -109,20 +103,20 @@ class UserController extends Controller
 
         $user = User::findOrFail($id);
 
-        // Không cho phép thay đổi trạng thái của Admin
-        if ($user->isAdmin()) {
+        // Prevent changing the status of an Admin
+        if ($user->role === 'Admin') {
             if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Không thể thay đổi trạng thái của Admin.'], 400);
+                return response()->json(['success' => false, 'message' => 'Cannot change the status of an Admin.'], 400);
             }
-            return redirect()->back()->withErrors('Không thể thay đổi trạng thái của Admin.');
+            return redirect()->back()->withErrors('Cannot change the status of an Admin.');
         }
 
-        // Không cho phép Admin tự vô hiệu hóa chính mình
+        // Prevent Admin from deactivating themselves
         if ($user->user_id === Auth::id() && $request->status === 'inactive') {
             if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Bạn không thể vô hiệu hóa tài khoản của chính mình.'], 400);
+                return response()->json(['success' => false, 'message' => 'You cannot deactivate your own account.'], 400);
             }
-            return redirect()->back()->withErrors('Bạn không thể vô hiệu hóa tài khoản của chính mình.');
+            return redirect()->back()->withErrors('You cannot deactivate your own account.');
         }
 
         $oldStatus = $user->status ?? 'active';
@@ -132,44 +126,47 @@ class UserController extends Controller
         $user->save();
 
         // Clear cache when user status is updated
-        \Cache::forget('users_list');
+        Cache::forget('users_list');
 
-        $statusText = $newStatus === 'active' ? 'Kích hoạt' : 'Vô hiệu hóa';
+        $statusText = $newStatus === 'active' ? 'Activated' : 'Deactivated';
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => "Đã cập nhật trạng thái của {$user->full_name} thành {$statusText}."
+                'message' => "Updated status of {$user->full_name} to {$statusText}."
             ]);
         }
 
         return redirect()->route('users.index')
-            ->with('success', "Đã cập nhật trạng thái của {$user->full_name} thành {$statusText}.");
+            ->with('success', "Updated status of {$user->full_name} to {$statusText}.");
     }
 
     /**
-     * Xóa người dùng (chỉ Admin)
+     * Delete a user (Admin only)
      */
     public function destroy($id)
     {
-        // Middleware đã kiểm tra quyền Admin
+        // Middleware already checks for Admin rights
 
         $user = User::findOrFail($id);
 
-        // Không cho phép xóa Admin
-        if ($user->isAdmin()) {
-            return redirect()->back()->withErrors('Không thể xóa tài khoản Admin.');
+        // Prevent deleting an Admin
+        if ($user->role === 'Admin') {
+            return redirect()->back()->withErrors('Cannot delete an Admin account.');
         }
 
-        // Không cho phép xóa chính mình
+        // Prevent deleting own account
         if ($user->user_id === Auth::id()) {
-            return redirect()->back()->withErrors('Bạn không thể xóa tài khoản của chính mình.');
+            return redirect()->back()->withErrors('You cannot delete your own account.');
         }
 
         $userName = $user->full_name;
         $user->delete();
 
+        // Clear cache when user is deleted
+        Cache::forget('users_list');
+
         return redirect()->route('users.index')
-            ->with('success', "Đã xóa người dùng {$userName}.");
+            ->with('success', "Deleted user {$userName}.");
     }
 }

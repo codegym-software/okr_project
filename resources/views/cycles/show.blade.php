@@ -347,13 +347,13 @@
             <div class="card-header">
                 <h3 class="card-header-title"><i class="bi bi-calendar3"></i> {{ $cycle->cycle_name }}</h3>
                 @php
-                    $statusClass = match($cycle->status) {
+                    $statusClass = match($cycle->is_active) {
                         'draft' => 'draft',
                         'active' => 'active',
                         'completed' => 'completed',
                         default => 'default'
                     };
-                    $statusIcon = match($cycle->status) {
+                    $statusIcon = match($cycle->is_active) {
                         'draft' => 'bi-pencil-square',
                         'active' => 'bi-play-circle',
                         'completed' => 'bi-check-circle',
@@ -393,22 +393,22 @@
                 <div class="objectives-wrapper">
                     @if($objectives->count() > 0)
                         @foreach($objectives as $objective)
-                            <div class="objective-card" data-objective-id="{{ $objective->objective_id }}">
+                            <div class="objective-card" data-objective-id="{{ $objective->obj_id }}">
                                 <div class="objective-icon">
                                     {{ strtoupper(substr($objective->obj_title, 0, 1)) }}
                                 </div>
                                 <div class="objective-content">
                                     <h6 class="objective-title">{{ $objective->obj_title }}</h6>
-                                    <p class="objective-desc">{{ $objective->description ?? 'Không có mô tả' }}</p>
+                                    <p class="objective-desc">{{ $objective->obj_desc ?? 'Không có mô tả' }}</p>
                                 </div>
-                                <a href="{{ route('key_results.create', ['objective' => $objective->objective_id]) }}" class="add-key-result-button">
+                                <a href="{{ route('key_results.create', ['objective' => $objective->obj_id]) }}" class="add-key-result-button">
                                     <i class="bi bi-plus-circle"></i> Thêm Key Result
                                 </a>
                             </div>
-                            <div class="key-results-wrapper hidden" id="key-results-{{ $objective->objective_id }}" style="margin-left: 2rem; margin-bottom: 0.5rem;">
+                            <div class="key-results-wrapper hidden" id="key-results-{{ $objective->obj_id }}" style="margin-left: 2rem; margin-bottom: 0.5rem;">
                                 @if($objective->keyResults->count() > 0)
                                     @foreach($objective->keyResults as $keyResult)
-                                        <a href="{{ route('key_results.show', ['objective' => $objective->objective_id, 'key_result' => $keyResult->kr_id]) }}"
+                                        <a href="{{ route('key_results.show', ['objective' => $objective->obj_id, 'key_result' => $keyResult->kr_id]) }}"
                                         class="key-result-card" style="display:block; text-decoration:none; color:inherit;">
                                             <div class="objective-content">
                                                 <h6 class="key-result-title">{{ $keyResult->kr_title }}</h6>

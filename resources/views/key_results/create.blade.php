@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title','Thêm Key Result')
+@section('title', 'Thêm Key Result')
 @section('content')
 <div class="container-kr">
 
@@ -16,13 +16,35 @@
         </div>
     @endif
 
-    <form action="{{ route('key_results.store', $objective->objective_id) }}" method="POST">
+    <form action="{{ route('key_results.store', $objective->obj_id) }}" method="POST">
         @csrf
-        <input type="hidden" name="cycle_id" value="{{ $objective->cycle_id }}">
 
         <div class="form-group">
             <label>Tên Key Result</label>
             <input type="text" name="kr_title" class="form-control" required>
+        </div>
+
+        <div class="form-group">
+            <label>Mô tả</label>
+            <textarea name="kr_desc" class="form-control" rows="4"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Loại chỉ số</label>
+            <select name="metric_type" class="form-control" required>
+                <option value="number">Số lượng</option>
+                <option value="percent">Phần trăm</option>
+                <option value="completion">Hoàn thành</option>
+                <option value="currency">Tiền tệ</option>
+                <option value="hours">Giờ</option>
+                <option value="items">Sản phẩm</option>
+                <option value="score">Điểm</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Đơn vị</label>
+            <input type="text" name="unit" class="form-control">
         </div>
 
         <div class="form-group">
@@ -36,36 +58,9 @@
         </div>
 
         <div class="form-group">
-            <label>Đơn vị</label>
-            <select name="unit" class="form-control" required>
-                <option value="number">Số lượng</option>
-                <option value="percent">Phần trăm</option>
-                <option value="completion">Hoàn thành</option>
-                <option value="currency">Tiền tệ</option>
-                <option value="hours">Giờ</option>
-                <option value="items">Sản phẩm</option>
-                <option value="score">Điểm</option>
-            </select>
-        </div>
-
-        <div class="form-group">
             <label>Trạng thái</label>
             <input type="text" name="status" class="form-control">
         </div>
-
-        <div class="form-group">
-            <label>Trọng số (%)</label>
-            <input type="number" name="weight" class="form-control" min="0" max="100">
-        </div>
-
-        {{-- <div class="form-group">
-            <label>Chu kỳ</label>
-            <select name="cycle_id" class="form-control" required>
-                @foreach($cycles as $cycle)
-                    <option value="{{ $cycle->cycle_id }}">{{ $cycle->name ?? 'Cycle '.$cycle->cycle_id }}</option>
-                @endforeach
-            </select>
-        </div> --}}
 
         <button type="submit" class="btn-success">Lưu</button>
         <a href="{{ session('back_url', url()->previous()) }}" class="btn-secondary">Hủy</a>

@@ -10,7 +10,7 @@
 <style>
     .user-detail-container {
         max-width: 900px;
-        margin: 0 auto;
+        /* margin: 0 250px 0 0; */
         padding: 20px;
         background: white;
         border-radius: 15px;
@@ -244,10 +244,10 @@
         @if(!empty($user->avatar_url))
             <img src="{{ $user->avatar_url }}" alt="Avatar" class="user-avatar-large">
         @else
-            <div class="user-avatar">{{ substr($user->full_name ?? $user->email, 0, 1) }}</div>
+            <div class="user-avatar">{{ substr($user->user_name ?? $user->email, 0, 1) }}</div>
         @endif
         <div class="user-basic-info">
-            <h1>{{ $user->full_name ?? 'Chưa cập nhật' }}</h1>
+            <h1>{{ $user->user_name ?? 'Chưa cập nhật' }}</h1>
             <p>{{ $user->email }}</p>
             <p>ID: {{ $user->user_id }}</p>
         </div>
@@ -264,7 +264,7 @@
             <h3>📋 Thông tin cá nhân</h3>
             <div class="info-item">
                 <span class="info-label">Họ tên:</span>
-                <span class="info-value">{{ $user->full_name ?? 'Chưa cập nhật' }}</span>
+                <span class="info-value">{{ $user->user_name ?? 'Chưa cập nhật' }}</span>
             </div>
             <div class="info-item">
                 <span class="info-label">Email:</span>
@@ -283,8 +283,8 @@
                 <span class="info-label">Vai trò:</span>
                 <span class="info-value">
                     @if($user->role)
-                        <span class="role-badge role-{{ strtolower($user->role->role_name) }}">
-                            {{ $user->role->role_name }}
+                        <span class="role-badge role-{{ strtolower($user->role) }}">
+                            {{ $user->role }}
                         </span>
                     @else
                         Chưa có vai trò
@@ -298,10 +298,6 @@
                         {{ $user->status === 'inactive' ? 'Vô hiệu hóa' : 'Kích hoạt' }}
                     </span>
                 </span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Phòng ban:</span>
-                <span class="info-value">{{ $user->department->department_name ?? 'Chưa phân công' }}</span>
             </div>
         </div>
 
@@ -364,7 +360,7 @@
         <div class="timeline-item">
             <div class="timeline-icon">🎭</div>
             <div class="timeline-content">
-                <div class="timeline-title">Được gán vai trò {{ $user->role->role_name }}</div>
+                <div class="timeline-title">Được gán vai trò {{ $user->role }}</div>
                 <div class="timeline-date">Thông tin hệ thống</div>
             </div>
         </div>

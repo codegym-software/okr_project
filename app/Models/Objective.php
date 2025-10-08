@@ -13,7 +13,7 @@ class Objective extends Model
      /**
      * The primary key associated with the table.
      */
-    protected $primaryKey = 'objective_id';
+    protected $primaryKey = 'obj_id';
 
     /**
      * The attributes that are mass assignable.
@@ -21,9 +21,9 @@ class Objective extends Model
     protected $fillable = [
         'obj_title',
         'level',
-        'description',
+        'ibj_desc',
         'status',
-        'progress_percent',
+        // 'progress_percent',
         'user_id',
         'cycle_id',
     ];
@@ -41,7 +41,7 @@ class Objective extends Model
      */
     public function keyResults(): HasMany
     {
-        return $this->hasMany(KeyResult::class, 'objective_id', 'objective_id');
+        return $this->hasMany(KeyResult::class, 'obj_id', 'obj_id');
     }
 
     // /**

@@ -50,7 +50,7 @@ class ObjectiveController extends Controller
         $level = $request->input('level', 'Cá nhân');
 
         // Xác định các level được phép tạo theo role_id
-        switch ($user->role_id) {
+        switch ($user->role) {
             case 1: // Admin
                 $allowedLevels = ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'];
                 break;
@@ -75,9 +75,9 @@ class ObjectiveController extends Controller
             // Objective
             'obj_title' => 'required|string|max:255',
             'level' => 'required|string|in:' . implode(',', $allowedLevels),
-            'description' => 'nullable|string|max:1000',
+            'obj_desc' => 'nullable|string|max:1000',
             'status' => 'required|in:draft,active,completed',
-            'progress_percent' => 'nullable|numeric|min:0|max:100',
+            // 'progress_percent' => 'nullable|numeric|min:0|max:100',
             'cycle_id' => 'nullable|integer|exists:cycles,cycle_id',
 
             // Key Results
@@ -96,10 +96,10 @@ class ObjectiveController extends Controller
             $objectiveData = [
                 'obj_title' => $validated['obj_title'],
                 'level' => $validated['level'],
-                'description' => $validated['description'],
+                'obj_desc' => $validated['obj_desc'],
                 'status' => $validated['status'],
-                'progress_percent' => $validated['progress_percent'] ?? 0,
-                'user_id' => Auth::id() ?? 2,
+                // 'progress_percent' => $validated['progress_percent'] ?? 0,
+                'owner_id' => Auth::id() ?? 2,
                 'cycle_id' => $validated['cycle_id'],
             ];
             $objective = Objective::create($objectiveData);
@@ -152,9 +152,9 @@ class ObjectiveController extends Controller
     {
         $validated = $request->validate([
             'title'       => 'required|string|max:255',
-            'description' => 'nullable|string|max:1000',
+            'obj_desc' => 'nullable|string|max:1000',
             'status'      => 'required|in:draft,active,completed',
-            'progress'    => 'nullable|numeric|min:0|max:100'
+            // 'progress'    => 'nullable|numeric|min:0|max:100'
         ]);
 
         $objective = Objective::findOrFail($id);

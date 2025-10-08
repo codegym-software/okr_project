@@ -193,18 +193,18 @@
                     <img src="{{$user->avatar_url }}" alt="Avatar" style="width:96px; height:96px; border-radius:50%; object-fit:cover; margin:0 auto;">
                 @elseif($user)
                     <div class="avatar">
-                        {{ substr($user->full_name ?? optional($user)->email, 0, 1) }}
+                        {{ substr($user->user_name ?? optional($user)->email, 0, 1) }}
                     </div>
                 @else
                     <div class="avatar">?</div>
                 @endif
-                <h3>{{$user->full_name ?? 'Chưa cập nhật' }}</h3>
+                <h3>{{$user->user_name ?? 'Chưa cập nhật' }}</h3>
                 <p>{{ $user->email ?? 'Không có email' }}</p>
             </div>
             <form action="{{ route('profile.update') }}" method="POST" enctype="multipart/form-data">
                 @csrf
-                <label for="full_name">Họ và tên</label>
-                <input type="text" id="full_name" name="full_name" value="{{ old('full_name', $user->full_name) }}" required>
+                <label for="user_name">Họ và tên</label>
+                <input type="text" id="user_name" name="user_name" value="{{ old('user_name', $user->user_name) }}" required>
                 <label for="avatar">Ảnh đại diện</label>
                 <input type="file" id="avatar" name="avatar" accept="image/*">
                 <span class="file-note">JPG, PNG, GIF tối đa 2MB</span>

@@ -18,7 +18,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'sub', 'email', 'full_name', 'phone', 'avatar_url', 'google_id', 'job_title', 'department_id', 'role_id', 'status'
+        'sub', 'email', 'user_name', 'avatar_url', 'google_id', 'team_id', 'role', 'status'
     ];
 
     protected $primaryKey = 'user_id';
@@ -46,13 +46,6 @@ class User extends Authenticatable
         ];
     }
 
-    /**
-     * Mối quan hệ với Role
-     */
-    public function role()
-    {
-        return $this->belongsTo(Role::class, 'role_id', 'role_id');
-    }
 
     /**
      * Mối quan hệ với Department
@@ -67,7 +60,7 @@ class User extends Authenticatable
      */
     public function isAdmin()
     {
-        return $this->role && $this->role->isAdmin();
+        return $this->role === 'Admin';
     }
 
     /**
@@ -75,7 +68,7 @@ class User extends Authenticatable
      */
     public function isManager()
     {
-        return $this->role && $this->role->isManager();
+        return $this->role === 'Manager';
     }
 
     /**
@@ -83,7 +76,7 @@ class User extends Authenticatable
      */
     public function isMember()
     {
-        return $this->role && $this->role->isMember();
+        return $this->role === 'Member';
     }
 
     /**

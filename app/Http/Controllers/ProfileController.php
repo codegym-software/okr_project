@@ -22,12 +22,12 @@ class ProfileController extends Controller
         $user = Auth::user();
 
         $request->validate([
-            'full_name' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         // Cập nhật thông tin cơ bản
-        $user->full_name = $request->full_name;
+        $user->user_name = $request->user_name;
 
         // Xử lý upload avatar
         if ($request->hasFile('avatar')) {
