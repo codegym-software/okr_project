@@ -121,13 +121,15 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         [KeyResultController::class, 'destroy']
     )->name('key_results.destroy');
 
-    Route::middleware(['auth'])->group(function () {
-        Route::get('/my-objectives', [MyObjectiveController::class, 'index'])->name('my-objectives.index');
-        Route::get('/my-objectives/create', [MyObjectiveController::class, 'create'])->name('my-objectives.create');
-        Route::post('/my-objectives', [MyObjectiveController::class, 'store'])->name('my-objectives.store');
-        Route::get('/my-objectives/{id}/edit', [MyObjectiveController::class, 'edit'])->name('my-objectives.edit');
-        Route::put('/my-objectives/{id}', [MyObjectiveController::class, 'update'])->name('my-objectives.update');
-        Route::delete('/my-objectives/{id}', [MyObjectiveController::class, 'destroy'])->name('my-objectives.destroy');
+    Route::prefix('my-objectives')->group(function () {
+        Route::get('/', [MyObjectiveController::class, 'index'])->name('my-objectives.index');
+        Route::get('/create', [MyObjectiveController::class, 'create'])->name('my-objectives.create');
+        Route::post('/store', [MyObjectiveController::class, 'store'])->name('my-objectives.store');
+        Route::get('/edit/{id}', [MyObjectiveController::class, 'edit'])->name('my-objectives.edit');
+        Route::put('/update/{id}', [MyObjectiveController::class, 'update'])->name('my-objectives.update');
+        Route::delete('/destroy/{id}', [MyObjectiveController::class, 'destroy'])->name('my-objectives.destroy');
+        Route::get('/details/{id}', [MyObjectiveController::class, 'getObjectiveDetails'])->name('my-objectives.details');
+        Route::get('/my-objectives/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])->name('my-objectives.key-result-details');
     });
 
     Route::prefix('my-key-results')->group(function () {

@@ -15,8 +15,26 @@
             </div>
         @endif
 
+        @if (session('errors'))
+            <div class="error-alert" role="alert">
+                <ul>
+                    @foreach (session('errors')->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        {{-- <div class="debug-info">
+            <p><strong>User ID:</strong> {{ Auth::user()->id }}</p>
+            <p><strong>Department ID:</strong> {{ Auth::user()->department_id }}</p>
+            <p><strong>Role:</strong> {{ Auth::user()->role->role_name }}</p>
+            <p><strong>Objectives Type:</strong> {{ get_class($objectives) }}</p>
+            <p><strong>Objectives Count:</strong> {{ is_countable($objectives) ? count($objectives) : 'Not countable' }}</p>
+        </div> --}}
+
         <div class="table-container">
-            @if ($objectives->isEmpty())
+            @if (empty($objectives) || (is_countable($objectives) && count($objectives) === 0))
                 <div class="empty-message">Không có OKR nào để hiển thị.</div>
             @else
                 <table>
@@ -27,13 +45,14 @@
                             <th>Trạng thái</th>
                             <th>Tiến độ (%)</th>
                             <th>Phòng ban</th>
+                            <th>Key Result cấp công ty</th>
                             <th>Hành động</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach ($objectives as $objective)
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <details>
                                         <summary>
                                             <div class="summary-row">
@@ -44,6 +63,7 @@
                                                 </span>
                                                 <span>{{ $objective->progress_percent }}%</span>
                                                 <span>{{ $objective->department->d_name ?? 'Chưa có' }}</span>
+                                                <span>{{ $objective->parentKeyResult->kr_title ?? 'Không liên kết' }}</span>
                                                 <span>
                                                     @if (Auth::user()->role->role_name === 'Admin' || (Auth::user()->role->role_name === 'Manager' && $objective->department_id === Auth::user()->department_id))
                                                         <a href="{{ route('my-objectives.edit', $objective->objective_id) }}">Sửa</a>
@@ -100,6 +120,19 @@
                                         @else
                                             <div class="empty-kr">Không có Key Result cho Objective này.</div>
                                         @endif
+                                        @if ($objective->parentKeyResult)
+                                            <div class="parent-key-result-details">
+                                                <h4>Key Result cấp công ty liên kết: {{ $objective->parentKeyResult->kr_title }}</h4>
+                                                <p><strong>Mục tiêu:</strong> {{ $objective->parentKeyResult->target_value }}</p>
+                                                <p><strong>Giá trị hiện tại:</strong> {{ $objective->parentKeyResult->current_value }}</p>
+                                                <p><strong>Đơn vị:</strong> {{ $objective->parentKeyResult->unit }}</p>
+                                                <p><strong>Trạng thái:</strong> {{ ucfirst($objective->parentKeyResult->status) }}</p>
+                                                <p><strong>Trọng số:</strong> {{ $objective->parentKeyResult->weight }}%</p>
+                                                <p><strong>Tiến độ:</strong> {{ $objective->parentKeyResult->progress_percent }}%</p>
+                                                <h4>Objective cấp công ty: {{ $objective->parentKeyResult->objective->obj_title }}</h4>
+                                                <p><strong>Mô tả:</strong> {{ $objective->parentKeyResult->objective->description ?? 'Không có' }}</p>
+                                            </div>
+                                        @endif
                                     </details>
                                 </td>
                             </tr>
@@ -107,10 +140,11 @@
                     </tbody>
                 </table>
             @endif
-        </div>
-
-        <div class="pagination">
-            {{ $objectives->links() }}
+            @if ($objectives instanceof \Illuminate\Pagination\LengthAwarePaginator)
+                <div class="pagination">
+                    {{ $objectives->links() }}
+                </div>
+            @endif
         </div>
     </div>
 @endsection
@@ -152,6 +186,22 @@
         border: 1px solid #68d391;
         color: #2f855a;
         padding: 0.75rem 1rem;
+        border-radius: 0.375rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .error-alert {
+        background-color: #fef2f2;
+        border: 1px solid #feb2b2;
+        color: #741a1a;
+        padding: 0.75rem 1rem;
+        border-radius: 0.375rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .debug-info {
+        background-color: #f9fafb;
+        padding: 1rem;
         border-radius: 0.375rem;
         margin-bottom: 1.5rem;
     }
@@ -276,9 +326,10 @@
         padding: 0.75rem 1rem;
     }
 
-    .kr-list {
+    .kr-list, .parent-key-result-details {
         padding: 1rem;
         background-color: #f9fafb;
+        margin-top: 1rem;
     }
 
     .kr-table {

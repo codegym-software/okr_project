@@ -27,6 +27,7 @@ class Objective extends Model
         'user_id',
         'cycle_id',
         'department_id',
+        'parent_key_result_id',
     ];
 
     /**
@@ -67,5 +68,12 @@ class Objective extends Model
     public function department(){
         return $this->belongsTo(Department::class, 'department_id', 'department_id');
     }
+
+    /**
+     * Get the parent key result that the objective belongs to.
+     */
+    public function parentKeyResult(){
+        return $this->belongsTo(KeyResult::class, 'parent_key_result_id', 'kr_id');
+    }   
 }
 

@@ -2,7 +2,7 @@
 
 @section('content')
     <div class="content-container">
-        <h1>Tạo OKR Cấp Phòng Ban</h1>
+        <h1 class="page-title">Tạo OKR Cấp Phòng Ban</h1>
 
         @if ($errors->any())
             <div class="error-alert" role="alert">
@@ -14,29 +14,45 @@
             </div>
         @endif
 
-        <form action="{{ route('my-objectives.store') }}" method="POST">
-            @csrf
-            <input type="hidden" name="level" value="Phòng ban">
+        @if (session('errors'))
+            <div class="error-alert" role="alert">
+                <ul>
+                    @foreach (session('errors')->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
 
+        <form action="{{ route('my-objectives.store') }}" method="POST" class="form-container">
+            @csrf
             <div class="form-grid">
                 <!-- Tiêu đề Objective -->
-                <div>
-                    <label for="obj_title">Tiêu đề Objective *</label>
-                    <input type="text" name="obj_title" id="obj_title" value="{{ old('obj_title') }}">
+                <div class="form-group">
+                    <label for="obj_title" class="form-label">Tiêu đề Objective *</label>
+                    <input type="text" name="obj_title" id="obj_title" value="{{ old('obj_title') }}" class="form-input">
                     @error('obj_title') <span class="error-message">{{ $message }}</span> @enderror
                 </div>
 
                 <!-- Mô tả -->
-                <div>
-                    <label for="description">Mô tả</label>
-                    <textarea name="description" id="description">{{ old('description') }}</textarea>
+                <div class="form-group">
+                    <label for="description" class="form-label">Mô tả</label>
+                    <textarea name="description" id="description" class="form-input form-textarea">{{ old('description') }}</textarea>
                     @error('description') <span class="error-message">{{ $message }}</span> @enderror
                 </div>
 
+                <!-- Cấp độ -->
+                <div class="form-group">
+                    <label for="level" class="form-label">Cấp Objective *</label>
+                    <input type="hidden" name="level" value="Phòng ban">
+                    <input type="text" value="Phòng ban" class="form-input" disabled>
+                    @error('level') <span class="error-message">{{ $message }}</span> @enderror
+                </div>
+
                 <!-- Trạng thái -->
-                <div>
-                    <label for="status">Trạng thái *</label>
-                    <select name="status" id="status">
+                <div class="form-group">
+                    <label for="status" class="form-label">Trạng thái *</label>
+                    <select name="status" id="status" class="form-input form-select">
                         <option value="draft" {{ old('status') == 'draft' ? 'selected' : '' }}>Bản nháp</option>
                         <option value="active" {{ old('status') == 'active' ? 'selected' : '' }}>Đang thực hiện</option>
                         <option value="completed" {{ old('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
@@ -45,16 +61,16 @@
                 </div>
 
                 <!-- Tiến độ -->
-                <div>
-                    <label for="progress_percent">Tiến độ (%)</label>
-                    <input type="number" name="progress_percent" id="progress_percent" value="{{ old('progress_percent') }}" min="0" max="100">
+                <div class="form-group">
+                    <label for="progress_percent" class="form-label">Tiến độ (%)</label>
+                    <input type="number" name="progress_percent" id="progress_percent" value="{{ old('progress_percent') }}" class="form-input" min="0" max="100">
                     @error('progress_percent') <span class="error-message">{{ $message }}</span> @enderror
                 </div>
 
                 <!-- Chu kỳ -->
-                <div>
-                    <label for="cycle_id">Chu kỳ *</label>
-                    <select name="cycle_id" id="cycle_id">
+                <div class="form-group">
+                    <label for="cycle_id" class="form-label">Chu kỳ *</label>
+                    <select name="cycle_id" id="cycle_id" class="form-input form-select">
                         <option value="">Chọn chu kỳ</option>
                         @foreach($cycles as $cycle)
                             <option value="{{ $cycle->cycle_id }}" {{ old('cycle_id') == $cycle->cycle_id ? 'selected' : '' }}>
@@ -66,10 +82,10 @@
                 </div>
 
                 <!-- Phòng ban -->
-                @if(Auth::user()->role->role_name === 'Admin')
-                    <div>
-                        <label for="department_id">Phòng ban *</label>
-                        <select name="department_id" id="department_id">
+                @if($user->role->role_name === 'Admin')
+                    <div class="form-group">
+                        <label for="department_id" class="form-label">Phòng ban *</label>
+                        <select name="department_id" id="department_id" class="form-input form-select">
                             <option value="">Chọn phòng ban</option>
                             @foreach($departments as $department)
                                 <option value="{{ $department->department_id }}" {{ old('department_id') == $department->department_id ? 'selected' : '' }}>
@@ -79,73 +95,97 @@
                         </select>
                         @error('department_id') <span class="error-message">{{ $message }}</span> @enderror
                     </div>
-                @elseif(Auth::user()->role->role_name === 'Manager')
-                    <div>
-                        <label for="department_id">Phòng ban *</label>
+                @elseif($user->role->role_name === 'Manager')
+                    <div class="form-group">
+                        <label for="department_id" class="form-label">Phòng ban *</label>
                         <input type="hidden" name="department_id" value="{{ $departments[0]->department_id }}">
-                        <input type="text" value="{{ $departments[0]->d_name }}" disabled>
+                        <input type="text" value="{{ $departments[0]->d_name }}" class="form-input" disabled>
                         @error('department_id') <span class="error-message">{{ $message }}</span> @enderror
                     </div>
                 @endif
-            </div>
 
-            <!-- Key Results -->
-            <div class="kr-section">
-                <h2>Key Results</h2>
-                <div id="kr-container">
-                    <div class="kr-item">
-                        <div class="form-grid">
-                            <div>
-                                <label>Tiêu đề Key Result *</label>
-                                <input type="text" name="key_results[0][kr_title]" value="{{ old('key_results.0.kr_title') }}">
+                <!-- Key Result cấp công ty -->
+                <div class="form-group">
+                    <label for="parent_key_result_id" class="form-label">Liên kết Key Result cấp công ty</label>
+                    <select name="parent_key_result_id" id="parent_key_result_id" class="form-input form-select">
+                        <option value="">Không liên kết</option>
+                        @foreach($companyKeyResults as $keyResult)
+                            <option value="{{ $keyResult->kr_id }}" {{ old('parent_key_result_id') == $keyResult->kr_id ? 'selected' : '' }}>
+                                {{ $keyResult->kr_title }} (Objective: {{ $keyResult->objective->obj_title }})
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('parent_key_result_id') <span class="error-message">{{ $message }}</span> @enderror
+                </div>
+
+                <!-- Chi tiết Key Result cấp công ty -->
+                <div id="company-key-result-details" style="display: none;">
+                    <h3>Chi tiết Key Result cấp công ty</h3>
+                    <p><strong>Tiêu đề Key Result:</strong> <span id="company-kr-title"></span></p>
+                    <p><strong>Mục tiêu:</strong> <span id="company-kr-target"></span></p>
+                    <p><strong>Giá trị hiện tại:</strong> <span id="company-kr-current"></span></p>
+                    <p><strong>Đơn vị:</strong> <span id="company-kr-unit"></span></p>
+                    <p><strong>Trạng thái:</strong> <span id="company-kr-status"></span></p>
+                    <p><strong>Trọng số:</strong> <span id="company-kr-weight"></span></p>
+                    <p><strong>Tiến độ:</strong> <span id="company-kr-progress"></span></p>
+                    <h4>Objective cấp công ty liên kết</h4>
+                    <p><strong>Tiêu đề:</strong> <span id="company-obj-title"></span></p>
+                    <p><strong>Mô tả:</strong> <span id="company-obj-description"></span></p>
+                </div>
+
+                <!-- Key Results -->
+                <div class="form-group full-width">
+                    <label class="form-label">Key Results *</label>
+                    <div id="key-results-container">
+                        <div class="key-result-group">
+                            <div class="form-group">
+                                <label for="key_results[0][kr_title]" class="form-label">Tiêu đề Key Result *</label>
+                                <input type="text" name="key_results[0][kr_title]" class="form-input">
                                 @error('key_results.0.kr_title') <span class="error-message">{{ $message }}</span> @enderror
                             </div>
-                            <div>
-                                <label>Mục tiêu *</label>
-                                <input type="number" name="key_results[0][target_value]" value="{{ old('key_results.0.target_value') }}" step="0.01">
+                            <div class="form-group">
+                                <label for="key_results[0][target_value]" class="form-label">Mục tiêu *</label>
+                                <input type="number" name="key_results[0][target_value]" class="form-input">
                                 @error('key_results.0.target_value') <span class="error-message">{{ $message }}</span> @enderror
                             </div>
-                            <div>
-                                <label>Giá trị hiện tại *</label>
-                                <input type="number" name="key_results[0][current_value]" value="{{ old('key_results.0.current_value') }}" step="0.01">
+                            <div class="form-group">
+                                <label for="key_results[0][current_value]" class="form-label">Giá trị hiện tại *</label>
+                                <input type="number" name="key_results[0][current_value]" class="form-input">
                                 @error('key_results.0.current_value') <span class="error-message">{{ $message }}</span> @enderror
                             </div>
-                            <div>
-                                <label>Đơn vị *</label>
-                                <input type="text" name="key_results[0][unit]" value="{{ old('key_results.0.unit') }}">
+                            <div class="form-group">
+                                <label for="key_results[0][unit]" class="form-label">Đơn vị *</label>
+                                <input type="text" name="key_results[0][unit]" class="form-input">
                                 @error('key_results.0.unit') <span class="error-message">{{ $message }}</span> @enderror
                             </div>
-                            <div>
-                                <label>Trạng thái *</label>
-                                <select name="key_results[0][status]">
-                                    <option value="draft" {{ old('key_results.0.status') == 'draft' ? 'selected' : '' }}>Bản nháp</option>
-                                    <option value="active" {{ old('key_results.0.status') == 'active' ? 'selected' : '' }}>Đang thực hiện</option>
-                                    <option value="completed" {{ old('key_results.0.status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
+                            <div class="form-group">
+                                <label for="key_results[0][status]" class="form-label">Trạng thái *</label>
+                                <select name="key_results[0][status]" class="form-input form-select">
+                                    <option value="draft">Bản nháp</option>
+                                    <option value="active">Đang thực hiện</option>
+                                    <option value="completed">Hoàn thành</option>
                                 </select>
                                 @error('key_results.0.status') <span class="error-message">{{ $message }}</span> @enderror
                             </div>
-                            <div>
-                                <label>Trọng số (%)*</label>
-                                <input type="number" name="key_results[0][weight]" value="{{ old('key_results.0.weight') }}" min="0" max="100">
+                            <div class="form-group">
+                                <label for="key_results[0][weight]" class="form-label">Trọng số (%)*</label>
+                                <input type="number" name="key_results[0][weight]" class="form-input" min="0" max="100">
                                 @error('key_results.0.weight') <span class="error-message">{{ $message }}</span> @enderror
                             </div>
-                            <div>
-                                <label>Tiến độ (%)</label>
-                                <input type="number" name="key_results[0][progress_percent]" value="{{ old('key_results.0.progress_percent') }}" min="0" max="100">
+                            <div class="form-group">
+                                <label for="key_results[0][progress_percent]" class="form-label">Tiến độ (%)</label>
+                                <input type="number" name="key_results[0][progress_percent]" class="form-input" min="0" max="100">
                                 @error('key_results.0.progress_percent') <span class="error-message">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <button type="button" class="remove-kr">Xóa</button>
                             </div>
                         </div>
                     </div>
+                    @error('key_results') <span class="error-message">{{ $message }}</span> @enderror
                 </div>
-                <button type="button" id="add-kr">Thêm Key Result</button>
             </div>
 
             <div class="form-actions">
-                <button type="submit">Lưu OKR</button>
-                <a href="{{ route('my-objectives.index') }}">Hủy</a>
+                <button type="submit" class="submit-btn">Tạo Objective</button>
+                <a href="{{ route('my-objectives.index') }}" class="cancel-link">Hủy</a>
             </div>
         </form>
     </div>
@@ -158,7 +198,7 @@
         padding: 1.5rem;
     }
 
-    .content-container h1 {
+    .page-title {
         font-size: 1.5rem;
         font-weight: bold;
         margin-bottom: 1.5rem;
@@ -173,6 +213,13 @@
         margin-bottom: 1.5rem;
     }
 
+    .form-container {
+        background-color: white;
+        padding: 1.5rem;
+        border-radius: 0.375rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
     .form-grid {
         display: grid;
         grid-template-columns: 1fr;
@@ -185,20 +232,20 @@
         }
     }
 
-    .form-grid div {
+    .form-group {
         display: block;
     }
 
-    .form-grid label {
+    .form-label {
         display: block;
         font-size: 0.875rem;
         font-weight: medium;
         color: #4a5568;
     }
 
-    .form-grid input,
-    .form-grid textarea,
-    .form-grid select {
+    .form-input,
+    .form-select,
+    .form-textarea {
         margin-top: 0.25rem;
         display: block;
         width: 100%;
@@ -209,63 +256,40 @@
         transition: border-color 0.15s, box-shadow 0.15s;
     }
 
-    .form-grid input:disabled {
+    .form-input:disabled {
         background-color: #f7fafc;
         cursor: not-allowed;
     }
 
-    .form-grid input:focus,
-    .form-grid textarea:focus,
-    .form-grid select:focus {
+    .form-textarea {
+        height: 100px;
+        resize: vertical;
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
         border-color: #667eea;
         box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5);
     }
 
-    .kr-section {
-        margin-top: 2rem;
+    .form-input:blur,
+    .form-select:blur,
+    .form-textarea:blur {
+        border-color: #e2e8f0;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
 
-    .kr-section h2 {
-        font-size: 1.25rem;
-        font-weight: bold;
-        margin-bottom: 1rem;
-    }
-
-    .kr-item {
-        border: 1px solid #e2e8f0;
-        padding: 1rem;
-        border-radius: 0.375rem;
-        margin-bottom: 1rem;
-    }
-
-    #add-kr {
-        background-color: #4c51bf;
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 0.375rem;
-        margin-bottom: 1rem;
-    }
-
-    #add-kr:hover {
-        background-color: #434190;
-    }
-
-    .remove-kr {
-        background-color: #e53e3e;
-        color: white;
-        padding: 0.25rem 0.5rem;
-        border-radius: 0.375rem;
-    }
-
-    .remove-kr:hover {
-        background-color: #c53030;
+    .error-message {
+        color: #e53e3e;
+        font-size: 0.75rem;
     }
 
     .form-actions {
         margin-top: 1.5rem;
     }
 
-    .form-actions button {
+    .submit-btn {
         background-color: #38a169;
         color: white;
         padding: 0.5rem 1rem;
@@ -273,80 +297,167 @@
         transition: background-color 0.2s;
     }
 
-    .form-actions button:hover {
+    .submit-btn:hover {
         background-color: #2f855a;
     }
 
-    .form-actions a {
+    .cancel-link {
         margin-left: 1rem;
         color: #718096;
         text-decoration: none;
         transition: color 0.2s;
     }
 
-    .form-actions a:hover {
+    .cancel-link:hover {
         color: #4a5568;
+    }
+
+    .add-btn {
+        background-color: #4c51bf;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        margin-top: 1rem;
+        transition: background-color 0.2s;
+    }
+
+    .add-btn:hover {
+        background-color: #434190;
+    }
+
+    .remove-key-result {
+        background-color: #e53e3e;
+        color: white;
+        padding: 0.5rem;
+        border-radius: 0.375rem;
+        margin-top: 1rem;
+    }
+
+    .remove-key-result:hover {
+        background-color: #c53030;
+    }
+
+    .key-result-group {
+        border: 1px solid #e2e8f0;
+        padding: 1rem;
+        border-radius: 0.375rem;
+        margin-bottom: 1rem;
+    }
+
+    .full-width {
+        grid-column: 1 / -1;
+    }
+
+    #company-key-result-details {
+        margin-top: 1rem;
+        padding: 1rem;
+        background-color: #f9fafb;
+        border-radius: 0.375rem;
     }
 </style>
 
 <script>
-    document.getElementById('add-kr').addEventListener('click', function() {
-        const container = document.getElementById('kr-container');
-        const count = container.children.length;
-        const krItem = document.createElement('div');
-        krItem.className = 'kr-item';
-        krItem.innerHTML = `
-            <div class="form-grid">
-                <div>
-                    <label>Tiêu đề Key Result *</label>
-                    <input type="text" name="key_results[${count}][kr_title]" value="">
-                    @error('key_results.${count}.kr_title') <span class="error-message">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label>Mục tiêu *</label>
-                    <input type="number" name="key_results[${count}][target_value]" value="" step="0.01">
-                    @error('key_results.${count}.target_value') <span class="error-message">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label>Giá trị hiện tại *</label>
-                    <input type="number" name="key_results[${count}][current_value]" value="" step="0.01">
-                    @error('key_results.${count}.current_value') <span class="error-message">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label>Đơn vị *</label>
-                    <input type="text" name="key_results[${count}][unit]" value="">
-                    @error('key_results.${count}.unit') <span class="error-message">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label>Trạng thái *</label>
-                    <select name="key_results[${count}][status]">
-                        <option value="draft">Bản nháp</option>
-                        <option value="active">Đang thực hiện</option>
-                        <option value="completed">Hoàn thành</option>
-                    </select>
-                    @error('key_results.${count}.status') <span class="error-message">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label>Trọng số (%)*</label>
-                    <input type="number" name="key_results[${count}][weight]" value="" min="0" max="100">
-                    @error('key_results.${count}.weight') <span class="error-message">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label>Tiến độ (%)</label>
-                    <input type="number" name="key_results[${count}][progress_percent]" value="" min="0" max="100">
-                    @error('key_results.${count}.progress_percent') <span class="error-message">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <button type="button" class="remove-kr">Xóa</button>
-                </div>
+    document.getElementById('parent_key_result_id').addEventListener('change', function() {
+        const keyResultId = this.value;
+        const detailsContainer = document.getElementById('company-key-result-details');
+        const krTitleSpan = document.getElementById('company-kr-title');
+        const krTargetSpan = document.getElementById('company-kr-target');
+        const krCurrentSpan = document.getElementById('company-kr-current');
+        const krUnitSpan = document.getElementById('company-kr-unit');
+        const krStatusSpan = document.getElementById('company-kr-status');
+        const krWeightSpan = document.getElementById('company-kr-weight');
+        const krProgressSpan = document.getElementById('company-kr-progress');
+        const objTitleSpan = document.getElementById('company-obj-title');
+        const objDescriptionSpan = document.getElementById('company-obj-description');
+
+        if (!keyResultId) {
+            detailsContainer.style.display = 'none';
+            krTitleSpan.textContent = '';
+            krTargetSpan.textContent = '';
+            krCurrentSpan.textContent = '';
+            krUnitSpan.textContent = '';
+            krStatusSpan.textContent = '';
+            krWeightSpan.textContent = '';
+            krProgressSpan.textContent = '';
+            objTitleSpan.textContent = '';
+            objDescriptionSpan.textContent = '';
+            return;
+        }
+
+        fetch(`/my-objectives/key-result-details/${keyResultId}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            krTitleSpan.textContent = data.kr_title;
+            krTargetSpan.textContent = data.target_value;
+            krCurrentSpan.textContent = data.current_value;
+            krUnitSpan.textContent = data.unit;
+            krStatusSpan.textContent = data.status;
+            krWeightSpan.textContent = data.weight + '%';
+            krProgressSpan.textContent = data.progress_percent + '%';
+            objTitleSpan.textContent = data.objective_title;
+            objDescriptionSpan.textContent = data.objective_description || 'Không có mô tả';
+            detailsContainer.style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            detailsContainer.style.display = 'none';
+            alert('Không thể tải chi tiết Key Result cấp công ty.');
+        });
+    });
+
+    let krIndex = 1;
+    document.getElementById('add-key-result').addEventListener('click', function() {
+        const container = document.getElementById('key-results-container');
+        const newKrGroup = document.createElement('div');
+        newKrGroup.className = 'key-result-group';
+        newKrGroup.innerHTML = `
+            <div class="form-group">
+                <label for="key_results[${krIndex}][kr_title]" class="form-label">Tiêu đề Key Result *</label>
+                <input type="text" name="key_results[${krIndex}][kr_title]" class="form-input">
             </div>
+            <div class="form-group">
+                <label for="key_results[${krIndex}][target_value]" class="form-label">Mục tiêu *</label>
+                <input type="number" name="key_results[${krIndex}][target_value]" class="form-input">
+            </div>
+            <div class="form-group">
+                <label for="key_results[${krIndex}][current_value]" class="form-label">Giá trị hiện tại *</label>
+                <input type="number" name="key_results[${krIndex}][current_value]" class="form-input">
+            </div>
+            <div class="form-group">
+                <label for="key_results[${krIndex}][unit]" class="form-label">Đơn vị *</label>
+                <input type="text" name="key_results[${krIndex}][unit]" class="form-input">
+            </div>
+            <div class="form-group">
+                <label for="key_results[${krIndex}][status]" class="form-label">Trạng thái *</label>
+                <select name="key_results[${krIndex}][status]" class="form-input form-select">
+                    <option value="draft">Bản nháp</option>
+                    <option value="active">Đang thực hiện</option>
+                    <option value="completed">Hoàn thành</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="key_results[${krIndex}][weight]" class="form-label">Trọng số (%)*</label>
+                <input type="number" name="key_results[${krIndex}][weight]" class="form-input" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label for="key_results[${krIndex}][progress_percent]" class="form-label">Tiến độ (%)</label>
+                <input type="number" name="key_results[${krIndex}][progress_percent]" class="form-input" min="0" max="100">
+            </div>
+            <button type="button" class="remove-key-result">Xóa</button>
         `;
-        container.appendChild(krItem);
+        container.appendChild(newKrGroup);
+        krIndex++;
     });
 
     document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('remove-kr')) {
-            e.target.closest('.kr-item').remove();
+        if (e.target.classList.contains('remove-key-result')) {
+            e.target.parentElement.remove();
         }
     });
 </script>
