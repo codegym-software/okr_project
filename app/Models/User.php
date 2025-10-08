@@ -18,7 +18,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'sub', 'email', 'full_name', 'phone', 'avatar_url', 'google_id', 'job_title', 'department_id', 'role_id', 'status'
+        'sub', 'email', 'full_name', 'phone', 'avatar_url', 'google_id', 'job_title', 'department_id', 'role_id', 'status', 'password_hash'
     ];
 
     protected $primaryKey = 'user_id';
@@ -29,7 +29,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $hidden = [
-        'password',
+        'password_hash',
         'remember_token',
     ];
 
@@ -42,7 +42,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password_hash' => 'hashed',
         ];
     }
 
@@ -100,6 +100,14 @@ class User extends Authenticatable
     public function canManageUsers()
     {
         return $this->isAdmin();
+    }
+
+    /**
+     * Xác thực password cho local authentication
+     */
+    public function validatePassword($password)
+    {
+        return $this->password_hash && \Hash::check($password, $this->password_hash);
     }
 
 }

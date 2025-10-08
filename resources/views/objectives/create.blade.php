@@ -340,6 +340,118 @@
     margin-bottom: 1.5rem;
 }
 
+/* Key result item */
+.key-result-item {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+.dark .key-result-item {
+    background: #1f2937;
+    border-color: #374151;
+}
+
+/* Key result header */
+.key-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.key-result-number {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.875rem;
+}
+.dark .key-result-number {
+    color: #d1d5db;
+}
+
+.remove-key-result {
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+.remove-key-result:hover {
+    background: #dc2626;
+}
+
+/* Key result fields grid */
+.key-result-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.key-result-fields.full-width {
+    grid-template-columns: 1fr;
+}
+
+/* Key result field */
+.key-result-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.key-result-field label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.25rem;
+}
+.dark .key-result-field label {
+    color: #d1d5db;
+}
+
+.key-result-field input,
+.key-result-field select {
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    transition: border-color 0.2s ease;
+}
+.dark .key-result-field input,
+.dark .key-result-field select {
+    background: #374151;
+    border-color: #4b5563;
+    color: #e5e7eb;
+}
+
+.key-result-field input:focus,
+.key-result-field select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px #dbeafe;
+}
+.dark .key-result-field input:focus,
+.dark .key-result-field select:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 2px #1e40af;
+}
+
+/* Key result description */
+.key-result-description {
+    grid-column: 1 / -1;
+}
+
+/* Key result weight and progress */
+.key-result-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.75rem;
+}
+
 /* Form buttons – replaces .flex.justify-end.space-x-4.mt-8 */
 .form-buttons {
     display: flex;
@@ -389,6 +501,68 @@
 .dark .submit-button:hover {
     background: linear-gradient(to right, #1e3a8a, #312e81);
 }
+
+/* Relative positioning for input icons */
+.relative {
+    position: relative;
+}
+
+.absolute {
+    position: absolute;
+}
+
+.inset-y-0 {
+    top: 0;
+    bottom: 0;
+}
+
+.right-0 {
+    right: 0;
+}
+
+.pr-3 {
+    padding-right: 0.75rem;
+}
+
+.flex {
+    display: flex;
+}
+
+.items-center {
+    align-items: center;
+}
+
+.pointer-events-none {
+    pointer-events: none;
+}
+
+/* Info text styling */
+.text-sm {
+    font-size: 0.875rem;
+}
+
+.text-gray-600 {
+    color: #4b5563;
+}
+
+.mt-1 {
+    margin-top: 0.25rem;
+}
+
+.dark .text-gray-600 {
+    color: #9ca3af;
+}
+
+/* Readonly input styling */
+.form-input[readonly] {
+    background-color: #f3f4f6;
+    cursor: not-allowed;
+    color: #6b7280;
+}
+.dark .form-input[readonly] {
+    background-color: #374151;
+    color: #9ca3af;
+}
 </style>
 
 <div class="objective-container">
@@ -437,7 +611,6 @@
 
                 <form action="{{ route('objectives.store') }}" method="POST" class="form-group">
                     @csrf
-                    <input type="hidden" name="cycle_id" value="{{ $cycle_id }}">
 
                     <!-- Objective Title -->
                     <div class="input-group">
@@ -488,11 +661,12 @@
                         @enderror
                     </div>
 
-                    <!-- Chọn level cho OKR -->
+                    <!-- Level -->
                     <div class="input-group">
-                        <label for="level" class="form-label">Cấp OKR</label>
+                        <label for="level" class="form-label">Cấp OKR <span class="required-asterisk">*</span></label>
                         <div class="relative">
-                            <select id="level" name="level" autocomplete="level-name" class="form-select" required>
+                            <select id="level" name="level" class="form-select @error('level') error @enderror" required>
+                                <option value="">Chọn cấp độ OKR</option>
                                 @foreach($allowedLevels as $level)
                                     <option value="{{ $level }}" {{ old('level') == $level ? 'selected' : '' }}>
                                         {{ $level }}
@@ -500,12 +674,74 @@
                                 @endforeach
                             </select>
                         </div>
-                        @if(Auth::user()->isMember())
-                            <p class="text-sm text-gray-600 mt-1">
-                                <i class="fas fa-info-circle"></i>
-                                Bạn chỉ có thể tạo OKR cấp cá nhân. Để tạo OKR cấp công ty/phòng ban, vui lòng liên hệ Admin.
+                        @error('level')
+                            <p class="error-text flex items-center">
+                                <svg class="error-icon" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                {{ $message }}
                             </p>
-                        @endif
+                        @enderror
+                    </div>
+
+                    <!-- Department (only for Manager/Admin) -->
+                    @if($departments->count() > 0)
+                    <div class="input-group" id="department-group" style="display: none;">
+                        <label for="department_id" class="form-label">Phòng ban <span class="required-asterisk">*</span></label>
+                        <div class="relative">
+                            @if(Auth::user()->isManager())
+                                <!-- Manager chỉ thấy phòng ban của mình -->
+                                <input type="hidden" name="department_id" value="{{ $userDepartment?->department_id }}">
+                                <input type="text" 
+                                       value="{{ $userDepartment?->d_name ?? 'Chưa được phân công phòng ban' }}" 
+                                       class="form-input bg-gray-100 cursor-not-allowed" 
+                                       readonly>
+                            @else
+                                <!-- Admin có thể chọn bất kỳ phòng ban nào -->
+                                <select id="department_id" name="department_id" class="form-select @error('department_id') error @enderror">
+                                    <option value="">Chọn phòng ban</option>
+                                    @foreach($departments as $department)
+                                        <option value="{{ $department->department_id }}" 
+                                                {{ old('department_id') == $department->department_id ? 'selected' : '' }}>
+                                            {{ $department->d_name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            @endif
+                        </div>
+                        @error('department_id')
+                            <p class="error-text flex items-center">
+                                <svg class="error-icon" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                {{ $message }}
+                            </p>
+                        @enderror
+                    </div>
+                    @endif
+
+                    <!-- Cycle -->
+                    <div class="input-group">
+                        <label for="cycle_id" class="form-label">Chu kỳ OKR <span class="required-asterisk">*</span></label>
+                        <div class="relative">
+                            <select id="cycle_id" name="cycle_id" class="form-select @error('cycle_id') error @enderror" required>
+                                <option value="">Chọn chu kỳ OKR</option>
+                                @foreach($cycles as $cycle)
+                                    <option value="{{ $cycle->cycle_id }}" 
+                                            {{ old('cycle_id', $cycle_id) == $cycle->cycle_id ? 'selected' : '' }}>
+                                        {{ $cycle->cycle_name }} ({{ $cycle->start_date->format('d/m/Y') }} - {{ $cycle->end_date->format('d/m/Y') }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        @error('cycle_id')
+                            <p class="error-text flex items-center">
+                                <svg class="error-icon" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
 
                     <!-- Status -->
@@ -550,9 +786,40 @@
                         @enderror
                     </div>
 
+                    <!-- Key Results Section (only for Department level) -->
+                    <div class="input-group" id="key-results-section" style="display: none;">
+                        <div class="key-results-header">
+                            <h3 class="key-results-title">Key Results <span class="required-asterisk">*</span></h3>
+                            <button type="button" id="add-key-result" class="add-key-result-btn">
+                                <svg class="add-key-result-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                </svg>
+                                Add Key Result
+                            </button>
+                        </div>
+                        
+                        <div id="key-results-container" class="key-results-container">
+                            <!-- Key Results will be added here dynamically -->
+                        </div>
+                        
+                        @error('key_results')
+                            <p class="error-text flex items-center">
+                                <svg class="error-icon" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                {{ $message }}
+                            </p>
+                        @enderror
+                        
+                        <div class="text-sm text-gray-600 mt-2">
+                            <i class="fas fa-info-circle"></i>
+                            OKR cấp phòng ban cần ít nhất một Key Result để đo lường tiến độ.
+                        </div>
+                    </div>
+
                     <!-- Submit Button -->
                     <div class="form-buttons">
-                        <a href="{{ route('cycles.show', $cycle_id) }}"
+                        <a href="{{ route('objectives.index') }}"
                            class="cancel-button">
                             Cancel
                         </a>
@@ -566,4 +833,134 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const levelSelect = document.getElementById('level');
+    const departmentGroup = document.getElementById('department-group');
+    const departmentSelect = document.getElementById('department_id');
+    const keyResultsSection = document.getElementById('key-results-section');
+    const keyResultsContainer = document.getElementById('key-results-container');
+    const addKeyResultBtn = document.getElementById('add-key-result');
+    
+    let keyResultCount = 0;
+
+    function toggleDepartmentGroup() {
+        if (levelSelect.value === 'Phòng ban') {
+            departmentGroup.style.display = 'block';
+            if (departmentSelect) {
+                departmentSelect.required = true;
+            }
+            keyResultsSection.style.display = 'block';
+        } else {
+            departmentGroup.style.display = 'none';
+            if (departmentSelect) {
+                departmentSelect.required = false;
+                departmentSelect.value = '';
+            }
+            keyResultsSection.style.display = 'none';
+            // Clear key results when not department level
+            keyResultsContainer.innerHTML = '';
+            keyResultCount = 0;
+        }
+    }
+
+    function addKeyResult() {
+        keyResultCount++;
+        const keyResultHtml = `
+            <div class="key-result-item" data-index="${keyResultCount}">
+                <div class="key-result-header">
+                    <span class="key-result-number">Key Result ${keyResultCount}</span>
+                    <button type="button" class="remove-key-result" onclick="removeKeyResult(${keyResultCount})">
+                        Remove
+                    </button>
+                </div>
+                <div class="key-result-fields">
+                    <div class="key-result-field">
+                        <label>Title <span class="required-asterisk">*</span></label>
+                        <input type="text" name="key_results[${keyResultCount}][kr_title]" required 
+                               placeholder="Enter key result title">
+                    </div>
+                    <div class="key-result-field">
+                        <label>Unit <span class="required-asterisk">*</span></label>
+                        <input type="text" name="key_results[${keyResultCount}][unit]" required 
+                               placeholder="e.g., %, $, items">
+                    </div>
+                </div>
+                <div class="key-result-fields">
+                    <div class="key-result-field">
+                        <label>Target Value <span class="required-asterisk">*</span></label>
+                        <input type="number" name="key_results[${keyResultCount}][target_value]" required 
+                               min="0" step="0.01" placeholder="100">
+                    </div>
+                    <div class="key-result-field">
+                        <label>Current Value</label>
+                        <input type="number" name="key_results[${keyResultCount}][current_value]" 
+                               min="0" step="0.01" placeholder="0" value="0">
+                    </div>
+                </div>
+                <div class="key-result-fields full-width">
+                    <div class="key-result-field key-result-description">
+                        <label>Description</label>
+                        <input type="text" name="key_results[${keyResultCount}][description]" 
+                               placeholder="Optional description">
+                    </div>
+                </div>
+                <div class="key-result-fields">
+                    <div class="key-result-field">
+                        <label>Status</label>
+                        <select name="key_results[${keyResultCount}][status]">
+                            <option value="not_started">Not Started</option>
+                            <option value="in_progress" selected>In Progress</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </div>
+                    <div class="key-result-field">
+                        <label>Weight (%)</label>
+                        <input type="number" name="key_results[${keyResultCount}][weight]" 
+                               min="0" max="100" step="1" placeholder="0" value="0">
+                    </div>
+                    <div class="key-result-field">
+                        <label>Progress (%)</label>
+                        <input type="number" name="key_results[${keyResultCount}][progress_percent]" 
+                               min="0" max="100" step="0.01" placeholder="0" value="0">
+                    </div>
+                </div>
+            </div>
+        `;
+        keyResultsContainer.insertAdjacentHTML('beforeend', keyResultHtml);
+    }
+
+    function removeKeyResult(index) {
+        const keyResultItem = document.querySelector(`[data-index="${index}"]`);
+        if (keyResultItem) {
+            keyResultItem.remove();
+        }
+    }
+
+    // Make removeKeyResult globally available
+    window.removeKeyResult = removeKeyResult;
+
+    // Add key result button event
+    addKeyResultBtn.addEventListener('click', addKeyResult);
+
+    // Initial check
+    toggleDepartmentGroup();
+
+    // Listen for changes
+    levelSelect.addEventListener('change', toggleDepartmentGroup);
+
+    // Form validation
+    document.querySelector('form').addEventListener('submit', function(e) {
+        if (levelSelect.value === 'Phòng ban') {
+            const keyResults = keyResultsContainer.querySelectorAll('.key-result-item');
+            if (keyResults.length === 0) {
+                e.preventDefault();
+                alert('OKR cấp phòng ban cần ít nhất một Key Result.');
+                return false;
+            }
+        }
+    });
+});
+</script>
 @endsection

@@ -35,4 +35,22 @@ class KeyResult extends Model
     {
         return $this->belongsTo(Cycle::class, 'cycle_id', 'cycle_id');
     }
+
+    /**
+     * Get the progress percentage attribute.
+     */
+    public function getProgressPercentAttribute()
+    {
+        // Nếu có progress_percent trong database, sử dụng nó
+        if (isset($this->attributes['progress_percent']) && $this->attributes['progress_percent'] !== null) {
+            return $this->attributes['progress_percent'];
+        }
+
+        // Tính toán dựa trên current_value và target_value
+        if ($this->target_value > 0) {
+            return min(100, max(0, ($this->current_value / $this->target_value) * 100));
+        }
+
+        return 0;
+    }
 }

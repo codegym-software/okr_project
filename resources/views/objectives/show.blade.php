@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', '{{ $objective->title }} - CodeGym OKR')
+@section('title', $objective->obj_title . ' - CodeGym OKR')
 
 @section('content')
 <style>
@@ -369,7 +369,7 @@
     <div class="objective-column">
         <div class="objective-card">
             <div class="card-header">
-                <h3 class="card-header-title"><i class="bi bi-eye"></i> {{ $objective->title }}</h3>
+                <h3 class="card-header-title"><i class="bi bi-eye"></i> {{ $objective->obj_title }}</h3>
                 @php
                     $statusClass = match($objective->status) {
                         'draft' => 'draft',
@@ -406,11 +406,33 @@
                             <span>{{ $objective->description }}</span>
                         </div>
                     @endif
+                    <div class="objective-info-item">
+                        <strong>Owner:</strong>
+                        <span>{{ $objective->user->full_name ?? 'No owner' }}</span>
+                    </div>
+                    <div class="objective-info-item">
+                        <strong>Level:</strong>
+                        <span>{{ $objective->level }}</span>
+                    </div>
+                    <div class="objective-info-item">
+                        <strong>Cycle:</strong>
+                        <span>{{ $objective->cycle->cycle_name ?? 'No cycle' }}</span>
+                    </div>
+                    @if($objective->department)
+                    <div class="objective-info-item">
+                        <strong>Department:</strong>
+                        <span>{{ $objective->department->d_name }}</span>
+                    </div>
+                    @endif
+                    <div class="objective-info-item">
+                        <strong>Created:</strong>
+                        <span>{{ $objective->created_at ? $objective->created_at->format('M d, Y') : 'N/A' }}</span>
+                    </div>
                 </div>
 
                 <div class="key-results-section">
                     <h5 class="key-results-title"><i class="bi bi-key"></i> Key Results</h5>
-                    @if($objective->keyResults->count() > 0)
+                    @if($objective->keyResults && $objective->keyResults->count() > 0)
                         <div class="key-results-list">
                             @foreach($objective->keyResults as $index => $keyResult)
                                 <div class="key-result-item">
@@ -419,7 +441,7 @@
                                     </div>
                                     <div class="key-result-content">
                                         <h6 class="key-result-title">
-                                            {{ $keyResult->title }}
+                                            {{ $keyResult->kr_title }}
                                             @php
                                                 $krStatusClass = match($keyResult->status) {
                                                     'not_started' => 'not_started',
@@ -438,13 +460,13 @@
                                         <div class="progress-wrapper">
                                             <div class="progress-bar" 
                                                  role="progressbar" 
-                                                 style="width: {{ $keyResult->progress ?? 0 }}%"
-                                                 aria-valuenow="{{ $keyResult->progress ?? 0 }}" 
+                                                 style="width: {{ $keyResult->progress_percent ?? 0 }}%"
+                                                 aria-valuenow="{{ $keyResult->progress_percent ?? 0 }}" 
                                                  aria-valuemin="0" 
                                                  aria-valuemax="100">
                                             </div>
                                         </div>
-                                        <small class="progress-text">{{ $keyResult->progress ?? 0 }}% complete</small>
+                                        <small class="progress-text">{{ $keyResult->progress_percent ?? 0 }}% complete</small>
                                     </div>
                                 </div>
                             @endforeach
@@ -458,10 +480,66 @@
                     @endif
                 </div>
 
-                <div class="d-flex justify-content-start">
-                    <a href="{{ route('key_results.create', $objective->objective_id) }}" class="add-kr-button">
-                        <i class="bi bi-plus-circle"></i> Thêm KR
-                    </a>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-light);">
+                    <div style="display: flex; gap: 1rem;">
+                        <a href="{{ route('key_results.create', $objective->objective_id) }}" class="add-kr-button">
+                            <i class="bi bi-plus-circle"></i> Thêm KR
+                        </a>
+                        
+                        @php
+                            $canEdit = true;
+                            $canDelete = true;
+                            
+                            // Kiểm tra quyền chỉnh sửa/xóa dựa trên level và role
+                            if ($objective->level === 'Phòng ban') {
+                                if (Auth::user()->isMember()) {
+                                    $canEdit = false;
+                                    $canDelete = false;
+                                } elseif (Auth::user()->isManager()) {
+                                    // Manager chỉ có thể chỉnh sửa OKR phòng ban của phòng ban mình
+                                    $canEdit = $objective->department_id === Auth::user()->department_id;
+                                    $canDelete = $objective->department_id === Auth::user()->department_id;
+                                }
+                            } elseif ($objective->level === 'Cá nhân') {
+                                // OKR cá nhân chỉ có owner hoặc Admin mới được chỉnh sửa
+                                if (Auth::user()->isMember()) {
+                                    $canEdit = $objective->user_id === Auth::user()->user_id;
+                                    $canDelete = $objective->user_id === Auth::user()->user_id;
+                                }
+                            }
+                        @endphp
+                        
+                        @if($canEdit)
+                            <a href="{{ route('objectives.edit', $objective->objective_id) }}" 
+                               style="display: inline-flex; align-items: center; padding: 0.5rem 1rem; background: #6b7280; color: #ffffff; border-radius: 0.25rem; font-weight: 500; text-decoration: none; transition: all 0.2s ease;">
+                                <i class="bi bi-pencil-square"></i> Edit
+                            </a>
+                        @endif
+                        
+                        @if($canDelete)
+                            <form action="{{ route('objectives.destroy', $objective->objective_id) }}" method="POST" style="display: inline;"
+                                  onsubmit="return confirm('Delete this objective?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" 
+                                        style="display: inline-flex; align-items: center; padding: 0.5rem 1rem; background: #ef4444; color: #ffffff; border: none; border-radius: 0.25rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </form>
+                        @endif
+                        
+                        @if($objective->level === 'Phòng ban' && Auth::user()->isMember())
+                            <span style="display: inline-flex; align-items: center; padding: 0.5rem 1rem; background: #f3f4f6; color: #6b7280; border-radius: 0.25rem; font-size: 0.875rem; font-style: italic;">
+                                <i class="bi bi-info-circle"></i> Read-only
+                            </span>
+                        @endif
+                    </div>
+                    
+                    <div style="color: var(--text-light); font-size: 0.875rem;">
+                        <a href="{{ route('objectives.index') }}" style="color: var(--text-light); text-decoration: none;">
+                            ← Back to List
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

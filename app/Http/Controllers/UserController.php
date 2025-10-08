@@ -50,7 +50,7 @@ class UserController extends Controller
         // Middleware đã kiểm tra quyền Admin
 
         $request->validate([
-            'role_id' => 'required|exists:roles,role_id',
+            'role_id' => 'nullable|exists:roles,role_id',
             'department_id' => 'nullable|exists:departments,department_id',
         ]);
 
@@ -73,27 +73,45 @@ class UserController extends Controller
         }
 
         $oldRole = $user->role ? $user->role->role_name : 'Chưa có vai trò';
+        $oldDepartment = $user->department ? $user->department->d_name : 'Chưa gán';
 
-        $user->role_id = $request->role_id;
-        $user->department_id = $request->department_id;
+        // Chỉ cập nhật các trường được gửi
+        if ($request->has('role_id')) {
+            $user->role_id = $request->role_id;
+        }
+        if ($request->has('department_id')) {
+            $user->department_id = $request->department_id;
+        }
         $user->save();
 
         // Clear cache when user is updated
         \Cache::forget('users_list');
 
-        // Reload relationship để có thể truy cập role mới
-        $user->load('role');
+        // Reload relationship để có thể truy cập role và department mới
+        $user->load(['role', 'department']);
         $newRole = $user->role ? $user->role->role_name : 'Chưa có vai trò';
+        $newDepartment = $user->department ? $user->department->d_name : 'Chưa gán';
+
+        // Tạo thông báo dựa trên trường được cập nhật
+        $messages = [];
+        if ($request->has('role_id')) {
+            $messages[] = "vai trò từ {$oldRole} thành {$newRole}";
+        }
+        if ($request->has('department_id')) {
+            $messages[] = "phòng ban từ {$oldDepartment} thành {$newDepartment}";
+        }
+        
+        $message = "Đã cập nhật " . implode(' và ', $messages) . " của {$user->full_name}.";
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => "Đã cập nhật vai trò của {$user->full_name} từ {$oldRole} thành {$newRole}."
+                'message' => $message
             ]);
         }
 
         return redirect()->route('users.index')
-            ->with('success', "Đã cập nhật vai trò của {$user->full_name} từ {$oldRole} thành {$newRole}.");
+            ->with('success', $message);
     }
 
     /**

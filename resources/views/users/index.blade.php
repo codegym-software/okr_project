@@ -378,6 +378,7 @@
                             <th class="text-left p-4">Người dùng</th>
                             <th class="text-left p-4">Email</th>
                             <th class="text-left p-4">Vai trò</th>
+                            <th class="text-left p-4">Phòng ban</th>
                             <th class="text-left p-4">Trạng thái</th>
                         </tr>
                 </thead>
@@ -426,6 +427,30 @@
                                             {{ $isDisabled ? 'disabled' : '' }}>
                                         <option value="{{ $managerRoleId }}" {{ $user->role_id == $managerRoleId ? 'selected' : '' }}>MANAGER</option>
                                         <option value="{{ $memberRoleId }}" {{ $user->role_id == $memberRoleId ? 'selected' : '' }}>MEMBER</option>
+                                    </select>
+                                @endif
+                            </td>
+                            <td class="p-4">
+                                @php
+                                    $isAdmin = $user->isAdmin();
+                                @endphp
+                                
+                                @if($isAdmin)
+                                    <!-- Admin không cần phòng ban -->
+                                    <span class="text-gray-500 italic">-</span>
+                                @else
+                                    <!-- Dropdown chọn phòng ban cho Manager/Member -->
+                                    <select class="department-dropdown"
+                                            data-user-id="{{ $user->user_id }}"
+                                            onchange="updateDepartment({{ $user->user_id }}, this.value)"
+                                            style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem; background-color: white; min-width: 150px;">
+                                        <option value="">Chọn phòng ban</option>
+                                        @foreach(\App\Models\Department::all() as $dept)
+                                            <option value="{{ $dept->department_id }}" 
+                                                    {{ $user->department_id == $dept->department_id ? 'selected' : '' }}>
+                                                {{ $dept->d_name }}
+                                            </option>
+                                        @endforeach
                                     </select>
                                 @endif
                             </td>
@@ -638,6 +663,51 @@ function updateRole(userId, roleId) {
     roleInput.name = 'role_id';
     roleInput.value = roleId;
     form.appendChild(roleInput);
+
+    // Submit form
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Cập nhật phòng ban
+function updateDepartment(userId, departmentId) {
+    console.log('Updating user', userId, 'to department', departmentId);
+
+    // Disable dropdown trong lúc gửi
+    const deptSelect = document.querySelector(`select.department-dropdown[data-user-id="${userId}"]`);
+    if (deptSelect) {
+        deptSelect.disabled = true;
+    }
+
+    // Hiển thị overlay loading
+    const overlay = document.getElementById('globalLoading');
+    if (overlay) overlay.style.display = 'flex';
+
+    // Tạo form để submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/users/${userId}`;
+
+    // Thêm CSRF token
+    const csrfToken = document.createElement('input');
+    csrfToken.type = 'hidden';
+    csrfToken.name = '_token';
+    csrfToken.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    form.appendChild(csrfToken);
+
+    // Thêm method override
+    const methodOverride = document.createElement('input');
+    methodOverride.type = 'hidden';
+    methodOverride.name = '_method';
+    methodOverride.value = 'PUT';
+    form.appendChild(methodOverride);
+
+    // Thêm department_id
+    const deptInput = document.createElement('input');
+    deptInput.type = 'hidden';
+    deptInput.name = 'department_id';
+    deptInput.value = departmentId;
+    form.appendChild(deptInput);
 
     // Submit form
     document.body.appendChild(form);

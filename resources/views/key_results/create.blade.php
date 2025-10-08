@@ -62,7 +62,7 @@
             <label>Chu kỳ</label>
             <select name="cycle_id" class="form-control" required>
                 @foreach($cycles as $cycle)
-                    <option value="{{ $cycle->cycle_id }}">{{ $cycle->name ?? 'Cycle '.$cycle->cycle_id }}</option>
+                    <option value="{{ $cycle->cycle_id }}">{{ $cycle->cycle_name ?? 'Cycle '.$cycle->cycle_id }}</option>
                 @endforeach
             </select>
         </div> --}}

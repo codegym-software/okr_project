@@ -68,9 +68,11 @@
                 <a href="{{ route('objectives.index') }}" class="tag container">
                     <span>Objectives</span>
                 </a>
-                <a href="{{ route('departments.index') }}" class="tag container">
-                    <span>Departments</span>
-                </a>
+                @if(Auth::user() && (Auth::user()->isAdmin() || Auth::user()->isManager()))
+                    <a href="{{ route('departments.index') }}" class="tag container">
+                        <span>Departments</span>
+                    </a>
+                @endif
                 @if(Auth::user() && Auth::user()->canManageUsers())
                     <a href="{{ route('users.index') }}" class="tag container">
                         <span>Users</span>

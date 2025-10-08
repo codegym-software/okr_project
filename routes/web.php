@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\LocalAuthController;
 use App\Http\Controllers\CycleController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
@@ -29,6 +30,11 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/auth/callback', [AuthController::class, 'handleCallback'])->name('auth.callback');
     Route::get('/auth/forgot', [AuthController::class, 'forgotPassword'])->name('auth.forgot');
     Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+
+    // Route đăng nhập local (cho testing)
+    Route::get('/local-login', [LocalAuthController::class, 'showLoginForm'])->name('local.login.form');
+    Route::post('/local-login', [LocalAuthController::class, 'login'])->name('local.login');
+    Route::post('/local-logout', [LocalAuthController::class, 'logout'])->name('local.logout');
 
     // Route đăng nhập admin mặc định (chỉ cho development)
     if (env('APP_ENV') === 'local') {
@@ -68,14 +74,17 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     // Route dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
 
-    //Routes cho Cycle
+    //Routes cho Cycle (Admin và Manager)
     Route::get('/cycles',[CycleController::class,'index']) -> name('cycles.index');
     Route::get('/cycles/{cycle}/detail',[CycleController::class,'show']) -> name('cycles.show');
-    Route::get('/cycles/create',[CycleController::class,'create']) -> middleware('auth','admin') -> name('cycles.create');
-    Route::post('/cycles/create',[CycleController::class,'store']) -> middleware('auth','admin') -> name('cycles.store');
+    Route::get('/cycles/create',[CycleController::class,'create']) -> middleware('auth','manager') -> name('cycles.create');
+    Route::post('/cycles/create',[CycleController::class,'store']) -> middleware('auth','manager') -> name('cycles.store');
 
-    //Routes cho Department
-    Route::resource('departments', DepartmentController::class);
+    //Routes cho Department (Admin và Manager có thể quản lý)
+    Route::middleware(['auth', 'manager'])->group(function () {
+        Route::resource('departments', DepartmentController::class);
+    });
+
 
     // Routes cho Profile
     Route::get('/profile', [ProfileController::class, 'show'])->middleware('auth')->name('profile.show');
@@ -95,6 +104,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     // Objectives Routes
     Route::resource('objectives', ObjectiveController::class);
     // Route::get('/dashboard', [ObjectiveController::class, 'dashboard'])->name('dashboard');
+
 
     // Key Results Routes
     Route::get('/objectives/{objective}/key-results', 
