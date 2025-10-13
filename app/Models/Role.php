@@ -31,7 +31,7 @@ class Role extends Model
      */
     public function isAdmin()
     {
-        return $this->role_name === 'Admin';
+        return $this->role_name === 'admin';
     }
 
     /**
