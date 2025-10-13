@@ -297,9 +297,9 @@
     align-items: center;
 }
 
-/* Key results title – replaces .text-xl.font-semibold.text-gray-900 */
+/* Key results title – replaces .text-lg.font-semibold.text-gray-900 */
 .key-results-title {
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     font-weight: 600;
     color: #111827;
 }
@@ -307,37 +307,81 @@
     color: #e9ecef;
 }
 
-/* Add key result button – replaces .inline-flex.items-center.px-4.py-2.bg-green-600.hover:bg-green-700.text-white.rounded-xl.font-medium.transition-all.duration-200 */
-.add-key-result-btn {
-    display: inline-flex;
-    align-items: center;
+/* Add KR button – replaces .px-4.py-2.bg-blue-600.text-white.rounded-xl.font-medium.hover:bg-blue-700.transition-colors */
+.add-kr-button {
     padding: 0.5rem 1rem;
-    background: #16a34a;
+    background: #2563eb;
     color: #ffffff;
     border-radius: 0.75rem;
     font-weight: 500;
-    transition: background 0.2s ease;
+    transition: background 0.3s ease;
 }
-.add-key-result-btn:hover {
-    background: #15803d;
+.add-kr-button:hover {
+    background: #1d4ed8;
 }
-.dark .add-key-result-btn {
-    background: #15803d;
+.dark .add-kr-button {
+    background: #1e40af;
 }
-.dark .add-key-result-btn:hover {
-    background: #166534;
-}
-
-/* Add key result icon – replaces .w-5.h-5.mr-2 */
-.add-key-result-icon {
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-right: 0.5rem;
+.dark .add-kr-button:hover {
+    background: #1e3a8a;
 }
 
-/* Key results container – replaces .space-y-6 */
-.key-results-container {
-    margin-bottom: 1.5rem;
+/* Key results list – replaces .space-y-4 */
+.key-results-list {
+    margin-bottom: 1rem;
+}
+
+/* Key result item – replaces .bg-gray-50.p-4.rounded-xl.border.border-gray-200 */
+.key-result-item {
+    background: #f9fafb;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e5e7eb;
+}
+.dark .key-result-item {
+    background: #1f2937;
+    border-color: #4b5563;
+}
+
+/* Key result header – replaces .flex.justify-between.items-center.mb-3 */
+.key-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+/* Key result number – replaces .text-sm.font-medium.text-gray-500 */
+.key-result-number {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #6b7280;
+}
+.dark .key-result-number {
+    color: #9ca3af;
+}
+
+/* Key result input – replaces .w-full.px-4.py-3.border-2.border-gray-200.rounded-xl.focus:ring-4.focus:ring-blue-100.focus:border-blue-500.transition-all.duration-200 */
+.key-result-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.75rem;
+    transition: all 0.2s ease;
+}
+.key-result-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 4px #dbeafe;
+}
+.dark .key-result-input {
+    background: #1f2937;
+    border-color: #4b5563;
+    color: #e5e7eb;
+}
+.dark .key-result-input:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 4px #1e40af;
 }
 
 /* Form buttons – replaces .flex.justify-end.space-x-4.mt-8 */
@@ -348,96 +392,95 @@
     margin-top: 2rem;
 }
 
-/* Cancel button – replaces .px-6.py-3.border-2.border-gray-200.rounded-xl.text-gray-700.hover:bg-gray-50.transition-all.duration-200.font-medium */
+/* Cancel button – replaces .px-6.py-3.bg-white.text-gray-600.rounded-xl.border.border-gray-300.hover:bg-gray-50.transition-colors */
 .cancel-button {
     padding: 0.75rem 1.5rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 0.75rem;
+    background: #ffffff;
     color: #4b5563;
-    text-decoration: none;
-    font-weight: 500;
-    transition: background 0.2s ease;
+    border-radius: 0.75rem;
+    border: 1px solid #d1d5db;
+    transition: background 0.3s ease;
 }
 .cancel-button:hover {
     background: #f9fafb;
 }
 .dark .cancel-button {
-    border-color: #4b5563;
+    background: #1f2937;
     color: #d1d5db;
+    border-color: #4b5563;
 }
 .dark .cancel-button:hover {
     background: #374151;
 }
 
-/* Submit button – replaces .px-6.py-3.bg-gradient-to-r.from-blue-600.to-indigo-600.text-white.rounded-xl.hover:from-blue-700.hover:to-indigo-700.transition-all.duration-200.font-medium.shadow-md.hover:shadow-lg */
+/* Submit button – replaces .px-6.py-3.bg-blue-600.text-white.rounded-xl.font-medium.hover:bg-blue-700.transition-colors */
 .submit-button {
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(to right, #2563eb, #4f46e5);
+    background: #2563eb;
     color: #ffffff;
     border-radius: 0.75rem;
     font-weight: 500;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-    transition: all 0.2s ease;
+    transition: background 0.3s ease;
 }
 .submit-button:hover {
-    background: linear-gradient(to right, #1d4ed8, #4338ca);
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    background: #1d4ed8;
 }
 .dark .submit-button {
-    background: linear-gradient(to right, #1e40af, #3730a3);
+    background: #1e40af;
 }
 .dark .submit-button:hover {
-    background: linear-gradient(to right, #1e3a8a, #312e81);
+    background: #1e3a8a;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    body.dark .objective-container {
+        color: #d1d5db;
+    }
 }
 </style>
 
 <div class="objective-container">
     <div class="inner-container">
-        <!-- Header -->
         <div class="header-section">
             <div class="header-flex">
                 <div class="icon-container">
                     <svg class="header-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                     </svg>
                 </div>
-                <div>
-                    <h1 class="header-title">Create New Objective</h1>
-                    <p class="header-subtitle">Set a clear, measurable objective for your team</p>
-                </div>
+                <h1 class="header-title">Create New Objective</h1>
             </div>
+            <p class="header-subtitle">Define your goal and key results to track progress</p>
         </div>
 
-        <!-- Form -->
         <div class="form-card">
-            <!-- Form Header -->
             <div class="form-header">
                 <h2 class="form-header-title">Objective Details</h2>
                 <p class="form-header-subtitle">Fill in the information below to create your objective</p>
             </div>
-
             <div class="form-body">
                 @if ($errors->any())
-                    <div class="error-message">
-                        <div class="flex">
-                            <svg class="error-icon" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-                            </svg>
-                            <div>
-                                <h4 class="error-title">Please fix the following errors:</h4>
-                                <ul class="error-list">
-                                    @foreach ($errors->all() as $error)
-                                        <li>{{ $error }}</li>
-                                    @endforeach
-                                </ul>
-                            </div>
+                    <div class="error-message flex items-start">
+                        <svg class="error-icon" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                        <div>
+                            <p class="error-title">There are errors with your input:</p>
+                            <ul class="error-list">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
                         </div>
                     </div>
                 @endif
 
                 <form action="{{ route('objectives.store') }}" method="POST" class="form-group">
                     @csrf
-                    <input type="hidden" name="cycle_id" value="{{ $cycle_id }}">
+                    @if ($cycle_id)
+                        <input type="hidden" name="cycle_id" value="{{ $cycle_id }}">
+                    @endif
 
                     <!-- Objective Title -->
                     <div class="input-group">
@@ -494,7 +537,7 @@
                         <div class="relative">
                             <select id="level" name="level" autocomplete="level-name" class="form-select" required>
                                 @foreach($allowedLevels as $level)
-                                    <option value="{{ $level }}" {{ old('level') == $level ? 'selected' : '' }}>
+                                    <option value="{{ $level }}" {{ $level == 'Công ty' ? 'selected' : (old('level') == $level ? 'selected' : '') }}>
                                         {{ $level }}
                                     </option>
                                 @endforeach

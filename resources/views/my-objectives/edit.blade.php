@@ -2,7 +2,7 @@
 
 @section('content')
     <div class="content-container">
-        <h1 class="page-title">Chỉnh Sửa OKR Cấp Phòng Ban</h1>
+        <h1 class="page-title">Chỉnh Sửa OKR - {{ $this->getLevelDisplayName($objective->level) }}</h1>
 
         @if ($errors->any())
             <div class="error-alert" role="alert">
@@ -14,13 +14,9 @@
             </div>
         @endif
 
-        @if (session('errors'))
+        @if (session('error'))
             <div class="error-alert" role="alert">
-                <ul>
-                    @foreach (session('errors')->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
+                {{ session('error') }}
             </div>
         @endif
 
@@ -45,8 +41,23 @@
                 <!-- Cấp độ -->
                 <div class="form-group">
                     <label for="level" class="form-label">Cấp Objective *</label>
-                    <input type="hidden" name="level" value="Phòng ban">
-                    <input type="text" value="Phòng ban" class="form-input" disabled>
+                    @if (Auth::user()->role && Auth::user()->role->role_name === 'admin')
+                        <select name="level" id="level" class="form-input form-select">
+                            <option value="company" {{ old('level', $objective->level) == 'company' ? 'selected' : '' }}>Công ty</option>
+                            <option value="unit" {{ old('level', $objective->level) == 'unit' ? 'selected' : '' }}>Đơn vị</option>
+                            <option value="team" {{ old('level', $objective->level) == 'team' ? 'selected' : '' }}>Đội nhóm</option>
+                            <option value="person" {{ old('level', $objective->level) == 'person' ? 'selected' : '' }}>Cá nhân</option>
+                        </select>
+                    @elseif (Auth::user()->role && in_array(Auth::user()->role->role_name, ['master', 'facilitator']))
+                        <select name="level" id="level" class="form-input form-select">
+                            <option value="unit" {{ old('level', $objective->level) == 'unit' ? 'selected' : '' }}>Đơn vị</option>
+                            <option value="team" {{ old('level', $objective->level) == 'team' ? 'selected' : '' }}>Đội nhóm</option>
+                            <option value="person" {{ old('level', $objective->level) == 'person' ? 'selected' : '' }}>Cá nhân</option>
+                        </select>
+                    @else
+                        <input type="hidden" name="level" value="person">
+                        <input type="text" value="Cá nhân" class="form-input" disabled>
+                    @endif
                     @error('level') <span class="error-message">{{ $message }}</span> @enderror
                 </div>
 
@@ -83,8 +94,8 @@
                 </div>
 
                 <!-- Phòng ban -->
-                @if($user->role->role_name === 'Admin')
-                    <div class="form-group">
+                @if (Auth::user()->role && Auth::user()->role->role_name === 'admin')
+                    <div class="form-group" id="department-group" style="{{ $objective->level === 'company' ? 'display: none;' : '' }}">
                         <label for="department_id" class="form-label">Phòng ban *</label>
                         <select name="department_id" id="department_id" class="form-input form-select">
                             <option value="">Chọn phòng ban</option>
@@ -96,11 +107,11 @@
                         </select>
                         @error('department_id') <span class="error-message">{{ $message }}</span> @enderror
                     </div>
-                @elseif($user->role->role_name === 'Manager')
-                    <div class="form-group">
+                @else
+                    <div class="form-group" id="department-group">
                         <label for="department_id" class="form-label">Phòng ban *</label>
-                        <input type="hidden" name="department_id" value="{{ $departments[0]->department_id }}">
-                        <input type="text" value="{{ $departments[0]->d_name }}" class="form-input" disabled>
+                        <input type="hidden" name="department_id" value="{{ $departments[0]->department_id ?? Auth::user()->department_id }}">
+                        <input type="text" value="{{ $departments[0]->d_name ?? ($user->department->d_name ?? 'Chưa có') }}" class="form-input" disabled>
                         @error('department_id') <span class="error-message">{{ $message }}</span> @enderror
                     </div>
                 @endif
@@ -142,6 +153,46 @@
         </form>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    function getLevelDisplayName(level) {
+        const levelNames = {
+            'company': 'Công ty',
+            'unit': 'Đơn vị', 
+            'team': 'Đội nhóm',
+            'person': 'Cá nhân'
+        };
+        return levelNames[level] || level;
+    }
+
+    document.getElementById('level').addEventListener('change', function() {
+        const departmentGroup = document.getElementById('department-group');
+        if (this.value === 'company') {
+            departmentGroup.style.display = 'none';
+            const departmentSelect = document.getElementById('department_id');
+            if (departmentSelect) {
+                departmentSelect.value = '';
+            }
+        } else {
+            departmentGroup.style.display = 'block';
+        }
+    });
+
+    // Kích hoạt sự kiện change khi tải trang để đảm bảo trạng thái ban đầu
+    window.addEventListener('load', function() {
+        const levelSelect = document.getElementById('level');
+        if (levelSelect && levelSelect.value === 'company') {
+            document.getElementById('department-group').style.display = 'none';
+        }
+        const parentKeyResultId = '{{ old('parent_key_result_id', $objective->parent_key_result_id) }}';
+        if (parentKeyResultId) {
+            document.getElementById('parent_key_result_id').value = parentKeyResultId;
+            document.getElementById('parent_key_result_id').dispatchEvent(new Event('change'));
+        }
+    });
+</script>
+@endpush
 
 <style>
     .content-container {
@@ -325,13 +376,5 @@
             detailsContainer.style.display = 'none';
             alert('Không thể tải chi tiết Key Result cấp công ty.');
         });
-    });
-
-    window.addEventListener('load', function() {
-        const parentKeyResultId = '{{ old('parent_key_result_id', $objective->parent_key_result_id) }}';
-        if (parentKeyResultId) {
-            document.getElementById('parent_key_result_id').value = parentKeyResultId;
-            document.getElementById('parent_key_result_id').dispatchEvent(new Event('change'));
-        }
     });
 </script>

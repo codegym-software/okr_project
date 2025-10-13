@@ -18,6 +18,12 @@ class ObjectiveController extends Controller
      */
     public function index(): View
     {
+        $user = Auth::user();
+        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
+        if ($user->role->role_name !== 'admin') {
+            abort(403, 'Unauthorized access');
+        }
+
         $objectives = Objective::with(['user', 'cycle', 'keyResults'])
                                ->paginate(10);
         return view('objectives.index', compact('objectives'));
@@ -29,13 +35,17 @@ class ObjectiveController extends Controller
     public function create(Request $request): View
     {
         $user = Auth::user();
+        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
+        if ($user->role->role_name !== 'admin') {
+            abort(403, 'Unauthorized access');
+        }
+
         $cycle_id = $request->query('cycle_id', null);
 
-        // Xác định các level được phép tạo theo role_id
-        $allowedLevels = match($user->role_id) {
-            1 => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'], // Admin
-            2 => ['Phòng ban', 'Nhóm', 'Cá nhân'],            // Manager
-            default => ['Nhóm', 'Cá nhân'],                   // Member
+        // Xác định các level được phép tạo theo role_name
+        $allowedLevels = match($user->role->role_name) {
+            'admin' => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'], // Admin
+            default => [], // Không cho phép
         };
 
         return view('objectives.create', compact('cycle_id', 'allowedLevels'));
@@ -47,19 +57,20 @@ class ObjectiveController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $user = Auth::user();
-        $level = $request->input('level', 'Cá nhân');
+        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
+        if ($user->role->role_name !== 'admin') {
+            abort(403, 'Unauthorized access');
+        }
 
-        // Xác định các level được phép tạo theo role_id
-        switch ($user->role_id) {
-            case 1: // Admin
+        $level = $request->input('level', 'Công ty'); // Default to 'Công ty'
+
+        // Xác định các level được phép tạo theo role_name
+        switch ($user->role->role_name) {
+            case 'admin': // Admin
                 $allowedLevels = ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'];
                 break;
-            case 2: // Manager
-                $allowedLevels = ['Phòng ban', 'Nhóm', 'Cá nhân'];
-                break;
-            case 3: // Member
             default:
-                $allowedLevels = ['Nhóm', 'Cá nhân'];
+                $allowedLevels = [];
                 break;
         }
 
@@ -79,16 +90,6 @@ class ObjectiveController extends Controller
             'status' => 'required|in:draft,active,completed',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'cycle_id' => 'nullable|integer|exists:cycles,cycle_id',
-
-            // Key Results
-            // 'key_results' => 'nullable|array',
-            // 'key_results.*.kr_title' => 'required|string|max:255',
-            // 'key_results.*.target_value' => 'required|numeric|min:0',
-            // 'key_results.*.current_value' => 'nullable|numeric|min:0',
-            // 'key_results.*.unit' => 'required|string|max:255',
-            // 'key_results.*.status' => 'nullable|string|max:255',
-            // 'key_results.*.weight' => 'nullable|integer|min:0|max:100',
-            // 'key_results.*.progress_percent' => 'nullable|numeric|min:0|max:100',
         ]);
 
         // Tạo Objective và Key Results trong transaction
@@ -132,6 +133,12 @@ class ObjectiveController extends Controller
      */
     public function show(string $id): View
     {
+        $user = Auth::user();
+        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
+        if ($user->role->role_name !== 'admin') {
+            abort(403, 'Unauthorized access');
+        }
+
         $objective = Objective::with('keyResults')->findOrFail($id);
         return view('objectives.show', compact('objective'));
     }
@@ -141,6 +148,12 @@ class ObjectiveController extends Controller
      */
     public function edit(string $id): View
     {
+        $user = Auth::user();
+        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
+        if ($user->role->role_name !== 'admin') {
+            abort(403, 'Unauthorized access');
+        }
+
         $objective = Objective::findOrFail($id);
         return view('objectives.edit', compact('objective'));
     }
@@ -150,6 +163,12 @@ class ObjectiveController extends Controller
      */
     public function update(Request $request, string $id): RedirectResponse
     {
+        $user = Auth::user();
+        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
+        if ($user->role->role_name !== 'admin') {
+            abort(403, 'Unauthorized access');
+        }
+
         $validated = $request->validate([
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
@@ -169,6 +188,12 @@ class ObjectiveController extends Controller
      */
     public function destroy(string $id): RedirectResponse
     {
+        $user = Auth::user();
+        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
+        if ($user->role->role_name !== 'admin') {
+            abort(403, 'Unauthorized access');
+        }
+
         $objective = Objective::findOrFail($id);
         $objective->delete();
 

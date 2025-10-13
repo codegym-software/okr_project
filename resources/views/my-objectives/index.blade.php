@@ -3,8 +3,8 @@
 @section('content')
     <div class="content-container">
         <div class="header">
-            <h1>Danh Sách OKR Cấp Phòng Ban</h1>
-            @if (Auth::user()->role->role_name === 'Admin' || Auth::user()->role->role_name === 'Manager')
+            <h1>Danh Sách OKR</h1>
+            @if (Auth::user()->role)
                 <a href="{{ route('my-objectives.create') }}">Tạo OKR Mới</a>
             @endif
         </div>
@@ -15,23 +15,21 @@
             </div>
         @endif
 
-        @if (session('errors'))
+        @if (session('error'))
+            <div class="error-alert" role="alert">
+                {{ session('error') }}
+            </div>
+        @endif
+
+        @if ($errors->any())
             <div class="error-alert" role="alert">
                 <ul>
-                    @foreach (session('errors')->all() as $error)
+                    @foreach ($errors->all() as $error)
                         <li>{{ $error }}</li>
                     @endforeach
                 </ul>
             </div>
         @endif
-
-        {{-- <div class="debug-info">
-            <p><strong>User ID:</strong> {{ Auth::user()->id }}</p>
-            <p><strong>Department ID:</strong> {{ Auth::user()->department_id }}</p>
-            <p><strong>Role:</strong> {{ Auth::user()->role->role_name }}</p>
-            <p><strong>Objectives Type:</strong> {{ get_class($objectives) }}</p>
-            <p><strong>Objectives Count:</strong> {{ is_countable($objectives) ? count($objectives) : 'Not countable' }}</p>
-        </div> --}}
 
         <div class="table-container">
             @if (empty($objectives) || (is_countable($objectives) && count($objectives) === 0))
@@ -40,6 +38,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>Cấp độ</th>
                             <th>Tiêu đề</th>
                             <th>Chu kỳ</th>
                             <th>Trạng thái</th>
@@ -52,27 +51,36 @@
                     <tbody>
                         @foreach ($objectives as $objective)
                             <tr>
-                                <td colspan="7">
+                                <td colspan="8">
                                     <details>
                                         <summary>
                                             <div class="summary-row">
+                                                <span>{{ $this->getLevelDisplayName($objective->level) }}</span>
                                                 <span>{{ $objective->obj_title }}</span>
                                                 <span>{{ $objective->cycle->cycle_name ?? 'Chưa có' }}</span>
                                                 <span class="{{ $objective->status }}">
                                                     {{ ucfirst($objective->status) }}
                                                 </span>
                                                 <span>{{ $objective->progress_percent }}%</span>
-                                                <span>{{ $objective->department->d_name ?? 'Chưa có' }}</span>
+                                                <span>{{ $objective->level === 'company' ? 'Không áp dụng' : ($objective->department->d_name ?? 'Chưa có') }}</span>
                                                 <span>{{ $objective->parentKeyResult->kr_title ?? 'Không liên kết' }}</span>
                                                 <span>
-                                                    @if (Auth::user()->role->role_name === 'Admin' || (Auth::user()->role->role_name === 'Manager' && $objective->department_id === Auth::user()->department_id))
-                                                        <a href="{{ route('my-objectives.edit', $objective->objective_id) }}">Sửa</a>
-                                                        <form action="{{ route('my-objectives.destroy', $objective->objective_id) }}" method="POST" style="display: inline;">
-                                                            @csrf
-                                                            @method('DELETE')
-                                                            <button type="submit" onclick="return confirm('Bạn có chắc muốn xóa?')">Xóa</button>
-                                                        </form>
-                                                        <a href="{{ route('my-key-results.create', $objective->objective_id) }}" style="margin-left: 1rem;">Tạo KR</a>
+                                                    @if (Auth::user()->role)
+                                                        @php
+                                                            $roleName = Auth::user()->role->role_name;
+                                                            $allowedLevels = $roleName === 'admin' ? ['company', 'unit', 'team', 'person'] : 
+                                                                            (in_array($roleName, ['master', 'facilitator']) ? ['unit', 'team', 'person'] : ['person']);
+                                                        @endphp
+                                                        @if (in_array($objective->level, $allowedLevels) && 
+                                                            ($roleName === 'admin' || $objective->level === 'company' || $objective->department_id === Auth::user()->department_id))
+                                                            <a href="{{ route('my-objectives.edit', $objective->objective_id) }}">Sửa</a>
+                                                            <form action="{{ route('my-objectives.destroy', $objective->objective_id) }}" method="POST" style="display: inline;">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit" onclick="return confirm('Bạn có chắc muốn xóa?')">Xóa</button>
+                                                            </form>
+                                                            <a href="{{ route('my-key-results.create', $objective->objective_id) }}" style="margin-left: 1rem;">Tạo KR</a>
+                                                        @endif
                                                     @endif
                                                 </span>
                                             </div>
@@ -103,13 +111,21 @@
                                                                 <td>{{ $kr->weight }}%</td>
                                                                 <td>{{ $kr->progress_percent }}%</td>
                                                                 <td>
-                                                                    @if (Auth::user()->role->role_name === 'Admin' || (Auth::user()->role->role_name === 'Manager' && $objective->department_id === Auth::user()->department_id))
-                                                                        <a href="{{ route('my-key-results.edit', [$objective->objective_id, $kr->kr_id]) }}">Sửa</a>
-                                                                        <form action="{{ route('my-key-results.destroy', [$objective->objective_id, $kr->kr_id]) }}" method="POST" style="display: inline;">
-                                                                            @csrf
-                                                                            @method('DELETE')
-                                                                            <button type="submit" onclick="return confirm('Bạn có chắc muốn xóa?')">Xóa</button>
-                                                                        </form>
+                                                                    @if (Auth::user()->role)
+                                                                        @php
+                                                                            $roleName = Auth::user()->role->role_name;
+                                                                            $allowedLevels = $roleName === 'admin' ? ['company', 'unit', 'team', 'person'] : 
+                                                                            (in_array($roleName, ['master', 'facilitator']) ? ['unit', 'team', 'person'] : ['person']);
+                                                                        @endphp
+                                                                        @if (in_array($objective->level, $allowedLevels) && 
+                                                                            ($roleName === 'admin' || $objective->level === 'company' || $objective->department_id === Auth::user()->department_id))
+                                                                            <a href="{{ route('my-key-results.edit', [$objective->objective_id, $kr->kr_id]) }}">Sửa</a>
+                                                                            <form action="{{ route('my-key-results.destroy', [$objective->objective_id, $kr->kr_id]) }}" method="POST" style="display: inline;">
+                                                                                @csrf
+                                                                                @method('DELETE')
+                                                                                <button type="submit" onclick="return confirm('Bạn có chắc muốn xóa?')">Xóa</button>
+                                                                            </form>
+                                                                        @endif
                                                                     @endif
                                                                 </td>
                                                             </tr>
@@ -148,6 +164,20 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    function getLevelDisplayName(level) {
+        const levelNames = {
+            'company': 'Công ty',
+            'unit': 'Đơn vị', 
+            'team': 'Đội nhóm',
+            'person': 'Cá nhân'
+        };
+        return levelNames[level] || level;
+    }
+</script>
+@endpush
 
 <style>
     .content-container {
@@ -195,13 +225,6 @@
         border: 1px solid #feb2b2;
         color: #741a1a;
         padding: 0.75rem 1rem;
-        border-radius: 0.375rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .debug-info {
-        background-color: #f9fafb;
-        padding: 1rem;
         border-radius: 0.375rem;
         margin-bottom: 1.5rem;
     }
