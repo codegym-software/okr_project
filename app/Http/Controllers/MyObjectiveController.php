@@ -24,7 +24,7 @@ class MyObjectiveController extends Controller
         $user = Auth::user();
         $objectives = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
             ->where(function ($query) use ($user) {
-                $query->where('owner_id', $user->user_id)
+                $query->where('user_id', $user->user_id)
                       ->orWhereHas('assignments', function ($query) use ($user) {
                           $query->where('user_id', $user->user_id);
                       });
@@ -92,7 +92,7 @@ class MyObjectiveController extends Controller
                     'status' => $validated['status'],
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['department_id'] ?? null,
-                    'owner_id' => $user->user_id,
+                    'user_id' => $user->user_id,
                 ]);
 
                 if (isset($validated['key_results'])) {
@@ -135,7 +135,7 @@ class MyObjectiveController extends Controller
         $user = Auth::user();
         $objective = Objective::findOrFail($id);
 
-        if ($objective->owner_id !== $user->user_id && 
+        if ($objective->user_id !== $user->user_id && 
             !OkrAssignment::where('objective_id', $id)->where('user_id', $user->user_id)->exists()) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Objective này.'], 403)
@@ -182,7 +182,7 @@ class MyObjectiveController extends Controller
         $user = Auth::user();
         $objective = Objective::findOrFail($id);
 
-        if ($objective->owner_id !== $user->user_id && 
+        if ($objective->user_id !== $user->user_id && 
             !OkrAssignment::where('objective_id', $id)->where('user_id', $user->user_id)->exists()) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Objective này.'], 403);
         }
@@ -209,7 +209,7 @@ class MyObjectiveController extends Controller
         $objective = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
             ->findOrFail($id);
 
-        if ($objective->owner_id !== $user->user_id && 
+        if ($objective->user_id !== $user->user_id && 
             !OkrAssignment::where('objective_id', $id)->where('user_id', $user->user_id)->exists()) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xem Objective này.'], 403);
         }

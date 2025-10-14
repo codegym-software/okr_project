@@ -42,7 +42,7 @@ class MyKeyResultController extends Controller
         $objective = Objective::findOrFail($objectiveId);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được tạo
-        if ($objective->owner_id !== $user->user_id) {
+        if ($objective->user_id !== $user->user_id) {
             abort(403, 'Bạn không có quyền tạo Key Result cho Objective này.');
         }
 
@@ -66,7 +66,7 @@ class MyKeyResultController extends Controller
         $objective = Objective::findOrFail($objectiveId);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được tạo
-        if ($objective->owner_id !== $user->user_id) {
+        if ($objective->user_id !== $user->user_id) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective này.'], 403)
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Key Result cho Objective này.']);
@@ -128,7 +128,7 @@ class MyKeyResultController extends Controller
         $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
 
         // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được cập nhật
-        if ($objective->owner_id !== $user->user_id) {
+        if ($objective->user_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Key Result này.'], 403);
         }
 
@@ -188,7 +188,7 @@ class MyKeyResultController extends Controller
         $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
 
         // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được xóa
-        if ($objective->owner_id !== $user->user_id) {
+        if ($objective->user_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Key Result này.'], 403);
         }
 
