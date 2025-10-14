@@ -22,7 +22,9 @@ export default function ObjectiveModal({
                   department_id: "",
                   key_results: [],
               }
-            : { ...editingObjective }
+            : editingObjective
+            ? { ...editingObjective }
+            : {}
     );
     const [allowedLevels, setAllowedLevels] = useState([]);
 
@@ -55,6 +57,12 @@ export default function ObjectiveModal({
         };
         fetchAllowedLevels();
     }, [setToast]);
+
+    useEffect(() => {
+        if (editingObjective) {
+            setCreateForm({ ...editingObjective });
+        }
+    }, [editingObjective]);
 
     const handleCreateFormChange = (field, value) => {
         setCreateForm((prev) => ({ ...prev, [field]: value }));
@@ -153,12 +161,12 @@ export default function ObjectiveModal({
                 .querySelector('meta[name="csrf-token"]')
                 .getAttribute("content");
             const body = {
-                obj_title: e.target.obj_title.value,
-                description: e.target.description.value,
-                level: e.target.level.value,
-                status: e.target.status.value,
-                cycle_id: e.target.cycle_id.value,
-                department_id: e.target.department_id.value || null,
+                obj_title: createForm.obj_title,
+                description: createForm.description,
+                level: createForm.level,
+                status: createForm.status,
+                cycle_id: createForm.cycle_id,
+                department_id: createForm.department_id || null,
             };
             const res = await fetch(
                 `/my-objectives/update/${editingObjective.objective_id}`,
@@ -346,7 +354,7 @@ export default function ObjectiveModal({
                                     Phòng ban
                                 </label>
                                 <select
-                                    value={createForm.department_id}
+                                    value={createForm.department_id || ""}
                                     onChange={(e) =>
                                         handleCreateFormChange(
                                             "department_id",
@@ -370,120 +378,115 @@ export default function ObjectiveModal({
                             </div>
                         )}
                     </div>
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                    <div className="flex flex-col gap-2">
+                        <div className="flex justify-between">
+                            <h3 className="text-sm font-semibold text-slate-700">
                                 Key Results
-                            </label>
+                            </h3>
                             <button
                                 type="button"
                                 onClick={addNewKR}
                                 className="text-xs text-blue-600"
                             >
-                                Thêm Key Result
+                                + Thêm KR
                             </button>
                         </div>
                         {createForm.key_results.map((kr, index) => (
                             <div
                                 key={index}
-                                className="rounded-lg border border-slate-200 p-3"
+                                className="grid gap-3 md:grid-cols-4"
                             >
-                                <div className="grid gap-3 md:grid-cols-3">
-                                    <div>
-                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                            Tiêu đề
-                                        </label>
-                                        <input
-                                            value={kr.kr_title}
-                                            onChange={(e) =>
-                                                updateNewKR(
-                                                    index,
-                                                    "kr_title",
-                                                    e.target.value
-                                                )
-                                            }
-                                            required
-                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                            Mục tiêu
-                                        </label>
-                                        <input
-                                            value={kr.target_value}
-                                            onChange={(e) =>
-                                                updateNewKR(
-                                                    index,
-                                                    "target_value",
-                                                    e.target.value
-                                                )
-                                            }
-                                            type="number"
-                                            required
-                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                            Thực tế
-                                        </label>
-                                        <input
-                                            value={kr.current_value}
-                                            onChange={(e) =>
-                                                updateNewKR(
-                                                    index,
-                                                    "current_value",
-                                                    e.target.value
-                                                )
-                                            }
-                                            type="number"
-                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                            Đơn vị
-                                        </label>
-                                        <input
-                                            value={kr.unit}
-                                            onChange={(e) =>
-                                                updateNewKR(
-                                                    index,
-                                                    "unit",
-                                                    e.target.value
-                                                )
-                                            }
-                                            required
-                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                        />
-                                    </div>
+                                <div className="md:col-span-2">
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Tiêu đề KR
+                                    </label>
+                                    <input
+                                        value={kr.kr_title}
+                                        onChange={(e) =>
+                                            updateNewKR(
+                                                index,
+                                                "kr_title",
+                                                e.target.value
+                                            )
+                                        }
+                                        required
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                    />
                                 </div>
-                                <div className="grid gap-3 md:grid-cols-3">
-                                    <div>
-                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                            Status
-                                        </label>
-                                        <select
-                                            value={kr.status}
-                                            onChange={(e) =>
-                                                updateNewKR(
-                                                    index,
-                                                    "status",
-                                                    e.target.value
-                                                )
-                                            }
-                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                        >
-                                            <option value="draft">Draft</option>
-                                            <option value="active">
-                                                Active
-                                            </option>
-                                            <option value="completed">
-                                                Completed
-                                            </option>
-                                        </select>
-                                    </div>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Mục tiêu
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={kr.target_value}
+                                        onChange={(e) =>
+                                            updateNewKR(
+                                                index,
+                                                "target_value",
+                                                e.target.value
+                                            )
+                                        }
+                                        required
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Thực tế
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={kr.current_value}
+                                        onChange={(e) =>
+                                            updateNewKR(
+                                                index,
+                                                "current_value",
+                                                e.target.value
+                                            )
+                                        }
+                                        required
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Đơn vị
+                                    </label>
+                                    <input
+                                        value={kr.unit}
+                                        onChange={(e) =>
+                                            updateNewKR(
+                                                index,
+                                                "unit",
+                                                e.target.value
+                                            )
+                                        }
+                                        required
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Status
+                                    </label>
+                                    <select
+                                        value={kr.status}
+                                        onChange={(e) =>
+                                            updateNewKR(
+                                                index,
+                                                "status",
+                                                e.target.value
+                                            )
+                                        }
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                    >
+                                        <option value="draft">Draft</option>
+                                        <option value="active">Active</option>
+                                        <option value="completed">
+                                            Completed
+                                        </option>
+                                    </select>
                                 </div>
                                 <button
                                     type="button"
@@ -520,8 +523,13 @@ export default function ObjectiveModal({
                                 Tiêu đề
                             </label>
                             <input
-                                defaultValue={editingObjective.obj_title}
-                                name="obj_title"
+                                value={createForm.obj_title || ""}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "obj_title",
+                                        e.target.value
+                                    )
+                                }
                                 required
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
@@ -531,8 +539,13 @@ export default function ObjectiveModal({
                                 Cấp độ
                             </label>
                             <select
-                                defaultValue={editingObjective.level}
-                                name="level"
+                                value={createForm.level || ""}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "level",
+                                        e.target.value
+                                    )
+                                }
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             >
                                 {allowedLevels.map((level) => (
@@ -548,8 +561,13 @@ export default function ObjectiveModal({
                                 Mô tả
                             </label>
                             <textarea
-                                defaultValue={editingObjective.description}
-                                name="description"
+                                value={createForm.description || ""}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "description",
+                                        e.target.value
+                                    )
+                                }
                                 rows={3}
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
@@ -559,8 +577,13 @@ export default function ObjectiveModal({
                                 Trạng thái
                             </label>
                             <select
-                                defaultValue={editingObjective.status}
-                                name="status"
+                                value={createForm.status || "draft"}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "status",
+                                        e.target.value
+                                    )
+                                }
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             >
                                 <option value="draft">Draft</option>
@@ -573,8 +596,13 @@ export default function ObjectiveModal({
                                 Chu kỳ
                             </label>
                             <select
-                                defaultValue={editingObjective.cycle_id}
-                                name="cycle_id"
+                                value={createForm.cycle_id || ""}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "cycle_id",
+                                        e.target.value
+                                    )
+                                }
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             >
                                 <option value="">-- chọn chu kỳ --</option>
@@ -588,16 +616,19 @@ export default function ObjectiveModal({
                                 ))}
                             </select>
                         </div>
-                        {editingObjective.level !== "company" && (
+                        {createForm.level !== "company" && (
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">
                                     Phòng ban
                                 </label>
                                 <select
-                                    defaultValue={
-                                        editingObjective.department_id
+                                    value={createForm.department_id || ""}
+                                    onChange={(e) =>
+                                        handleCreateFormChange(
+                                            "department_id",
+                                            e.target.value
+                                        )
                                     }
-                                    name="department_id"
                                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 >
                                     <option value="">
