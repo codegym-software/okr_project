@@ -72,21 +72,6 @@ export default function DepartmentsPanel(){
         } finally { setLoading(false); }
     })(); }, []);
 
-    const remove = async (id) => {
-        const ok = window.confirm('Bạn có chắc chắn muốn xóa phòng ban này?');
-        if (!ok) return;
-        try {
-            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-            const res = await fetch(`/departments/${id}`, { method:'DELETE', headers:{ 'X-CSRF-TOKEN':token, 'Accept':'application/json' } });
-            const data = await res.json().catch(()=>({ success: res.ok }));
-            if (!res.ok || data.success === false) throw new Error(data.message || 'Xóa thất bại');
-            setDepartments(prev => prev.filter(d => d.department_id !== id));
-            showToast('success', 'Xóa phòng ban thành công');
-        } catch (e) {
-            showToast('error', e.message || 'Xóa phòng ban thất bại');
-        }
-    };
-
     const openEditModal = async (id) => {
         try {
             const res = await fetch(`/departments/${id}`, { headers: { 'Accept': 'application/json' } });
@@ -112,22 +97,22 @@ export default function DepartmentsPanel(){
                         <tr>
                             <th className="px-3 py-2">Tên phòng ban</th>
                             <th className="px-3 py-2">Mô tả</th>
-                            <th className="px-3 py-2 w-36">Hành động</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {loading && (<tr><td colSpan={3} className="px-3 py-5 text-center text-slate-500">Đang tải...</td></tr>)}
-                        {!loading && departments.length === 0 && (<tr><td colSpan={3} className="px-3 py-5 text-center text-slate-500">Chưa có phòng ban</td></tr>)}
+                        {loading && (<tr><td colSpan={2} className="px-3 py-5 text-center text-slate-500">Đang tải...</td></tr>)}
+                        {!loading && departments.length === 0 && (<tr><td colSpan={2} className="px-3 py-5 text-center text-slate-500">Chưa có phòng ban</td></tr>)}
                         {!loading && departments.map(d => (
                             <tr key={d.department_id} className="hover:bg-slate-50">
-                                <td className="px-3 py-2 font-semibold text-slate-900">{d.d_name}</td>
-                                <td className="px-3 py-2 text-slate-600">{d.d_description || '-'}</td>
                                 <td className="px-3 py-2">
-                                    <div className="flex gap-2">
-                                        <button onClick={()=>openEditModal(d.department_id)} className="rounded-md border border-slate-200 px-3 py-1 text-xs hover:bg-slate-50">Sửa</button>
-                                        <button onClick={()=>remove(d.department_id)} className="rounded-md bg-rose-600 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-700">Xóa</button>
-                                    </div>
+                                    <button 
+                                        onClick={()=>openEditModal(d.department_id)} 
+                                        className="font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left"
+                                    >
+                                        {d.d_name}
+                                    </button>
                                 </td>
+                                <td className="px-3 py-2 text-slate-600">{d.d_description || '-'}</td>
                             </tr>
                         ))}
                     </tbody>
