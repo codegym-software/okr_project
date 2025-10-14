@@ -26,6 +26,8 @@ class Objective extends Model
         'progress_percent',
         'user_id',
         'cycle_id',
+        'owner_id',
+        'department_id',
     ];
 
     /**
@@ -49,7 +51,7 @@ class Objective extends Model
     //  */
     public function user()
     {
-        return $this->belongsTo(User::class, 'user_id', 'user_id');
+        return $this->belongsTo(User::class, 'owner_id', 'user_id');
     }
 
     /**

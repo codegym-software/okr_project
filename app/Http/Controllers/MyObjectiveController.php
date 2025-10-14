@@ -89,7 +89,7 @@ class MyObjectiveController extends Controller
                     'status' => $validated['status'],
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['department_id'] ?? null,
-                    'user_id' => $user->user_id, // Lưu user_id để xác định chủ sở hữu
+                    'owner_id' => $user->user_id, // Lưu user_id để xác định chủ sở hữu
                 ]);
 
                 if (isset($validated['key_results'])) {
@@ -133,7 +133,7 @@ class MyObjectiveController extends Controller
         $objective = Objective::findOrFail($id);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu (user_id) được cập nhật
-        if ($objective->user_id !== $user->user_id) {
+        if ($objective->owner_id !== $user->user_id) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Objective này.'], 403)
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền cập nhật Objective này.']);
@@ -181,7 +181,7 @@ class MyObjectiveController extends Controller
         $objective = Objective::findOrFail($id);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu (user_id) được xóa
-        if ($objective->user_id !== $user->user_id) {
+        if ($objective->owner_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Objective này.'], 403);
         }
 
@@ -206,7 +206,7 @@ class MyObjectiveController extends Controller
         $objective = Objective::with(['keyResults', 'department', 'cycle'])->findOrFail($id);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu (user_id) được xem
-        if ($objective->user_id !== $user->user_id) {
+        if ($objective->owner_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xem Objective này.'], 403);
         }
 
