@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use App\Models\OkrLink;
+use App\Events\OkrParentChanged;
 
 class MyObjectiveController extends Controller
 {
@@ -21,7 +23,7 @@ class MyObjectiveController extends Controller
     public function index(Request $request): JsonResponse|View
     {
         $user = Auth::user();
-        $objectives = Objective::with(['keyResults', 'department', 'cycle'])
+        $objectives = Objective::with(['keyResults', 'department', 'cycle', 'okrLinks.targetObjective.department'])
             ->where('user_id', $user->id)
             ->paginate(10);
 
@@ -64,9 +66,12 @@ class MyObjectiveController extends Controller
             'key_results.*.kr_title' => 'required|string|max:255',
             'key_results.*.target_value' => 'required|numeric|min:0',
             'key_results.*.current_value' => 'nullable|numeric|min:0',
-            'key_results.*.unit' => 'required|string|max:50',
+            'key_results.*.unit' => 'required|in:number,percent,completion',
             'key_results.*.status' => 'required|in:draft,active,completed',
         ]);
+
+        // Thêm validate cho liên kết (tùy chọn)
+        $validated['parent_objective_id'] = $request->validate(['parent_objective_id' => 'nullable|exists:objectives,objective_id'])['parent_objective_id'] ?? null;
 
         // Kiểm tra quyền tạo dựa trên level
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
@@ -101,6 +106,16 @@ class MyObjectiveController extends Controller
 
                 $objective = Objective::create($objectiveData);
 
+                if ($validated['parent_objective_id']) {
+                    OkrLink::create([
+                        'source_objective_id' => $objective->objective_id,
+                        'source_kr_id' => null, // Liên kết ở mức Objective
+                        'target_objective_id' => $validated['parent_objective_id'],
+                        'target_kr_id' => null,
+                        'description' => 'Liên kết với OKR cấp cao',
+                    ]);
+                }
+
                 if (isset($validated['key_results'])) {
                     foreach ($validated['key_results'] as $krData) {
                         $target = (float) $krData['target_value'];
@@ -117,7 +132,6 @@ class MyObjectiveController extends Controller
                             'progress_percent' => $progress,
                             'objective_id' => $objective->objective_id,
                             'cycle_id' => $objective->cycle_id,
-                            'department_id' => $objective->department_id,
                             'user_id' => $user->id,
                         ]);
                     }
@@ -188,6 +202,25 @@ class MyObjectiveController extends Controller
             'department_id' => 'nullable|exists:departments,department_id',
         ]);
 
+        // Xử lý cập nhật liên kết
+        $validated['parent_objective_id'] = $request->validate(['parent_objective_id' => 'nullable|exists:objectives,objective_id'])['parent_objective_id'] ?? null;
+
+        // Xóa liên kết cũ nếu thay đổi
+        OkrLink::where('source_objective_id', $id)->delete();
+
+        if ($validated['parent_objective_id']) {
+            OkrLink::create([
+                'source_objective_id' => $id,
+                'source_kr_id' => null,
+                'target_objective_id' => $validated['parent_objective_id'],
+                'target_kr_id' => null,
+                'description' => 'Liên kết với OKR cấp cao',
+            ]);
+        }
+
+        // Thông báo nếu thay đổi
+        event(new OkrParentChanged($objective));
+
         try {
             DB::transaction(function () use ($validated, $objective) {
                 $objective->update($validated);
@@ -221,6 +254,15 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Objective này.'], 403);
         }
 
+        // Xóa liên kết
+        OkrLink::where('target_objective_id', $id)->orWhere('source_objective_id', $id)->delete();
+
+        // Thông báo cho OKR con
+        $children = OkrLink::where('target_objective_id', $id)->get();
+        foreach ($children as $link) {
+            event(new OkrParentChanged($link->sourceObjective));
+        }
+
         try {
             DB::transaction(function () use ($objective) {
                 // Xóa Key Results liên quan trước
@@ -240,7 +282,8 @@ class MyObjectiveController extends Controller
     public function getObjectiveDetails(string $id): JsonResponse
     {
         $user = Auth::user();
-        $objective = Objective::with(['keyResults', 'department', 'cycle'])->findOrFail($id);
+        // $objective = Objective::with(['keyResults', 'department', 'cycle'])->findOrFail($id);
+        $objective = Objective::with(['keyResults', 'department', 'cycle', 'okrLinks.targetObjective.department'])->findOrFail($id);
 
         // Kiểm tra quyền xem
         if ($objective->user_id !== $user->id && !in_array($user->role->role_name, ['admin', 'manager'])) {
@@ -256,7 +299,7 @@ class MyObjectiveController extends Controller
     public function getKeyResultDetails(string $id): JsonResponse
     {
         $user = Auth::user();
-        $keyResult = KeyResult::with(['objective', 'department', 'cycle'])->findOrFail($id);
+        $keyResult = KeyResult::with(['objective', 'cycle'])->findOrFail($id);
 
         // Kiểm tra quyền xem
         if ($keyResult->objective->user_id !== $user->id && !in_array($user->role->role_name, ['admin', 'manager'])) {
@@ -267,15 +310,49 @@ class MyObjectiveController extends Controller
     }
 
     /**
+     * Lấy danh sách OKR có thể liên kết (cấp phòng ban/công ty)
+     */
+    public function getLinkableObjectives(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $departmentId = $user->department_id; // Giả sử user có department_id
+
+        $linkable = Objective::with(['department', 'cycle'])
+            ->whereIn('level', ['company', 'unit', 'team']) // Chỉ cấp cao hơn person
+            ->where(function ($query) use ($departmentId) {
+                $query->whereNull('department_id') // Company
+                      ->orWhere('department_id', $departmentId); // Phòng ban của user
+            })
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $linkable]);
+    }
+
+    public function getLinkedChildren(string $objectiveId): JsonResponse
+    {
+        $user = Auth::user();
+        if (!in_array($user->role->role_name, ['admin', 'manager'])) {
+            return response()->json(['success' => false, 'message' => 'Không có quyền'], 403);
+        }
+
+        $children = OkrLink::with(['sourceObjective.keyResults', 'sourceObjective.user'])
+            ->where('target_objective_id', $objectiveId)
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $children]);
+    }
+    
+    /**
      * Lấy danh sách cấp Objective được phép dựa trên vai trò
      */
     private function getAllowedLevels(string $roleName): array
     {
         return match ($roleName) {
-            'admin' => ['company', 'unit', 'team', 'person'],
-            'manager' => ['unit', 'team', 'person'],
-            'member' => ['person'],
-            default => ['person'],
+            'admin' => ['company', 'unit', 'team'],
+            'manager' => ['unit', 'team',],
+            'member' => ['team'],
+            default => ['team'],
         };
     }
+
 }

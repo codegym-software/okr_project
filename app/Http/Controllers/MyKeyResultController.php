@@ -81,7 +81,7 @@ class MyKeyResultController extends Controller
             'kr_title' => 'required|string|max:255',
             'target_value' => 'required|numeric|min:0',
             'current_value' => 'nullable|numeric|min:0',
-            'unit' => 'required|string|max:50',
+            'unit' => 'required|in:number,percent,completion',
             'status' => 'required|in:draft,active,completed',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
         ]);
@@ -158,7 +158,7 @@ class MyKeyResultController extends Controller
             'kr_title' => 'required|string|max:255', // Ensure non-nullable
             'target_value' => 'required|numeric|min:0',
             'current_value' => 'nullable|numeric|min:0',
-            'unit' => 'required|string|max:50', // Ensure non-nullable
+            'unit' => 'required|in:number,percent,completion', // Ensure non-nullable
             'status' => 'required|in:draft,active,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
@@ -237,10 +237,10 @@ class MyKeyResultController extends Controller
     private function getAllowedLevels(string $roleName): array
     {
         return match ($roleName) {
-            'admin' => ['company', 'unit', 'team', 'person'],
-            'manager' => ['unit', 'team', 'person'],
-            'member' => ['person'],
-            default => ['person'],
+            'admin' => ['company', 'unit', 'team'],
+            'manager' => ['unit', 'team',],
+            'member' => ['team'],
+            default => ['team'],
         };
     }
 }
