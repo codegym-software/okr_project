@@ -12,6 +12,8 @@ export default function ObjectivesPage() {
     const [creatingObjective, setCreatingObjective] = useState(false);
     const [editingObjective, setEditingObjective] = useState(null);
     const [openObj, setOpenObj] = useState({}); // { [objective_id]: boolean }
+    const [linkableObjectives, setLinkableObjectives] = useState([]); // Danh sách OKR liên kết được
+    const [selectedParentId, setSelectedParentId] = useState(null); // Cho tạo/edit
     const [createForm, setCreateForm] = useState({
         obj_title: "",
         description: "",
@@ -35,18 +37,25 @@ export default function ObjectivesPage() {
                 throw new Error("CSRF token not found");
             }
 
-            const [resObj, resDept, resCycles] = await Promise.all([
-                fetch("/my-objectives", {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                }),
-                fetch("/departments", {
-                    headers: { Accept: "application/json" },
-                }),
-                fetch("/cycles", { headers: { Accept: "application/json" } }),
-            ]);
+            const [resObj, resDept, resCycles, resLinkable] = await Promise.all(
+                [
+                    fetch("/my-objectives", {
+                        headers: {
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                        },
+                    }),
+                    fetch("/departments", {
+                        headers: { Accept: "application/json" },
+                    }),
+                    fetch("/cycles", {
+                        headers: { Accept: "application/json" },
+                    }),
+                    fetch("/my-objectives/linkable", {
+                        headers: { Accept: "application/json" },
+                    }),
+                ]
+            );
 
             // Check /my-objectives
             if (!resObj.ok) {
@@ -83,6 +92,30 @@ export default function ObjectivesPage() {
                     message: `Lỗi tải departments: ${resDept.statusText}`,
                 });
             }
+
+            // Check /my-objectives/linkable
+            if (!resLinkable.ok) {
+                console.error(
+                    "Linkable Objectives API error:",
+                    resLinkable.status,
+                    resLinkable.statusText
+                );
+                setToast({
+                    type: "error",
+                    message: `Lỗi tải linkable objectives: ${resLinkable.statusText}`,
+                });
+                setLinkableObjectives([]);
+            } else {
+                const linkData = await resLinkable.json();
+                if (!Array.isArray(linkData.data)) {
+                    console.warn(
+                        "Linkable objectives data is not an array:",
+                        linkData
+                    );
+                }
+                setLinkableObjectives(linkData.data || []);
+            }
+
             const deptData = await resDept.json().catch((err) => {
                 console.error("Error parsing departments:", err);
                 return { data: [] };
@@ -290,6 +323,7 @@ export default function ObjectivesPage() {
                     target_value: Number(kr.target_value),
                     current_value: Number(kr.current_value),
                 })),
+                parent_objective_id: selectedParentId || null,
             };
             const res = await fetch("/my-objectives/store", {
                 method: "POST",
@@ -323,6 +357,10 @@ export default function ObjectivesPage() {
             setToast({ type: "error", message: err.message || "Tạo thất bại" });
         }
     };
+
+    // Hiển thị trong 3 giây: Sử dụng setTimeout trong setToast
+    // setToast({ type: "success", message: "Liên kết đã lưu và hiển thị" });
+    // setTimeout(() => setToast({ ...toast, message: "" }), 3000);
 
     return (
         <div className="px-4 py-6">
@@ -370,13 +408,16 @@ export default function ObjectivesPage() {
                             <th className="px-3 py-2 w-[8%] text-center">
                                 Tiến độ (%)
                             </th>
+                            <th className="px-3 py-2 w-[15%] text-center">
+                                Liên kết với
+                            </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading && (
                             <tr>
                                 <td
-                                    colSpan={8}
+                                    colSpan={9}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -391,7 +432,7 @@ export default function ObjectivesPage() {
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        <td colSpan={8} className="px-4 py-3">
+                                        <td colSpan={9} className="px-4 py-3">
                                             <div className="flex items-center justify-between">
                                                 <div className="inline-flex items-center gap-3">
                                                     <button
@@ -540,6 +581,22 @@ export default function ObjectivesPage() {
                                                       {formatPercent(
                                                           kr.progress_percent
                                                       )}
+                                                  </td>
+                                                  <td className="px-3 py-3 text-center">
+                                                      {obj.okr_links?.[0]
+                                                          ?.target_objective
+                                                          ? `Objective: ${
+                                                                obj.okr_links[0]
+                                                                    .target_objective
+                                                                    .obj_title
+                                                            } (${
+                                                                obj.okr_links[0]
+                                                                    .target_objective
+                                                                    .department
+                                                                    ?.d_name ||
+                                                                "Công ty"
+                                                            })`
+                                                          : "Không liên kết"}
                                                   </td>
                                               </tr>
                                           ))}
@@ -981,6 +1038,36 @@ export default function ObjectivesPage() {
                                 </select>
                             </div>
                         </div>
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Liên kết với OKR cấp cao (tùy chọn)
+                            </label>
+                            <select
+                                value={createForm.parent_objective_id || ""}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "parent_objective_id",
+                                        e.target.value
+                                    )
+                                }
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            >
+                                <option value="">Không liên kết</option>
+                                {linkableObjectives.map((obj) => (
+                                    <option
+                                        key={obj.objective_id}
+                                        value={obj.objective_id}
+                                    >
+                                        {obj.obj_title} -{" "}
+                                        {obj.description
+                                            ? obj.description.substring(0, 50) +
+                                              "..."
+                                            : ""}{" "}
+                                        ({obj.department?.d_name || "Công ty"})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                         <div className="flex justify-between gap-2 pt-2">
                             <button
                                 type="button"
@@ -1197,6 +1284,36 @@ export default function ObjectivesPage() {
                                     </select>
                                 </div>
                             )}
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Liên kết với OKR cấp cao (tùy chọn)
+                            </label>
+                            <select
+                                value={createForm.parent_objective_id || ""}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "parent_objective_id",
+                                        e.target.value
+                                    )
+                                }
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            >
+                                <option value="">Không liên kết</option>
+                                {linkableObjectives.map((obj) => (
+                                    <option
+                                        key={obj.objective_id}
+                                        value={obj.objective_id}
+                                    >
+                                        {obj.obj_title} -{" "}
+                                        {obj.description
+                                            ? obj.description.substring(0, 50) +
+                                              "..."
+                                            : ""}{" "}
+                                        ({obj.department?.d_name || "Công ty"})
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                         <div className="pt-4">
                             <div className="flex items-center justify-between">
