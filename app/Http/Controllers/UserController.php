@@ -16,6 +16,48 @@ class UserController extends Controller
     }
 
     /**
+     * Lấy danh sách roles theo level
+     */
+    public function getRolesByLevel(\Illuminate\Http\Request $request)
+    {
+        try {
+            $level = $request->query('level');
+            
+            if (!$level) {
+                return response()->json(['success' => false, 'message' => 'Thiếu tham số level'], 400);
+            }
+            
+            $roles = Role::where('level', $level)->get(['role_id', 'role_name', 'description', 'level']);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $roles
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading roles by level: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Không thể tải danh sách vai trò.'], 500);
+        }
+    }
+
+    /**
+     * Lấy tất cả roles
+     */
+    public function getAllRoles()
+    {
+        try {
+            $roles = Role::all(['role_id', 'role_name', 'description', 'level']);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $roles
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading all roles: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Không thể tải danh sách vai trò.'], 500);
+        }
+    }
+
+    /**
      * Hiển thị danh sách người dùng
      */
     public function index(\Illuminate\Http\Request $request)
@@ -92,6 +134,7 @@ class UserController extends Controller
             'role_id' => 'nullable|exists:roles,role_id',
             'role' => 'nullable|string|in:admin,manager,member,Admin,Manager,Member',
             'department_id' => 'nullable|exists:departments,department_id',
+            'level' => 'nullable|string|in:company,unit,team,person',
         ]);
 
         $user = User::findOrFail($id);
@@ -138,6 +181,16 @@ class UserController extends Controller
         if ($request->filled('department_id')) {
             $user->department_id = $request->department_id;
         }
+        
+        // Cập nhật cấp độ nếu có
+        if ($request->filled('level')) {
+            $user->load('role');
+            if ($user->role) {
+                $user->role->level = $request->level;
+                $user->role->save();
+            }
+        }
+        
         $user->save();
 
         // Clear cache when user is updated

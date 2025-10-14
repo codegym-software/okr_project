@@ -100,6 +100,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             Route::middleware(['auth', 'admin'])->group(function () {
                 Route::get('/users', [UserController::class, 'index'])->name('users.index');
                 Route::get('/users/{id}/detail', [UserController::class, 'show'])->name('users.show');
+                Route::get('/roles', [UserController::class, 'getAllRoles'])->name('roles.all');
+                Route::get('/roles-by-level', [UserController::class, 'getRolesByLevel'])->name('roles.by.level');
                 Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
                 Route::put('/users/{id}/status', [UserController::class, 'updateStatus'])->name('users.updateStatus');
                 Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');

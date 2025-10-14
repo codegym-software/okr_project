@@ -95,6 +95,15 @@ class User extends Authenticatable
     }
 
     /**
+     * Kiểm tra xem user có quyền tạo OKR cá nhân không
+     * Tất cả user đều có quyền tạo OKR cá nhân
+     */
+    public function canCreatePersonalOKR()
+    {
+        return true; // Ai cũng có quyền tạo OKR cá nhân
+    }
+
+    /**
      * Kiểm tra xem user có quyền quản lý người dùng không
      */
     public function canManageUsers()

@@ -16,6 +16,7 @@ class Role extends Model
     protected $fillable = [
         'role_name',
         'description',
+        'level',
     ];
 
     /**
@@ -39,7 +40,7 @@ class Role extends Model
      */
     public function isManager()
     {
-        return strtolower($this->role_name) === 'master';
+        return strtolower($this->role_name) === 'manager';
     }
 
     /**
@@ -56,5 +57,14 @@ class Role extends Model
     public function canCreateCompanyOKR()
     {
         return $this->isAdmin() || $this->isManager();
+    }
+
+    /**
+     * Kiểm tra xem role có quyền tạo OKR cá nhân không
+     * Tất cả role đều có quyền tạo OKR cá nhân
+     */
+    public function canCreatePersonalOKR()
+    {
+        return true; // Ai cũng có quyền tạo OKR cá nhân
     }
 }
