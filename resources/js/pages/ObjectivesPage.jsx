@@ -8,6 +8,7 @@ export default function ObjectivesPage() {
     const [items, setItems] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [cyclesList, setCyclesList] = useState([]);
+    const [links, setLinks] = useState([]); // Thêm state này để lưu liên kết từ okr_links
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState({ type: "success", message: "" });
     const [editingKR, setEditingKR] = useState(null);
@@ -32,7 +33,7 @@ export default function ObjectivesPage() {
                 throw new Error("CSRF token not found");
             }
 
-            const [resObj, resDept, resCycles] = await Promise.all([
+            const [resObj, resDept, resCycles, resLinks] = await Promise.all([
                 fetch(`/my-objectives?page=${pageNum}`, {
                     headers: {
                         Accept: "application/json",
@@ -43,6 +44,12 @@ export default function ObjectivesPage() {
                     headers: { Accept: "application/json" },
                 }),
                 fetch("/cycles", { headers: { Accept: "application/json" } }),
+                fetch("/my-links", {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                }),
             ]);
 
             if (!resObj.ok) {
@@ -119,6 +126,16 @@ export default function ObjectivesPage() {
             if (cyclesData.data?.length === 0) {
                 setToast({ type: "warning", message: "Không có chu kỳ nào" });
             }
+
+            const linksData = await resLinks.json().catch((err) => {
+                console.error("Error parsing links:", err);
+                setToast({
+                    type: "error",
+                    message: "Lỗi phân tích dữ liệu liên kết",
+                });
+                return { data: [] };
+            });
+            setLinks(linksData.data || []);
         } catch (err) {
             console.error("Load error:", err);
             setToast({
@@ -163,6 +180,7 @@ export default function ObjectivesPage() {
                 setEditingObjective={setEditingObjective}
                 setEditingKR={setEditingKR}
                 setCreatingObjective={setCreatingObjective}
+                links={links} // Truyền links xuống ObjectiveList
             />
             <div className="mt-4 flex justify-center gap-2">
                 <button

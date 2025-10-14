@@ -14,6 +14,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
+use App\Http\Controllers\LinkController;
 
 Route::get('/', function () {
     return view('app');
@@ -187,6 +188,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         })->middleware('auth')->name('my-key-results.edit');
         Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->middleware('auth')->name('my-key-results.update');
         Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
+    });
+
+    Route::prefix('my-links')->group(function () {
+        Route::get('/', [LinkController::class, 'index'])->middleware('auth')->name('my-links.index');
+        Route::get('/available-targets', [LinkController::class, 'getAvailableTargets'])->middleware('auth')->name('my-links.available-targets');
+        Route::post('/store', [LinkController::class, 'store'])->middleware('auth')->name('my-links.store');
     });
 });
 

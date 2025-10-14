@@ -27,6 +27,12 @@ export default function ObjectiveModal({
             : {}
     );
     const [allowedLevels, setAllowedLevels] = useState([]);
+    const [availableTargets, setAvailableTargets] = useState([]);
+    const [linkForm, setLinkForm] = useState({
+        source_objective_id: editingObjective?.objective_id || "",
+        target_kr_id: "",
+        description: "",
+    });
 
     useEffect(() => {
         const fetchAllowedLevels = async () => {
@@ -61,8 +67,43 @@ export default function ObjectiveModal({
     useEffect(() => {
         if (editingObjective) {
             setCreateForm({ ...editingObjective });
+            setLinkForm((prev) => ({
+                ...prev,
+                source_objective_id: editingObjective.objective_id,
+            }));
         }
     }, [editingObjective]);
+
+    useEffect(() => {
+        if (editingObjective) {
+            const fetchAvailableTargets = async () => {
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        .getAttribute("content");
+                    const res = await fetch(
+                        `/my-links/available-targets?source_level=${editingObjective.level}`,
+                        {
+                            headers: {
+                                "X-CSRF-TOKEN": token,
+                                Accept: "application/json",
+                            },
+                        }
+                    );
+                    const json = await res.json();
+                    if (res.ok && json.success) {
+                        setAvailableTargets(json.data || []);
+                    }
+                } catch (err) {
+                    setToast({
+                        type: "error",
+                        message: "Lỗi khi lấy Key Results đích",
+                    });
+                }
+            };
+            fetchAvailableTargets();
+        }
+    }, [editingObjective, setToast]);
 
     const handleCreateFormChange = (field, value) => {
         setCreateForm((prev) => ({ ...prev, [field]: value }));
@@ -354,7 +395,7 @@ export default function ObjectiveModal({
                                     Phòng ban
                                 </label>
                                 <select
-                                    value={createForm.department_id || ""}
+                                    value={createForm.department_id}
                                     onChange={(e) =>
                                         handleCreateFormChange(
                                             "department_id",
@@ -378,27 +419,25 @@ export default function ObjectiveModal({
                             </div>
                         )}
                     </div>
-                    <div className="flex flex-col gap-2">
-                        <div className="flex justify-between">
-                            <h3 className="text-sm font-semibold text-slate-700">
-                                Key Results
-                            </h3>
-                            <button
-                                type="button"
-                                onClick={addNewKR}
-                                className="text-xs text-blue-600"
-                            >
-                                + Thêm KR
-                            </button>
-                        </div>
+                    <div className="mt-4">
+                        <h3 className="text-sm font-semibold text-slate-700">
+                            Key Results
+                        </h3>
+                        <button
+                            type="button"
+                            onClick={addNewKR}
+                            className="text-xs text-indigo-600 hover:text-indigo-800"
+                        >
+                            Thêm Key Result
+                        </button>
                         {createForm.key_results.map((kr, index) => (
                             <div
                                 key={index}
-                                className="grid gap-3 md:grid-cols-4"
+                                className="mt-3 grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-4"
                             >
-                                <div className="md:col-span-2">
+                                <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Tiêu đề KR
+                                        Tiêu đề
                                     </label>
                                     <input
                                         value={kr.kr_title}
@@ -415,7 +454,7 @@ export default function ObjectiveModal({
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Mục tiêu
+                                        Giá trị mục tiêu
                                     </label>
                                     <input
                                         type="number"
@@ -433,7 +472,7 @@ export default function ObjectiveModal({
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Thực tế
+                                        Giá trị hiện tại
                                     </label>
                                     <input
                                         type="number"
@@ -462,7 +501,6 @@ export default function ObjectiveModal({
                                                 e.target.value
                                             )
                                         }
-                                        required
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                     />
                                 </div>
@@ -644,6 +682,102 @@ export default function ObjectiveModal({
                                     ))}
                                 </select>
                             </div>
+                        )}
+                    </div>
+                    <div className="mt-4">
+                        <h3 className="text-sm font-semibold text-slate-700">
+                            Liên kết với Key Result cấp cao hơn
+                        </h3>
+                        {availableTargets.length === 0 ? (
+                            <p className="text-sm text-gray-500">
+                                Không có Key Result nào từ cấp cao hơn để liên
+                                kết.
+                            </p>
+                        ) : (
+                            <>
+                                <select
+                                    value={linkForm.target_kr_id}
+                                    onChange={(e) =>
+                                        setLinkForm({
+                                            ...linkForm,
+                                            target_kr_id: e.target.value,
+                                        })
+                                    }
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                >
+                                    <option value="">
+                                        Chọn Key Result đích
+                                    </option>
+                                    {availableTargets.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.objective_title} - {t.title} (
+                                            {t.level})
+                                        </option>
+                                    ))}
+                                </select>
+                                <input
+                                    value={linkForm.description}
+                                    onChange={(e) =>
+                                        setLinkForm({
+                                            ...linkForm,
+                                            description: e.target.value,
+                                        })
+                                    }
+                                    placeholder="Mô tả liên kết"
+                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none mt-2"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        try {
+                                            const token = document
+                                                .querySelector(
+                                                    'meta[name="csrf-token"]'
+                                                )
+                                                .getAttribute("content");
+                                            const res = await fetch(
+                                                "/my-links/store",
+                                                {
+                                                    method: "POST",
+                                                    headers: {
+                                                        "Content-Type":
+                                                            "application/json",
+                                                        "X-CSRF-TOKEN": token,
+                                                        Accept: "application/json",
+                                                    },
+                                                    body: JSON.stringify(
+                                                        linkForm
+                                                    ),
+                                                }
+                                            );
+                                            const json = await res.json();
+                                            if (res.ok && json.success) {
+                                                setToast({
+                                                    type: "success",
+                                                    message:
+                                                        "Liên kết thành công",
+                                                });
+                                            } else {
+                                                throw new Error(
+                                                    json.message ||
+                                                        "Liên kết thất bại"
+                                                );
+                                            }
+                                        } catch (err) {
+                                            setToast({
+                                                type: "error",
+                                                message:
+                                                    err.message ||
+                                                    "Lỗi khi lưu liên kết",
+                                            });
+                                        }
+                                    }}
+                                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 mt-2"
+                                    disabled={!linkForm.target_kr_id}
+                                >
+                                    Lưu liên kết
+                                </button>
+                            </>
                         )}
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
