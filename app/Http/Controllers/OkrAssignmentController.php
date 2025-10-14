@@ -63,12 +63,12 @@ class OkrAssignmentController extends Controller
         // Kiểm tra quyền truy cập Objective hoặc Key Result
         if ($validated['objective_id']) {
             $objective = Objective::findOrFail($validated['objective_id']);
-            if ($objective->owner_id !== $user->user_id) {
+            if ($objective->user_id !== $user->user_id) {
                 return response()->json(['success' => false, 'message' => 'Bạn không có quyền gán Objective này.'], 403);
             }
         } elseif ($validated['kr_id']) {
             $keyResult = KeyResult::with('objective')->findOrFail($validated['kr_id']);
-            if ($keyResult->objective->owner_id !== $user->user_id) {
+            if ($keyResult->objective->user_id !== $user->user_id) {
                 return response()->json(['success' => false, 'message' => 'Bạn không có quyền gán Key Result này.'], 403);
             }
         }
@@ -97,10 +97,10 @@ class OkrAssignmentController extends Controller
         $assignment = OkrAssignment::with(['objective', 'keyResult'])->findOrFail($id);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu của Objective/Key Result được xóa
-        if ($assignment->objective_id && $assignment->objective->owner_id !== $user->user_id) {
+        if ($assignment->objective_id && $assignment->objective->user_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa gán này.'], 403);
         }
-        if ($assignment->kr_id && $assignment->keyResult->objective->owner_id !== $user->user_id) {
+        if ($assignment->kr_id && $assignment->keyResult->objective->user_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa gán này.'], 403);
         }
 
@@ -123,11 +123,11 @@ class OkrAssignmentController extends Controller
         $roleName = $user->role->role_name;
 
         if ($roleName === 'admin') {
-            return User::select('user_id', 'name')->get()->toArray();
+            return User::select('user_id', 'full_name')->get()->toArray();
         }
 
         if ($roleName === 'manager') {
-            return User::select('user_id', 'name')
+            return User::select('user_id', 'full_name')
                 ->where('department_id', $user->department_id)
                 ->where('role->role_name', 'member')
                 ->get()

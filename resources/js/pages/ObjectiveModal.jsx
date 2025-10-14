@@ -713,7 +713,7 @@ export default function ObjectiveModal({
                                                 key={u.user_id}
                                                 value={String(u.user_id)}
                                             >
-                                                {u.name}
+                                                {u.full_name}
                                             </option>
                                         ))}
                                     </select>
