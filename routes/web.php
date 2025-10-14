@@ -11,6 +11,7 @@ use App\Http\Controllers\MyOKRController;
 use App\Http\Controllers\MyObjectiveController;
 use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 
@@ -105,6 +106,10 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
                 Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
                 Route::put('/users/{id}/status', [UserController::class, 'updateStatus'])->name('users.updateStatus');
                 Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
+                
+                // Routes cho Admin functions
+                Route::post('/admin/invite-user', [AdminController::class, 'inviteUser'])->name('admin.invite-user');
+                Route::get('/admin/invitations', [AdminController::class, 'getInvitations'])->name('admin.invitations');
             });
 
     // Objectives Routes

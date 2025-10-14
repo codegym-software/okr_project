@@ -11,8 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('roles', function (Blueprint $table) {
-            //
+        Schema::table('users', function (Blueprint $table) {
+            $table->boolean('is_invited')->default(false)->after('status');
+            $table->timestamp('invited_at')->nullable()->after('is_invited');
         });
     }
 
@@ -21,8 +22,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('roles', function (Blueprint $table) {
-            //
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn(['is_invited', 'invited_at']);
         });
     }
 };

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Toast, Select, Badge, Modal } from '../components/ui';
 import UserTableRow from '../components/UserTableRow';
 import UserTableHeader from '../components/UserTableHeader';
+import InviteUserModal from '../components/InviteUserModal';
 
 export default function UsersPage(){
     const [users, setUsers] = useState([]);
@@ -21,6 +22,7 @@ export default function UsersPage(){
     const [editingLevel, setEditingLevel] = useState({});
     const [pendingChanges, setPendingChanges] = useState({});
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [showInviteModal, setShowInviteModal] = useState(false);
 
     // Function để load roles theo level
     const loadRolesByLevel = async (level) => {
@@ -103,6 +105,17 @@ export default function UsersPage(){
         }
     };
 
+    // Function để load users
+    const loadUsers = async () => {
+        try {
+            const resUsers = await fetch('/users', { headers: { 'Accept': 'application/json' } });
+            const usersData = await resUsers.json();
+            setUsers(usersData.data || []);
+        } catch (e) {
+            console.error('Error loading users:', e);
+        }
+    };
+
     useEffect(() => {
         const load = async () => {
             try {
@@ -154,7 +167,18 @@ export default function UsersPage(){
         <div className="">
             <Toast type={toast.type} message={toast.message} onClose={()=>setToast({ type:'success', message:'' })} />
             <div className="mx-auto max-w-6xl px-4 py-6">
-                <h1 className="text-2xl font-extrabold text-slate-900">Quản lý người dùng</h1>
+                <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-2xl font-extrabold text-slate-900">Quản lý người dùng</h1>
+                    <button 
+                        onClick={() => setShowInviteModal(true)}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm flex items-center gap-2"
+                    >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Mời người dùng
+                    </button>
+                </div>
                 <div className="mt-4 flex flex-col gap-3">
                     {/* Thanh tìm kiếm - 1 dòng riêng */}
                     <input 
@@ -372,6 +396,19 @@ export default function UsersPage(){
                     </div>
                 </div>
             </Modal>
+            
+            {/* Invite User Modal */}
+            <InviteUserModal 
+                isOpen={showInviteModal}
+                onClose={() => setShowInviteModal(false)}
+                onSuccess={() => {
+                    setShowInviteModal(false);
+                    loadUsers(); // Reload danh sách users
+                    showToast('success', 'Email mời đã được gửi thành công');
+                }}
+                departments={departments}
+                roles={roles}
+            />
         </div>
     );
 }
