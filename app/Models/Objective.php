@@ -68,16 +68,5 @@ class Objective extends Model
         return $this->belongsTo(Department::class, 'department_id', 'department_id');
     }
 
-    // Relationship with OkrLink (as source)
-    public function okrLinks()
-    {
-        return $this->hasMany(OkrLink::class, 'source_objective_id', 'objective_id');
-    }
-
-    // Relationship with OkrLink (as target)
-    public function parentLinks()
-    {
-        return $this->hasMany(OkrLink::class, 'target_objective_id', 'objective_id');
-    }  
 }
 
