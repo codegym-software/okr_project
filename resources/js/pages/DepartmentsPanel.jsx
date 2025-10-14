@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Toast, Modal } from '../components/ui';
 
-function DepartmentFormModal({ open, onClose, mode='create', initialData=null, onSaved }){
+function DepartmentFormModal({ open, onClose, mode='create', initialData=null, onSaved, onDelete=null }){
     const [name, setName] = useState(initialData?.d_name || '');
     const [desc, setDesc] = useState(initialData?.d_description || '');
     const [saving, setSaving] = useState(false);
@@ -46,9 +46,22 @@ function DepartmentFormModal({ open, onClose, mode='create', initialData=null, o
                     <label className="mb-1 block text-sm font-semibold text-slate-700">Mô tả</label>
                     <textarea value={desc} onChange={e=>setDesc(e.target.value)} className="h-24 w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <div className="flex justify-end gap-3 pt-2">
-                    <button type="button" onClick={onClose} className="rounded-2xl border border-slate-300 px-5 py-2 text-sm">Hủy</button>
-                    <button disabled={saving} type="submit" className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-60">{mode==='edit' ? 'Lưu thay đổi' : 'Lưu'}</button>
+                <div className="flex justify-between gap-3 pt-2">
+                    <div className="flex gap-3">
+                        {mode === 'edit' && onDelete && (
+                            <button 
+                                type="button" 
+                                onClick={onDelete} 
+                                className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                            >
+                                Xóa
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <button type="button" onClick={onClose} className="rounded-2xl border border-slate-300 px-5 py-2 text-sm">Hủy</button>
+                        <button disabled={saving} type="submit" className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-60">{mode==='edit' ? 'Lưu thay đổi' : 'Lưu'}</button>
+                    </div>
                 </div>
             </form>
         </Modal>
@@ -81,6 +94,23 @@ export default function DepartmentsPanel(){
             setOpenEdit(true);
         } catch (e) {
             showToast('error', e.message || 'Không tải được dữ liệu phòng ban');
+        }
+    };
+
+    const remove = async (id) => {
+        const ok = window.confirm('Bạn có chắc chắn muốn xóa phòng ban này?');
+        if (!ok) return;
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const res = await fetch(`/departments/${id}`, { method:'DELETE', headers:{ 'X-CSRF-TOKEN':token, 'Accept':'application/json' } });
+            const data = await res.json().catch(()=>({ success: res.ok }));
+            if (!res.ok || data.success === false) throw new Error(data.message || 'Xóa thất bại');
+            setDepartments(prev => prev.filter(d => d.department_id !== id));
+            setOpenEdit(false);
+            setEditing(null);
+            showToast('success', 'Xóa phòng ban thành công');
+        } catch (e) {
+            showToast('error', e.message || 'Xóa phòng ban thất bại');
         }
     };
 
@@ -119,7 +149,7 @@ export default function DepartmentsPanel(){
                 </table>
             </div>
             <DepartmentFormModal open={openCreate} onClose={()=>setOpenCreate(false)} mode="create" onSaved={(dep)=>{ setDepartments([...departments, dep]); showToast('success','Tạo phòng ban thành công'); }} />
-            <DepartmentFormModal open={openEdit} onClose={()=>{ setOpenEdit(false); setEditing(null); }} mode="edit" initialData={editing} onSaved={(dep)=>{ setDepartments(prev=>prev.map(x=>x.department_id===dep.department_id?dep:x)); showToast('success','Cập nhật phòng ban thành công'); }} />
+            <DepartmentFormModal open={openEdit} onClose={()=>{ setOpenEdit(false); setEditing(null); }} mode="edit" initialData={editing} onSaved={(dep)=>{ setDepartments(prev=>prev.map(x=>x.department_id===dep.department_id?dep:x)); showToast('success','Cập nhật phòng ban thành công'); }} onDelete={editing ? () => remove(editing.department_id) : null} />
         </div>
     );
 }
