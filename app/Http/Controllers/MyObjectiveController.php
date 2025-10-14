@@ -205,7 +205,7 @@ class MyObjectiveController extends Controller
         // Xử lý cập nhật liên kết
         $validated['parent_objective_id'] = $request->validate(['parent_objective_id' => 'nullable|exists:objectives,objective_id'])['parent_objective_id'] ?? null;
 
-        // Xóa liên kết cũ nếu thay đổi
+        // Xóa liên kết cũ nếu thay đổi 
         OkrLink::where('source_objective_id', $id)->delete();
 
         if ($validated['parent_objective_id']) {
@@ -218,7 +218,7 @@ class MyObjectiveController extends Controller
             ]);
         }
 
-        // Thông báo nếu thay đổi
+        // Thông báo nếu thay đổi 
         event(new OkrParentChanged($objective));
 
         try {
