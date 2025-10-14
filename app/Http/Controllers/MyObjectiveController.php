@@ -22,7 +22,7 @@ class MyObjectiveController extends Controller
     {
         $user = Auth::user();
         $objectives = Objective::with(['keyResults', 'department', 'cycle'])
-            ->where('user_id', $user->id)
+            ->where('user_id', $user->user_id)
             ->paginate(10);
 
         if ($request->expectsJson()) {
@@ -133,7 +133,7 @@ class MyObjectiveController extends Controller
         $objective = Objective::findOrFail($id);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu (user_id) được cập nhật
-        if ($objective->user_id !== $user->id) {
+        if ($objective->user_id !== $user->user_id) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Objective này.'], 403)
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền cập nhật Objective này.']);
@@ -181,7 +181,7 @@ class MyObjectiveController extends Controller
         $objective = Objective::findOrFail($id);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu (user_id) được xóa
-        if ($objective->user_id !== $user->id) {
+        if ($objective->user_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Objective này.'], 403);
         }
 
@@ -206,7 +206,7 @@ class MyObjectiveController extends Controller
         $objective = Objective::with(['keyResults', 'department', 'cycle'])->findOrFail($id);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu (user_id) được xem
-        if ($objective->user_id !== $user->id) {
+        if ($objective->user_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xem Objective này.'], 403);
         }
 
@@ -222,7 +222,7 @@ class MyObjectiveController extends Controller
         $keyResult = KeyResult::with(['objective', 'cycle'])->findOrFail($id);
 
         // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được xem
-        if ($keyResult->objective->user_id !== $user->id) {
+        if ($keyResult->objective->user_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xem Key Result này.'], 403);
         }
 
