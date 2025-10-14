@@ -107,7 +107,7 @@ export default function DepartmentsPanel(){
                                 <td className="px-3 py-2">
                                     <button 
                                         onClick={()=>openEditModal(d.department_id)} 
-                                        className="font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left"
+                                        className="font-semibold text-slate-900 hover:text-blue-600 hover:underline cursor-pointer text-left"
                                     >
                                         {d.d_name}
                                     </button>
