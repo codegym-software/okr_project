@@ -37,29 +37,7 @@ class MyOKRController extends Controller
             ->first();
 
         if (!$currentCycle) {
-            return view('my-okr.index', [
-                'objectives' => collect(),
-                'currentCycle' => null,
-                'currentQuarter' => [
-                    'quarter' => $quarter,
-                    'year' => $year,
-                    'label' => "Q{$quarter} {$year}",
-                ],
-                'stats' => [
-                    'total' => 0,
-                    'completed' => 0,
-                    'in_progress' => 0,
-                    'not_started' => 0,
-                    'average_progress' => 0,
-                ],
-                'filters' => [
-                    'status' => null,
-                    'progress' => null,
-                    'sort' => 'created_at',
-                    'direction' => 'desc',
-                ],
-                'message' => 'Không có chu kỳ OKR nào đang hoạt động trong quý hiện tại.'
-            ]);
+            return view('app');
         }
 
         // Query objectives của user trong cycle hiện tại + eager load key results
@@ -149,33 +127,18 @@ class MyOKRController extends Controller
             }
         }
 
-        return view('my-okr.index', [
-            'objectives' => $objectives,
-            'currentCycle' => $currentCycle,
-            'currentQuarter' => [
-                'quarter' => $quarter,
-                'year' => $year,
-                'label' => "Q{$quarter} {$year}",
-            ],
-            'stats' => $stats,
-            'filters' => [
-                'status' => $request->input('status'),
-                'progress' => $request->input('progress'),
-                'sort' => $sortBy,
-                'direction' => $direction,
-            ],
-            'notifications' => $notifications,
-        ]);
+        return view('app');
     }
+
 public function indexx(Request $request)
 {
     // Kiểm tra mode trong session (mặc định là sáng)
     $mode = session('mode', 'light');
 
     if ($mode === 'dark') {
-        return view('okrs.index')->with('layout', 'layouts.app_dark');
+        return view('app');
     } else {
-        return view('okrs.index')->with('layout', 'layouts.app_light');
+        return view('app');
     }
 }
 

@@ -10,12 +10,11 @@ class DepartmentController extends Controller
 {
     //
     public function index() {
-        $departments = Department::all();
-        return view('departments.index', compact('departments'));
+        return view('app');
     }
 
     public function create() {
-        return view('departments.create');
+        return view('app');
     }
 
     public function store(Request $request) {
@@ -29,11 +28,11 @@ class DepartmentController extends Controller
     }
 
     public function show(Department $department) {
-        return view('departments.show', compact('department'));
+        return view('app');
     }
 
     public function edit(Department $department) {
-        return view('departments.edit', compact('department'));
+        return view('app');
     }
 
     public function update(Request $request, Department $department) {

@@ -13,7 +13,6 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminOnly::class,
-            'manager' => \App\Http\Middleware\ManagerOnly::class,
             'check.status' => \App\Http\Middleware\CheckUserStatus::class,
             'timezone' => \App\Http\Middleware\SetTimezone::class,
         ]);

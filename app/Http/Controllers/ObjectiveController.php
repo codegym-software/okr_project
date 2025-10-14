@@ -18,45 +18,7 @@ class ObjectiveController extends Controller
      */
     public function index(): View
     {
-        $user = Auth::user();
-<<<<<<< HEAD
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
-        $objectives = Objective::with(['user', 'cycle', 'keyResults'])
-                               ->paginate(10);
-=======
-        
-        // Xây dựng query dựa trên role
-        $query = Objective::with(['user', 'cycle', 'keyResults', 'department']);
-        
-        if ($user->isManager()) {
-            // Manager xem OKR phòng ban của mình, OKR nhóm và OKR cá nhân
-            $query->where(function($q) use ($user) {
-                $q->where('level', 'Cá nhân')
-                  ->orWhere('level', 'Nhóm')
-                  ->orWhere(function($subQ) use ($user) {
-                      $subQ->where('level', 'Phòng ban')
-                           ->where('department_id', $user->department_id);
-                  });
-            });
-        } elseif ($user->isMember()) {
-            // Member xem OKR cá nhân và OKR phòng ban của phòng ban mình
-            $query->where(function($q) use ($user) {
-                $q->where('level', 'Cá nhân')
-                  ->orWhere(function($subQ) use ($user) {
-                      $subQ->where('level', 'Phòng ban')
-                           ->where('department_id', $user->department_id);
-                  });
-            });
-        }
-        // Admin xem tất cả (không cần filter)
-        
-        $objectives = $query->orderBy('created_at', 'desc')->paginate(10);
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
-        return view('objectives.index', compact('objectives'));
+        return view('app');
     }
 
     /**
@@ -64,41 +26,7 @@ class ObjectiveController extends Controller
      */
     public function create(Request $request): View
     {
-        $user = Auth::user();
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
-        $cycle_id = $request->query('cycle_id', null);
-
-<<<<<<< HEAD
-        // Xác định các level được phép tạo theo role_name
-        $allowedLevels = match($user->role->role_name) {
-            'admin' => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'], // Admin
-            default => [], // Không cho phép
-=======
-        // Xác định các level được phép tạo theo role_id
-        $allowedLevels = match($user->role_id) {
-            1 => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'], // Admin
-            2 => ['Phòng ban', 'Nhóm', 'Cá nhân'], // Manager chỉ tạo OKR phòng ban, nhóm, cá nhân
-            default => ['Nhóm', 'Cá nhân'],                   // Member
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
-        };
-
-        // Lấy danh sách phòng ban cho Manager và Admin
-        $departments = collect();
-        if ($user->isAdmin() || $user->isManager()) {
-            $departments = \App\Models\Department::all();
-        }
-
-        // Lấy phòng ban của Manager (nếu có)
-        $userDepartment = $user->department;
-
-        // Lấy danh sách cycles
-        $cycles = \App\Models\Cycle::where('status', 'active')->orderBy('start_date', 'desc')->get();
-
-        return view('objectives.create', compact('cycle_id', 'allowedLevels', 'departments', 'userDepartment', 'cycles'));
+        return view('app');
     }
 
     /**
@@ -140,10 +68,6 @@ class ObjectiveController extends Controller
             'description' => 'nullable|string|max:1000',
             'status' => 'required|in:draft,active,completed',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
-<<<<<<< HEAD
-            'cycle_id' => 'nullable|integer|exists:cycles,cycle_id',
-        ]);
-=======
             'cycle_id' => 'required|integer|exists:cycles,cycle_id',
             'department_id' => 'nullable|integer|exists:departments,department_id',
 
@@ -154,10 +78,9 @@ class ObjectiveController extends Controller
             'key_results.*.current_value' => 'nullable|numeric|min:0',
             'key_results.*.unit' => 'nullable|string|max:255',
             'key_results.*.status' => 'nullable|string|max:255',
-            'key_results.*.weight' => 'nullable|integer|min:0|max:100',
+            'key_results.*.weight' => 'nullable|numeric|min:0|max:100',
             'key_results.*.progress_percent' => 'nullable|numeric|min:0|max:100',
         ];
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
 
         // Yêu cầu department_id và key_results khi tạo OKR phòng ban
         if ($level === 'Phòng ban') {
@@ -216,12 +139,8 @@ class ObjectiveController extends Controller
                 'status' => $validated['status'],
                 'progress_percent' => $validated['progress_percent'] ?? 0,
                 'user_id' => Auth::id() ?? 2,
-<<<<<<< HEAD
-                'cycle_id' => $validated['cycle_id'] ?? null,
-=======
                 'cycle_id' => $validated['cycle_id'],
                 'department_id' => $validated['department_id'] ?? null,
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
             ];
             $objective = Objective::create($objectiveData);
 
@@ -285,35 +204,7 @@ class ObjectiveController extends Controller
      */
     public function show(string $id): View
     {
-        $user = Auth::user();
-<<<<<<< HEAD
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
-        $objective = Objective::with('keyResults')->findOrFail($id);
-=======
-        $objective = Objective::with(['keyResults', 'department'])->findOrFail($id);
-        
-        // Kiểm tra quyền xem OKR phòng ban
-        if ($objective->level === 'Phòng ban') {
-            if ($user->isManager()) {
-                if (!$user->department_id || $objective->department_id !== $user->department_id) {
-                    abort(403, 'Bạn không có quyền xem OKR phòng ban này.');
-                }
-            } elseif ($user->isMember()) {
-                // Member chỉ có thể xem OKR phòng ban của phòng ban mình
-                if (!$user->department_id || $objective->department_id !== $user->department_id) {
-                    abort(403, 'Bạn không có quyền xem OKR phòng ban này.');
-                }
-            } elseif (!$user->isAdmin()) {
-                abort(403, 'Bạn không có quyền xem OKR phòng ban.');
-            }
-        }
-        
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
-        return view('objectives.show', compact('objective'));
+        return view('app');
     }
 
     /**
@@ -321,35 +212,7 @@ class ObjectiveController extends Controller
      */
     public function edit(string $id): View
     {
-        $user = Auth::user();
-<<<<<<< HEAD
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
-        $objective = Objective::findOrFail($id);
-=======
-        $objective = Objective::with('department')->findOrFail($id);
-        
-        // Kiểm tra quyền chỉnh sửa
-        if ($objective->level === 'Phòng ban') {
-            if ($user->isManager()) {
-                if (!$user->department_id || $objective->department_id !== $user->department_id) {
-                    abort(403, 'Bạn không có quyền chỉnh sửa OKR phòng ban này.');
-                }
-            } elseif (!$user->isAdmin()) {
-                abort(403, 'Bạn không có quyền chỉnh sửa OKR phòng ban.');
-            }
-        } elseif ($objective->level === 'Cá nhân') {
-            // OKR cá nhân chỉ có owner hoặc Admin mới được chỉnh sửa
-            if ($user->isMember() && $objective->user_id !== $user->user_id) {
-                abort(403, 'Bạn chỉ có thể chỉnh sửa OKR cá nhân của chính mình.');
-            }
-        }
-        
->>>>>>> feature/manager-funtion
-        return view('objectives.edit', compact('objective'));
+        return view('app');
     }
 
     /**
@@ -358,11 +221,6 @@ class ObjectiveController extends Controller
     public function update(Request $request, string $id): RedirectResponse
     {
         $user = Auth::user();
->>>>>>> feature/manager-funtion
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
-=======
         $objective = Objective::with('department')->findOrFail($id);
         
         // Kiểm tra quyền cập nhật
@@ -379,7 +237,6 @@ class ObjectiveController extends Controller
             if ($user->isMember() && $objective->user_id !== $user->user_id) {
                 abort(403, 'Bạn chỉ có thể cập nhật OKR cá nhân của chính mình.');
             }
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
         }
 
         $validated = $request->validate([
@@ -401,14 +258,6 @@ class ObjectiveController extends Controller
     public function destroy(string $id): RedirectResponse
     {
         $user = Auth::user();
-<<<<<<< HEAD
-        // Kiểm tra role_name thông qua mối quan hệ với bảng roles
-        if ($user->role->role_name !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
-        $objective = Objective::findOrFail($id);
-=======
         $objective = Objective::with('department')->findOrFail($id);
         
         // Kiểm tra quyền xóa
@@ -427,7 +276,6 @@ class ObjectiveController extends Controller
             }
         }
         
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
         $objective->delete();
 
         return redirect()->route('objectives.index')

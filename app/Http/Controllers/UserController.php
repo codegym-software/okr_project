@@ -20,26 +20,12 @@ class UserController extends Controller
      */
     public function index()
     {
-        try {
-            // Cache users data for 5 minutes to improve performance
-            $users = \Cache::remember('users_list', 300, function () {
-                return User::with(['role', 'department'])
-                    ->orderBy('user_id', 'asc')
-                    ->get();
-            });
-
-            return view('users.index', compact('users'));
-        } catch (\Exception $e) {
-            \Log::error('Error loading users: ' . $e->getMessage());
-            return view('users.index', ['users' => collect()])
-                ->with('error', 'Không thể tải danh sách người dùng. Vui lòng thử lại sau.');
-        }
+        return view('app');
     }
 
     public function show($id)
     {
-        $user = User::with(['role', 'department'])->findOrFail($id);
-        return view('users.show', compact('user'));
+        return view('app');
     }
 
     /**

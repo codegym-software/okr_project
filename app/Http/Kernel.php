@@ -55,10 +55,14 @@ class Kernel extends HttpKernel
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
     ];
 
+    /**
+     * The application's route middleware.
+     */
     protected $routeMiddleware = [
-        // ...
-        // 'cognito.auth' => \App\Http\Middleware\CheckCognitoToken::class,
-        'auth' => \App\Http\Middleware\Authenticate::class,
         'check.department.manager' => \App\Http\Middleware\CheckDepartmentManager::class,
+        'manager' => \App\Http\Middleware\ManagerOnly::class,
+        'admin' => \App\Http\Middleware\AdminOnly::class,
+        'check.status' => \App\Http\Middleware\CheckUserStatus::class,
+        'timezone' => \App\Http\Middleware\SetTimezone::class,
     ];
 }

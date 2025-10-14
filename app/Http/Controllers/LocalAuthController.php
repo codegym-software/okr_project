@@ -14,7 +14,7 @@ class LocalAuthController extends Controller
      */
     public function showLoginForm()
     {
-        return view('auth.local-login');
+        return view('app');
     }
 
     /**

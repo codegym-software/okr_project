@@ -11,30 +11,17 @@ class KeyResultController extends Controller
 {
     public function index($objectiveId)
     {
-        $objective = Objective::with('keyResults')->findOrFail($objectiveId);
-        $keyResults = $objective->keyResults;
-        $cycles = Cycle::all();
-
-        return view('key_results.index', compact('objective', 'keyResults', 'cycles'));
+        return view('app');
     }
 
     public function show($objectiveId, $keyResultId)
     {
-        $objective = Objective::findOrFail($objectiveId);
-
-        $keyResult = KeyResult::with(['objective', 'cycle'])
-            ->where('objective_id', $objectiveId)
-            ->where('kr_id', $keyResultId)
-            ->firstOrFail();
-
-        return view('key_results.show', compact('objective', 'keyResult'));
+        return view('app');
     }
 
     public function create($objectiveId)
     {
-        $objective = Objective::findOrFail($objectiveId);
-        $cycles = Cycle::all();
-        return view('key_results.create', compact('objective', 'cycles'));
+        return view('app');
     }
 
     public function store(Request $request, $objectiveId)

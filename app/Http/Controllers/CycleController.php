@@ -10,12 +10,11 @@ class CycleController extends Controller
 {
     //
     public function index() {
-        $cycles = Cycle::all();
-        return view('cycles.index', compact('cycles'));
+        return view('app');
     }
 
     public function create() {
-        return view('cycles.create');
+        return view('app');
     }
 
     public function store(Request $request) {
@@ -32,18 +31,11 @@ class CycleController extends Controller
     }
 
     public function show(Cycle $cycle) {
-        // Eager load objectives và user của objectives
-        $cycle->load(['objectives.user']);
-
-        // Trích xuất objectives từ cycle
-        $objectives = $cycle->objectives;
-
-        // Truyền cả $cycle và $objectives vào view
-        return view('cycles.show', compact('cycle', 'objectives'));
+        return view('app');
     }
 
     public function edit(Cycle $cycle) {
-        return view('cycles.edit', compact('cycle'));
+        return view('app');
     }
 
     public function update(Request $request, Cycle $cycle) {

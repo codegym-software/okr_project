@@ -24,7 +24,7 @@ class MyKeyResultController extends Controller
             })
             ->paginate(10);
 
-        return view('my-key-results.index', compact('keyResults'));
+        return view('app');
     }
 
     /**
@@ -38,13 +38,10 @@ class MyKeyResultController extends Controller
         // Kiểm tra quyền tạo KR
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
         if (!in_array($objective->level, $allowedLevels) || ($objective->user_id !== $user->id && $objective->level === 'Cá nhân')) {
-            return view('my-key-results.create', [
-                'objective' => $objective,
-                'errors' => ['error' => 'Bạn không có quyền tạo Key Result cho Objective này.']
-            ]);
+            return view('app');
         }
 
-        return view('my-key-results.create', compact('objective'));
+        return view('app');
     }
 
     /**
@@ -92,7 +89,7 @@ class MyKeyResultController extends Controller
                     'weight' => $validated['weight'],
                     'progress_percent' => $validated['progress_percent'] ?? 0,
                     'objective_id' => $objective->objective_id, // Sử dụng objective_id
-                    'user_id' => $user->id,
+                    'cycle_id' => $objective->cycle_id,
                 ];
                 KeyResult::create($keyResultData);
             });
@@ -118,14 +115,10 @@ class MyKeyResultController extends Controller
         // Kiểm tra quyền chỉnh sửa
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
         if (!in_array($objective->level, $allowedLevels) || ($objective->user_id !== $user->id && $objective->level === 'Cá nhân')) {
-            return view('my-key-results.edit', [
-                'objective' => $objective,
-                'keyResult' => $keyResult,
-                'errors' => ['error' => 'Bạn không có quyền chỉnh sửa Key Result này.']
-            ]);
+            return view('app');
         }
 
-        return view('my-key-results.edit', compact('objective', 'keyResult'));
+        return view('app');
     }
 
     /**

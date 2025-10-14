@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Objective extends Model
 {
@@ -27,10 +28,7 @@ class Objective extends Model
         'user_id',
         'cycle_id',
         'department_id',
->>>>>>> feature/manager-funtion
         'parent_key_result_id',
-=======
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
     ];
 
     /**
@@ -68,23 +66,20 @@ class Objective extends Model
     /**
      * Get the department that the objective belongs to.
      */
-<<<<<<< HEAD
-    public function department(){
-=======
     public function department()
     {
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
         return $this->belongsTo(Department::class, 'department_id', 'department_id');
     }
 
     /**
-<<<<<<< HEAD
      * Get the parent key result that the objective belongs to.
      */
-    public function parentKeyResult(){
+    public function parentKeyResult()
+    {
         return $this->belongsTo(KeyResult::class, 'parent_key_result_id', 'kr_id');
-    }   
-=======
+    }
+
+    /**
      * Get the progress percentage attribute.
      */
     public function getProgressPercentAttribute()
@@ -110,6 +105,5 @@ class Objective extends Model
 
         return 0;
     }
->>>>>>> 53aac8f01bead5df701031cb4d85e4d438e9f0e8
 }
 

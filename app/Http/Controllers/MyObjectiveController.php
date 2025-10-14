@@ -32,7 +32,7 @@ class MyObjectiveController extends Controller
         $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
         $currentLevel = $allowedLevels[0]; // Lấy level đầu tiên làm mặc định cho index
 
-        $query = Objective::with(['user', 'department', 'keyResults', 'cycle', 'parentKeyResult.objective'])
+        $query = Objective::with(['user', 'department', 'keyResults.checkIns', 'cycle', 'parentKeyResult.objective'])
             ->whereIn('level', $allowedLevels)
             ->where(function ($query) use ($user) {
                 $query->where('user_id', $user->id)
@@ -64,7 +64,7 @@ class MyObjectiveController extends Controller
             Log::warning('Tải danh sách OKR vượt quá 3 giây: ' . $executionTime . 's');
         }
 
-        return view('my-objectives.index', compact('objectives', 'allowedLevels'));
+        return view('app');
     }
 
     /**
@@ -95,29 +95,21 @@ class MyObjectiveController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->paginate(10);
 
-            return view('my-objectives.index', [
-                'objectives' => $objectives,
-                'error' => 'Bạn không có vai trò để tạo OKR.',
-                'allowedLevels' => ['person']
-            ]);
+            return view('app');
         }
 
         $roleName = $user->role->role_name;
         $allowedLevels = $this->getAllowedLevels($roleName);
 
         // Tất cả role đều có thể tạo OKR, chỉ khác level được phép
-        if ($roleName === 'admin') {
+        if ($roleName === 'Admin') {
             $departments = Department::all();
         } else {
-            // master, facilitator, member chỉ có thể tạo cho department của mình
+            // Manager, Member chỉ có thể tạo cho department của mình
             $departments = [$user->department];
         }
 
-        $companyKeyResults = KeyResult::whereHas('objective', function ($query) {
-            $query->where('level', 'company');
-        })->with(['objective'])->get();
-
-        return view('my-objectives.create', compact('departments', 'allowedLevels', 'cycles', 'companyKeyResults', 'user'));
+        return view('app');
     }
 
     /**
@@ -173,7 +165,6 @@ class MyObjectiveController extends Controller
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'level' => 'required|in:' . implode(',', $allowedLevels),
             'cycle_id' => 'required|integer|exists:cycles,cycle_id',
-            'parent_key_result_id' => 'nullable|integer|exists:key_results,kr_id',
             'key_results' => 'required|array|min:1',
             'key_results.*.kr_title' => 'required|string|max:255',
             'key_results.*.target_value' => 'required|numeric',
@@ -192,26 +183,10 @@ class MyObjectiveController extends Controller
         $validated = $request->validate($rules);
 
         // Kiểm tra quyền department
-        if ($validated['level'] !== 'company' && $roleName !== 'admin' && $user->department_id != $validated['department_id']) {
+        if ($validated['level'] !== 'company' && $roleName !== 'Admin' && $user->department_id != $validated['department_id']) {
             return redirect()->back()
                 ->withErrors(['error' => 'Bạn chỉ có thể tạo OKR cho phòng ban của mình.'])
                 ->withInput();
-        }
-
-        // Kiểm tra parent key result
-        if ($validated['parent_key_result_id']) {
-            $parentKeyResult = KeyResult::where('kr_id', $validated['parent_key_result_id'])
-                ->whereHas('objective', function ($query) use ($validated) {
-                    $query->where('level', 'company')
-                          ->where('cycle_id', $validated['cycle_id']);
-                })
-                ->first();
-
-            if (!$parentKeyResult) {
-                return redirect()->back()
-                    ->withErrors(['error' => 'Key Result cấp công ty không hợp lệ hoặc không thuộc chu kỳ hiện tại.'])
-                    ->withInput();
-            }
         }
 
         try {
@@ -224,10 +199,9 @@ class MyObjectiveController extends Controller
                     'description' => $validated['description'],
                     'status' => $validated['status'],
                     'progress_percent' => $validated['progress_percent'] ?? 0,
-                    'user_id' => $user->id,
+                    'user_id' => $user->user_id,
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['level'] === 'company' ? null : $validated['department_id'],
-                    'parent_key_result_id' => $validated['parent_key_result_id'],
                 ]);
 
                 foreach ($validated['key_results'] as $kr) {
@@ -240,7 +214,7 @@ class MyObjectiveController extends Controller
                         'weight' => $kr['weight'],
                         'progress_percent' => $kr['progress_percent'] ?? 0,
                         'objective_id' => $objective->objective_id,
-                        'user_id' => $user->id,
+                        'cycle_id' => $validated['cycle_id'],
                     ]);
                 }
             });
@@ -279,20 +253,12 @@ class MyObjectiveController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->paginate(10);
 
-            return view('my-objectives.index', [
-                'objectives' => $objectives,
-                'error' => 'Bạn không có vai trò để chỉnh sửa OKR.',
-                'allowedLevels' => ['person']
-            ]);
+            return view('app');
         }
 
         $objective = Objective::with('department')->findOrFail($id);
         $departments = [];
         $cycles = Cycle::all();
-        $companyKeyResults = KeyResult::whereHas('objective', function ($query) use ($objective) {
-            $query->where('level', 'company')
-                  ->where('cycle_id', $objective->cycle_id);
-        })->with(['objective'])->get();
 
         $roleName = $user->role->role_name;
         $allowedLevels = $this->getAllowedLevels($roleName);
@@ -309,35 +275,23 @@ class MyObjectiveController extends Controller
 
         // Kiểm tra quyền chỉnh sửa
         if (!in_array($objective->level, $allowedLevels) || 
-            ($roleName !== 'admin' && $objective->level !== 'company' && $objective->department_id !== $user->department_id)) {
+            ($roleName !== 'Admin' && $objective->level !== 'company' && $objective->department_id !== $user->department_id)) {
             Log::warning('User does not have permission to edit objective', [
                 'user_id' => $user->id,
                 'objective_id' => $id
             ]);
-            return view('my-objectives.index', [
-                'objectives' => Objective::whereIn('level', $allowedLevels)
-                    ->where(function ($query) use ($user) {
-                        $query->where('user_id', $user->id)
-                              ->orWhereHas('department', function ($q) use ($user) {
-                                  $q->where('department_id', $user->department_id);
-                              });
-                    })
-                    ->orderBy('created_at', 'desc')
-                    ->paginate(10),
-                'error' => 'Bạn không có quyền chỉnh sửa Objective này.',
-                'allowedLevels' => $allowedLevels
-            ]);
+            return view('app');
         }
 
         // Cấu hình departments dựa trên role
-        if ($roleName === 'admin') {
+        if ($roleName === 'Admin') {
             $departments = Department::all();
         } else {
-            // master, facilitator, member chỉ có thể chỉnh sửa department của mình
+            // Manager, Member chỉ có thể chỉnh sửa department của mình
             $departments = [$user->department];
         }
 
-        return view('my-objectives.edit', compact('objective', 'departments', 'cycles', 'companyKeyResults', 'user', 'allowedLevels'));
+        return view('app');
     }
 
     /**
@@ -357,7 +311,7 @@ class MyObjectiveController extends Controller
 
         // Kiểm tra quyền chỉnh sửa
         if (!in_array($objective->level, $allowedLevels) || 
-            ($roleName !== 'admin' && $objective->level !== 'company' && $objective->department_id !== $user->department_id)) {
+            ($roleName !== 'Admin' && $objective->level !== 'company' && $objective->department_id !== $user->department_id)) {
             return redirect()->back()
                 ->withErrors(['error' => 'Bạn không có quyền cập nhật Objective này.']);
         }
@@ -369,7 +323,6 @@ class MyObjectiveController extends Controller
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'level' => 'required|in:' . implode(',', $allowedLevels),
             'cycle_id' => 'required|integer|exists:cycles,cycle_id',
-            'parent_key_result_id' => 'nullable|integer|exists:key_results,kr_id',
         ];
 
         // Chỉ yêu cầu department_id nếu level không phải là company
@@ -380,25 +333,9 @@ class MyObjectiveController extends Controller
         $validated = $request->validate($rules);
 
         // Kiểm tra quyền department cho update
-        if ($validated['level'] !== 'company' && $roleName !== 'admin' && $user->department_id != $validated['department_id']) {
+        if ($validated['level'] !== 'company' && $roleName !== 'Admin' && $user->department_id != $validated['department_id']) {
             return redirect()->back()
                 ->withErrors(['error' => 'Bạn chỉ có thể cập nhật OKR cho phòng ban của mình.']);
-        }
-
-        // Kiểm tra parent key result
-        if ($validated['parent_key_result_id']) {
-            $parentKeyResult = KeyResult::where('kr_id', $validated['parent_key_result_id'])
-                ->whereHas('objective', function ($query) use ($validated) {
-                    $query->where('level', 'company')
-                          ->where('cycle_id', $validated['cycle_id']);
-                })
-                ->first();
-
-            if (!$parentKeyResult) {
-                return redirect()->back()
-                    ->withErrors(['error' => 'Key Result cấp công ty không hợp lệ hoặc không thuộc chu kỳ hiện tại.'])
-                    ->withInput();
-            }
         }
 
         try {
@@ -411,7 +348,6 @@ class MyObjectiveController extends Controller
                     'progress_percent' => $validated['progress_percent'] ?? 0,
                     'department_id' => $validated['level'] === 'company' ? null : $validated['department_id'],
                     'cycle_id' => $validated['cycle_id'],
-                    'parent_key_result_id' => $validated['parent_key_result_id'],
                     'parent_objective_id' => null,
                 ]);
             });
@@ -443,7 +379,7 @@ class MyObjectiveController extends Controller
 
         // Kiểm tra quyền xóa
         if (!in_array($objective->level, $allowedLevels) || 
-            ($roleName !== 'admin' && $objective->level !== 'company' && $objective->department_id !== $user->department_id)) {
+            ($roleName !== 'Admin' && $objective->level !== 'company' && $objective->department_id !== $user->department_id)) {
             return redirect()->back()
                 ->withErrors(['error' => 'Bạn không có quyền xóa Objective này.']);
         }
@@ -470,9 +406,9 @@ class MyObjectiveController extends Controller
     private function getAllowedLevels(string $roleName): array
     {
         return match ($roleName) {
-            'admin' => ['company', 'unit', 'team', 'person'],
-            'master', 'facilitator' => ['unit', 'team', 'person'],
-            'member' => ['person'],
+            'Admin' => ['company', 'unit', 'team', 'person'],
+            'Manager' => ['unit', 'team', 'person'],
+            'Member' => ['person'],
             default => ['person'],
         };
     }
