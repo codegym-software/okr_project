@@ -370,19 +370,26 @@ export default function DepartmentsPanel() {
                 </AdminOnly>
             </div>
             <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <table className="min-w-full divide-y divide-slate-200 text-xs md:text-sm">
+                <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
                             <th className="px-3 py-2 w-12"></th>
-                            <th className="px-3 py-2">Tên</th>
-                            <th className="px-3 py-2">Mô tả</th>
+                            <th className="px-3 py-2 w-[30%] border-r border-slate-200">
+                                Tên
+                            </th>
+                            <th className="px-3 py-2 w-[20%] border-r border-slate-200 text-center">
+                                Loại
+                            </th>
+                            <th className="px-3 py-2 w-[50%] text-center">
+                                Mô tả
+                            </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading && (
                             <tr>
                                 <td
-                                    colSpan={3}
+                                    colSpan={4}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -392,7 +399,7 @@ export default function DepartmentsPanel() {
                         {!loading && departments.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={3}
+                                    colSpan={4}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Chưa có phòng ban
@@ -400,10 +407,14 @@ export default function DepartmentsPanel() {
                             </tr>
                         )}
                         {!loading &&
-                            departments.map((d) => (
+                            departments.map((d, index) => (
                                 <React.Fragment key={d.department_id}>
-                                    <tr className="hover:bg-slate-50">
-                                        <td className="px-3 py-2">
+                                    <tr
+                                        className={`bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200 ${
+                                            index > 0 ? "mt-4" : ""
+                                        }`}
+                                    >
+                                        <td className="px-3 py-3">
                                             {teams.some(
                                                 (t) =>
                                                     t.parent_department_id ===
@@ -415,19 +426,37 @@ export default function DepartmentsPanel() {
                                                             d.department_id
                                                         )
                                                     }
-                                                    className="text-slate-600 hover:text-blue-600"
+                                                    className="rounded-md border border-slate-300 bg-white p-1 text-slate-700 hover:bg-slate-50 shadow-sm"
                                                 >
-                                                    {expanded[d.department_id]
-                                                        ? "▼"
-                                                        : "▶"}
+                                                    <svg
+                                                        width="12"
+                                                        height="12"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    >
+                                                        <polyline
+                                                            points={
+                                                                expanded[
+                                                                    d
+                                                                        .department_id
+                                                                ]
+                                                                    ? "18 15 12 9 6 15"
+                                                                    : "6 9 12 15 18 9"
+                                                            }
+                                                        ></polyline>
+                                                    </svg>
                                                 </button>
                                             )}
                                         </td>
-                                        <td className="px-3 py-2">
+                                        <td className="px-3 py-3 border-r border-slate-200">
                                             <AdminOnly
                                                 permission="canManageDepartments"
                                                 fallback={
-                                                    <span className="font-semibold text-slate-900">
+                                                    <span className="font-semibold text-green-700">
                                                         {d.d_name}
                                                     </span>
                                                 }
@@ -438,89 +467,61 @@ export default function DepartmentsPanel() {
                                                             d.department_id
                                                         )
                                                     }
-                                                    className="font-semibold text-slate-900 hover:text-blue-600 hover:underline cursor-pointer text-left"
+                                                    className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
                                                 >
                                                     {d.d_name}
                                                 </button>
                                             </AdminOnly>
                                         </td>
-                                        <td className="px-3 py-2 text-slate-600">
+                                        <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                            {d.type}
+                                        </td>
+                                        <td className="px-3 py-3 text-center">
                                             {d.d_description || "-"}
                                         </td>
                                     </tr>
-                                    {expanded[d.department_id] && (
-                                        <tr>
-                                            <td
-                                                colSpan={3}
-                                                className="px-3 py-2 bg-slate-50"
-                                            >
-                                                <div className="ml-8">
-                                                    <h4 className="text-sm font-semibold text-slate-700 mb-2">
-                                                        Đội nhóm thuộc{" "}
-                                                        {d.d_name}
-                                                    </h4>
-                                                    <table className="min-w-full divide-y divide-slate-200 text-xs md:text-sm">
-                                                        <thead className="bg-slate-100 text-left font-semibold text-slate-700">
-                                                            <tr>
-                                                                <th className="px-3 py-2">
-                                                                    Tên đội nhóm
-                                                                </th>
-                                                                <th className="px-3 py-2">
-                                                                    Mô tả
-                                                                </th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {teams
-                                                                .filter(
-                                                                    (t) =>
-                                                                        t.parent_department_id ===
-                                                                        d.department_id
-                                                                )
-                                                                .map((t) => (
-                                                                    <tr
-                                                                        key={
-                                                                            t.department_id
-                                                                        }
-                                                                        className="hover:bg-slate-100"
-                                                                    >
-                                                                        <td className="px-3 py-2">
-                                                                            <AdminOnly
-                                                                                permission="canManageDepartments"
-                                                                                fallback={
-                                                                                    <span className="text-slate-900">
-                                                                                        {
-                                                                                            t.d_name
-                                                                                        }
-                                                                                    </span>
-                                                                                }
-                                                                            >
-                                                                                <button
-                                                                                    onClick={() =>
-                                                                                        openEditModal(
-                                                                                            t.department_id
-                                                                                        )
-                                                                                    }
-                                                                                    className="text-slate-900 hover:text-blue-600 hover:underline cursor-pointer text-left"
-                                                                                >
-                                                                                    {
-                                                                                        t.d_name
-                                                                                    }
-                                                                                </button>
-                                                                            </AdminOnly>
-                                                                        </td>
-                                                                        <td className="px-3 py-2 text-slate-600">
-                                                                            {t.d_description ||
-                                                                                "-"}
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
+                                    {expanded[d.department_id] &&
+                                        teams
+                                            .filter(
+                                                (t) =>
+                                                    t.parent_department_id ===
+                                                    d.department_id
+                                            )
+                                            .map((t) => (
+                                                <tr
+                                                    key={t.department_id}
+                                                    className="hover:bg-slate-100"
+                                                >
+                                                    <td className="px-8 py-3"></td>
+                                                    <td className="px-3 py-3 border-r border-slate-200">
+                                                        <AdminOnly
+                                                            permission="canManageDepartments"
+                                                            fallback={
+                                                                <span className="text-indigo-600">
+                                                                    {t.d_name}
+                                                                </span>
+                                                            }
+                                                        >
+                                                            <button
+                                                                onClick={() =>
+                                                                    openEditModal(
+                                                                        t.department_id
+                                                                    )
+                                                                }
+                                                                className="text-indigo-600 hover:text-indigo-900 font-medium"
+                                                            >
+                                                                {t.d_name}
+                                                            </button>
+                                                        </AdminOnly>
+                                                    </td>
+                                                    <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                        {t.type}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-center">
+                                                        {t.d_description || "-"}
+                                                    </td>
+                                                </tr>
+                                            ))}
                                 </React.Fragment>
                             ))}
                     </tbody>

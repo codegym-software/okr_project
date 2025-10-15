@@ -24,27 +24,27 @@ export default function ObjectiveList({
 
     const getStatusText = (status) => {
         switch (status?.toLowerCase()) {
-            case 'draft':
-                return 'Bản nháp';
-            case 'active':
-                return 'Đang thực hiện';
-            case 'completed':
-                return 'Hoàn thành';
+            case "draft":
+                return "Bản nháp";
+            case "active":
+                return "Đang thực hiện";
+            case "completed":
+                return "Hoàn thành";
             default:
-                return status || '';
+                return status || "";
         }
     };
 
     const getUnitText = (unit) => {
         switch (unit?.toLowerCase()) {
-            case 'number':
-                return 'Số lượng';
-            case 'percent':
-                return 'Phần trăm';
-            case 'completion':
-                return 'Hoàn thành';
+            case "number":
+                return "Số lượng";
+            case "percent":
+                return "Phần trăm";
+            case "completion":
+                return "Hoàn thành";
             default:
-                return unit || '';
+                return unit || "";
         }
     };
 
@@ -58,12 +58,12 @@ export default function ObjectiveList({
                     <button
                         onClick={() => setMyOKRFilter(!myOKRFilter)}
                         className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
-                            myOKRFilter 
-                                ? 'bg-green-600 text-white hover:bg-green-700' 
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            myOKRFilter
+                                ? "bg-green-600 text-white hover:bg-green-700"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                         }`}
                     >
-                        {myOKRFilter ? 'My OKR' : 'Tất cả OKR'}
+                        {myOKRFilter ? "My OKR" : "Tất cả OKR"}
                     </button>
                     <select
                         value={cycleFilter}
@@ -138,16 +138,14 @@ export default function ObjectiveList({
                                             <div className="flex items-center gap-3">
                                                 <button
                                                     onClick={() =>
-                                                        setOpenObj(
-                                                            (prev) => ({
-                                                                ...prev,
-                                                                [obj.objective_id]:
-                                                                    !prev[
-                                                                        obj
-                                                                            .objective_id
-                                                                    ],
-                                                            })
-                                                        )
+                                                        setOpenObj((prev) => ({
+                                                            ...prev,
+                                                            [obj.objective_id]:
+                                                                !prev[
+                                                                    obj
+                                                                        .objective_id
+                                                                ],
+                                                        }))
                                                     }
                                                     className="rounded-md border border-slate-300 bg-white p-1 text-slate-700 hover:bg-slate-50 shadow-sm"
                                                     title="Đóng/mở Key Results"
@@ -158,8 +156,7 @@ export default function ObjectiveList({
                                                         fill="currentColor"
                                                         className={`h-4 w-4 ${
                                                             openObj[
-                                                                obj
-                                                                    .objective_id
+                                                                obj.objective_id
                                                             ]
                                                                 ? "rotate-180"
                                                                 : ""
@@ -174,9 +171,7 @@ export default function ObjectiveList({
                                                 </button>
                                                 <button
                                                     onClick={() =>
-                                                        setEditingObjective(
-                                                            obj
-                                                        )
+                                                        setEditingObjective(obj)
                                                     }
                                                     className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
                                                     title="Sửa Objective"
@@ -185,18 +180,12 @@ export default function ObjectiveList({
                                                 </button>
                                             </div>
                                         </td>
-                                        <td className="px-3 py-3">
-                                        </td>
-                                        <td className="px-3 py-3">
-                                        </td>
-                                        <td className="px-3 py-3">
-                                        </td>
-                                        <td className="px-3 py-3">
-                                        </td>
-                                        <td className="px-3 py-3">
-                                        </td>
-                                        <td className="px-3 py-3">
-                                        </td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
                                         <td className="px-3 py-3">
                                             <button
                                                 onClick={() =>
@@ -226,8 +215,12 @@ export default function ObjectiveList({
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {departments.find(
                                                         (d) =>
-                                                            String(d.department_id) ===
-                                                            String(obj.department_id)
+                                                            String(
+                                                                d.department_id
+                                                            ) ===
+                                                            String(
+                                                                obj.department_id
+                                                            )
                                                     )?.d_name || "-"}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
@@ -256,7 +249,9 @@ export default function ObjectiveList({
                                                                 : "bg-slate-100 text-slate-700"
                                                         }`}
                                                     >
-                                                        {getStatusText(kr.status)}
+                                                        {getStatusText(
+                                                            kr.status
+                                                        )}
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
