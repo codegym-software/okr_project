@@ -33,6 +33,11 @@ export default function ObjectiveModal({
         target_kr_id: "",
         description: "",
     });
+    const [assignments, setAssignments] = useState(
+        editingObjective?.assignments?.map((a) => ({
+            email: a.user?.email || "",
+        })) || []
+    );
 
     useEffect(() => {
         const fetchAllowedLevels = async () => {
@@ -71,6 +76,11 @@ export default function ObjectiveModal({
                 ...prev,
                 source_objective_id: editingObjective.objective_id,
             }));
+            setAssignments(
+                editingObjective.assignments?.map((a) => ({
+                    email: a.user?.email || "",
+                })) || []
+            );
         }
     }, [editingObjective]);
 
@@ -140,6 +150,22 @@ export default function ObjectiveModal({
         }));
     };
 
+    const addAssignment = () => {
+        setAssignments((prev) => [...prev, { email: "" }]);
+    };
+
+    const updateAssignment = (index, value) => {
+        setAssignments((prev) => {
+            const updated = [...prev];
+            updated[index] = { email: value };
+            return updated;
+        });
+    };
+
+    const removeAssignment = (index) => {
+        setAssignments((prev) => prev.filter((_, i) => i !== index));
+    };
+
     const handleCreateObjective = async () => {
         if (createForm.key_results.length < 1) {
             setToast({
@@ -184,12 +210,53 @@ export default function ObjectiveModal({
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Tạo thất bại");
             const created = json.data;
+<<<<<<< Updated upstream
             setItems((prev) => [
                 ...prev,
                 { ...created, key_results: created.key_results || [] },
             ]);
+=======
+
+            // Gán người dùng sau khi tạo Objective
+            for (const assignment of assignments) {
+                if (assignment.email) {
+                    await fetch("/okr-assignments/store", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN": token,
+                            Accept: "application/json",
+                        },
+                        body: JSON.stringify({
+                            email: assignment.email,
+                            objective_id: created.objective_id,
+                        }),
+                    })
+                        .then((res) => res.json())
+                        .then((json) => {
+                            if (!json.success)
+                                throw new Error(json.message || "Gán thất bại");
+                        });
+                }
+            }
+
+            setItems((prev) => {
+                const merged = [
+                    ...prev,
+                    { 
+                        ...created, 
+                        key_results: created.key_results || created.keyResults || [] 
+                    },
+                ];
+                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
+                return merged;
+            });
+>>>>>>> Stashed changes
             setCreatingObjective(false);
-            setToast({ type: "success", message: "Tạo Objective thành công" });
+            setToast({
+                type: "success",
+                message: "Tạo Objective và gán thành công",
+            });
         } catch (err) {
             setToast({ type: "error", message: err.message || "Tạo thất bại" });
         }
@@ -224,6 +291,53 @@ export default function ObjectiveModal({
             const json = await res.json();
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Cập nhật thất bại");
+
+            // Cập nhật gán người dùng
+            const existingAssignments = editingObjective.assignments || [];
+            for (const assignment of assignments) {
+                if (assignment.email) {
+                    await fetch("/okr-assignments/store", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN": token,
+                            Accept: "application/json",
+                        },
+                        body: JSON.stringify({
+                            email: assignment.email,
+                            objective_id: editingObjective.objective_id,
+                        }),
+                    })
+                        .then((res) => res.json())
+                        .then((json) => {
+                            if (!json.success)
+                                throw new Error(json.message || "Gán thất bại");
+                        });
+                }
+            }
+            // Xóa các gán không còn trong danh sách
+            for (const existing of existingAssignments) {
+                if (!assignments.some((a) => a.email == existing.user?.email)) {
+                    await fetch(
+                        `/okr-assignments/destroy/${existing.assignment_id}`,
+                        {
+                            method: "DELETE",
+                            headers: {
+                                "X-CSRF-TOKEN": token,
+                                Accept: "application/json",
+                            },
+                        }
+                    )
+                        .then((res) => res.json())
+                        .then((json) => {
+                            if (!json.success)
+                                throw new Error(
+                                    json.message || "Xóa gán thất bại"
+                                );
+                        });
+                }
+            }
+
             const updated = json.data;
             setItems((prev) =>
                 prev.map((o) =>
@@ -235,7 +349,7 @@ export default function ObjectiveModal({
             setEditingObjective(null);
             setToast({
                 type: "success",
-                message: "Cập nhật Objective thành công",
+                message: "Cập nhật Objective và gán thành công",
             });
         } catch (err) {
             setToast({
@@ -288,170 +402,266 @@ export default function ObjectiveModal({
             }
             title={creatingObjective ? "Thêm Objective" : "Sửa Objective"}
         >
-            {creatingObjective ? (
-                <div className="space-y-3">
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Tiêu đề
-                            </label>
-                            <input
-                                value={createForm.obj_title}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "obj_title",
-                                        e.target.value
-                                    )
-                                }
-                                required
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Cấp độ
-                            </label>
-                            <select
-                                value={createForm.level}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "level",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                {allowedLevels.map((level) => (
-                                    <option key={level} value={level}>
-                                        {level.charAt(0).toUpperCase() +
-                                            level.slice(1)}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="md:col-span-2">
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Mô tả
-                            </label>
-                            <textarea
-                                value={createForm.description}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "description",
-                                        e.target.value
-                                    )
-                                }
-                                rows={3}
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Trạng thái
-                            </label>
-                            <select
-                                value={createForm.status}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "status",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="draft">Draft</option>
-                                <option value="active">Active</option>
-                                <option value="completed">Completed</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Chu kỳ
-                            </label>
-                            <select
-                                value={createForm.cycle_id}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "cycle_id",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">-- chọn chu kỳ --</option>
-                                {cyclesList.map((c) => (
-                                    <option
-                                        key={c.cycle_id}
-                                        value={String(c.cycle_id)}
-                                    >
-                                        {c.cycle_name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        {createForm.level !== "company" && (
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                    Phòng ban
-                                </label>
-                                <select
-                                    value={createForm.department_id}
-                                    onChange={(e) =>
-                                        handleCreateFormChange(
-                                            "department_id",
-                                            e.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                >
-                                    <option value="">
-                                        -- chọn phòng ban --
-                                    </option>
-                                    {departments.map((d) => (
-                                        <option
-                                            key={d.department_id}
-                                            value={String(d.department_id)}
-                                        >
-                                            {d.d_name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
+            <form
+                onSubmit={
+                    creatingObjective
+                        ? handleCreateObjective
+                        : handleUpdateObjective
+                }
+                className="space-y-3"
+            >
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                            Tiêu đề
+                        </label>
+                        <input
+                            value={createForm.obj_title}
+                            onChange={(e) =>
+                                handleCreateFormChange(
+                                    "obj_title",
+                                    e.target.value
+                                )
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            required
+                        />
                     </div>
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                            Mô tả
+                        </label>
+                        <textarea
+                            value={createForm.description}
+                            onChange={(e) =>
+                                handleCreateFormChange(
+                                    "description",
+                                    e.target.value
+                                )
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                        />
+                    </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                            Cấp độ
+                        </label>
+                        <select
+                            value={createForm.level || "company"}
+                            onChange={(e) =>
+                                handleCreateFormChange("level", e.target.value)
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                        >
+                            {allowedLevels.map((level) => (
+                                <option key={level} value={level}>
+                                    {level}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                            Trạng thái
+                        </label>
+                        <select
+                            value={createForm.status || "draft"}
+                            onChange={(e) =>
+                                handleCreateFormChange("status", e.target.value)
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                        >
+                            <option value="draft">Draft</option>
+                            <option value="active">Active</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                            Chu kỳ
+                        </label>
+                        <select
+                            value={createForm.cycle_id || ""}
+                            onChange={(e) =>
+                                handleCreateFormChange(
+                                    "cycle_id",
+                                    e.target.value
+                                )
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            required
+                        >
+                            <option value="">-- chọn chu kỳ --</option>
+                            {cyclesList.map((c) => (
+                                <option
+                                    key={c.cycle_id}
+                                    value={String(c.cycle_id)}
+                                >
+                                    {c.cycle_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    {createForm.level !== "company" && (
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Phòng ban
+                            </label>
+                            <select
+                                value={createForm.department_id || ""}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "department_id",
+                                        e.target.value
+                                    )
+                                }
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                required
+                            >
+                                <option value="">-- chọn phòng ban --</option>
+                                {departments.map((d) => (
+                                    <option
+                                        key={d.department_id}
+                                        value={String(d.department_id)}
+                                    >
+                                        {d.d_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                </div>
+                {creatingObjective && (
                     <div className="mt-4">
                         <h3 className="text-sm font-semibold text-slate-700">
                             Key Results
                         </h3>
-                        <button
-                            type="button"
-                            onClick={addNewKR}
-                            className="text-xs text-indigo-600 hover:text-indigo-800"
-                        >
-                            Thêm Key Result
-                        </button>
                         {createForm.key_results.map((kr, index) => (
                             <div
                                 key={index}
-                                className="mt-3 grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-4"
+                                className="mt-2 rounded-md border border-slate-200 p-3"
                             >
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Tiêu đề
-                                    </label>
-                                    <input
-                                        value={kr.kr_title}
-                                        onChange={(e) =>
-                                            updateNewKR(
-                                                index,
-                                                "kr_title",
-                                                e.target.value
-                                            )
-                                        }
-                                        required
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    />
+                                <div className="grid gap-3 md:grid-cols-3">
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Tiêu đề
+                                        </label>
+                                        <input
+                                            value={kr.kr_title}
+                                            onChange={(e) =>
+                                                updateNewKR(
+                                                    index,
+                                                    "kr_title",
+                                                    e.target.value
+                                                )
+                                            }
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Mục tiêu
+                                        </label>
+                                        <input
+                                            value={kr.target_value}
+                                            onChange={(e) =>
+                                                updateNewKR(
+                                                    index,
+                                                    "target_value",
+                                                    e.target.value
+                                                )
+                                            }
+                                            type="number"
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Thực tế
+                                        </label>
+                                        <input
+                                            value={kr.current_value}
+                                            onChange={(e) =>
+                                                updateNewKR(
+                                                    index,
+                                                    "current_value",
+                                                    e.target.value
+                                                )
+                                            }
+                                            type="number"
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Đơn vị
+                                        </label>
+                                        <select
+                                            value={kr.unit}
+                                            onChange={(e) =>
+                                                updateNewKR(
+                                                    index,
+                                                    "unit",
+                                                    e.target.value
+                                                )
+                                            }
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                            required
+                                        >
+                                            <option value="">
+                                                -- chọn đơn vị --
+                                            </option>
+                                            <option value="number">
+                                                Number
+                                            </option>
+                                            <option value="percent">
+                                                Percent
+                                            </option>
+                                            <option value="completion">
+                                                Completion
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                            Trạng thái
+                                        </label>
+                                        <select
+                                            value={kr.status}
+                                            onChange={(e) =>
+                                                updateNewKR(
+                                                    index,
+                                                    "status",
+                                                    e.target.value
+                                                )
+                                            }
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                            required
+                                        >
+                                            <option value="draft">Draft</option>
+                                            <option value="active">
+                                                Active
+                                            </option>
+                                            <option value="completed">
+                                                Completed
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-end">
+                                        <button
+                                            type="button"
+                                            onClick={() => removeNewKR(index)}
+                                            className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-xs text-rose-700"
+                                        >
+                                            Xóa
+                                        </button>
+                                    </div>
                                 </div>
+<<<<<<< Updated upstream
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
                                         Giá trị mục tiêu
@@ -533,254 +743,158 @@ export default function ObjectiveModal({
                                 >
                                     Xóa KR này
                                 </button>
+=======
+>>>>>>> Stashed changes
                             </div>
                         ))}
-                    </div>
-                    <div className="flex justify-end gap-2 pt-2">
                         <button
                             type="button"
-                            onClick={() => setCreatingObjective(false)}
-                            className="rounded-md border border-slate-300 px-4 py-2 text-xs"
+                            onClick={addNewKR}
+                            className="mt-2 rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
                         >
-                            Hủy
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleCreateObjective}
-                            className="rounded-md bg-blue-600 px-5 py-2 text-xs font-semibold text-white"
-                        >
-                            Tạo
+                            Thêm Key Result
                         </button>
                     </div>
-                </div>
-            ) : (
-                <form onSubmit={handleUpdateObjective} className="space-y-3">
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Tiêu đề
-                            </label>
-                            <input
-                                value={createForm.obj_title || ""}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "obj_title",
-                                        e.target.value
-                                    )
-                                }
-                                required
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Cấp độ
-                            </label>
-                            <select
-                                value={createForm.level || ""}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "level",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                {allowedLevels.map((level) => (
-                                    <option key={level} value={level}>
-                                        {level.charAt(0).toUpperCase() +
-                                            level.slice(1)}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="md:col-span-2">
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Mô tả
-                            </label>
-                            <textarea
-                                value={createForm.description || ""}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "description",
-                                        e.target.value
-                                    )
-                                }
-                                rows={3}
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Trạng thái
-                            </label>
-                            <select
-                                value={createForm.status || "draft"}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "status",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="draft">Draft</option>
-                                <option value="active">Active</option>
-                                <option value="completed">Completed</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Chu kỳ
-                            </label>
-                            <select
-                                value={createForm.cycle_id || ""}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "cycle_id",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">-- chọn chu kỳ --</option>
-                                {cyclesList.map((c) => (
-                                    <option
-                                        key={c.cycle_id}
-                                        value={String(c.cycle_id)}
-                                    >
-                                        {c.cycle_name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        {createForm.level !== "company" && (
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                    Phòng ban
-                                </label>
-                                <select
-                                    value={createForm.department_id || ""}
-                                    onChange={(e) =>
-                                        handleCreateFormChange(
-                                            "department_id",
-                                            e.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                >
-                                    <option value="">
-                                        -- chọn phòng ban --
-                                    </option>
-                                    {departments.map((d) => (
-                                        <option
-                                            key={d.department_id}
-                                            value={String(d.department_id)}
-                                        >
-                                            {d.d_name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                    </div>
-                    <div className="mt-4">
-                        <h3 className="text-sm font-semibold text-slate-700">
-                            Liên kết với Key Result cấp cao hơn
-                        </h3>
-                        {availableTargets.length === 0 ? (
-                            <p className="text-sm text-gray-500">
-                                Không có Key Result nào từ cấp cao hơn để liên
-                                kết.
-                            </p>
-                        ) : (
-                            <>
-                                <select
-                                    value={linkForm.target_kr_id}
-                                    onChange={(e) =>
-                                        setLinkForm({
-                                            ...linkForm,
-                                            target_kr_id: e.target.value,
-                                        })
-                                    }
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                >
-                                    <option value="">
-                                        Chọn Key Result đích
-                                    </option>
-                                    {availableTargets.map((t) => (
-                                        <option key={t.id} value={t.id}>
-                                            {t.objective_title} - {t.title} (
-                                            {t.level})
-                                        </option>
-                                    ))}
-                                </select>
-                                <input
-                                    value={linkForm.description}
-                                    onChange={(e) =>
-                                        setLinkForm({
-                                            ...linkForm,
-                                            description: e.target.value,
-                                        })
-                                    }
-                                    placeholder="Mô tả liên kết"
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none mt-2"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={async () => {
-                                        try {
-                                            const token = document
-                                                .querySelector(
-                                                    'meta[name="csrf-token"]'
-                                                )
-                                                .getAttribute("content");
-                                            const res = await fetch(
-                                                "/my-links/store",
-                                                {
-                                                    method: "POST",
-                                                    headers: {
-                                                        "Content-Type":
-                                                            "application/json",
-                                                        "X-CSRF-TOKEN": token,
-                                                        Accept: "application/json",
-                                                    },
-                                                    body: JSON.stringify(
-                                                        linkForm
-                                                    ),
-                                                }
-                                            );
-                                            const json = await res.json();
-                                            if (res.ok && json.success) {
-                                                setToast({
-                                                    type: "success",
-                                                    message:
-                                                        "Liên kết thành công",
-                                                });
-                                            } else {
-                                                throw new Error(
-                                                    json.message ||
-                                                        "Liên kết thất bại"
-                                                );
-                                            }
-                                        } catch (err) {
-                                            setToast({
-                                                type: "error",
-                                                message:
-                                                    err.message ||
-                                                    "Lỗi khi lưu liên kết",
-                                            });
+                )}
+                <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-slate-700">
+                        Gán người dùng
+                    </h3>
+                    {assignments.map((assignment, index) => (
+                        <div
+                            key={index}
+                            className="mt-2 rounded-md border border-slate-200 p-3"
+                        >
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={assignment.email}
+                                        onChange={(e) =>
+                                            updateAssignment(
+                                                index,
+                                                e.target.value
+                                            )
                                         }
-                                    }}
-                                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 mt-2"
-                                    disabled={!linkForm.target_kr_id}
-                                >
-                                    Lưu liên kết
-                                </button>
-                            </>
-                        )}
-                    </div>
-                    <div className="flex justify-end gap-2 pt-2">
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                        placeholder="Nhập email người dùng"
+                                    />
+                                </div>
+                                <div className="flex items-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => removeAssignment(index)}
+                                        className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-xs text-rose-700"
+                                    >
+                                        Xóa
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    <button
+                        type="button"
+                        onClick={addAssignment}
+                        className="mt-2 rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+                    >
+                        Thêm gán người dùng
+                    </button>
+                </div>
+                <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-slate-700">
+                        Liên kết với Key Result cấp cao hơn
+                    </h3>
+                    {availableTargets.length === 0 ? (
+                        <p className="text-sm text-gray-500">
+                            Không có Key Result nào từ cấp cao hơn để liên kết.
+                        </p>
+                    ) : (
+                        <>
+                            <select
+                                value={linkForm.target_kr_id}
+                                onChange={(e) =>
+                                    setLinkForm({
+                                        ...linkForm,
+                                        target_kr_id: e.target.value,
+                                    })
+                                }
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            >
+                                <option value="">Chọn Key Result đích</option>
+                                {availableTargets.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                        {t.objective_title} - {t.title} (
+                                        {t.level})
+                                    </option>
+                                ))}
+                            </select>
+                            <input
+                                value={linkForm.description}
+                                onChange={(e) =>
+                                    setLinkForm({
+                                        ...linkForm,
+                                        description: e.target.value,
+                                    })
+                                }
+                                placeholder="Mô tả liên kết"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none mt-2"
+                            />
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    try {
+                                        const token = document
+                                            .querySelector(
+                                                'meta[name="csrf-token"]'
+                                            )
+                                            .getAttribute("content");
+                                        const res = await fetch(
+                                            "/my-links/store",
+                                            {
+                                                method: "POST",
+                                                headers: {
+                                                    "Content-Type":
+                                                        "application/json",
+                                                    "X-CSRF-TOKEN": token,
+                                                    Accept: "application/json",
+                                                },
+                                                body: JSON.stringify(linkForm),
+                                            }
+                                        );
+                                        const json = await res.json();
+                                        if (res.ok && json.success) {
+                                            setToast({
+                                                type: "success",
+                                                message: "Liên kết thành công",
+                                            });
+                                        } else {
+                                            throw new Error(
+                                                json.message ||
+                                                    "Liên kết thất bại"
+                                            );
+                                        }
+                                    } catch (err) {
+                                        setToast({
+                                            type: "error",
+                                            message:
+                                                err.message ||
+                                                "Lỗi khi lưu liên kết",
+                                        });
+                                    }
+                                }}
+                                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 mt-2"
+                                disabled={!linkForm.target_kr_id}
+                            >
+                                Lưu liên kết
+                            </button>
+                        </>
+                    )}
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                    {editingObjective && (
                         <button
                             type="button"
                             onClick={handleDeleteObjective}
@@ -788,24 +902,28 @@ export default function ObjectiveModal({
                         >
                             Xóa
                         </button>
-                        <div className="flex gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setEditingObjective(null)}
-                                className="rounded-md border border-slate-300 px-4 py-2 text-xs"
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                type="submit"
-                                className="rounded-md bg-blue-600 px-5 py-2 text-xs font-semibold text-white"
-                            >
-                                Lưu
-                            </button>
-                        </div>
+                    )}
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() =>
+                                creatingObjective
+                                    ? setCreatingObjective(false)
+                                    : setEditingObjective(null)
+                            }
+                            className="rounded-md border border-slate-300 px-4 py-2 text-xs"
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            type="submit"
+                            className="rounded-md bg-blue-600 px-5 py-2 text-xs font-semibold text-white"
+                        >
+                            {creatingObjective ? "Tạo" : "Lưu"}
+                        </button>
                     </div>
-                </form>
-            )}
+                </div>
+            </form>
         </Modal>
     );
 }

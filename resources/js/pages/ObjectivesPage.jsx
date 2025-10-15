@@ -11,7 +11,7 @@ export default function ObjectivesPage() {
     const [items, setItems] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [cyclesList, setCyclesList] = useState([]);
-    const [links, setLinks] = useState([]); // Thêm state này để lưu liên kết từ okr_links
+    const [links, setLinks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState({ type: "success", message: "" });
     const [editingKR, setEditingKR] = useState(null);
@@ -113,6 +113,27 @@ export default function ObjectivesPage() {
             });
             setCyclesList(cyclesData.data || []);
 
+            if (!resLinks.ok) {
+                console.error(
+                    "Links API error:",
+                    resLinks.status,
+                    resLinks.statusText
+                );
+                setToast({
+                    type: "error",
+                    message: `Lỗi tải links: ${resLinks.statusText}`,
+                });
+            }
+            const linksData = await resLinks.json().catch((err) => {
+                console.error("Error parsing links:", err);
+                setToast({
+                    type: "error",
+                    message: "Lỗi phân tích dữ liệu liên kết",
+                });
+                return { data: [] };
+            });
+            setLinks(linksData.data || []);
+
             if (
                 !Array.isArray(objData.data.data) ||
                 objData.data.data.length === 0
@@ -131,16 +152,6 @@ export default function ObjectivesPage() {
             if (cyclesData.data?.length === 0) {
                 setToast({ type: "warning", message: "Không có chu kỳ nào" });
             }
-
-            const linksData = await resLinks.json().catch((err) => {
-                console.error("Error parsing links:", err);
-                setToast({
-                    type: "error",
-                    message: "Lỗi phân tích dữ liệu liên kết",
-                });
-                return { data: [] };
-            });
-            setLinks(linksData.data || []);
         } catch (err) {
             console.error("Load error:", err);
             setToast({
@@ -274,6 +285,8 @@ export default function ObjectivesPage() {
                     cyclesList={cyclesList}
                     setItems={setItems}
                     setToast={setToast}
+                    setLinks={setLinks} // Thêm setLinks
+                    reloadData={load} // Thêm hàm reloadData
                 />
             )}
 

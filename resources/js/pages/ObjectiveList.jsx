@@ -35,11 +35,11 @@ export default function ObjectiveList({
                 <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[30%] text-left">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[25%] text-left">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[14%] text-center">
-                                Phòng ban
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
+                                Người được gán
                             </th>
                             <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Chu kỳ
@@ -92,11 +92,10 @@ export default function ObjectiveList({
                                                                 (prev) => ({
                                                                     ...prev,
                                                                     [obj.objective_id]:
-                                                                        prev[
+                                                                        !prev[
                                                                             obj
                                                                                 .objective_id
-                                                                        ] ===
-                                                                        false,
+                                                                        ],
                                                                 })
                                                             )
                                                         }
@@ -167,6 +166,7 @@ export default function ObjectiveList({
                                                     </button>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
+<<<<<<< Updated upstream
                                                     {obj.department?.d_name ||
                                                         departments.find(
                                                             (d) =>
@@ -178,23 +178,20 @@ export default function ObjectiveList({
                                                                 )
                                                         )?.d_name ||
                                                         ""}
+=======
+                                                    {obj.assignments
+                                                        ?.map((a) => a.user?.email || "-")
+                                                        .join(", ") || "-"}
+>>>>>>> Stashed changes
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                    {(() => {
-                                                        const cy =
-                                                            cyclesList.find(
-                                                                (c) =>
-                                                                    String(
-                                                                        c.cycle_id
-                                                                    ) ===
-                                                                    String(
-                                                                        kr.cycle_id
-                                                                    )
-                                                            );
-                                                        return (
-                                                            cy?.cycle_name || ""
-                                                        );
-                                                    })()}
+                                                    {cyclesList.find(
+                                                        (c) =>
+                                                            String(
+                                                                c.cycle_id
+                                                            ) ===
+                                                            String(kr.cycle_id)
+                                                    )?.cycle_name || ""}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     <span
