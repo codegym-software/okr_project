@@ -7,7 +7,6 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ObjectiveController;
 use App\Http\Controllers\KeyResultController;
 use App\Http\Controllers\DepartmentController;
-use App\Http\Controllers\MyOKRController;
 use App\Http\Controllers\MyObjectiveController;
 use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
@@ -15,6 +14,7 @@ use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
+use App\Http\Controllers\OkrAssignmentController;
 
 Route::get('/', function () {
     return view('app');
@@ -195,6 +195,10 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/available-targets', [LinkController::class, 'getAvailableTargets'])->middleware('auth')->name('my-links.available-targets');
         Route::post('/store', [LinkController::class, 'store'])->middleware('auth')->name('my-links.store');
     });
+
+    Route::get('/okr-assignments/assignable-users-roles', [OkrAssignmentController::class, 'getAssignableUsersAndRoles'])->name('okr-assignments.assignable');
+    Route::post('/okr-assignments/store', [OkrAssignmentController::class, 'store'])->name('okr-assignments.store');
+    Route::delete('/okr-assignments/destroy/{id}', [OkrAssignmentController::class, 'destroy'])->name('okr-assignments.destroy');
 });
 
 // Phục vụ file trong storage khi thiếu symlink public/storage
