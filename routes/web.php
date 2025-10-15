@@ -11,7 +11,7 @@ use App\Http\Controllers\MyOKRController;
 use App\Http\Controllers\MyObjectiveController;
 use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\CheckInController;
+use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 
@@ -101,9 +101,15 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             Route::middleware(['auth', 'admin'])->group(function () {
                 Route::get('/users', [UserController::class, 'index'])->name('users.index');
                 Route::get('/users/{id}/detail', [UserController::class, 'show'])->name('users.show');
+                Route::get('/roles', [UserController::class, 'getAllRoles'])->name('roles.all');
+                Route::get('/roles-by-level', [UserController::class, 'getRolesByLevel'])->name('roles.by.level');
                 Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
                 Route::put('/users/{id}/status', [UserController::class, 'updateStatus'])->name('users.updateStatus');
                 Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
+                
+                // Routes cho Admin functions
+                Route::post('/admin/invite-user', [AdminController::class, 'inviteUser'])->name('admin.invite-user');
+                Route::get('/admin/invitations', [AdminController::class, 'getInvitations'])->name('admin.invitations');
             });
 
     // Objectives Routes
@@ -149,9 +155,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::post('/store', [MyObjectiveController::class, 'store'])
             ->middleware('auth')
             ->name('my-objectives.store');
-        Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
-            ->middleware('auth')
-            ->name('my-objectives.user-levels');
         Route::get('/edit/{id}', [MyObjectiveController::class, 'edit'])
             ->middleware('auth')
             ->name('my-objectives.edit');
@@ -177,25 +180,11 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             return view('app');
         })->middleware('auth')->name('my-key-results.create');
         Route::post('/store', [MyKeyResultController::class, 'store'])->middleware('auth')->name('my-key-results.store');
-        Route::get('/can-add/{objectiveId}', [MyKeyResultController::class, 'canAddKR'])->middleware('auth')->name('my-key-results.can-add');
         Route::get('/edit/{objectiveId}/{keyResultId}', function () {
             return view('app');
         })->middleware('auth')->name('my-key-results.edit');
         Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->middleware('auth')->name('my-key-results.update');
         Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
-    });
-
-    // Check-in Routes
-    Route::prefix('check-in')->group(function () {
-        Route::get('/{objectiveId}/{krId}', [CheckInController::class, 'create'])->middleware('auth')->name('check-in.create');
-        Route::post('/{objectiveId}/{krId}', [CheckInController::class, 'store'])->middleware('auth')->name('check-in.store');
-        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'history'])->middleware('auth')->name('check-in.history');
-        Route::delete('/{objectiveId}/{krId}/{checkInId}', [CheckInController::class, 'destroy'])->middleware('auth')->name('check-in.destroy');
-    });
-
-    // API Routes for Check-in
-    Route::prefix('api/check-in')->group(function () {
-        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->middleware('auth');
     });
 });
 

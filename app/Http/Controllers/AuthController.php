@@ -328,11 +328,24 @@ class AuthController extends Controller
                 'status' => 'active',
                 'full_name' => $fullName,
                 'avatar_url' => $avatarUrl,
+                'is_invited' => false, // Tự đăng ký
+                'invited_at' => null,
             ]);
         } else {
             // User cũ: KHÔNG ghi đè role/status nếu đã có
             $user->sub = $sub;
             $user->google_id = $provider === 'Google' ? ($userData['sub'] ?? null) : $user->google_id;
+            
+            // Nếu user được mời và đăng nhập lần đầu
+            if ($user->is_invited && !$user->invited_at) {
+                $user->is_invited = false; // Đã kích hoạt
+                $user->invited_at = now(); // Ghi nhận thời gian kích hoạt
+                Log::info('Invited user activated account', [
+                    'email' => $user->email,
+                    'activated_at' => now()
+                ]);
+            }
+            
             if (!$user->role_id) {
                 $user->role_id = $memberRoleId;
             }

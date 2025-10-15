@@ -18,7 +18,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'sub', 'email', 'full_name', 'phone', 'avatar_url', 'google_id', 'job_title', 'department_id', 'role_id', 'status', 'password_hash'
+        'sub', 'email', 'full_name', 'phone', 'avatar_url', 'google_id', 'job_title', 'department_id', 'role_id', 'status', 'is_invited', 'invited_at'
     ];
 
     protected $primaryKey = 'user_id';
@@ -29,7 +29,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $hidden = [
-        'password_hash',
+        'password',
         'remember_token',
     ];
 
@@ -42,7 +42,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password_hash' => 'hashed',
+            'password' => 'hashed',
         ];
     }
 
@@ -95,19 +95,20 @@ class User extends Authenticatable
     }
 
     /**
+     * Kiểm tra xem user có quyền tạo OKR cá nhân không
+     * Tất cả user đều có quyền tạo OKR cá nhân
+     */
+    public function canCreatePersonalOKR()
+    {
+        return true; // Ai cũng có quyền tạo OKR cá nhân
+    }
+
+    /**
      * Kiểm tra xem user có quyền quản lý người dùng không
      */
     public function canManageUsers()
     {
         return $this->isAdmin();
-    }
-
-    /**
-     * Xác thực password cho local authentication
-     */
-    public function validatePassword($password)
-    {
-        return $this->password_hash && \Hash::check($password, $this->password_hash);
     }
 
 }

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Badge, Modal, Toast } from "../components/ui";
 import DateInputComponent from "../components/DateInput";
+import { useAuth } from "../hooks/useAuth";
+import { AdminOnly } from "../components/AdminOnly";
 
 function NewCycleModal({ open, onClose, onCreated }) {
     const [name, setName] = useState("");
@@ -170,6 +172,9 @@ export default function CyclesPanel() {
     const [toast, setToast] = useState({ type: "success", message: "" });
     const [openCreateObjective, setOpenCreateObjective] = useState(false);
     const [openCreateKRForObjId, setOpenCreateKRForObjId] = useState(null);
+    
+    // Sử dụng custom hook để lấy thông tin authentication
+    const { isAdmin } = useAuth();
 
     const toInputDate = (v) => {
         if (!v) return "";
@@ -272,66 +277,70 @@ export default function CyclesPanel() {
                 </h2>
                 {isDetail ? (
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setEditOpen(true)}
-                            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                        >
-                            Sửa
-                        </button>
-                        <button
-                            onClick={async () => {
-                                const ok = window.confirm(
-                                    "Xóa chu kỳ này? Hành động không thể hoàn tác."
-                                );
-                                if (!ok) return;
-                                try {
-                                    const token = document
-                                        .querySelector(
-                                            'meta[name="csrf-token"]'
-                                        )
-                                        .getAttribute("content");
-                                    const id =
-                                        detail?.cycle?.cycle_id ||
-                                        detail?.cycle_id;
-                                    const res = await fetch(`/cycles/${id}`, {
-                                        method: "DELETE",
-                                        headers: {
-                                            "X-CSRF-TOKEN": token,
-                                            Accept: "application/json",
-                                        },
-                                    });
-                                    const json = await res
-                                        .json()
-                                        .catch(() => ({ success: res.ok }));
-                                    if (!res.ok || json.success === false)
-                                        throw new Error(
-                                            json.message ||
-                                                "Xóa chu kỳ thất bại"
+                        <AdminOnly permission="canManageCycles">
+                            <>
+                                <button
+                                    onClick={() => setEditOpen(true)}
+                                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                                >
+                                    Sửa
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        const ok = window.confirm(
+                                            "Xóa chu kỳ này? Hành động không thể hoàn tác."
                                         );
-                                    setCycles((prev) =>
-                                        prev.filter(
-                                            (c) =>
-                                                String(c.cycle_id || c.id) !==
-                                                String(id)
-                                        )
-                                    );
-                                    setToast({
-                                        type: "success",
-                                        message: "Đã xóa chu kỳ",
-                                    });
-                                    goBack();
-                                } catch (e) {
-                                    setToast({
-                                        type: "error",
-                                        message:
-                                            e.message || "Xóa chu kỳ thất bại",
-                                    });
-                                }
-                            }}
-                            className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-                        >
-                            Xóa
-                        </button>
+                                        if (!ok) return;
+                                        try {
+                                            const token = document
+                                                .querySelector(
+                                                    'meta[name="csrf-token"]'
+                                                )
+                                                .getAttribute("content");
+                                            const id =
+                                                detail?.cycle?.cycle_id ||
+                                                detail?.cycle_id;
+                                            const res = await fetch(`/cycles/${id}`, {
+                                                method: "DELETE",
+                                                headers: {
+                                                    "X-CSRF-TOKEN": token,
+                                                    Accept: "application/json",
+                                                },
+                                            });
+                                            const json = await res
+                                                .json()
+                                                .catch(() => ({ success: res.ok }));
+                                            if (!res.ok || json.success === false)
+                                                throw new Error(
+                                                    json.message ||
+                                                        "Xóa chu kỳ thất bại"
+                                                );
+                                            setCycles((prev) =>
+                                                prev.filter(
+                                                    (c) =>
+                                                        String(c.cycle_id || c.id) !==
+                                                        String(id)
+                                                )
+                                            );
+                                            setToast({
+                                                type: "success",
+                                                message: "Đã xóa chu kỳ",
+                                            });
+                                            goBack();
+                                        } catch (e) {
+                                            setToast({
+                                                type: "error",
+                                                message:
+                                                    e.message || "Xóa chu kỳ thất bại",
+                                            });
+                                        }
+                                    }}
+                                    className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                                >
+                                    Xóa
+                                </button>
+                            </>
+                        </AdminOnly>
                         <button
                             onClick={goBack}
                             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -340,12 +349,14 @@ export default function CyclesPanel() {
                         </button>
                     </div>
                 ) : (
-                    <button
-                        onClick={() => setOpen(true)}
-                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
-                    >
-                        Tạo mới
-                    </button>
+                    <AdminOnly permission="canManageCycles">
+                        <button
+                            onClick={() => setOpen(true)}
+                            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
+                        >
+                            Tạo mới
+                        </button>
+                    </AdminOnly>
                 )}
             </div>
             {editOpen && (
@@ -666,14 +677,16 @@ export default function CyclesPanel() {
                             </div>
                         </div>
                     </div>
-                    <div className="px-6 pb-4">
-                        <button
-                            onClick={() => setOpenCreateObjective(true)}
-                            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-                        >
-                            Thêm Objective
-                        </button>
-                    </div>
+                    <AdminOnly permission="canManageCycles">
+                        <div className="px-6 pb-4">
+                            <button
+                                onClick={() => setOpenCreateObjective(true)}
+                                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                            >
+                                Thêm Objective
+                            </button>
+                        </div>
+                    </AdminOnly>
                     {(detail.objectives || []).map((obj) => (
                         <div
                             key={obj.objective_id}
@@ -703,18 +716,20 @@ export default function CyclesPanel() {
                                         </div>
                                     </div>
                                 </button>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() =>
-                                            setOpenCreateKRForObjId(
-                                                obj.objective_id
-                                            )
-                                        }
-                                        className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
-                                    >
-                                        Thêm KR
-                                    </button>
-                                </div>
+                                <AdminOnly permission="canManageCycles">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() =>
+                                                setOpenCreateKRForObjId(
+                                                    obj.objective_id
+                                                )
+                                            }
+                                            className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                                        >
+                                            Thêm KR
+                                        </button>
+                                    </div>
+                                </AdminOnly>
                             </div>
                             {openObj[obj.objective_id] !== false && (
                                 <div className="mt-3 space-y-3">

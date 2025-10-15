@@ -7,198 +7,189 @@ use App\Models\Objective;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\View\View;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
 
 class MyKeyResultController extends Controller
 {
     /**
-     * Hiển thị danh sách Key Results của người dùng
+     * Hiển thị danh sách Key Results của người dùng dựa trên Objectives họ sở hữu.
      */
-    public function index(): View
+    public function index(Request $request): JsonResponse|View
     {
         $user = Auth::user();
-        $keyResults = KeyResult::with(['objective.user', 'objective.department'])
+        $keyResults = KeyResult::with(['objective'])
             ->whereHas('objective', function ($query) use ($user) {
-                $query->where('user_id', $user->id);
+                $query->where('user_id', $user->user_id);
             })
             ->paginate(10);
 
-        return view('app');
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'data' => $keyResults]);
+        }
+
+        return view('my-key-results.index', compact('keyResults'));
     }
 
     /**
-     * Hiển thị form tạo Key Result
+     * Hiển thị form tạo Key Result.
      */
     public function create(string $objectiveId): View
     {
         $user = Auth::user();
         $objective = Objective::findOrFail($objectiveId);
 
-        // Kiểm tra quyền tạo KR
-        $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
-            return view('app');
+        // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được tạo
+        if ($objective->user_id !== $user->user_id) {
+            abort(403, 'Bạn không có quyền tạo Key Result cho Objective này.');
         }
 
-        return view('app');
+        return view('my-key-results.create', compact('objective'));
     }
 
     /**
-     * Lưu Key Result
+     * Lưu Key Result mới.
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
         $user = Auth::user();
         $objectiveId = $request->input('objective_id');
 
-        // Kiểm tra objective_id không null
         if (!$objectiveId) {
-            if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Không tìm thấy ID của Objective.'], 422);
-            }
-            return redirect()->back()
-                ->withErrors(['error' => 'Không tìm thấy ID của Objective.'])
-                ->withInput();
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => 'Không tìm thấy ID của Objective.'], 422)
+                : redirect()->back()->withErrors(['error' => 'Không tìm thấy ID của Objective.'])->withInput();
         }
 
         $objective = Objective::findOrFail($objectiveId);
 
-        // Kiểm tra quyền tạo KR
-        $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
-            if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective này.'], 403);
-            }
-            return redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Key Result cho Objective này.']);
+        // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được tạo
+        if ($objective->user_id !== $user->user_id) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective này.'], 403)
+                : redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Key Result cho Objective này.']);
         }
 
-        // Validate dữ liệu
         $validated = $request->validate([
             'kr_title' => 'required|string|max:255',
-            'target_value' => 'required|numeric',
-            'current_value' => 'required|numeric',
-            'unit' => 'required|string|max:50',
+            'target_value' => 'required|numeric|min:0',
+            'current_value' => 'nullable|numeric|min:0',
+            'unit' => 'required|in:number,percent,completion',
             'status' => 'required|in:draft,active,completed',
-            'department_id' => 'nullable|integer|exists:departments,department_id',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
+        ], [
+            'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
+            'unit.required' => 'Đơn vị là bắt buộc.',
         ]);
 
         try {
             $created = DB::transaction(function () use ($validated, $objective, $user) {
-                $target = (float)$validated['target_value'];
-                $current = (float)$validated['current_value'];
+                $target = (float) $validated['target_value'];
+                $current = (float) ($validated['current_value'] ?? 0);
                 $progress = $target > 0 ? max(0, min(100, ($current / $target) * 100)) : 0;
-                $keyResultData = [
+
+                return KeyResult::create([
                     'kr_title' => $validated['kr_title'],
-                    'target_value' => $validated['target_value'],
-                    'current_value' => $validated['current_value'],
+                    'target_value' => $target,
+                    'current_value' => $current,
                     'unit' => $validated['unit'],
                     'status' => $validated['status'],
-                    'weight' => 0,
+                    'weight' => $validated['weight'] ?? 0,
                     'progress_percent' => $validated['progress_percent'] ?? $progress,
-                    'objective_id' => $objective->objective_id, // Sử dụng objective_id
-                    'cycle_id' => $objective->cycle_id ?: 1, // Sử dụng cycle_id của objective hoặc mặc định là 1
-                    'department_id' => $validated['department_id'] ?? $objective->department_id,
-                    'user_id' => $user->id,
-                ];
-                return KeyResult::create($keyResultData);
+                    'objective_id' => $objective->objective_id,
+                    'cycle_id' => $objective->cycle_id,
+                ])->load('objective', 'cycle');
             });
 
-            if ($request->expectsJson()) {
-                return response()->json(['success' => true, 'message' => 'Key Result được tạo thành công!', 'data' => $created]);
-            }
-            return redirect()->route('my-key-results.index')
-                ->with('success', 'Key Result được tạo thành công!');
+            return $request->expectsJson()
+                ? response()->json(['success' => true, 'message' => 'Key Result được tạo thành công!', 'data' => $created])
+                : redirect()->route('my-key-results.index')->with('success', 'Key Result được tạo thành công!');
         } catch (\Exception $e) {
-            if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Lưu Key Result thất bại: ' . $e->getMessage()], 500);
-            }
-            return redirect()->back()
-                ->withErrors(['error' => 'Lưu Key Result thất bại: ' . $e->getMessage()])
-                ->withInput();
+            Log::error('Tạo Key Result thất bại: ' . $e->getMessage(), [
+                'objective_id' => $objectiveId,
+                'payload' => $request->all(),
+                'validated' => $validated,
+            ]);
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => 'Tạo Key Result thất bại: ' . $e->getMessage()], 500)
+                : redirect()->back()->withErrors(['error' => 'Tạo Key Result thất bại: ' . $e->getMessage()])->withInput();
         }
     }
 
     /**
-     * Hiển thị form chỉnh sửa Key Result
+     * Cập nhật Key Result hiện có.
      */
-    public function edit(string $objectiveId, string $keyResultId): View
+    public function update(Request $request, string $objectiveId, string $keyResultId): JsonResponse|RedirectResponse
     {
         $user = Auth::user();
         $objective = Objective::findOrFail($objectiveId);
-        $keyResult = KeyResult::findOrFail($keyResultId);
+        $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
 
-        // Kiểm tra quyền chỉnh sửa
-        $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
-            return view('app');
+        // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được cập nhật
+        if ($objective->user_id !== $user->user_id) {
+            return response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Key Result này.'], 403);
         }
 
-        return view('app');
-    }
-
-    /**
-     * Cập nhật Key Result
-     */
-    public function update(Request $request, string $objectiveId, string $keyResultId): RedirectResponse
-    {
-        $user = Auth::user();
-        $objective = Objective::findOrFail($objectiveId);
-        $keyResult = KeyResult::findOrFail($keyResultId);
-
-        // Kiểm tra quyền chỉnh sửa
-        $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
-            return redirect()->back()->withErrors(['error' => 'Bạn không có quyền cập nhật Key Result này.']);
-        }
-
-        // Validate dữ liệu
         $validated = $request->validate([
             'kr_title' => 'required|string|max:255',
-            'target_value' => 'required|numeric',
-            'current_value' => 'required|numeric',
-            'unit' => 'required|string|max:50',
+            'target_value' => 'required|numeric|min:0',
+            'current_value' => 'nullable|numeric|min:0',
+            'unit' => 'required|in:number,percent,completion',
             'status' => 'required|in:draft,active,completed',
-            'weight' => 'required|numeric|min:0|max:100',
+            'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
+            'cycle_id' => 'nullable|exists:cycles,cycle_id',
+        ], [
+            'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
+            'unit.required' => 'Đơn vị là bắt buộc.',
         ]);
 
         try {
-            DB::transaction(function () use ($validated, $keyResult) {
+            $keyResult = DB::transaction(function () use ($validated, $keyResult) {
+                $target = (float) $validated['target_value'];
+                $current = (float) ($validated['current_value'] ?? 0);
+                $progress = $target > 0 ? max(0, min(100, ($current / $target) * 100)) : 0;
+
                 $keyResult->update([
                     'kr_title' => $validated['kr_title'],
-                    'target_value' => $validated['target_value'],
-                    'current_value' => $validated['current_value'],
+                    'target_value' => $target,
+                    'current_value' => $current,
                     'unit' => $validated['unit'],
                     'status' => $validated['status'],
-                    'weight' => $validated['weight'],
-                    'progress_percent' => $validated['progress_percent'] ?? 0,
+                    'weight' => $validated['weight'] ?? $keyResult->weight,
+                    'progress_percent' => $validated['progress_percent'] ?? $progress,
+                    'cycle_id' => $validated['cycle_id'] ?? $keyResult->cycle_id,
                 ]);
+
+                return $keyResult->load('objective', 'cycle');
             });
 
-            return redirect()->route('my-key-results.index')
-                ->with('success', 'Key Result được cập nhật thành công!');
+            return response()->json(['success' => true, 'message' => 'Key Result được cập nhật thành công!', 'data' => $keyResult]);
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Cập nhật Key Result thất bại: ' . $e->getMessage()])
-                ->withInput();
+            Log::error('Cập nhật Key Result thất bại: ' . $e->getMessage(), [
+                'objective_id' => $objectiveId,
+                'key_result_id' => $keyResultId,
+                'payload' => $request->all(),
+                'validated' => $validated,
+            ]);
+            return response()->json(['success' => false, 'message' => 'Cập nhật Key Result thất bại: ' . $e->getMessage()], 500);
         }
     }
 
     /**
-     * Xóa Key Result
+     * Xóa Key Result.
      */
-    public function destroy(string $objectiveId, string $keyResultId): RedirectResponse
+    public function destroy(string $objectiveId, string $keyResultId): JsonResponse|RedirectResponse
     {
         $user = Auth::user();
         $objective = Objective::findOrFail($objectiveId);
-        $keyResult = KeyResult::findOrFail($keyResultId);
+        $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
 
-        // Kiểm tra quyền xóa
-        $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
-            return redirect()->back()->withErrors(['error' => 'Bạn không có quyền xóa Key Result này.']);
+        // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được xóa
+        if ($objective->user_id !== $user->user_id) {
+            return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Key Result này.'], 403);
         }
 
         try {
@@ -206,11 +197,9 @@ class MyKeyResultController extends Controller
                 $keyResult->delete();
             });
 
-            return redirect()->route('my-key-results.index')
-                ->with('success', 'Key Result đã được xóa thành công!');
+            return response()->json(['success' => true, 'message' => 'Key Result đã được xóa thành công!']);
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Xóa Key Result thất bại: ' . $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Xóa Key Result thất bại: ' . $e->getMessage()], 500);
         }
     }
 

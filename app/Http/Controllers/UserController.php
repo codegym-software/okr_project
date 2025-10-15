@@ -16,6 +16,48 @@ class UserController extends Controller
     }
 
     /**
+     * Lấy danh sách roles theo level
+     */
+    public function getRolesByLevel(\Illuminate\Http\Request $request)
+    {
+        try {
+            $level = $request->query('level');
+            
+            if (!$level) {
+                return response()->json(['success' => false, 'message' => 'Thiếu tham số level'], 400);
+            }
+            
+            $roles = Role::where('level', $level)->get(['role_id', 'role_name', 'description', 'level']);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $roles
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading roles by level: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Không thể tải danh sách vai trò.'], 500);
+        }
+    }
+
+    /**
+     * Lấy tất cả roles
+     */
+    public function getAllRoles()
+    {
+        try {
+            $roles = Role::all(['role_id', 'role_name', 'description', 'level']);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $roles
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading all roles: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Không thể tải danh sách vai trò.'], 500);
+        }
+    }
+
+    /**
      * Hiển thị danh sách người dùng
      */
     public function index(\Illuminate\Http\Request $request)
@@ -69,7 +111,6 @@ class UserController extends Controller
             }
             return view('app');
         }
-        return view('app');
     }
 
     public function show($id, \Illuminate\Http\Request $request)
@@ -78,7 +119,6 @@ class UserController extends Controller
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $user]);
         }
-        return view('app');
         return view('app');
     }
 
@@ -93,8 +133,8 @@ class UserController extends Controller
         $request->validate([
             'role_id' => 'nullable|exists:roles,role_id',
             'role' => 'nullable|string|in:admin,manager,member,Admin,Manager,Member',
-            'role_id' => 'nullable|exists:roles,role_id',
             'department_id' => 'nullable|exists:departments,department_id',
+            'level' => 'nullable|string|in:company,unit,team,person',
         ]);
 
         $user = User::findOrFail($id);
@@ -103,9 +143,9 @@ class UserController extends Controller
         $isChangingRole = $request->filled('role_id') || $request->filled('role');
         if ($user->isAdmin() && $isChangingRole) {
             if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Không thể thay đổi vai trò của Admin'], 403);
+                return response()->json(['success' => false, 'message' => 'Không thể thay đổi vai trò của Admin.'], 400);
             }
-            return back()->withErrors(['role' => 'Không thể thay đổi vai trò của Admin']);
+            return redirect()->back()->withErrors('Không thể thay đổi vai trò của Admin.');
         }
 
         // Kiểm tra xem có thể thay đổi vai trò không
@@ -117,7 +157,6 @@ class UserController extends Controller
         }
 
         $oldRole = $user->role ? $user->role->role_name : 'Chưa có vai trò';
-        $oldDepartment = $user->department ? $user->department->d_name : 'Chưa gán';
 
         // Xác định role_id (nếu có yêu cầu thay đổi vai trò)
         $roleId = null;
@@ -142,13 +181,23 @@ class UserController extends Controller
         if ($request->filled('department_id')) {
             $user->department_id = $request->department_id;
         }
-        // Chỉ cập nhật các trường được gửi
-        if ($request->has('role_id')) {
-            $user->role_id = $request->role_id;
+        
+        // Cập nhật cấp độ nếu có - tìm role phù hợp với level và role_name hiện tại
+        if ($request->filled('level')) {
+            $user->load('role');
+            if ($user->role) {
+                // Tìm role phù hợp với level mới và role_name hiện tại
+                $matchingRole = Role::where('level', $request->level)
+                                   ->where('role_name', $user->role->role_name)
+                                   ->first();
+                
+                if ($matchingRole) {
+                    // Chỉ thay đổi role_id để trỏ đến role phù hợp
+                    $user->role_id = $matchingRole->role_id;
+                }
+            }
         }
-        if ($request->has('department_id')) {
-            $user->department_id = $request->department_id;
-        }
+        
         $user->save();
 
         // Clear cache when user is updated
@@ -156,33 +205,18 @@ class UserController extends Controller
 
         // Reload relationship để có thể truy cập dữ liệu mới
         $user->load(['role','department']);
-        // Reload relationship để có thể truy cập role và department mới
-        $user->load(['role', 'department']);
         $newRole = $user->role ? $user->role->role_name : 'Chưa có vai trò';
-        $newDepartment = $user->department ? $user->department->d_name : 'Chưa gán';
-
-        // Tạo thông báo dựa trên trường được cập nhật
-        $messages = [];
-        if ($request->has('role_id')) {
-            $messages[] = "vai trò từ {$oldRole} thành {$newRole}";
-        }
-        if ($request->has('department_id')) {
-            $messages[] = "phòng ban từ {$oldDepartment} thành {$newDepartment}";
-        }
-        
-        $message = "Đã cập nhật " . implode(' và ', $messages) . " của {$user->full_name}.";
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
                 'message' => $isChangingRole ? "Đã cập nhật vai trò của {$user->full_name} từ {$oldRole} thành {$newRole}." : 'Cập nhật người dùng thành công.',
                 'data' => $user,
-                'message' => $message
             ]);
         }
 
         return redirect()->route('users.index')
-            ->with('success', $message);
+            ->with('success', "Đã cập nhật vai trò của {$user->full_name} từ {$oldRole} thành {$newRole}.");
     }
 
     /**
@@ -220,9 +254,45 @@ class UserController extends Controller
         $user->status = $newStatus;
         $user->save();
 
+        // Clear cache when user status is updated
+        \Cache::forget('users_list');
+
+        $statusText = $newStatus === 'active' ? 'Kích hoạt' : 'Vô hiệu hóa';
+
         if ($request->expectsJson()) {
-            return response()->json(['success' => true, 'message' => 'Cập nhật thành công!', 'data' => $user->load(['role', 'department'])]);
+            return response()->json([
+                'success' => true,
+                'message' => "Đã cập nhật trạng thái của {$user->full_name} thành {$statusText}."
+            ]);
         }
-        return back()->with('success', 'Cập nhật thành công!');
+
+        return redirect()->route('users.index')
+            ->with('success', "Đã cập nhật trạng thái của {$user->full_name} thành {$statusText}.");
+    }
+
+    /**
+     * Xóa người dùng (chỉ Admin)
+     */
+    public function destroy($id)
+    {
+        // Middleware đã kiểm tra quyền Admin
+
+        $user = User::findOrFail($id);
+
+        // Không cho phép xóa Admin
+        if ($user->isAdmin()) {
+            return redirect()->back()->withErrors('Không thể xóa tài khoản Admin.');
+        }
+
+        // Không cho phép xóa chính mình
+        if ($user->user_id === Auth::id()) {
+            return redirect()->back()->withErrors('Bạn không thể xóa tài khoản của chính mình.');
+        }
+
+        $userName = $user->full_name;
+        $user->delete();
+
+        return redirect()->route('users.index')
+            ->with('success', "Đã xóa người dùng {$userName}.");
     }
 }

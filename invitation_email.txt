@@ -1,0 +1,20 @@
+Subject: Mời tham gia hệ thống OKR
+
+Xin chào nhân viên mới,
+
+Bạn đã được mời tham gia hệ thống OKR với vai trò Member.
+
+Thông tin đăng nhập:
+- Email: duc.nguyen@software.codegym.vn
+- Mật khẩu tạm thời: #!T6PkvT
+- Link đăng nhập: http://localhost:8000/auth/login
+
+Hướng dẫn:
+1. Truy cập link đăng nhập
+2. Đăng nhập với thông tin trên
+3. Hệ thống sẽ yêu cầu đổi mật khẩu mới
+4. Hoàn tất setup profile
+
+Lưu ý: Mật khẩu tạm thời có thời hạn sử dụng.
+
+Chào mừng bạn đến với OKR System!
