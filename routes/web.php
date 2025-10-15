@@ -11,9 +11,10 @@ use App\Http\Controllers\MyObjectiveController;
 use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\CheckInController;
+use App\Http\Controllers\OkrAssignmentController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
-use App\Http\Controllers\OkrAssignmentController;
 
 Route::get('/', function () {
     return view('app');
@@ -193,8 +194,20 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
     });
 
-    // okr-assignments
+    // Check-in Routes
+    Route::prefix('check-in')->middleware('auth')->group(function () {
+        Route::get('/{objectiveId}/{krId}', [CheckInController::class, 'create'])->name('check-in.create');
+        Route::post('/{objectiveId}/{krId}', [CheckInController::class, 'store'])->name('check-in.store');
+        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'history'])->name('check-in.history');
+        Route::delete('/{objectiveId}/{krId}/{checkInId}', [CheckInController::class, 'destroy'])->name('check-in.destroy');
+    });
 
+    // API Check-in Routes (for JSON responses)
+    Route::prefix('api/check-in')->middleware('auth')->group(function () {
+        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->name('api.check-in.history');
+    });
+
+    // OKR Assignments
     Route::get('/okr-assignments/assignable-users-roles', [OkrAssignmentController::class, 'getAssignableUsersAndRoles'])->name('okr-assignments.assignable');
     Route::post('/okr-assignments/store', [OkrAssignmentController::class, 'store'])->name('okr-assignments.store');
     Route::delete('/okr-assignments/destroy/{id}', [OkrAssignmentController::class, 'destroy'])->name('okr-assignments.destroy');

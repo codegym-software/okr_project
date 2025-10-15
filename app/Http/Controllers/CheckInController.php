@@ -142,27 +142,44 @@ class CheckInController extends Controller
     /**
      * Hiển thị lịch sử check-ins của Key Result
      */
-    public function history($objectiveId, $krId): View
+    public function history(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-        $keyResult = KeyResult::with(['objective', 'checkIns.user'])
-            ->findOrFail($krId);
+        $keyResult = KeyResult::with(['objective'])->findOrFail($krId);
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
             $user->load('role');
         }
 
-        // Kiểm tra quyền xem lịch sử: người sở hữu hoặc quản lý có thể xem
+        // Kiểm tra quyền xem lịch sử
         if (!$this->canViewHistory($user, $keyResult)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền xem lịch sử check-in của Key Result này.'
+                ], 403);
+            }
             abort(403, 'Bạn không có quyền xem lịch sử check-in của Key Result này.');
         }
 
         $checkIns = $keyResult->checkIns()
             ->with('user')
             ->latest()
-            ->paginate(10);
+            ->get();
 
+        // Nếu request từ API, trả về JSON
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'key_result' => $keyResult,
+                    'check_ins' => $checkIns
+                ]
+            ]);
+        }
+
+        // Nếu không, trả về view
         return view('app');
     }
 
@@ -290,6 +307,11 @@ class CheckInController extends Controller
             $keyResult->load('objective');
         }
 
+        // Load role relationship nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
         // Admin có quyền check-in cho tất cả
         if ($user->isAdmin()) {
             return true;
@@ -300,12 +322,24 @@ class CheckInController extends Controller
             return true;
         }
 
-        // Manager/Member chỉ có thể check-in trong phòng ban của mình (trừ cá nhân)
-        if ($user->department_id && $keyResult->objective && $keyResult->objective->department_id) {
-            if ($keyResult->objective->department_id == $user->department_id && 
-                $keyResult->objective->level !== 'Cá nhân') {
+        // Member chỉ được check-in objectives trong phòng ban của họ
+        if ($user->role->role_name === 'member') {
+            if ($keyResult->objective && 
+                $keyResult->objective->department_id && 
+                $keyResult->objective->department_id === $user->department_id) {
                 return true;
             }
+            return false;
+        }
+
+        // Manager có thể check-in objectives trong phòng ban của họ
+        if ($user->role->role_name === 'manager') {
+            if ($keyResult->objective && 
+                $keyResult->objective->department_id && 
+                $keyResult->objective->department_id === $user->department_id) {
+                return true;
+            }
+            return false;
         }
 
         return false;

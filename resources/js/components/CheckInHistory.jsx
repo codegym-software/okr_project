@@ -37,9 +37,12 @@ export default function CheckInHistory({
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             
             const response = await fetch(`/api/check-in/${objectiveId}/${keyResult.kr_id}/history`, {
+                method: 'GET',
                 headers: {
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': token
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
             });
 
@@ -82,7 +85,9 @@ export default function CheckInHistory({
                 method: 'DELETE',
                 headers: {
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': token
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
             });
 

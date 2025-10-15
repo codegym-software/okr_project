@@ -23,10 +23,6 @@ class MyObjectiveController extends Controller
     public function index(Request $request): JsonResponse|View
     {
         $user = Auth::user();
-<<<<<<< Updated upstream
-        $objectives = Objective::with(['keyResults', 'department', 'cycle'])
-            ->where('user_id', $user->user_id)
-=======
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
@@ -38,7 +34,6 @@ class MyObjectiveController extends Controller
                           $query->where('user_id', $user->user_id);
                       });
             })
->>>>>>> Stashed changes
             ->paginate(10);
 
         if ($request->expectsJson()) {
@@ -83,11 +78,8 @@ class MyObjectiveController extends Controller
             'key_results.*.current_value' => 'nullable|numeric|min:0',
             'key_results.*.unit' => 'required|in:number,percent,completion',
             'key_results.*.status' => 'required|in:draft,active,completed',
-<<<<<<< Updated upstream
-=======
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
->>>>>>> Stashed changes
         ]);
 
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
@@ -103,8 +95,6 @@ class MyObjectiveController extends Controller
                 : redirect()->back()->withErrors(['error' => 'Phải chọn phòng ban cho cấp độ không phải company.']);
         }
 
-<<<<<<< Updated upstream
-=======
         // Kiểm tra quyền truy cập department
         if ($validated['level'] !== 'company' && !empty($validated['department_id'])) {
             $department = Department::find($validated['department_id']);
@@ -115,7 +105,6 @@ class MyObjectiveController extends Controller
             }
         }
 
->>>>>>> Stashed changes
         try {
             $objective = DB::transaction(function () use ($validated, $user) {
                 $objective = Objective::create([
@@ -187,8 +176,8 @@ class MyObjectiveController extends Controller
 
         $objective = Objective::findOrFail($id);
 
-        // Chỉ chủ sở hữu được cập nhật
-        if ($objective->user_id !== $user->user_id) {
+        // Kiểm tra quyền cập nhật: chủ sở hữu HOẶC cùng phòng ban (admin luôn được phép)
+        if (!$this->canUpdateObjective($user, $objective)) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Objective này.'], 403)
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền cập nhật Objective này.']);
@@ -205,10 +194,6 @@ class MyObjectiveController extends Controller
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
 
-<<<<<<< Updated upstream
-        // Kiểm tra quyền cập nhật cấp độ
-=======
->>>>>>> Stashed changes
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
         if (!in_array($validated['level'], $allowedLevels)) {
             return $request->expectsJson()
@@ -278,8 +263,8 @@ class MyObjectiveController extends Controller
 
         $objective = Objective::findOrFail($id);
 
-        // Chỉ chủ sở hữu được xóa
-        if ($objective->user_id !== $user->user_id) {
+        // Kiểm tra quyền xóa: chủ sở hữu HOẶC cùng phòng ban (admin luôn được phép)
+        if (!$this->canDeleteObjective($user, $objective)) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Objective này.'], 403);
         }
 
@@ -349,11 +334,7 @@ class MyObjectiveController extends Controller
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
-<<<<<<< Updated upstream
-        
-=======
 
->>>>>>> Stashed changes
         $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
         return response()->json(['success' => true, 'data' => $allowedLevels]);
     }
@@ -390,8 +371,6 @@ class MyObjectiveController extends Controller
             'user_department_id' => $user->department_id
         ]);
     }
-<<<<<<< Updated upstream
-=======
 
     /**
      * Dev: Seed sample objectives for current user
@@ -464,7 +443,8 @@ class MyObjectiveController extends Controller
         if ($user->role->role_name === 'admin') {
             return true;
         }
-        if ($user->role->role_name === 'manager' && $user->department_id === $department->department_id) {
+        // Manager và Member chỉ có quyền tạo objectives cho phòng ban của họ
+        if ($user->department_id === $department->department_id) {
             return true;
         }
         return false;
@@ -484,5 +464,64 @@ class MyObjectiveController extends Controller
         }
         return true; // Cho phép gán bất kỳ user nào cho Objective cấp company
     }
->>>>>>> Stashed changes
+
+    /**
+     * Kiểm tra quyền cập nhật Objective
+     */
+    private function canUpdateObjective($user, $objective): bool
+    {
+        // Admin có quyền cập nhật tất cả
+        if ($user->role->role_name === 'admin') {
+            return true;
+        }
+
+        // Chủ sở hữu có quyền cập nhật
+        if ($objective->user_id === $user->user_id) {
+            return true;
+        }
+
+        // Member không được cập nhật objectives của người khác
+        if ($user->role->role_name === 'member') {
+            return false;
+        }
+
+        // Manager chỉ được cập nhật objectives trong phòng ban của họ
+        if ($user->role->role_name === 'manager' && 
+            $objective->department_id && 
+            $objective->department_id === $user->department_id) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Kiểm tra quyền xóa Objective
+     */
+    private function canDeleteObjective($user, $objective): bool
+    {
+        // Admin có quyền xóa tất cả
+        if ($user->role->role_name === 'admin') {
+            return true;
+        }
+
+        // Chủ sở hữu có quyền xóa
+        if ($objective->user_id === $user->user_id) {
+            return true;
+        }
+
+        // Member không được xóa objectives của người khác
+        if ($user->role->role_name === 'member') {
+            return false;
+        }
+
+        // Manager chỉ được xóa objectives trong phòng ban của họ
+        if ($user->role->role_name === 'manager' && 
+            $objective->department_id && 
+            $objective->department_id === $user->department_id) {
+            return true;
+        }
+
+        return false;
+    }
 }

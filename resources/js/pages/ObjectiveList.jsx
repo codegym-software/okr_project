@@ -12,10 +12,33 @@ export default function ObjectiveList({
     setEditingKR,
     setCreatingObjective,
     links,
+    currentUser,
 }) {
     const formatPercent = (value) => {
         const n = Number(value);
         return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
+    };
+
+    // Kiểm tra quyền quản lý Key Result
+    const canManageKeyResult = (objective) => {
+        if (!currentUser) return false;
+        
+        // Admin có quyền quản lý tất cả
+        if (currentUser.role?.role_name === 'admin') return true;
+        
+        // Chủ sở hữu có quyền quản lý
+        if (objective.user_id === currentUser.user_id) return true;
+        
+        // Member chỉ được quản lý objectives của chính họ
+        if (currentUser.role?.role_name === 'member') return false;
+        
+        // Manager chỉ được quản lý objectives trong phòng ban của họ
+        if (currentUser.role?.role_name === 'manager') {
+            return objective.department_id && 
+                   objective.department_id === currentUser.department_id;
+        }
+        
+        return false;
     };
 
     return (
@@ -138,15 +161,17 @@ export default function ObjectiveList({
                                                     <span className="text-xs text-slate-500">
                                                         {obj.description || ""}
                                                     </span>
-                                                    <button
-                                                        onClick={() =>
-                                                            setCreatingFor(obj)
-                                                        }
-                                                        className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
-                                                        title="Thêm Key Result"
-                                                    >
-                                                        Thêm KR
-                                                    </button>
+                                                    {canManageKeyResult(obj) && (
+                                                        <button
+                                                            onClick={() =>
+                                                                setCreatingFor(obj)
+                                                            }
+                                                            className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
+                                                            title="Thêm Key Result"
+                                                        >
+                                                            Thêm KR
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
@@ -166,23 +191,26 @@ export default function ObjectiveList({
                                                     </button>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
-<<<<<<< Updated upstream
-                                                    {obj.department?.d_name ||
-                                                        departments.find(
-                                                            (d) =>
-                                                                String(
-                                                                    d.department_id
-                                                                ) ===
-                                                                String(
-                                                                    obj.department_id
-                                                                )
-                                                        )?.d_name ||
-                                                        ""}
-=======
-                                                    {obj.assignments
-                                                        ?.map((a) => a.user?.email || "-")
-                                                        .join(", ") || "-"}
->>>>>>> Stashed changes
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-xs font-semibold text-slate-700">
+                                                            {obj.department?.d_name ||
+                                                                departments.find(
+                                                                    (d) =>
+                                                                        String(
+                                                                            d.department_id
+                                                                        ) ===
+                                                                        String(
+                                                                            obj.department_id
+                                                                        )
+                                                                )?.d_name ||
+                                                                ""}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-500">
+                                                            {obj.assignments
+                                                                ?.map((a) => a.user?.email || "-")
+                                                                .join(", ") || "-"}
+                                                        </span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {cyclesList.find(

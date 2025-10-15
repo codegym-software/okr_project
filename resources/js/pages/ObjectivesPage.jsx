@@ -23,6 +23,7 @@ export default function ObjectivesPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
     const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
+    const [currentUser, setCurrentUser] = useState(null);
 
     const load = async (pageNum = 1) => {
         try {
@@ -38,7 +39,7 @@ export default function ObjectivesPage() {
                 throw new Error("CSRF token not found");
             }
 
-            const [resObj, resDept, resCycles, resLinks] = await Promise.all([
+            const [resObj, resDept, resCycles, resLinks, resUser] = await Promise.all([
                 fetch(`/my-objectives?page=${pageNum}`, {
                     headers: {
                         Accept: "application/json",
@@ -50,6 +51,12 @@ export default function ObjectivesPage() {
                 }),
                 fetch("/cycles", { headers: { Accept: "application/json" } }),
                 fetch("/my-links", {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                }),
+                fetch("/api/profile", {
                     headers: {
                         Accept: "application/json",
                         "X-CSRF-TOKEN": token,
@@ -76,8 +83,43 @@ export default function ObjectivesPage() {
                 });
                 return { success: false, data: { data: [], last_page: 1 } };
             });
-            setItems(Array.isArray(objData.data.data) ? objData.data.data : []);
-            setTotalPages(objData.data.last_page || 1);
+            
+            // Normalize data: convert keyResults to key_results
+            const list = Array.isArray(objData?.data?.data) ? objData.data.data : (Array.isArray(objData?.data) ? objData.data : []);
+            const normalizedItems = Array.isArray(list)
+                ? list.map(obj => ({
+                    ...obj,
+                    key_results: obj.key_results || obj.keyResults || []
+                }))
+                : [];
+            
+            if (resObj.ok && objData.success !== false) {
+                console.log('📥 Server response OK, items count:', normalizedItems.length);
+                
+                // Luôn cập nhật state với data mới từ server
+                setItems(normalizedItems);
+                
+                // Lưu vào localStorage
+                try { 
+                    localStorage.setItem('my_objectives', JSON.stringify(normalizedItems)); 
+                    console.log('💾 Saved to localStorage:', normalizedItems.length, 'objectives');
+                    
+                    // Verify save
+                    const verify = localStorage.getItem('my_objectives');
+                    if (verify) {
+                        const verifyParsed = JSON.parse(verify);
+                        console.log('✅ Verified cache has:', verifyParsed.length, 'objectives');
+                    }
+                } catch (e) {
+                    console.error('❌ Failed to save to localStorage:', e);
+                }
+                
+                if (objData?.data?.last_page) setTotalPages(objData.data.last_page);
+            } else {
+                console.warn('⚠️ Bad response from server, keeping cached data');
+                console.log('Response status:', resObj.status, 'Success flag:', objData.success);
+                // Không xóa cache và không clear items khi có lỗi
+            }
 
             if (!resDept.ok) {
                 console.error(
@@ -134,6 +176,22 @@ export default function ObjectivesPage() {
             });
             setLinks(linksData.data || []);
 
+            // Parse user data (optional, không ảnh hưởng objectives)
+            if (resUser && resUser.ok) {
+                const userData = await resUser.json().catch((err) => {
+                    console.error("Error parsing user:", err);
+                    return null;
+                });
+                if (userData && userData.user) {
+                    setCurrentUser(userData.user);
+                    console.log('👤 Current user loaded:', userData.user.email);
+                } else {
+                    console.warn('⚠️ User data format unexpected:', userData);
+                }
+            } else {
+                console.warn('⚠️ Failed to fetch user profile, continuing without it');
+            }
+
             if (
                 !Array.isArray(objData.data.data) ||
                 objData.data.data.length === 0
@@ -163,9 +221,36 @@ export default function ObjectivesPage() {
         }
     };
 
+    // Load cache chỉ 1 lần khi component mount
+    useEffect(() => {
+        try {
+            const cached = localStorage.getItem('my_objectives');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    console.log('✅ Loaded from cache:', parsed.length, 'objectives');
+                    setItems(parsed);
+                } else {
+                    console.log('⚠️ Cache is empty');
+                }
+            } else {
+                console.log('⚠️ No cache found');
+            }
+        } catch (e) {
+            console.error('❌ Error loading from cache:', e);
+        }
+    }, []);
+
+    // Load data từ server khi page thay đổi
     useEffect(() => {
         load(page);
     }, [page]);
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
+        }
+    };
 
     const sortedItems = useMemo(
         () => (Array.isArray(items) ? items : []),
@@ -227,6 +312,7 @@ export default function ObjectivesPage() {
                 links={links}
                 openCheckInModal={openCheckInModal}
                 openCheckInHistory={openCheckInHistory}
+                currentUser={currentUser}
             />
             <div className="mt-4 flex justify-center gap-2">
                 <button

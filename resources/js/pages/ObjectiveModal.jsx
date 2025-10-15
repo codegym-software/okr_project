@@ -210,12 +210,6 @@ export default function ObjectiveModal({
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Tạo thất bại");
             const created = json.data;
-<<<<<<< Updated upstream
-            setItems((prev) => [
-                ...prev,
-                { ...created, key_results: created.key_results || [] },
-            ]);
-=======
 
             // Gán người dùng sau khi tạo Objective
             for (const assignment of assignments) {
@@ -251,7 +245,6 @@ export default function ObjectiveModal({
                 try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
                 return merged;
             });
->>>>>>> Stashed changes
             setCreatingObjective(false);
             setToast({
                 type: "success",
@@ -339,13 +332,15 @@ export default function ObjectiveModal({
             }
 
             const updated = json.data;
-            setItems((prev) =>
-                prev.map((o) =>
+            setItems((prev) => {
+                const merged = prev.map((o) =>
                     o.objective_id === editingObjective.objective_id
                         ? { ...o, ...updated }
                         : o
-                )
-            );
+                );
+                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
+                return merged;
+            });
             setEditingObjective(null);
             setToast({
                 type: "success",
@@ -377,11 +372,13 @@ export default function ObjectiveModal({
             const json = await res.json().catch(() => ({ success: res.ok }));
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Xóa Objective thất bại");
-            setItems((prev) =>
-                prev.filter(
+            setItems((prev) => {
+                const merged = prev.filter(
                     (o) => o.objective_id !== editingObjective.objective_id
-                )
-            );
+                );
+                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
+                return merged;
+            });
             setEditingObjective(null);
             setToast({ type: "success", message: "Đã xóa Objective" });
         } catch (err) {
@@ -661,90 +658,6 @@ export default function ObjectiveModal({
                                         </button>
                                     </div>
                                 </div>
-<<<<<<< Updated upstream
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Giá trị mục tiêu
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={kr.target_value}
-                                        onChange={(e) =>
-                                            updateNewKR(
-                                                index,
-                                                "target_value",
-                                                e.target.value
-                                            )
-                                        }
-                                        required
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Giá trị hiện tại
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={kr.current_value}
-                                        onChange={(e) =>
-                                            updateNewKR(
-                                                index,
-                                                "current_value",
-                                                e.target.value
-                                            )
-                                        }
-                                        required
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Đơn vị
-                                    </label>
-                                    <input
-                                        value={kr.unit}
-                                        onChange={(e) =>
-                                            updateNewKR(
-                                                index,
-                                                "unit",
-                                                e.target.value
-                                            )
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Status
-                                    </label>
-                                    <select
-                                        value={kr.status}
-                                        onChange={(e) =>
-                                            updateNewKR(
-                                                index,
-                                                "status",
-                                                e.target.value
-                                            )
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    >
-                                        <option value="draft">Draft</option>
-                                        <option value="active">Active</option>
-                                        <option value="completed">
-                                            Completed
-                                        </option>
-                                    </select>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => removeNewKR(index)}
-                                    className="text-xs text-rose-600"
-                                >
-                                    Xóa KR này
-                                </button>
-=======
->>>>>>> Stashed changes
                             </div>
                         ))}
                         <button

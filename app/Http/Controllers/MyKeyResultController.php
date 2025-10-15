@@ -65,8 +65,8 @@ class MyKeyResultController extends Controller
 
         $objective = Objective::findOrFail($objectiveId);
 
-        // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được tạo
-        if ($objective->user_id !== $user->user_id) {
+        // Kiểm tra quyền: Chủ sở hữu HOẶC cùng phòng ban (nếu là manager/member)
+        if (!$this->canManageKeyResult($user, $objective)) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective này.'], 403)
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Key Result cho Objective này.']);
@@ -127,8 +127,8 @@ class MyKeyResultController extends Controller
         $objective = Objective::findOrFail($objectiveId);
         $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
 
-        // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được cập nhật
-        if ($objective->user_id !== $user->user_id) {
+        // Kiểm tra quyền: Chủ sở hữu HOẶC cùng phòng ban (nếu là manager/member)
+        if (!$this->canManageKeyResult($user, $objective)) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Key Result này.'], 403);
         }
 
@@ -187,8 +187,8 @@ class MyKeyResultController extends Controller
         $objective = Objective::findOrFail($objectiveId);
         $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
 
-        // Kiểm tra quyền: Chỉ chủ sở hữu của Objective được xóa
-        if ($objective->user_id !== $user->user_id) {
+        // Kiểm tra quyền: Chủ sở hữu HOẶC cùng phòng ban (nếu là manager/member)
+        if (!$this->canManageKeyResult($user, $objective)) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Key Result này.'], 403);
         }
 
@@ -268,5 +268,42 @@ class MyKeyResultController extends Controller
             'member' => ['person'],
             default => ['person'],
         };
+    }
+
+    /**
+     * Kiểm tra quyền quản lý Key Result
+     */
+    private function canManageKeyResult($user, $objective): bool
+    {
+        // Load role nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Admin có quyền quản lý tất cả
+        if ($user->role && $user->role->role_name === 'admin') {
+            return true;
+        }
+
+        // Chủ sở hữu có quyền quản lý
+        if ($objective->user_id === $user->user_id) {
+            return true;
+        }
+
+        // Member chỉ được quản lý objectives của chính họ
+        if ($user->role && $user->role->role_name === 'member') {
+            return false;
+        }
+
+        // Manager chỉ được quản lý objectives trong phòng ban của họ
+        if ($user->role && $user->role->role_name === 'manager') {
+            if ($objective->department_id && 
+                $objective->department_id === $user->department_id) {
+                return true;
+            }
+            return false;
+        }
+
+        return false;
     }
 }
