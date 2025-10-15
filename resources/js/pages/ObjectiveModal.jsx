@@ -8,7 +8,6 @@ export default function ObjectiveModal({
     setEditingObjective,
     departments,
     cyclesList,
-    assignableData,
     setItems,
     setToast,
 }) {
@@ -36,9 +35,7 @@ export default function ObjectiveModal({
     });
     const [assignments, setAssignments] = useState(
         editingObjective?.assignments?.map((a) => ({
-            user_id: a.user_id,
-            role_id: a.role_id,
-            department_id: a.department_id || "",
+            email: a.user?.email || "",
         })) || []
     );
 
@@ -81,9 +78,7 @@ export default function ObjectiveModal({
             }));
             setAssignments(
                 editingObjective.assignments?.map((a) => ({
-                    user_id: a.user_id,
-                    role_id: a.role_id,
-                    department_id: a.department_id || "",
+                    email: a.user?.email || "",
                 })) || []
             );
         }
@@ -156,20 +151,13 @@ export default function ObjectiveModal({
     };
 
     const addAssignment = () => {
-        setAssignments((prev) => [
-            ...prev,
-            {
-                user_id: "",
-                role_id: "",
-                department_id: createForm.department_id || "",
-            },
-        ]);
+        setAssignments((prev) => [...prev, { email: "" }]);
     };
 
-    const updateAssignment = (index, field, value) => {
+    const updateAssignment = (index, value) => {
         setAssignments((prev) => {
             const updated = [...prev];
-            updated[index] = { ...updated[index], [field]: value };
+            updated[index] = { email: value };
             return updated;
         });
     };
@@ -225,7 +213,7 @@ export default function ObjectiveModal({
 
             // Gán người dùng sau khi tạo Objective
             for (const assignment of assignments) {
-                if (assignment.user_id && assignment.role_id) {
+                if (assignment.email) {
                     await fetch("/okr-assignments/store", {
                         method: "POST",
                         headers: {
@@ -234,10 +222,8 @@ export default function ObjectiveModal({
                             Accept: "application/json",
                         },
                         body: JSON.stringify({
-                            user_id: assignment.user_id,
-                            role_id: assignment.role_id,
+                            email: assignment.email,
                             objective_id: created.objective_id,
-                            department_id: assignment.department_id || null,
                         }),
                     })
                         .then((res) => res.json())
@@ -295,7 +281,7 @@ export default function ObjectiveModal({
             // Cập nhật gán người dùng
             const existingAssignments = editingObjective.assignments || [];
             for (const assignment of assignments) {
-                if (assignment.user_id && assignment.role_id) {
+                if (assignment.email) {
                     await fetch("/okr-assignments/store", {
                         method: "POST",
                         headers: {
@@ -304,10 +290,8 @@ export default function ObjectiveModal({
                             Accept: "application/json",
                         },
                         body: JSON.stringify({
-                            user_id: assignment.user_id,
-                            role_id: assignment.role_id,
+                            email: assignment.email,
                             objective_id: editingObjective.objective_id,
-                            department_id: assignment.department_id || null,
                         }),
                     })
                         .then((res) => res.json())
@@ -319,13 +303,7 @@ export default function ObjectiveModal({
             }
             // Xóa các gán không còn trong danh sách
             for (const existing of existingAssignments) {
-                if (
-                    !assignments.some(
-                        (a) =>
-                            a.user_id == existing.user_id &&
-                            a.role_id == existing.role_id
-                    )
-                ) {
+                if (!assignments.some((a) => a.email == existing.user?.email)) {
                     await fetch(
                         `/okr-assignments/destroy/${existing.assignment_id}`,
                         {
@@ -689,90 +667,23 @@ export default function ObjectiveModal({
                             key={index}
                             className="mt-2 rounded-md border border-slate-200 p-3"
                         >
-                            <div className="grid gap-3 md:grid-cols-3">
+                            <div className="grid gap-3 md:grid-cols-2">
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Người dùng
+                                        Email
                                     </label>
-                                    <select
-                                        value={assignment.user_id}
+                                    <input
+                                        type="email"
+                                        value={assignment.email}
                                         onChange={(e) =>
                                             updateAssignment(
                                                 index,
-                                                "user_id",
                                                 e.target.value
                                             )
                                         }
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    >
-                                        <option value="">
-                                            -- chọn người dùng --
-                                        </option>
-                                        {assignableData.users.map((u) => (
-                                            <option
-                                                key={u.user_id}
-                                                value={String(u.user_id)}
-                                            >
-                                                {u.full_name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Vai trò
-                                    </label>
-                                    <select
-                                        value={assignment.role_id}
-                                        onChange={(e) =>
-                                            updateAssignment(
-                                                index,
-                                                "role_id",
-                                                e.target.value
-                                            )
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    >
-                                        <option value="">
-                                            -- chọn vai trò --
-                                        </option>
-                                        {assignableData.roles.map((r) => (
-                                            <option
-                                                key={r.role_id}
-                                                value={String(r.role_id)}
-                                            >
-                                                {r.role_name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Phòng ban
-                                    </label>
-                                    <select
-                                        value={assignment.department_id}
-                                        onChange={(e) =>
-                                            updateAssignment(
-                                                index,
-                                                "department_id",
-                                                e.target.value
-                                            )
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    >
-                                        <option value="">
-                                            -- không chọn --
-                                        </option>
-                                        {departments.map((d) => (
-                                            <option
-                                                key={d.department_id}
-                                                value={String(d.department_id)}
-                                            >
-                                                {d.d_name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        placeholder="Nhập email người dùng"
+                                    />
                                 </div>
                                 <div className="flex items-end">
                                     <button

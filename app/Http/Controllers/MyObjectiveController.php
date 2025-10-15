@@ -22,7 +22,11 @@ class MyObjectiveController extends Controller
     public function index(Request $request): JsonResponse|View
     {
         $user = Auth::user();
-        $objectives = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $objectives = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user'])
             ->where(function ($query) use ($user) {
                 $query->where('user_id', $user->user_id)
                       ->orWhereHas('assignments', function ($query) use ($user) {
@@ -54,6 +58,11 @@ class MyObjectiveController extends Controller
     public function store(Request $request): JsonResponse|RedirectResponse
     {
         $user = Auth::user();
+        if (!$user) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => 'Unauthenticated'], 401)
+                : redirect()->back()->withErrors(['error' => 'Unauthenticated']);
+        }
 
         $validated = $request->validate([
             'obj_title' => 'required|string|max:255',
@@ -114,7 +123,7 @@ class MyObjectiveController extends Controller
                     }
                 }
 
-                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role']);
+                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user']);
             });
 
             return $request->expectsJson()
@@ -133,6 +142,12 @@ class MyObjectiveController extends Controller
     public function update(Request $request, string $id): JsonResponse|RedirectResponse
     {
         $user = Auth::user();
+        if (!$user) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => 'Unauthenticated'], 401)
+                : redirect()->back()->withErrors(['error' => 'Unauthenticated']);
+        }
+
         $objective = Objective::findOrFail($id);
 
         if ($objective->user_id !== $user->user_id && 
@@ -161,7 +176,7 @@ class MyObjectiveController extends Controller
         try {
             $objective = DB::transaction(function () use ($validated, $objective) {
                 $objective->update($validated);
-                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role']);
+                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user']);
             });
 
             return $request->expectsJson()
@@ -180,6 +195,10 @@ class MyObjectiveController extends Controller
     public function destroy(string $id): JsonResponse|RedirectResponse
     {
         $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
         $objective = Objective::findOrFail($id);
 
         if ($objective->user_id !== $user->user_id && 
@@ -206,7 +225,11 @@ class MyObjectiveController extends Controller
     public function getObjectiveDetails(string $id): JsonResponse
     {
         $user = Auth::user();
-        $objective = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $objective = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user'])
             ->findOrFail($id);
 
         if ($objective->user_id !== $user->user_id && 
@@ -223,6 +246,10 @@ class MyObjectiveController extends Controller
     public function getAllowedLevelsApi(): JsonResponse
     {
         $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
         return response()->json(['success' => true, 'data' => $allowedLevels]);
     }
