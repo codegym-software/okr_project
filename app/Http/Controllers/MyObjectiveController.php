@@ -33,8 +33,23 @@ class MyObjectiveController extends Controller
                       ->orWhereHas('assignments', function ($query) use ($user) {
                           $query->where('user_id', $user->user_id);
                       });
-            })
-            ->paginate(10);
+                
+                // Nếu user là admin, thấy tất cả objectives
+                if ($user->role->role_name === 'admin') {
+                    $query->orWhereRaw('1=1'); // Điều kiện luôn đúng để thấy tất cả
+                }
+                // Nếu user là manager, thêm điều kiện để thấy tất cả objectives trong department của họ
+                elseif ($user->role->role_name === 'manager' && $user->department_id) {
+                    $query->orWhere('department_id', $user->department_id);
+                }
+            });
+
+        // Thêm filter theo cycle_id nếu có
+        if ($request->has('cycle_id') && $request->cycle_id) {
+            $objectives->where('cycle_id', $request->cycle_id);
+        }
+
+        $objectives = $objectives->paginate(10);
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $objectives]);

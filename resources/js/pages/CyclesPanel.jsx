@@ -1,21 +1,33 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Badge, Modal, Toast } from "../components/ui";
 import DateInputComponent from "../components/DateInput";
 import { useAuth } from "../hooks/useAuth";
 import { AdminOnly } from "../components/AdminOnly";
 
+// Component riêng cho Key Result Item để tối ưu hóa
+const KeyResultItem = React.memo(({ kr, getStatusText }) => (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <div className="text-sm font-semibold text-slate-900">
+            {kr.kr_title}
+        </div>
+        <div className="text-xs text-slate-500">
+            {getStatusText(kr.status)}
+        </div>
+    </div>
+));
+
 function NewCycleModal({ open, onClose, onCreated }) {
     const [name, setName] = useState("");
     const [start, setStart] = useState("");
     const [end, setEnd] = useState("");
-    const [status, setStatus] = useState("active");
+    const [status, setStatus] = useState("");
     const [desc, setDesc] = useState("");
     const [toast, setToast] = useState({ type: "success", message: "" });
     const resetForm = () => {
         setName("");
         setStart("");
         setEnd("");
-        setStatus("active");
+        setStatus("");
         setDesc("");
         setToast({ type: "success", message: "" });
     };
@@ -125,8 +137,9 @@ function NewCycleModal({ open, onClose, onCreated }) {
                             onChange={(e) => setStatus(e.target.value)}
                             className="w-full rounded-2xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
+                            <option value="">-- chọn trạng thái --</option>
+                            <option value="active">Đang hoạt động</option>
+                            <option value="inactive">Không hoạt động</option>
                         </select>
                     </div>
                     <div>
@@ -176,6 +189,15 @@ export default function CyclesPanel() {
     // Sử dụng custom hook để lấy thông tin authentication
     const { isAdmin } = useAuth();
 
+    // Tối ưu hóa toggle function
+    const toggleObjective = useCallback((objectiveId) => {
+        setOpenObj((prev) => {
+            const newState = { ...prev };
+            newState[objectiveId] = !prev[objectiveId];
+            return newState;
+        });
+    }, []);
+
     const toInputDate = (v) => {
         if (!v) return "";
         const str = String(v);
@@ -197,6 +219,80 @@ export default function CyclesPanel() {
         const yyyy = d.getFullYear();
         return `${dd}/${mm}/${yyyy}`;
     };
+
+    const getStatusText = useCallback((status) => {
+        switch (status?.toLowerCase()) {
+            case 'active':
+                return 'Đang hoạt động';
+            case 'inactive':
+                return 'Không hoạt động';
+            case 'draft':
+                return 'Bản nháp';
+            case 'completed':
+                return 'Hoàn thành';
+            default:
+                return status || '';
+        }
+    }, []);
+
+    const getLevelText = useCallback((level) => {
+        switch (level?.toLowerCase()) {
+            case 'company':
+                return 'Công ty';
+            case 'department':
+                return 'Phòng ban';
+            case 'unit':
+                return 'Đơn vị';
+            case 'team':
+                return 'Nhóm';
+            case 'person':
+                return 'Cá nhân';
+            default:
+                return level || '';
+        }
+    }, []);
+
+    // Tạo màu sắc cho Objective dựa trên level
+    const getObjectiveColor = useCallback((level) => {
+        switch (level?.toLowerCase()) {
+            case 'company':
+                return {
+                    bg: 'bg-purple-100',
+                    text: 'text-purple-700',
+                    border: 'border-purple-200'
+                };
+            case 'department':
+                return {
+                    bg: 'bg-blue-100',
+                    text: 'text-blue-700',
+                    border: 'border-blue-200'
+                };
+            case 'unit':
+                return {
+                    bg: 'bg-green-100',
+                    text: 'text-green-700',
+                    border: 'border-green-200'
+                };
+            case 'team':
+                return {
+                    bg: 'bg-yellow-100',
+                    text: 'text-yellow-700',
+                    border: 'border-yellow-200'
+                };
+            case 'person':
+                return {
+                    bg: 'bg-pink-100',
+                    text: 'text-pink-700',
+                    border: 'border-pink-200'
+                };
+            default:
+                return {
+                    bg: 'bg-gray-100',
+                    text: 'text-gray-700',
+                    border: 'border-gray-200'
+                };
+        }
+    }, []);
 
     const sortByStartDesc = (arr = []) =>
         [...arr].sort(
@@ -277,70 +373,6 @@ export default function CyclesPanel() {
                 </h2>
                 {isDetail ? (
                     <div className="flex items-center gap-2">
-                        <AdminOnly permission="canManageCycles">
-                            <>
-                                <button
-                                    onClick={() => setEditOpen(true)}
-                                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                                >
-                                    Sửa
-                                </button>
-                                <button
-                                    onClick={async () => {
-                                        const ok = window.confirm(
-                                            "Xóa chu kỳ này? Hành động không thể hoàn tác."
-                                        );
-                                        if (!ok) return;
-                                        try {
-                                            const token = document
-                                                .querySelector(
-                                                    'meta[name="csrf-token"]'
-                                                )
-                                                .getAttribute("content");
-                                            const id =
-                                                detail?.cycle?.cycle_id ||
-                                                detail?.cycle_id;
-                                            const res = await fetch(`/cycles/${id}`, {
-                                                method: "DELETE",
-                                                headers: {
-                                                    "X-CSRF-TOKEN": token,
-                                                    Accept: "application/json",
-                                                },
-                                            });
-                                            const json = await res
-                                                .json()
-                                                .catch(() => ({ success: res.ok }));
-                                            if (!res.ok || json.success === false)
-                                                throw new Error(
-                                                    json.message ||
-                                                        "Xóa chu kỳ thất bại"
-                                                );
-                                            setCycles((prev) =>
-                                                prev.filter(
-                                                    (c) =>
-                                                        String(c.cycle_id || c.id) !==
-                                                        String(id)
-                                                )
-                                            );
-                                            setToast({
-                                                type: "success",
-                                                message: "Đã xóa chu kỳ",
-                                            });
-                                            goBack();
-                                        } catch (e) {
-                                            setToast({
-                                                type: "error",
-                                                message:
-                                                    e.message || "Xóa chu kỳ thất bại",
-                                            });
-                                        }
-                                    }}
-                                    className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-                                >
-                                    Xóa
-                                </button>
-                            </>
-                        </AdminOnly>
                         <button
                             onClick={goBack}
                             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -593,13 +625,12 @@ export default function CyclesPanel() {
                                 </label>
                                 <select
                                     name="status"
-                                    defaultValue={
-                                        detail.cycle?.status || "active"
-                                    }
+                                    defaultValue={detail.cycle?.status || ""}
                                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 >
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
+                                    <option value="">-- chọn trạng thái --</option>
+                                    <option value="active">Đang hoạt động</option>
+                                    <option value="inactive">Không hoạt động</option>
                                 </select>
                             </div>
                             <div>
@@ -640,6 +671,76 @@ export default function CyclesPanel() {
                         <h2 className="text-xl font-extrabold text-slate-900">
                             {detail.cycle?.cycle_name}
                         </h2>
+                        <AdminOnly permission="canManageCycles">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setEditOpen(true)}
+                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                    title="Sửa chu kỳ"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        const ok = window.confirm(
+                                            "Xóa chu kỳ này? Hành động không thể hoàn tác."
+                                        );
+                                        if (!ok) return;
+                                        try {
+                                            const token = document
+                                                .querySelector(
+                                                    'meta[name="csrf-token"]'
+                                                )
+                                                .getAttribute("content");
+                                            const id =
+                                                detail?.cycle?.cycle_id ||
+                                                detail?.cycle_id;
+                                            const res = await fetch(`/cycles/${id}`, {
+                                                method: "DELETE",
+                                                headers: {
+                                                    "X-CSRF-TOKEN": token,
+                                                    Accept: "application/json",
+                                                },
+                                            });
+                                            const json = await res
+                                                .json()
+                                                .catch(() => ({ success: res.ok }));
+                                            if (!res.ok || json.success === false)
+                                                throw new Error(
+                                                    json.message ||
+                                                        "Xóa chu kỳ thất bại"
+                                                );
+                                            setCycles((prev) =>
+                                                prev.filter(
+                                                    (c) =>
+                                                        String(c.cycle_id || c.id) !==
+                                                        String(id)
+                                                )
+                                            );
+                                            setToast({
+                                                type: "success",
+                                                message: "Đã xóa chu kỳ",
+                                            });
+                                            goBack();
+                                        } catch (e) {
+                                            setToast({
+                                                type: "error",
+                                                message:
+                                                    e.message || "Xóa chu kỳ thất bại",
+                                            });
+                                        }
+                                    }}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                    title="Xóa chu kỳ"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </AdminOnly>
                     </div>
                     <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
                         <div>
@@ -671,9 +772,7 @@ export default function CyclesPanel() {
                                 Trạng thái:
                             </div>
                             <div className="text-sm text-slate-800">
-                                {detail.cycle?.status === "active"
-                                    ? "Active"
-                                    : "Inactive"}
+                                {getStatusText(detail.cycle?.status)}
                             </div>
                         </div>
                     </div>
@@ -693,32 +792,11 @@ export default function CyclesPanel() {
                             className="border-t border-slate-200 px-6 py-4"
                         >
                             <div className="flex items-center justify-between">
-                                <button
-                                    onClick={() =>
-                                        setOpenObj((prev) => ({
-                                            ...prev,
-                                            [obj.objective_id]:
-                                                !prev[obj.objective_id],
-                                        }))
-                                    }
-                                    className="flex items-center gap-3 text-left"
-                                >
-                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold">
-                                        {(obj.obj_title || "T")[0]}
-                                    </span>
-                                    <div>
-                                        <div className="font-semibold text-slate-900">
-                                            {obj.obj_title ||
-                                                obj.objective_name}
-                                        </div>
-                                        <div className="text-xs text-slate-500">
-                                            {obj.level || ""}
-                                        </div>
-                                    </div>
-                                </button>
+                                {/* Button actions ở đầu */}
                                 <AdminOnly permission="canManageCycles">
-                                    <div className="flex items-center gap-2">
-                                        <button
+                                    <div className="flex items-center gap-2 mr-4">
+                                        {/* Tạm ẩn nút Thêm KR */}
+                                        {/* <button
                                             onClick={() =>
                                                 setOpenCreateKRForObjId(
                                                     obj.objective_id
@@ -727,24 +805,54 @@ export default function CyclesPanel() {
                                             className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
                                         >
                                             Thêm KR
-                                        </button>
+                                        </button> */}
                                     </div>
                                 </AdminOnly>
+                                
+                                {/* Objective content */}
+                                <button
+                                    onClick={() => toggleObjective(obj.objective_id)}
+                                    className="flex items-center gap-3 text-left flex-1"
+                                >
+                                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full font-bold ${getObjectiveColor(obj.level).bg} ${getObjectiveColor(obj.level).text}`}>
+                                        {(obj.obj_title || "T")[0]}
+                                    </span>
+                                    <div className="flex-1">
+                                        <div className="font-semibold text-slate-900">
+                                            {obj.obj_title ||
+                                                obj.objective_name}
+                                        </div>
+                                        <div className="text-xs text-slate-500">
+                                            {getLevelText(obj.level)}
+                                        </div>
+                                    </div>
+                                    <div className="ml-2">
+                                        <svg
+                                            className={`h-5 w-5 text-slate-400 transition-transform duration-200 ${
+                                                openObj[obj.objective_id] === true ? 'rotate-180' : ''
+                                            }`}
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M19 9l-7 7-7-7"
+                                            />
+                                        </svg>
+                                    </div>
+                                </button>
                             </div>
-                            {openObj[obj.objective_id] !== false && (
+                            {openObj[obj.objective_id] === true && (
                                 <div className="mt-3 space-y-3">
                                     {(krs[obj.objective_id] || []).map((kr) => (
-                                        <div
+                                        <KeyResultItem
                                             key={kr.kr_id || kr.id}
-                                            className="rounded-xl border border-slate-200 bg-white px-4 py-3"
-                                        >
-                                            <div className="text-sm font-semibold text-slate-900">
-                                                {kr.kr_title}
-                                            </div>
-                                            <div className="text-xs text-slate-500">
-                                                {kr.status || "in progress"}
-                                            </div>
-                                        </div>
+                                            kr={kr}
+                                            getStatusText={getStatusText}
+                                        />
                                     ))}
                                 </div>
                             )}
@@ -896,7 +1004,7 @@ export default function CyclesPanel() {
 function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
     const [objTitle, setObjTitle] = useState("");
     const [description, setDescription] = useState("");
-    const [status, setStatus] = useState("draft");
+    const [status, setStatus] = useState("");
     const [level, setLevel] = useState("company");
     const [departmentId, setDepartmentId] = useState("");
     const [departments, setDepartments] = useState([]);
@@ -905,8 +1013,8 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
             kr_title: "",
             target_value: "",
             current_value: "",
-            unit: "number",
-            status: "draft",
+            unit: "",
+            status: "",
         },
     ]);
     const [submitting, setSubmitting] = useState(false);
@@ -933,6 +1041,25 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
 
     const submit = async (e) => {
         e.preventDefault();
+        
+        // Validation phía frontend
+        if (!status) {
+            alert("Vui lòng chọn trạng thái cho Objective");
+            return;
+        }
+        
+        for (let i = 0; i < keyResults.length; i++) {
+            const kr = keyResults[i];
+            if (!kr.status) {
+                alert(`Vui lòng chọn trạng thái cho Key Result ${i + 1}`);
+                return;
+            }
+            if (!kr.unit) {
+                alert(`Vui lòng chọn đơn vị cho Key Result ${i + 1}`);
+                return;
+            }
+        }
+        
         try {
             setSubmitting(true);
             const token = document
@@ -941,7 +1068,7 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
             const payload = {
                 obj_title: objTitle.trim(),
                 description: description.trim() || null,
-                status,
+                status: status || "draft", // Fallback nếu vẫn rỗng
                 progress_percent: 0,
                 level,
                 cycle_id: cycleId,
@@ -953,8 +1080,8 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                     kr_title: kr.kr_title.trim(),
                     target_value: Number(kr.target_value || 0),
                     current_value: Number(kr.current_value || 0),
-                    unit: String(kr.unit || "number"),
-                    status: kr.status || "draft",
+                    unit: kr.unit || "number", // Fallback nếu vẫn rỗng
+                    status: kr.status || "draft", // Fallback nếu vẫn rỗng
                 })),
             };
             const res = await fetch("/my-objectives/store", {
@@ -989,8 +1116,8 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                 kr_title: "",
                 target_value: "",
                 current_value: "",
-                unit: "number",
-                status: "draft",
+                unit: "",
+                status: "",
             },
         ]);
     const removeKR = (i) =>
@@ -1032,6 +1159,22 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                 />
             </div>
             <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-700">
+                    Trạng thái
+                </label>
+                <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                >
+                    <option value="">-- chọn trạng thái --</option>
+                    <option value="draft">Bản nháp</option>
+                    <option value="active">Đang thực hiện</option>
+                    <option value="completed">Hoàn thành</option>
+                </select>
+            </div>
+            <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-800">
                     Key Results
                 </label>
@@ -1057,13 +1200,33 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                                     required
                                 />
                             </div>
-                            {/* Rows 2-3: 2x2 layout for Unit/Target and Current/Status */}
+                            {/* Row 2: Status and Unit */}
                             <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Trạng thái
+                                    </label>
+                                    <select
+                                        value={kr.status}
+                                        onChange={(e) =>
+                                            updateKR(idx, {
+                                                status: e.target.value,
+                                            })
+                                        }
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                        required
+                                    >
+                                        <option value="">-- chọn trạng thái --</option>
+                                        <option value="draft">Bản nháp</option>
+                                        <option value="active">Đang thực hiện</option>
+                                        <option value="completed">Hoàn thành</option>
+                                    </select>
+                                </div>
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
                                         Đơn vị
                                     </label>
-                                    <input
+                                    <select
                                         value={kr.unit}
                                         onChange={(e) =>
                                             updateKR(idx, {
@@ -1072,8 +1235,16 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                                         }
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                         required
-                                    />
+                                    >
+                                        <option value="">-- chọn đơn vị --</option>
+                                        <option value="number">Số lượng</option>
+                                        <option value="percent">Phần trăm</option>
+                                        <option value="completion">Hoàn thành</option>
+                                    </select>
                                 </div>
+                            </div>
+                            {/* Row 3: Target and Current */}
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
                                         Mục tiêu
@@ -1105,28 +1276,6 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                         required
                                     />
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Trạng thái
-                                    </label>
-                                    <select
-                                        value={kr.status}
-                                        onChange={(e) =>
-                                            updateKR(idx, {
-                                                status: e.target.value,
-                                            })
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    >
-                                        <option value="draft">Bản nháp</option>
-                                        <option value="active">
-                                            Đang thực hiện
-                                        </option>
-                                        <option value="completed">
-                                            Hoàn thành
-                                        </option>
-                                    </select>
                                 </div>
                             </div>
                             <div className="mt-3 flex justify-end">

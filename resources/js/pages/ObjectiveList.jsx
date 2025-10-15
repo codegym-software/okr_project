@@ -12,6 +12,8 @@ export default function ObjectiveList({
     setEditingKR,
     setCreatingObjective,
     links,
+    cycleFilter,
+    setCycleFilter,
 }) {
     const formatPercent = (value) => {
         const n = Number(value);
@@ -50,12 +52,26 @@ export default function ObjectiveList({
                 <h2 className="text-2xl font-extrabold text-slate-900">
                     Danh sách mục tiêu
                 </h2>
-                <button
-                    onClick={() => setCreatingObjective(true)}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                >
-                    Thêm Objective
-                </button>
+                <div className="flex items-center gap-3">
+                    <select
+                        value={cycleFilter}
+                        onChange={(e) => setCycleFilter(e.target.value)}
+                        className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value="">-- Tất cả chu kỳ --</option>
+                        {cyclesList.map((cycle) => (
+                            <option key={cycle.cycle_id} value={cycle.cycle_id}>
+                                {cycle.cycle_name}
+                            </option>
+                        ))}
+                    </select>
+                    <button
+                        onClick={() => setCreatingObjective(true)}
+                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                    >
+                        Thêm Objective
+                    </button>
+                </div>
             </div>
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">

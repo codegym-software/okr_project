@@ -18,8 +18,50 @@ export default function ObjectivesPage() {
     const [openObj, setOpenObj] = useState({});
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [cycleFilter, setCycleFilter] = useState("");
 
-    const load = async (pageNum = 1) => {
+    const loadStaticData = async () => {
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
+
+            const [resDept, resCycles, resLinks] = await Promise.all([
+                fetch("/departments", {
+                    headers: { Accept: "application/json" },
+                }),
+                fetch("/cycles", { headers: { Accept: "application/json" } }),
+                fetch("/my-links", {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                }),
+            ]);
+
+            if (resDept.ok) {
+                const deptData = await resDept.json();
+                setDepartments(deptData.data || []);
+            }
+
+            if (resCycles.ok) {
+                const cyclesData = await resCycles.json();
+                setCyclesList(cyclesData.data || []);
+            }
+
+            if (resLinks.ok) {
+                const linksData = await resLinks.json().catch((err) => {
+                    console.error("Error parsing links:", err);
+                    return { data: [] };
+                });
+                setLinks(linksData.data || []);
+            }
+        } catch (err) {
+            console.error("Load static data error:", err);
+        }
+    };
+
+    const load = async (pageNum = 1, filter = "") => {
         try {
             setLoading(true);
             const token = document
@@ -33,24 +75,18 @@ export default function ObjectivesPage() {
                 throw new Error("CSRF token not found");
             }
 
-            const [resObj, resDept, resCycles, resLinks] = await Promise.all([
-                fetch(`/my-objectives?page=${pageNum}`, {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                }),
-                fetch("/departments", {
-                    headers: { Accept: "application/json" },
-                }),
-                fetch("/cycles", { headers: { Accept: "application/json" } }),
-                fetch("/my-links", {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                }),
-            ]);
+            // Tạo URL với filter
+            let url = `/my-objectives?page=${pageNum}`;
+            if (filter) {
+                url += `&cycle_id=${filter}`;
+            }
+
+            const resObj = await fetch(url, {
+                headers: {
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN": token,
+                },
+            });
 
             if (!resObj.ok) {
                 console.error(
@@ -74,79 +110,6 @@ export default function ObjectivesPage() {
             setItems(Array.isArray(objData.data.data) ? objData.data.data : []);
             setTotalPages(objData.data.last_page || 1);
 
-            if (!resDept.ok) {
-                console.error(
-                    "Departments API error:",
-                    resDept.status,
-                    resDept.statusText
-                );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải departments: ${resDept.statusText}`,
-                });
-            }
-            const deptData = await resDept.json().catch((err) => {
-                console.error("Error parsing departments:", err);
-                return { data: [] };
-            });
-            setDepartments(deptData.data || []);
-
-            if (!resCycles.ok) {
-                console.error(
-                    "Cycles API error:",
-                    resCycles.status,
-                    resCycles.statusText
-                );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải cycles: ${resCycles.statusText}`,
-                });
-            }
-            const cyclesData = await resCycles.json().catch((err) => {
-                console.error("Error parsing cycles:", err);
-                return { data: [] };
-            });
-            setCyclesList(cyclesData.data || []);
-
-            if (!resLinks.ok) {
-                console.error(
-                    "Links API error:",
-                    resLinks.status,
-                    resLinks.statusText
-                );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải links: ${resLinks.statusText}`,
-                });
-            }
-            const linksData = await resLinks.json().catch((err) => {
-                console.error("Error parsing links:", err);
-                setToast({
-                    type: "error",
-                    message: "Lỗi phân tích dữ liệu liên kết",
-                });
-                return { data: [] };
-            });
-            setLinks(linksData.data || []);
-
-            if (
-                !Array.isArray(objData.data.data) ||
-                objData.data.data.length === 0
-            ) {
-                setToast({
-                    type: "warning",
-                    message: "Không có objectives nào",
-                });
-            }
-            if (deptData.data?.length === 0) {
-                setToast({
-                    type: "warning",
-                    message: "Không có phòng ban nào",
-                });
-            }
-            if (cyclesData.data?.length === 0) {
-                setToast({ type: "warning", message: "Không có chu kỳ nào" });
-            }
         } catch (err) {
             console.error("Load error:", err);
             setToast({
@@ -159,8 +122,19 @@ export default function ObjectivesPage() {
     };
 
     useEffect(() => {
-        load(page);
+        load(page, cycleFilter);
     }, [page]);
+
+    useEffect(() => {
+        // Khi filter thay đổi, reset về trang 1 và reload
+        setPage(1);
+        load(1, cycleFilter);
+    }, [cycleFilter]);
+
+    useEffect(() => {
+        // Load static data một lần khi component mount
+        loadStaticData();
+    }, []);
 
     const sortedItems = useMemo(
         () => (Array.isArray(items) ? items : []),
@@ -192,6 +166,8 @@ export default function ObjectivesPage() {
                 setEditingKR={setEditingKR}
                 setCreatingObjective={setCreatingObjective}
                 links={links}
+                cycleFilter={cycleFilter}
+                setCycleFilter={setCycleFilter}
             />
             <div className="mt-4 flex justify-center gap-2">
                 <button
