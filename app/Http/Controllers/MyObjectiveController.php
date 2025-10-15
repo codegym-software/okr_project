@@ -204,7 +204,7 @@ class MyObjectiveController extends Controller
         $objective = Objective::findOrFail($id);
 
         // Kiểm tra quyền sở hữu
-        if ($objective->user_id !== $user->id) {
+        if ($objective->user_id !== $user->user_id) {
             if (request()->expectsJson()) {
                 return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa objective này'], 403);
             }

@@ -229,23 +229,19 @@ class MyKeyResultController extends Controller
             return true;
         }
 
-        // Manager có thể quản lý KR trong phòng ban của mình (trừ cá nhân)
-        if ($user->isManager() && $user->department_id && 
-            $objective->department_id === $user->department_id && 
-            $objective->level !== 'Cá nhân') {
-            return true;
-        }
-
-        // Member có thể quản lý KR trong phòng ban của mình (trừ cá nhân)
-        if ($user->isMember() && $user->department_id && 
-            $objective->department_id === $user->department_id && 
-            $objective->level !== 'Cá nhân') {
-            return true;
-        }
-
-        // Kiểm tra level có được phép không (chỉ áp dụng cho trường hợp khác)
+        // Kiểm tra level có được phép không
         if (!in_array($objective->level, $allowedLevels)) {
             return false;
+        }
+
+        // Đối với member, chỉ được tạo KR cho objectives của phòng ban mình
+        if ($user->isMember() && $user->department_id) {
+            return $objective->department_id === $user->department_id;
+        }
+
+        // Đối với manager, chỉ được tạo KR cho objectives của phòng ban mình (trừ cá nhân)
+        if ($user->isManager() && $user->department_id) {
+            return $objective->department_id === $user->department_id && $objective->level !== 'Cá nhân';
         }
 
         return false;
