@@ -27,6 +27,7 @@ class Objective extends Model
         'progress_percent',
         'user_id',
         'cycle_id',
+        'department_id',
     ];
 
     /**

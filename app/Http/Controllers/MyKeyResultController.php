@@ -37,7 +37,7 @@ class MyKeyResultController extends Controller
 
         // Kiểm tra quyền tạo KR
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!in_array($objective->level, $allowedLevels) || ($objective->user_id !== $user->id && $objective->level === 'Cá nhân')) {
+        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
             return view('app');
         }
 
@@ -66,7 +66,7 @@ class MyKeyResultController extends Controller
 
         // Kiểm tra quyền tạo KR
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!in_array($objective->level, $allowedLevels) || ($objective->user_id !== $user->id && $objective->level === 'Cá nhân')) {
+        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
             if ($request->expectsJson()) {
                 return response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective này.'], 403);
             }
@@ -98,7 +98,7 @@ class MyKeyResultController extends Controller
                     'weight' => 0,
                     'progress_percent' => $validated['progress_percent'] ?? $progress,
                     'objective_id' => $objective->objective_id, // Sử dụng objective_id
-                    'cycle_id' => $objective->cycle_id,
+                    'cycle_id' => $objective->cycle_id ?: 1, // Sử dụng cycle_id của objective hoặc mặc định là 1
                     'department_id' => $validated['department_id'] ?? $objective->department_id,
                     'user_id' => $user->id,
                 ];
@@ -131,7 +131,7 @@ class MyKeyResultController extends Controller
 
         // Kiểm tra quyền chỉnh sửa
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!in_array($objective->level, $allowedLevels) || ($objective->user_id !== $user->id && $objective->level === 'Cá nhân')) {
+        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
             return view('app');
         }
 
@@ -149,7 +149,7 @@ class MyKeyResultController extends Controller
 
         // Kiểm tra quyền chỉnh sửa
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!in_array($objective->level, $allowedLevels) || ($objective->user_id !== $user->id && $objective->level === 'Cá nhân')) {
+        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
             return redirect()->back()->withErrors(['error' => 'Bạn không có quyền cập nhật Key Result này.']);
         }
 
@@ -197,7 +197,7 @@ class MyKeyResultController extends Controller
 
         // Kiểm tra quyền xóa
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        if (!in_array($objective->level, $allowedLevels) || ($objective->user_id !== $user->id && $objective->level === 'Cá nhân')) {
+        if (!$this->canManageObjective($user, $objective, $allowedLevels)) {
             return redirect()->back()->withErrors(['error' => 'Bạn không có quyền xóa Key Result này.']);
         }
 
@@ -215,15 +215,73 @@ class MyKeyResultController extends Controller
     }
 
     /**
+     * Kiểm tra quyền quản lý Objective
+     */
+    private function canManageObjective($user, $objective, $allowedLevels): bool
+    {
+        // Admin có quyền quản lý tất cả
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        // Người sở hữu Objective có thể quản lý KR của mình
+        if ($objective->user_id === $user->user_id) {
+            return true;
+        }
+
+        // Manager có thể quản lý KR trong phòng ban của mình (trừ cá nhân)
+        if ($user->isManager() && $user->department_id && 
+            $objective->department_id === $user->department_id && 
+            $objective->level !== 'Cá nhân') {
+            return true;
+        }
+
+        // Member có thể quản lý KR trong phòng ban của mình (trừ cá nhân)
+        if ($user->isMember() && $user->department_id && 
+            $objective->department_id === $user->department_id && 
+            $objective->level !== 'Cá nhân') {
+            return true;
+        }
+
+        // Kiểm tra level có được phép không (chỉ áp dụng cho trường hợp khác)
+        if (!in_array($objective->level, $allowedLevels)) {
+            return false;
+        }
+
+        return false;
+    }
+
+    /**
+     * Kiểm tra quyền thêm KR cho Objective
+     */
+    public function canAddKR(Request $request, $objectiveId)
+    {
+        $user = Auth::user();
+        $objective = Objective::findOrFail($objectiveId);
+        
+        $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
+        $canManage = $this->canManageObjective($user, $objective, $allowedLevels);
+        
+        return response()->json([
+            'success' => true,
+            'can_add_kr' => $canManage,
+            'user_department_id' => $user->department_id,
+            'objective_department_id' => $objective->department_id,
+            'objective_level' => $objective->level,
+            'user_role' => $user->role ? $user->role->role_name : 'member'
+        ]);
+    }
+
+    /**
      * Lấy danh sách cấp Objective được phép dựa trên vai trò
      */
     private function getAllowedLevels(string $roleName): array
     {
-        return match ($roleName) {
-            'admin' => ['company', 'unit', 'team', 'person'],
-            'manager' => ['unit', 'team', 'person'],
-            'member' => ['person'],
-            default => ['person'],
+        return match (strtolower($roleName)) {
+            'admin' => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'],
+            'manager' => ['Phòng ban', 'Nhóm', 'Cá nhân'],
+            'member' => ['Nhóm', 'Cá nhân'],
+            default => ['Nhóm', 'Cá nhân'],
         };
     }
 }

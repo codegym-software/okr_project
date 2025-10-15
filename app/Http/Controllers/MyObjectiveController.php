@@ -33,14 +33,19 @@ class MyObjectiveController extends Controller
         $currentLevel = $allowedLevels[0]; // Lấy level đầu tiên làm mặc định cho index
 
         $query = Objective::with(['user', 'department', 'keyResults', 'cycle'])
-            ->whereIn('level', $allowedLevels)
-            ->where(function ($query) use ($user) {
+            ->whereIn('level', $allowedLevels);
+
+        // Admin có thể xem tất cả objectives, các role khác chỉ xem của mình/phòng ban
+        if (!$user->isAdmin()) {
+            $query->where(function ($query) use ($user) {
                 $query->where('user_id', $user->id)
                       ->orWhereHas('department', function ($q) use ($user) {
                           $q->where('department_id', $user->department_id);
                       });
-            })
-            ->orderBy('created_at', 'desc');
+            });
+        }
+
+        $query->orderBy('created_at', 'desc');
 
         // Ghi log truy vấn SQL và bindings trước khi paginate
         Log::info('Index objectives', [
@@ -100,6 +105,26 @@ class MyObjectiveController extends Controller
             'department_id' => 'nullable|exists:departments,department_id',
         ]);
 
+        // Kiểm tra quyền tạo Objective theo level
+        $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
+        if (!in_array($request->level, $allowedLevels)) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Objective cấp ' . $request->level], 403);
+            }
+            return redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Objective cấp ' . $request->level]);
+        }
+
+        // Kiểm tra quyền tạo Objective cho phòng ban
+        if ($request->level === 'Phòng ban' && $request->department_id) {
+            // Admin có thể tạo cho bất kỳ phòng ban nào, Manager và Member chỉ cho phòng ban của mình
+            if (!$user->isAdmin() && $user->department_id != $request->department_id) {
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Bạn chỉ có thể tạo Objective cho phòng ban của mình'], 403);
+                }
+                return redirect()->back()->withErrors(['error' => 'Bạn chỉ có thể tạo Objective cho phòng ban của mình']);
+            }
+        }
+
         $objective = Objective::create([
             'obj_title' => $request->obj_title,
             'level' => $request->level,
@@ -133,12 +158,23 @@ class MyObjectiveController extends Controller
         $user = Auth::user();
         $objective = Objective::findOrFail($id);
 
-        // Kiểm tra quyền sở hữu
+        // Kiểm tra quyền sở hữu và level
         if ($objective->user_id !== $user->id) {
             if ($request->expectsJson()) {
                 return response()->json(['success' => false, 'message' => 'Bạn không có quyền chỉnh sửa objective này'], 403);
             }
             return back()->withErrors(['error' => 'Bạn không có quyền chỉnh sửa objective này']);
+        }
+
+        // Kiểm tra quyền thay đổi level nếu có
+        if ($request->has('level') && $request->level !== $objective->level) {
+            $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
+            if (!in_array($request->level, $allowedLevels)) {
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Bạn không có quyền thay đổi Objective sang cấp ' . $request->level], 403);
+                }
+                return back()->withErrors(['error' => 'Bạn không có quyền thay đổi Objective sang cấp ' . $request->level]);
+            }
         }
 
         $request->validate([
@@ -184,13 +220,34 @@ class MyObjectiveController extends Controller
     }
 
     /**
+     * Lấy thông tin user và các level được phép
+     */
+    public function getUserLevels(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $allowedLevels = $this->getAllowedLevels($user->role ? $user->role->role_name : 'member');
+        
+        return response()->json([
+            'success' => true,
+            'user_role' => $user->role ? $user->role->role_name : 'member',
+            'allowed_levels' => $allowedLevels,
+            'user_department_id' => $user->department_id
+        ]);
+    }
+
+    /**
      * Lấy danh sách level được phép tạo theo role
      */
     private function getAllowedLevels(string $roleName): array
     {
         return match (strtolower($roleName)) {
             'admin' => ['Công ty', 'Phòng ban', 'Nhóm', 'Cá nhân'],
-            'master', 'manager' => ['Phòng ban', 'Nhóm', 'Cá nhân'],
+            'manager' => ['Phòng ban', 'Nhóm', 'Cá nhân'],
+            'member' => ['Nhóm', 'Cá nhân'], // Member chỉ có thể tạo objectives cấp Nhóm và Cá nhân
             default => ['Nhóm', 'Cá nhân'],
         };
     }

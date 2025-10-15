@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Toast } from "../components/ui";
+import CheckInModal from "../components/CheckInModal";
+import CheckInHistory from "../components/CheckInHistory";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 export default function ObjectivesPage() {
     const [items, setItems] = useState([]);
@@ -12,15 +15,55 @@ export default function ObjectivesPage() {
     const [creatingObjective, setCreatingObjective] = useState(false);
     const [editingObjective, setEditingObjective] = useState(null);
     const [openObj, setOpenObj] = useState({}); // { [objective_id]: boolean }
+    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
+    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
+    const [krPermissions, setKrPermissions] = useState({}); // { [objective_id]: boolean }
+    const [userLevels, setUserLevels] = useState([]); // Các level được phép cho user hiện tại
     const [createForm, setCreateForm] = useState({
         obj_title: "",
         description: "",
-        level: "company",
+        level: "",
         status: "draft",
         cycle_id: "",
         department_id: "",
         key_results: [],
     });
+
+    // Load user levels
+    const loadUserLevels = async () => {
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
+            
+            const res = await fetch('/my-objectives/user-levels', {
+                headers: {
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN": token,
+                },
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                setUserLevels(data.allowed_levels);
+                // Set default level to first available level
+                if (data.allowed_levels.length > 0) {
+                    setCreateForm(prev => ({
+                        ...prev,
+                        level: data.allowed_levels[0]
+                    }));
+                }
+            }
+        } catch (err) {
+            console.error("Error loading user levels:", err);
+            // Fallback to default levels
+            setUserLevels(['Nhóm', 'Cá nhân']);
+            setCreateForm(prev => ({
+                ...prev,
+                level: 'Nhóm'
+            }));
+        }
+    };
 
     const load = async () => {
         try {
@@ -69,7 +112,7 @@ export default function ObjectivesPage() {
                 return { success: false, data: { data: [] } };
             });
             console.log("Objectives data:", objData);
-            setItems(Array.isArray(objData.data.data) ? objData.data.data : []);
+            setItems(Array.isArray(objData.data) ? objData.data : []);
 
             // Check /departments
             if (!resDept.ok) {
@@ -111,8 +154,8 @@ export default function ObjectivesPage() {
 
             // Notify if data is empty
             if (
-                !Array.isArray(objData.data.data) ||
-                objData.data.data.length === 0
+                !Array.isArray(objData.data) ||
+                objData.data.length === 0
             ) {
                 setToast({
                     type: "warning",
@@ -142,9 +185,52 @@ export default function ObjectivesPage() {
         }
     };
 
+    // Kiểm tra quyền hạn thêm KR cho tất cả objectives
+    const checkKRPermissions = async () => {
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
+            
+            console.log('Starting KR permissions check for', items.length, 'objectives');
+            const permissions = {};
+            
+            for (const obj of items) {
+                try {
+                    console.log(`Checking permission for objective ${obj.objective_id}: ${obj.obj_title}`);
+                    const res = await fetch(`/my-key-results/can-add/${obj.objective_id}`, {
+                        headers: {
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                        },
+                    });
+                    const data = await res.json();
+                    console.log(`Permission result for ${obj.objective_id}:`, data);
+                    permissions[obj.objective_id] = data.can_add_kr || false;
+                } catch (err) {
+                    console.error(`Error checking permission for objective ${obj.objective_id}:`, err);
+                    permissions[obj.objective_id] = false;
+                }
+            }
+            console.log('Final permissions:', permissions);
+            setKrPermissions(permissions);
+        } catch (err) {
+            console.error("Error checking KR permissions:", err);
+        }
+    };
+
     useEffect(() => {
         load();
+        loadUserLevels();
     }, []);
+
+    // Kiểm tra quyền hạn khi items thay đổi
+    useEffect(() => {
+        if (items.length > 0) {
+            console.log('Items loaded, checking KR permissions for', items.length, 'objectives');
+            checkKRPermissions();
+        }
+    }, [items]);
 
     const sortedItems = useMemo(() => {
         return Array.isArray(items) ? items : [];
@@ -222,7 +308,21 @@ export default function ObjectivesPage() {
 
     const formatPercent = (value) => {
         const n = Number(value);
-        return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
+        return Number.isFinite(n) ? `${n.toFixed(1)}%` : "0%";
+    };
+
+    const getProgressColor = (percent) => {
+        if (percent >= 100) return 'text-green-600';
+        if (percent >= 75) return 'text-blue-600';
+        if (percent >= 50) return 'text-yellow-600';
+        return 'text-red-600';
+    };
+
+    const getProgressBgColor = (percent) => {
+        if (percent >= 100) return 'bg-green-500';
+        if (percent >= 75) return 'bg-blue-500';
+        if (percent >= 50) return 'bg-yellow-500';
+        return 'bg-red-500';
     };
 
     const handleCreateFormChange = (field, value) => {
@@ -268,10 +368,19 @@ export default function ObjectivesPage() {
             });
             return;
         }
-        if (createForm.level !== "company" && !createForm.department_id) {
+        if (createForm.level !== "Công ty" && !createForm.department_id) {
             setToast({
                 type: "error",
-                message: "Phải chọn phòng ban cho level không phải company",
+                message: "Phải chọn phòng ban cho level không phải công ty",
+            });
+            return;
+        }
+        
+        // Kiểm tra quyền hạn tạo objective với level này
+        if (!userLevels.includes(createForm.level)) {
+            setToast({
+                type: "error",
+                message: `Bạn không có quyền tạo objective với level "${createForm.level}"`,
             });
             return;
         }
@@ -282,7 +391,7 @@ export default function ObjectivesPage() {
             const body = {
                 ...createForm,
                 department_id:
-                    createForm.level === "company"
+                    createForm.level === "Công ty"
                         ? null
                         : createForm.department_id,
                 key_results: createForm.key_results.map((kr) => ({
@@ -308,11 +417,35 @@ export default function ObjectivesPage() {
                 ...prev,
                 { ...created, key_results: created.key_results || [] },
             ]);
+            
+            // Cập nhật quyền hạn cho objective mới
+            setTimeout(async () => {
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    
+                    const res = await fetch(`/my-key-results/can-add/${created.objective_id}`, {
+                        headers: {
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                        },
+                    });
+                    const data = await res.json();
+                    setKrPermissions(prev => ({
+                        ...prev,
+                        [created.objective_id]: data.can_add_kr || false
+                    }));
+                } catch (err) {
+                    console.error(`Error checking permission for new objective ${created.objective_id}:`, err);
+                }
+            }, 100);
+            
             setCreatingObjective(false);
             setCreateForm({
                 obj_title: "",
                 description: "",
-                level: "company",
+                level: "Công ty",
                 status: "draft",
                 cycle_id: "",
                 department_id: "",
@@ -322,6 +455,47 @@ export default function ObjectivesPage() {
         } catch (err) {
             setToast({ type: "error", message: err.message || "Tạo thất bại" });
         }
+    };
+
+    // Tính toán tất cả Key Results từ Objectives
+    const allKeyResults = useMemo(() => {
+        return items.reduce((acc, obj) => {
+            return [...acc, ...(obj.key_results || [])];
+        }, []);
+    }, [items]);
+
+    const handleCheckInSuccess = (keyResultData) => {
+        if (keyResultData && keyResultData.kr_id) {
+            // Cập nhật Key Result trong danh sách
+            setItems((prev) =>
+                prev.map((obj) => ({
+                    ...obj,
+                    key_results: (obj.key_results || []).map((kr) =>
+                        kr.kr_id === keyResultData.kr_id ? { ...kr, ...keyResultData } : kr
+                    ),
+                }))
+            );
+        }
+        
+        // Hiển thị thông báo thành công
+        setToast({
+            type: "success",
+            message: keyResultData?.progress_percent >= 100 
+                ? "🎉 Chúc mừng! Key Result đã hoàn thành 100%."
+                : "✅ Cập nhật tiến độ thành công!",
+        });
+    };
+
+    const openCheckInModal = (keyResult) => {
+        console.log('Opening check-in modal for:', keyResult);
+        console.log('Objective ID:', keyResult?.objective_id);
+        setCheckInModal({ open: true, keyResult });
+    };
+
+    const openCheckInHistory = (keyResult) => {
+        console.log('Opening check-in history for:', keyResult);
+        console.log('Objective ID:', keyResult?.objective_id);
+        setCheckInHistory({ open: true, keyResult });
     };
 
     return (
@@ -439,21 +613,22 @@ export default function ObjectivesPage() {
                                                         {obj.obj_title}
                                                     </button>
                                                 </div>
-                                                <button
-                                                    onClick={() =>
-                                                        setCreatingFor(obj)
-                                                    }
-                                                    title="Thêm Key Result"
-                                                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
-                                                >
-                                                    Thêm KR
-                                                </button>
+                                                {krPermissions[obj.objective_id] && (
+                                                    <button
+                                                        onClick={() =>
+                                                            setCreatingFor(obj)
+                                                        }
+                                                        title="Thêm Key Result"
+                                                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm"
+                                                    >
+                                                        Thêm KR
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
-                                    {openObj[obj.objective_id] === false
-                                        ? null
-                                        : (obj.key_results || []).map((kr) => (
+                                    {openObj[obj.objective_id] !== false
+                                        ? (obj.key_results || []).map((kr) => (
                                               <tr
                                                   key={kr.kr_id}
                                                   className="hover:bg-slate-50 bg-white border-l-4 border-l-blue-200"
@@ -537,12 +712,43 @@ export default function ObjectivesPage() {
                                                       {kr.target_value ?? ""}
                                                   </td>
                                                   <td className="px-3 py-3 text-center">
-                                                      {formatPercent(
-                                                          kr.progress_percent
-                                                      )}
+                                                      <div className="space-y-2">
+                                                          <div className="flex items-center justify-center space-x-2">
+                                                              <div className="w-16 bg-slate-200 rounded-full h-2">
+                                                                  <div 
+                                                                      className={`h-2 rounded-full transition-all duration-300 ${getProgressBgColor(kr.progress_percent)}`}
+                                                                      style={{ width: `${Math.min(100, Math.max(0, kr.progress_percent))}%` }}
+                                                                  ></div>
+                                                              </div>
+                                                              <span className={`text-sm font-medium ${getProgressColor(kr.progress_percent)}`}>
+                                                                  {formatPercent(kr.progress_percent)}
+                                                              </span>
+                                                          </div>
+                                                          <div className="flex space-x-1 justify-center">
+                                                              <button
+                                                                  onClick={() => openCheckInModal(kr)}
+                                                                  className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                                                                  title="Check-in tiến độ"
+                                                              >
+                                                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                  </svg>
+                                                              </button>
+                                                              <button
+                                                                  onClick={() => openCheckInHistory(kr)}
+                                                                  className="p-1 text-slate-600 hover:text-slate-800 hover:bg-slate-50 rounded transition-colors"
+                                                                  title="Xem lịch sử check-in"
+                                                              >
+                                                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                  </svg>
+                                                              </button>
+                                                          </div>
+                                                      </div>
                                                   </td>
                                               </tr>
-                                          ))}
+                                          ))
+                                        : null}
                                 </React.Fragment>
                             ))}
                     </tbody>
@@ -895,14 +1101,14 @@ export default function ObjectivesPage() {
                                 <select
                                     name="level"
                                     defaultValue={
-                                        editingObjective.level || "company"
+                                        editingObjective.level || "Công ty"
                                     }
                                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 >
-                                    <option value="company">Company</option>
-                                    <option value="unit">Unit</option>
-                                    <option value="team">Team</option>
-                                    <option value="person">Person</option>
+                                    <option value="Công ty">Công ty</option>
+                                    <option value="Phòng ban">Phòng ban</option>
+                                    <option value="Nhóm">Nhóm</option>
+                                    <option value="Cá nhân">Cá nhân</option>
                                 </select>
                             </div>
                             <div className="md:col-span-2">
@@ -1096,10 +1302,11 @@ export default function ObjectivesPage() {
                                     }
                                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 >
-                                    <option value="company">Company</option>
-                                    <option value="unit">Unit</option>
-                                    <option value="team">Team</option>
-                                    <option value="person">Person</option>
+                                    {userLevels.map((level) => (
+                                        <option key={level} value={level}>
+                                            {level}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             <div className="md:col-span-2">
@@ -1535,6 +1742,27 @@ export default function ObjectivesPage() {
                     </form>
                 </Modal>
             )}
+
+            {/* Check-in Modal */}
+            <ErrorBoundary>
+                <CheckInModal
+                    open={checkInModal.open}
+                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
+                    keyResult={checkInModal.keyResult}
+                    objectiveId={checkInModal.keyResult?.objective_id}
+                    onSuccess={handleCheckInSuccess}
+                />
+            </ErrorBoundary>
+
+            {/* Check-in History Modal */}
+            <ErrorBoundary>
+                <CheckInHistory
+                    open={checkInHistory.open}
+                    onClose={() => setCheckInHistory({ open: false, keyResult: null })}
+                    keyResult={checkInHistory.keyResult}
+                    objectiveId={checkInHistory.keyResult?.objective_id}
+                />
+            </ErrorBoundary>
         </div>
     );
 }

@@ -882,9 +882,10 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
     const [objTitle, setObjTitle] = useState("");
     const [description, setDescription] = useState("");
     const [status, setStatus] = useState("draft");
-    const [level, setLevel] = useState("company");
+    const [level, setLevel] = useState("");
     const [departmentId, setDepartmentId] = useState("");
     const [departments, setDepartments] = useState([]);
+    const [userLevels, setUserLevels] = useState([]);
     const [keyResults, setKeyResults] = useState([
         {
             kr_title: "",
@@ -895,6 +896,38 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
         },
     ]);
     const [submitting, setSubmitting] = useState(false);
+
+    // Load user levels
+    useEffect(() => {
+        (async () => {
+            try {
+                const token = document
+                    .querySelector('meta[name="csrf-token"]')
+                    ?.getAttribute("content");
+                
+                const res = await fetch('/my-objectives/user-levels', {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    setUserLevels(data.allowed_levels);
+                    // Set default level to first available level
+                    if (data.allowed_levels.length > 0) {
+                        setLevel(data.allowed_levels[0]);
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading user levels:", err);
+                // Fallback to default levels
+                setUserLevels(['Nhóm', 'Cá nhân']);
+                setLevel('Nhóm');
+            }
+        })();
+    }, []);
 
     // Try to load departments for dropdown; gracefully degrade to text input
     useEffect(() => {
@@ -931,7 +964,7 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                 level,
                 cycle_id: cycleId,
                 parent_key_result_id: null,
-                ...(level !== "company"
+                ...(level !== "Công ty"
                     ? { department_id: departmentId || undefined }
                     : {}),
                 key_results: keyResults.map((kr) => ({
@@ -994,17 +1027,22 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                     required
                 />
             </div>
-            {/* Cấp mặc định: Công ty (không cho chọn). Hiển thị input giống chiều rộng tiêu đề */}
             <div>
                 <label className="mb-1 block text-sm font-semibold text-slate-700">
                     Cấp
                 </label>
-                <input
-                    value="Công ty"
-                    disabled
-                    className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-2 text-slate-600"
-                />
-                <input type="hidden" name="level" value={level} />
+                <select
+                    value={level}
+                    onChange={(e) => setLevel(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                >
+                    {userLevels.map((levelOption) => (
+                        <option key={levelOption} value={levelOption}>
+                            {levelOption}
+                        </option>
+                    ))}
+                </select>
             </div>
             <div>
                 <label className="mb-1 block text-sm font-semibold text-slate-700">

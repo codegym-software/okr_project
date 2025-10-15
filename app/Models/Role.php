@@ -39,7 +39,8 @@ class Role extends Model
      */
     public function isManager()
     {
-        return strtolower($this->role_name) === 'master';
+
+        return strtolower($this->role_name) === 'manager';
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Http\Controllers\MyOKRController;
 use App\Http\Controllers\MyObjectiveController;
 use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\CheckInController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 
@@ -148,6 +149,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::post('/store', [MyObjectiveController::class, 'store'])
             ->middleware('auth')
             ->name('my-objectives.store');
+        Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
+            ->middleware('auth')
+            ->name('my-objectives.user-levels');
         Route::get('/edit/{id}', [MyObjectiveController::class, 'edit'])
             ->middleware('auth')
             ->name('my-objectives.edit');
@@ -173,11 +177,25 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             return view('app');
         })->middleware('auth')->name('my-key-results.create');
         Route::post('/store', [MyKeyResultController::class, 'store'])->middleware('auth')->name('my-key-results.store');
+        Route::get('/can-add/{objectiveId}', [MyKeyResultController::class, 'canAddKR'])->middleware('auth')->name('my-key-results.can-add');
         Route::get('/edit/{objectiveId}/{keyResultId}', function () {
             return view('app');
         })->middleware('auth')->name('my-key-results.edit');
         Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->middleware('auth')->name('my-key-results.update');
         Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
+    });
+
+    // Check-in Routes
+    Route::prefix('check-in')->group(function () {
+        Route::get('/{objectiveId}/{krId}', [CheckInController::class, 'create'])->middleware('auth')->name('check-in.create');
+        Route::post('/{objectiveId}/{krId}', [CheckInController::class, 'store'])->middleware('auth')->name('check-in.store');
+        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'history'])->middleware('auth')->name('check-in.history');
+        Route::delete('/{objectiveId}/{krId}/{checkInId}', [CheckInController::class, 'destroy'])->middleware('auth')->name('check-in.destroy');
+    });
+
+    // API Routes for Check-in
+    Route::prefix('api/check-in')->group(function () {
+        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->middleware('auth');
     });
 });
 

@@ -23,7 +23,15 @@ class CheckInController extends Controller
             $query->latest()->limit(5);
         }])->findOrFail($krId);
 
-        // Cho phép mọi người check-in
+        // Load user relationship nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Kiểm tra quyền check-in: chỉ người sở hữu Key Result mới có quyền check-in
+        if (!$this->canCheckIn($user, $keyResult)) {
+            abort(403, 'Bạn không có quyền check-in cho Key Result này.');
+        }
 
         return view('app');
     }
@@ -31,12 +39,26 @@ class CheckInController extends Controller
     /**
      * Lưu check-in mới
      */
-    public function store(Request $request, $objectiveId, $krId): RedirectResponse
+    public function store(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
         $keyResult = KeyResult::findOrFail($krId);
 
-        // Cho phép mọi người check-in
+        // Load user relationship nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Kiểm tra quyền check-in
+        if (!$this->canCheckIn($user, $keyResult)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền check-in cho Key Result này.'
+                ], 403);
+            }
+            abort(403, 'Bạn không có quyền check-in cho Key Result này.');
+        }
 
         $request->validate([
             'check_in_type' => 'required|in:percentage,quantity',
@@ -47,7 +69,8 @@ class CheckInController extends Controller
         ]);
 
         try {
-            DB::transaction(function () use ($request, $user, $keyResult) {
+            $checkIn = null;
+            DB::transaction(function () use ($request, $user, $keyResult, &$checkIn) {
                 // Tạo check-in mới
                 $checkIn = CheckIn::create([
                     'kr_id' => $keyResult->kr_id,
@@ -82,6 +105,17 @@ class CheckInController extends Controller
                 ? 'Chúc mừng! Key Result đã hoàn thành 100%.' 
                 : 'Cập nhật tiến độ thành công!';
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $message,
+                    'data' => [
+                        'check_in' => $checkIn,
+                        'key_result' => $keyResult->fresh()
+                    ]
+                ]);
+            }
+
             return redirect()->route('my-objectives.index')
                 ->with('success', $message);
 
@@ -91,6 +125,13 @@ class CheckInController extends Controller
                 'kr_id' => $krId,
                 'user_id' => $user->user_id,
             ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cập nhật tiến độ thất bại: ' . $e->getMessage()
+                ], 500);
+            }
 
             return redirect()->back()
                 ->withErrors(['error' => 'Cập nhật tiến độ thất bại: ' . $e->getMessage()])
@@ -107,7 +148,15 @@ class CheckInController extends Controller
         $keyResult = KeyResult::with(['objective', 'checkIns.user'])
             ->findOrFail($krId);
 
-        // Cho phép mọi người xem lịch sử check-in
+        // Load user relationship nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Kiểm tra quyền xem lịch sử: người sở hữu hoặc quản lý có thể xem
+        if (!$this->canViewHistory($user, $keyResult)) {
+            abort(403, 'Bạn không có quyền xem lịch sử check-in của Key Result này.');
+        }
 
         $checkIns = $keyResult->checkIns()
             ->with('user')
@@ -118,15 +167,61 @@ class CheckInController extends Controller
     }
 
     /**
-     * Xóa check-in (chỉ cho phép xóa check-in gần đây nhất)
+     * API để lấy lịch sử check-ins (JSON)
      */
-    public function destroy($objectiveId, $krId, $checkInId): RedirectResponse
+    public function getHistory(Request $request, $objectiveId, $krId)
+    {
+        $user = Auth::user();
+        $keyResult = KeyResult::with(['objective'])->findOrFail($krId);
+
+        // Load user relationship nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Kiểm tra quyền xem lịch sử
+        if (!$this->canViewHistory($user, $keyResult)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền xem lịch sử check-in của Key Result này.'
+            ], 403);
+        }
+
+        $checkIns = $keyResult->checkIns()
+            ->with('user')
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'key_result' => $keyResult,
+                'check_ins' => $checkIns
+            ]
+        ]);
+    }
+
+    /**
+     * Xóa check-in (chỉ cho phép xóa check-in gần đây nhất của chính mình)
+     */
+    public function destroy(Request $request, $objectiveId, $krId, $checkInId)
     {
         $user = Auth::user();
         $checkIn = CheckIn::with('keyResult')->findOrFail($checkInId);
 
-        // Cho phép mọi người xóa check-in của mình
+        // Load user relationship nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Kiểm tra quyền xóa: chỉ có thể xóa check-in của chính mình
         if ($checkIn->user_id !== $user->user_id) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn chỉ có thể xóa check-in của chính mình.'
+                ], 403);
+            }
             abort(403, 'Bạn chỉ có thể xóa check-in của chính mình.');
         }
 
@@ -156,7 +251,14 @@ class CheckInController extends Controller
                 }
             });
 
-            return redirect()->route('check-ins.history', [$objectiveId, $krId])
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Xóa check-in thành công!'
+                ]);
+            }
+
+            return redirect()->route('check-in.history', [$objectiveId, $krId])
                 ->with('success', 'Xóa check-in thành công!');
 
         } catch (\Exception $e) {
@@ -166,9 +268,60 @@ class CheckInController extends Controller
                 'user_id' => $user->user_id,
             ]);
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Xóa check-in thất bại: ' . $e->getMessage()
+                ], 500);
+            }
+
             return redirect()->back()
                 ->withErrors(['error' => 'Xóa check-in thất bại: ' . $e->getMessage()]);
         }
     }
 
+    /**
+     * Kiểm tra quyền check-in
+     */
+    private function canCheckIn($user, $keyResult): bool
+    {
+        // Load objective relationship nếu chưa có
+        if (!$keyResult->relationLoaded('objective')) {
+            $keyResult->load('objective');
+        }
+
+        // Admin có quyền check-in cho tất cả
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        // Người sở hữu Key Result có thể check-in
+        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
+            return true;
+        }
+
+        // Manager/Member chỉ có thể check-in trong phòng ban của mình (trừ cá nhân)
+        if ($user->department_id && $keyResult->objective && $keyResult->objective->department_id) {
+            if ($keyResult->objective->department_id == $user->department_id && 
+                $keyResult->objective->level !== 'Cá nhân') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Kiểm tra quyền xem lịch sử check-in
+     */
+    private function canViewHistory($user, $keyResult): bool
+    {
+        // Load objective relationship nếu chưa có
+        if (!$keyResult->relationLoaded('objective')) {
+            $keyResult->load('objective');
+        }
+
+        // Tất cả user đều có quyền xem lịch sử check-in
+        return true;
+    }
 }
