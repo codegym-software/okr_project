@@ -5,16 +5,21 @@ import { Select, Badge } from "./ui";
  * Component hiển thị hàng người dùng trong bảng
  * @param {Object} props - Props của component
  * @param {Object} props.user - Thông tin người dùng
- * @param {Array} props.departments - Danh sách phòng ban
+ * @param {Array} props.departments - Danh sách phòng ban và đội nhóm
+ * @param {Array} props.roles - Danh sách vai trò
  * @param {Object} props.editingRole - Trạng thái chỉnh sửa vai trò
- * @param {Object} props.editingDept - Trạng thái chỉnh sửa phòng ban
+ * @param {Object} props.editingDept - Trạng thái chỉnh sửa phòng ban/đội nhóm
  * @param {Function} props.setEditingRole - Hàm cập nhật trạng thái chỉnh sửa vai trò
- * @param {Function} props.setEditingDept - Hàm cập nhật trạng thái chỉnh sửa phòng ban
+ * @param {Function} props.setEditingDept - Hàm cập nhật trạng thái chỉnh sửa phòng ban/đội nhóm
  * @param {Function} props.onChangeRole - Hàm xử lý thay đổi vai trò
  * @param {Object} props.editingLevel - Trạng thái chỉnh sửa cấp độ
  * @param {Function} props.setEditingLevel - Hàm cập nhật trạng thái chỉnh sửa cấp độ
  * @param {Object} props.rolesByLevel - Cache các roles theo level
  * @param {Function} props.loadRolesByLevel - Hàm load roles theo level
+ * @param {Function} props.toggleStatus - Hàm xử lý thay đổi trạng thái
+ * @param {Object} props.pendingChanges - Thay đổi đang chờ xử lý
+ * @param {Function} props.setPendingChanges - Hàm cập nhật thay đổi đang chờ
+ * @param {Function} props.setUsers - Hàm cập nhật danh sách người dùng
  */
 export default function UserTableRow({
     user,
@@ -67,7 +72,7 @@ export default function UserTableRow({
                 setEditingRole((prev) => ({ ...prev, [user.user_id]: false }));
             }
 
-            // Thoát khỏi chế độ chỉnh sửa Department
+            // Thoát khỏi chế độ chỉnh sửa Department/Team
             if (
                 editingDept[user.user_id] &&
                 deptRef.current &&
@@ -90,14 +95,6 @@ export default function UserTableRow({
         setEditingRole,
         setEditingDept,
     ]);
-
-    // Refs cho các Select components (không cần thiết nữa vì Select component đã xử lý)
-    // const levelSelectRef = useRef(null);
-    // const roleSelectRef = useRef(null);
-    // const deptSelectRef = useRef(null);
-
-    // Logic xử lý click outside đã được tích hợp vào Select component
-    // useEffect(() => { ... }, []);
 
     // Chuyển đổi role name sang tiếng Việt
     const getRoleDisplayName = (roleName) => {
@@ -141,7 +138,6 @@ export default function UserTableRow({
 
         const levelLower = level.toLowerCase();
 
-        // Cấp độ theo database: company, unit, team (loại bỏ person vì không cần thiết)
         if (levelLower === "company") {
             return "red"; // Cấp công ty - màu đỏ (cao nhất)
         } else if (levelLower === "unit") {
@@ -151,6 +147,33 @@ export default function UserTableRow({
         }
 
         return "indigo"; // Màu mặc định cho các cấp độ khác
+    };
+
+    // Lấy danh sách phòng ban hoặc đội nhóm dựa trên cấp độ
+    const getDeptOrTeamOptions = () => {
+        const userLevel = (user.role?.level || "").toLowerCase();
+        if (userLevel === "unit") {
+            return [
+                { value: "", label: "Chọn phòng ban" },
+                ...departments
+                    .filter((d) => d.type === "phòng ban")
+                    .map((d) => ({
+                        value: String(d.department_id),
+                        label: d.d_name,
+                    })),
+            ];
+        } else if (userLevel === "team") {
+            return [
+                { value: "", label: "Chọn đội nhóm" },
+                ...departments
+                    .filter((d) => d.type === "đội nhóm")
+                    .map((d) => ({
+                        value: String(d.department_id),
+                        label: d.d_name,
+                    })),
+            ];
+        }
+        return [{ value: "", label: "Chọn phòng ban/đội nhóm" }];
     };
 
     return (
@@ -236,11 +259,6 @@ export default function UserTableRow({
                                     const availableRoles = roles.filter(
                                         (role) => role.role_name !== "admin"
                                     );
-                                    console.log(
-                                        "Available roles:",
-                                        availableRoles
-                                    );
-
                                     const uniqueRoles = availableRoles.reduce(
                                         (acc, role) => {
                                             const roleName = getRoleDisplayName(
@@ -261,8 +279,6 @@ export default function UserTableRow({
                                         },
                                         []
                                     );
-
-                                    console.log("Unique roles:", uniqueRoles);
                                     return uniqueRoles;
                                 })()}
                             />
@@ -302,11 +318,13 @@ export default function UserTableRow({
                                         [user.user_id]: false,
                                     }));
                                 }}
-                                placeholder="Chọn phòng ban"
-                                options={departments.map((d) => ({
-                                    value: String(d.department_id),
-                                    label: d.d_name,
-                                }))}
+                                placeholder={
+                                    (user.role?.level || "").toLowerCase() ===
+                                    "unit"
+                                        ? "Chọn phòng ban"
+                                        : "Chọn đội nhóm"
+                                }
+                                options={getDeptOrTeamOptions()}
                             />
                         ) : (
                             <button

@@ -23,6 +23,7 @@ export default function UsersPage() {
     const [pendingChanges, setPendingChanges] = useState({});
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
+    const [teamId, setTeamId] = useState("");
 
     // Function để load roles theo level
     const loadRolesByLevel = async (level) => {
@@ -166,11 +167,12 @@ export default function UsersPage() {
         setRole("");
         setDepartmentId("");
         setStatus("");
+        setTeamId("");
     };
 
     // Kiểm tra có filter nào đang active không
     const hasActiveFilters =
-        (q && q.trim()) || level || role || departmentId || status;
+        (q && q.trim()) || level || role || departmentId || status || teamId;
 
     // Logic filter users
     const filtered = users.filter((u) => {
@@ -187,13 +189,16 @@ export default function UsersPage() {
             u.email === "okr.admin@company.com";
         const matchesDept =
             !departmentId || String(u.department_id) === String(departmentId);
+        const matchesTeam =
+            !teamId || String(u.department_id) === String(teamId);
         return (
             !isAdmin &&
             matchesQ &&
             matchesRole &&
             matchesStatus &&
             matchesDept &&
-            matchesLevel
+            matchesLevel &&
+            matchesTeam
         );
     });
 
@@ -209,25 +214,38 @@ export default function UsersPage() {
                     <h1 className="text-2xl font-extrabold text-slate-900">
                         Quản lý người dùng
                     </h1>
-                    <button
-                        onClick={() => setShowInviteModal(true)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm flex items-center gap-2"
-                    >
-                        <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setShowInviteModal(true)}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm flex items-center gap-2"
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                            />
-                        </svg>
-                        Mời người dùng
-                    </button>
+                            <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                                />
+                            </svg>
+                            Mời người dùng
+                        </button>
+                        <button
+                            onClick={() => setShowConfirmModal(true)}
+                            disabled={Object.keys(pendingChanges).length === 0}
+                            className={`px-4 py-2 rounded-lg font-semibold text-sm shrink-0 ${
+                                Object.keys(pendingChanges).length === 0
+                                    ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                            }`}
+                        >
+                            Lưu thay đổi ({Object.keys(pendingChanges).length})
+                        </button>
+                    </div>
                 </div>
                 <div className="mt-4 flex flex-col gap-3">
                     {/* Thanh tìm kiếm - 1 dòng riêng */}
@@ -238,85 +256,105 @@ export default function UsersPage() {
                         className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                     />
 
-                    {/* Filter và nút lưu - cùng hàng */}
-                    <div className="flex flex-wrap gap-2 items-center justify-between">
-                        <div className="flex flex-wrap gap-2">
-                            <Select
-                                value={level}
-                                onChange={setLevel}
-                                placeholder="Cấp độ"
-                                options={[
-                                    { value: "", label: "Cấp độ" },
-                                    { value: "unit", label: "Phòng ban" },
-                                    { value: "team", label: "Nhóm" },
-                                ]}
-                            />
-                            <Select
-                                value={role}
-                                onChange={setRole}
-                                placeholder="Vai trò"
-                                options={[
-                                    { value: "", label: "Vai trò" },
-                                    { value: "manager", label: "Quản lý" },
-                                    { value: "member", label: "Thành viên" },
-                                ]}
-                            />
-                            <Select
-                                value={departmentId}
-                                onChange={setDepartmentId}
-                                placeholder="Phòng ban"
-                                options={[
-                                    { value: "", label: "Phòng ban" },
-                                    ...departments.map((d) => ({
+                    {/* Filter */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Select
+                            value={level}
+                            onChange={setLevel}
+                            placeholder="Cấp độ"
+                            options={[
+                                { value: "", label: "Cấp độ" },
+                                { value: "unit", label: "Phòng ban" },
+                                { value: "team", label: "Nhóm" },
+                            ]}
+                            className="min-w-[100px]"
+                        />
+                        <Select
+                            value={role}
+                            onChange={setRole}
+                            placeholder="Vai trò"
+                            options={[
+                                { value: "", label: "Vai trò" },
+                                { value: "manager", label: "Quản lý" },
+                                { value: "member", label: "Thành viên" },
+                            ]}
+                            className="min-w-[100px]"
+                        />
+                        <Select
+                            value={departmentId}
+                            onChange={setDepartmentId}
+                            placeholder="Phòng ban"
+                            options={[
+                                { value: "", label: "Phòng ban" },
+                                ...departments
+                                    .filter(
+                                        (d) =>
+                                            d.parent_department_id === null &&
+                                            d.type === "phòng ban"
+                                    )
+                                    .map((d) => ({
                                         value: String(d.department_id),
                                         label: d.d_name,
                                     })),
-                                ]}
-                            />
-                            <Select
-                                value={status}
-                                onChange={setStatus}
-                                placeholder="Trạng thái"
-                                options={[
-                                    { value: "", label: "Trạng thái" },
-                                    { value: "active", label: "Kích hoạt" },
-                                    { value: "inactive", label: "Vô hiệu" },
-                                ]}
-                            />
-                            {hasActiveFilters && (
-                                <button
-                                    onClick={resetAllFilters}
-                                    className="px-3 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-colors duration-200"
-                                    title="Xóa tất cả bộ lọc"
+                            ]}
+                            className="min-w-[100px]"
+                        />
+                        <Select
+                            value={teamId}
+                            onChange={setTeamId}
+                            placeholder="Đội nhóm"
+                            options={[
+                                { value: "", label: "Đội nhóm" },
+                                ...departments
+                                    .filter(
+                                        (d) =>
+                                            d.type === "đội nhóm" &&
+                                            (!departmentId ||
+                                                d.parent_department_id ===
+                                                    (departmentId
+                                                        ? parseInt(departmentId)
+                                                        : null))
+                                    )
+                                    .map((d) => ({
+                                        value: String(d.department_id),
+                                        label: d.d_name,
+                                    })),
+                            ]}
+                            className="min-w-[100px]"
+                        />
+                        <Select
+                            value={status}
+                            onChange={setStatus}
+                            placeholder="Trạng thái"
+                            options={[
+                                { value: "", label: "Trạng thái" },
+                                { value: "active", label: "Kích hoạt" },
+                                { value: "inactive", label: "Vô hiệu" },
+                            ]}
+                            className="min-w-[100px]"
+                        />
+                        {hasActiveFilters && (
+                            <button
+                                onClick={resetAllFilters}
+                                className="px-3 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-colors duration-200 shrink-0"
+                                title="Xóa tất cả bộ lọc"
+                            >
+                                <svg
+                                    className="h-4 w-4 inline mr-1"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
                                 >
-                                    <svg
-                                        className="h-4 w-4 inline mr-1"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M6 18L18 6M6 6l12 12"
-                                        />
-                                    </svg>
-                                    Xóa bộ lọc
-                                </button>
-                            )}
-                        </div>
-                        <button
-                            onClick={() => setShowConfirmModal(true)}
-                            disabled={Object.keys(pendingChanges).length === 0}
-                            className={`px-4 py-2 rounded-lg font-semibold text-sm ${
-                                Object.keys(pendingChanges).length === 0
-                                    ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                                    : "bg-blue-600 text-white hover:bg-blue-700"
-                            }`}
-                        >
-                            Lưu thay đổi ({Object.keys(pendingChanges).length})
-                        </button>
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                                Xóa bộ lọc
+                            </button>
+                        )}
                     </div>
                 </div>
 
