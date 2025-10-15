@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Toast, Modal } from '../components/ui';
+import { useAuth } from '../hooks/useAuth';
+import { AdminOnly } from '../components/AdminOnly';
 
 function DepartmentFormModal({ open, onClose, mode='create', initialData=null, onSaved, onDelete=null, isAdmin=true }){
     const [name, setName] = useState(initialData?.d_name || '');
@@ -90,8 +92,8 @@ export default function DepartmentsPanel(){
     const [toast, setToast] = useState({ type:'success', message:'' });
     const showToast = (type, message) => setToast({ type, message });
     
-    // Kiểm tra quyền admin
-    const isAdmin = window.__USER__?.is_admin || false;
+    // Sử dụng custom hook để lấy thông tin authentication
+    const { canManageDepartments } = useAuth();
 
     useEffect(()=>{ (async() => {
         try {
@@ -135,9 +137,9 @@ export default function DepartmentsPanel(){
             <Toast type={toast.type} message={toast.message} onClose={()=>setToast({ type:'success', message:'' })} />
             <div className="mx-auto mb-3 flex w-full max-w-5xl items-center justify-between">
                 <h2 className="text-2xl font-extrabold text-slate-900">Phòng ban</h2>
-                {isAdmin && (
+                <AdminOnly permission="canManageDepartments">
                     <button onClick={()=>setOpenCreate(true)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700">Tạo mới</button>
-                )}
+                </AdminOnly>
             </div>
             <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full divide-y divide-slate-200 text-xs md:text-sm">
@@ -153,16 +155,14 @@ export default function DepartmentsPanel(){
                         {!loading && departments.map(d => (
                             <tr key={d.department_id} className="hover:bg-slate-50">
                                 <td className="px-3 py-2">
-                                    {isAdmin ? (
+                                    <AdminOnly permission="canManageDepartments" fallback={<span className="font-semibold text-slate-900">{d.d_name}</span>}>
                                         <button 
                                             onClick={()=>openEditModal(d.department_id)} 
                                             className="font-semibold text-slate-900 hover:text-blue-600 hover:underline cursor-pointer text-left"
                                         >
                                             {d.d_name}
                                         </button>
-                                    ) : (
-                                        <span className="font-semibold text-slate-900">{d.d_name}</span>
-                                    )}
+                                    </AdminOnly>
                                 </td>
                                 <td className="px-3 py-2 text-slate-600">{d.d_description || '-'}</td>
                             </tr>
@@ -170,8 +170,8 @@ export default function DepartmentsPanel(){
                     </tbody>
                 </table>
             </div>
-            <DepartmentFormModal open={openCreate} onClose={()=>setOpenCreate(false)} mode="create" onSaved={(dep)=>{ setDepartments([...departments, dep]); showToast('success','Tạo phòng ban thành công'); }} isAdmin={isAdmin} />
-            <DepartmentFormModal open={openEdit} onClose={()=>{ setOpenEdit(false); setEditing(null); }} mode="edit" initialData={editing} onSaved={(dep)=>{ setDepartments(prev=>prev.map(x=>x.department_id===dep.department_id?dep:x)); showToast('success','Cập nhật phòng ban thành công'); }} onDelete={editing ? () => remove(editing.department_id) : null} isAdmin={isAdmin} />
+            <DepartmentFormModal open={openCreate} onClose={()=>setOpenCreate(false)} mode="create" onSaved={(dep)=>{ setDepartments([...departments, dep]); showToast('success','Tạo phòng ban thành công'); }} isAdmin={canManageDepartments} />
+            <DepartmentFormModal open={openEdit} onClose={()=>{ setOpenEdit(false); setEditing(null); }} mode="edit" initialData={editing} onSaved={(dep)=>{ setDepartments(prev=>prev.map(x=>x.department_id===dep.department_id?dep:x)); showToast('success','Cập nhật phòng ban thành công'); }} onDelete={editing ? () => remove(editing.department_id) : null} isAdmin={canManageDepartments} />
         </div>
     );
 }

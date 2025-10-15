@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Badge, Modal, Toast } from "../components/ui";
 import DateInputComponent from "../components/DateInput";
+import { useAuth } from "../hooks/useAuth";
+import { AdminOnly } from "../components/AdminOnly";
 
 function NewCycleModal({ open, onClose, onCreated }) {
     const [name, setName] = useState("");
@@ -171,9 +173,8 @@ export default function CyclesPanel() {
     const [openCreateObjective, setOpenCreateObjective] = useState(false);
     const [openCreateKRForObjId, setOpenCreateKRForObjId] = useState(null);
     
-    // Lấy thông tin user từ window.__USER__
-    const user = window.__USER__ || null;
-    const isAdmin = user?.is_admin || false;
+    // Sử dụng custom hook để lấy thông tin authentication
+    const { isAdmin } = useAuth();
 
     const toInputDate = (v) => {
         if (!v) return "";
@@ -276,7 +277,7 @@ export default function CyclesPanel() {
                 </h2>
                 {isDetail ? (
                     <div className="flex items-center gap-2">
-                        {isAdmin && (
+                        <AdminOnly permission="canManageCycles">
                             <>
                                 <button
                                     onClick={() => setEditOpen(true)}
@@ -339,7 +340,7 @@ export default function CyclesPanel() {
                                     Xóa
                                 </button>
                             </>
-                        )}
+                        </AdminOnly>
                         <button
                             onClick={goBack}
                             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -348,14 +349,14 @@ export default function CyclesPanel() {
                         </button>
                     </div>
                 ) : (
-                    isAdmin && (
+                    <AdminOnly permission="canManageCycles">
                         <button
                             onClick={() => setOpen(true)}
                             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
                         >
                             Tạo mới
                         </button>
-                    )
+                    </AdminOnly>
                 )}
             </div>
             {editOpen && (
@@ -676,7 +677,7 @@ export default function CyclesPanel() {
                             </div>
                         </div>
                     </div>
-                    {isAdmin && (
+                    <AdminOnly permission="canManageCycles">
                         <div className="px-6 pb-4">
                             <button
                                 onClick={() => setOpenCreateObjective(true)}
@@ -685,7 +686,7 @@ export default function CyclesPanel() {
                                 Thêm Objective
                             </button>
                         </div>
-                    )}
+                    </AdminOnly>
                     {(detail.objectives || []).map((obj) => (
                         <div
                             key={obj.objective_id}
@@ -715,7 +716,7 @@ export default function CyclesPanel() {
                                         </div>
                                     </div>
                                 </button>
-                                {isAdmin && (
+                                <AdminOnly permission="canManageCycles">
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() =>
@@ -728,7 +729,7 @@ export default function CyclesPanel() {
                                             Thêm KR
                                         </button>
                                     </div>
-                                )}
+                                </AdminOnly>
                             </div>
                             {openObj[obj.objective_id] !== false && (
                                 <div className="mt-3 space-y-3">
