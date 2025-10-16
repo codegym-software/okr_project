@@ -1,4 +1,5 @@
-import React from "react";
+// ObjectiveList.jsx
+import React, { useState, useEffect } from "react";
 
 export default function ObjectiveList({
     items,
@@ -17,6 +18,35 @@ export default function ObjectiveList({
     myOKRFilter,
     setMyOKRFilter,
 }) {
+    const [toast, setToast] = useState(null); // ← THÊM STATE TOAST
+
+    // FETCH OBJECTIVES
+    useEffect(() => {
+        const fetchObjectives = async () => {
+            try {
+                const token = document
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content");
+                const res = await fetch("/my-objectives", {
+                    headers: {
+                        "X-CSRF-TOKEN": token,
+                        Accept: "application/json",
+                    },
+                });
+                const json = await res.json();
+                console.log("📦 OBJECTIVES DATA:", json); // ← DEBUG
+                if (res.ok && json.success) {
+                    setItems(json.data || []);
+                } else {
+                    throw new Error(json.message || "Lỗi khi lấy objectives");
+                }
+            } catch (err) {
+                setToast({ type: "error", message: err.message });
+            }
+        };
+        fetchObjectives();
+    }, []); // ← CHẠY 1 LẦN KHI MOUNT
+
     const formatPercent = (value) => {
         const n = Number(value);
         return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
@@ -170,9 +200,18 @@ export default function ObjectiveList({
                                                     </svg>
                                                 </button>
                                                 <button
-                                                    onClick={() =>
-                                                        setEditingObjective(obj)
-                                                    }
+                                                    onClick={() => {
+                                                        console.log(
+                                                            "🎯 SET EDIT:",
+                                                            obj
+                                                        ); // ← DEBUG
+                                                        setEditingObjective({
+                                                            ...obj,
+                                                            level:
+                                                                obj.level ||
+                                                                "team", // ← DEFAULT LEVEL
+                                                        });
+                                                    }}
                                                     className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
                                                     title="Sửa Objective"
                                                 >
