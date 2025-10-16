@@ -215,7 +215,7 @@ export default function UsersPage() {
                         Quản lý người dùng
                     </h1>
                     <div className="flex items-center gap-2">
-                        <button
+                        {/* <button
                             onClick={() => setShowInviteModal(true)}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm flex items-center gap-2"
                         >
@@ -233,7 +233,7 @@ export default function UsersPage() {
                                 />
                             </svg>
                             Mời người dùng
-                        </button>
+                        </button> */}
                         <button
                             onClick={() => setShowConfirmModal(true)}
                             disabled={Object.keys(pendingChanges).length === 0}
