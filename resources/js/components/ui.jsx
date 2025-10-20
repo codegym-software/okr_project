@@ -7,13 +7,23 @@ export function Toast({ type='success', message, onClose, timeout=2500 }) {
         const t = setTimeout(() => onClose && onClose(), timeout);
         return () => clearTimeout(t);
     }, [message]);
+    
+    // Split message by newlines and render each line
+    const messageLines = message.split('\n');
+    
     return (
         <div className="fixed right-4 top-4 z-50">
-            <div className={`rounded-xl bg-gradient-to-r ${color} px-4 py-3 text-white shadow-lg`}>
-                <div className="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5h-2v6h2V7zm0 8h-2v2h2v-2z"/></svg>
-                    <span className="text-sm font-semibold">{message}</span>
-                    <button onClick={onClose} className="ml-2 rounded-md bg-white/20 px-2 text-xs">Đóng</button>
+            <div className={`rounded-xl bg-gradient-to-r ${color} px-4 py-3 text-white shadow-lg max-w-md`}>
+                <div className="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5h-2v6h2V7zm0 8h-2v2h2v-2z"/></svg>
+                    <div className="flex-1">
+                        {messageLines.map((line, index) => (
+                            <div key={index} className="text-sm font-semibold">
+                                {line}
+                            </div>
+                        ))}
+                    </div>
+                    <button onClick={onClose} className="ml-2 rounded-md bg-white/20 px-2 text-xs flex-shrink-0">Đóng</button>
                 </div>
             </div>
         </div>

@@ -39,6 +39,7 @@ export default function ProfileSettings({ user, activeTab }){
     const [oldPwd, setOldPwd] = useState('');
     const [newPwd, setNewPwd] = useState('');
     const [confirmPwd, setConfirmPwd] = useState('');
+    const [showPasswords, setShowPasswords] = useState(false);
 
     const submitPassword = async (e) => {
         e.preventDefault();
@@ -74,15 +75,24 @@ export default function ProfileSettings({ user, activeTab }){
             } else {
                 // Xử lý validation errors
                 if (data.errors) {
-                    let errorMessages = [];
+                    // Thu thập tất cả error messages
+                    let allErrors = [];
                     Object.keys(data.errors).forEach(field => {
                         if (Array.isArray(data.errors[field])) {
-                            errorMessages.push(...data.errors[field]);
+                            allErrors.push(...data.errors[field]);
                         } else {
-                            errorMessages.push(data.errors[field]);
+                            allErrors.push(data.errors[field]);
                         }
                     });
-                    showToast('error', errorMessages.join('. '));
+                    
+                    // Hiển thị từng lỗi riêng biệt với số thứ tự
+                    if (allErrors.length === 1) {
+                        showToast('error', allErrors[0]);
+                    } else {
+                        // Hiển thị nhiều lỗi dưới dạng danh sách
+                        const errorList = allErrors.map((error, index) => `${index + 1}. ${error}`).join('\n');
+                        showToast('error', `Có ${allErrors.length} lỗi cần sửa:\n${errorList}`);
+                    }
                 } else {
                     showToast('error', data.message || 'Đổi mật khẩu thất bại');
                 }
@@ -158,18 +168,51 @@ export default function ProfileSettings({ user, activeTab }){
                         <form onSubmit={submitPassword} className="grid gap-6">
                             <div>
                                 <label className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu hiện tại</label>
-                                <input type="password" value={oldPwd} onChange={(e)=>setOldPwd(e.target.value)} className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" required />
+                                <input 
+                                    type={showPasswords ? "text" : "password"} 
+                                    value={oldPwd} 
+                                    onChange={(e)=>setOldPwd(e.target.value)} 
+                                    className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" 
+                                    required 
+                                />
                             </div>
                             <div className="grid gap-6 md:grid-cols-2">
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu mới</label>
-                                    <input type="password" value={newPwd} onChange={(e)=>setNewPwd(e.target.value)} className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" required />
+                                    <input 
+                                        type={showPasswords ? "text" : "password"} 
+                                        value={newPwd} 
+                                        onChange={(e)=>setNewPwd(e.target.value)} 
+                                        className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" 
+                                        required 
+                                    />
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-slate-700">Xác nhận mật khẩu</label>
-                                    <input type="password" value={confirmPwd} onChange={(e)=>setConfirmPwd(e.target.value)} className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" required />
+                                    <input 
+                                        type={showPasswords ? "text" : "password"} 
+                                        value={confirmPwd} 
+                                        onChange={(e)=>setConfirmPwd(e.target.value)} 
+                                        className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" 
+                                        required 
+                                    />
                                 </div>
                             </div>
+                            
+                            {/* Show password checkbox */}
+                            <div className="flex items-center gap-3">
+                                <input 
+                                    type="checkbox" 
+                                    id="showPasswords" 
+                                    checked={showPasswords}
+                                    onChange={(e) => setShowPasswords(e.target.checked)}
+                                    className="h-4 w-4 rounded border-slate-300 text-fuchsia-600 focus:ring-fuchsia-500"
+                                />
+                                <label htmlFor="showPasswords" className="text-sm font-medium text-slate-700 cursor-pointer">
+                                    Hiển thị mật khẩu
+                                </label>
+                            </div>
+                            
                             <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
                                 <ul className="list-disc space-y-1 pl-5 text-xs text-slate-500 md:text-sm">
                                     <li>Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</li>

@@ -63,7 +63,6 @@ class AuthController extends Controller
             'new_password_confirmation' => [
                 'required',
                 'string',
-                'same:new_password',
             ],
         ], [
             'old_password.required' => 'Mật khẩu hiện tại là bắt buộc.',
@@ -72,7 +71,6 @@ class AuthController extends Controller
             'new_password.confirmed' => 'Xác nhận mật khẩu mới không khớp.',
             'new_password.different' => 'Mật khẩu mới phải khác mật khẩu hiện tại.',
             'new_password_confirmation.required' => 'Xác nhận mật khẩu mới là bắt buộc.',
-            'new_password_confirmation.same' => 'Xác nhận mật khẩu mới không khớp.',
         ]);
 
         if ($validator->fails()) {
