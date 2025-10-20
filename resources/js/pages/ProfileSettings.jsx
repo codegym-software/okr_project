@@ -39,6 +39,7 @@ export default function ProfileSettings({ user, activeTab }){
     const [oldPwd, setOldPwd] = useState('');
     const [newPwd, setNewPwd] = useState('');
     const [confirmPwd, setConfirmPwd] = useState('');
+    const [showPasswords, setShowPasswords] = useState(false);
 
     const submitPassword = async (e) => {
         e.preventDefault();
@@ -48,21 +49,57 @@ export default function ProfileSettings({ user, activeTab }){
         form.append('old_password', oldPwd);
         form.append('new_password', newPwd);
         form.append('new_password_confirmation', confirmPwd);
-        const res = await fetch('/change-password', { method: 'POST', body: form, headers: { 'Accept': 'application/json' } });
-        if (res.ok) {
+        
+        try {
+            const res = await fetch('/change-password', { 
+                method: 'POST', 
+                body: form, 
+                headers: { 
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                } 
+            });
+            
             const data = await res.json().catch(()=>({}));
-            showToast('success', (data && data.message) || 'Đổi mật khẩu thành công!');
-            // Đảm bảo đăng xuất hoàn toàn trước khi redirect
-            setTimeout(()=> { 
-                // Xóa tất cả session storage và local storage
-                sessionStorage.clear();
-                localStorage.clear();
-                // Redirect về landing page
-                window.location.href = '/landingpage';
-            }, 1500);
-        } else {
-            const err = await res.json().catch(()=>({ message: 'Đổi mật khẩu thất bại' }));
-            showToast('error', err.message || 'Đổi mật khẩu thất bại');
+            
+            if (res.ok && data.success) {
+                showToast('success', data.message || 'Đổi mật khẩu thành công!');
+                // Đảm bảo đăng xuất hoàn toàn trước khi redirect
+                setTimeout(()=> { 
+                    // Xóa tất cả session storage và local storage
+                    sessionStorage.clear();
+                    localStorage.clear();
+                    // Redirect về landing page
+                    window.location.href = data.redirect || '/landingpage';
+                }, 1500);
+            } else {
+                // Xử lý validation errors
+                if (data.errors) {
+                    // Thu thập tất cả error messages
+                    let allErrors = [];
+                    Object.keys(data.errors).forEach(field => {
+                        if (Array.isArray(data.errors[field])) {
+                            allErrors.push(...data.errors[field]);
+                        } else {
+                            allErrors.push(data.errors[field]);
+                        }
+                    });
+                    
+                    // Hiển thị từng lỗi riêng biệt với số thứ tự
+                    if (allErrors.length === 1) {
+                        showToast('error', allErrors[0]);
+                    } else {
+                        // Hiển thị nhiều lỗi dưới dạng danh sách
+                        const errorList = allErrors.map((error, index) => `${index + 1}. ${error}`).join('\n');
+                        showToast('error', `Có ${allErrors.length} lỗi cần sửa:\n${errorList}`);
+                    }
+                } else {
+                    showToast('error', data.message || 'Đổi mật khẩu thất bại');
+                }
+            }
+        } catch (error) {
+            console.error('Error changing password:', error);
+            showToast('error', 'Có lỗi xảy ra khi đổi mật khẩu');
         }
     };
 
@@ -131,18 +168,51 @@ export default function ProfileSettings({ user, activeTab }){
                         <form onSubmit={submitPassword} className="grid gap-6">
                             <div>
                                 <label className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu hiện tại</label>
-                                <input type="password" value={oldPwd} onChange={(e)=>setOldPwd(e.target.value)} className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" required />
+                                <input 
+                                    type={showPasswords ? "text" : "password"} 
+                                    value={oldPwd} 
+                                    onChange={(e)=>setOldPwd(e.target.value)} 
+                                    className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" 
+                                    required 
+                                />
                             </div>
                             <div className="grid gap-6 md:grid-cols-2">
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu mới</label>
-                                    <input type="password" value={newPwd} onChange={(e)=>setNewPwd(e.target.value)} className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" required />
+                                    <input 
+                                        type={showPasswords ? "text" : "password"} 
+                                        value={newPwd} 
+                                        onChange={(e)=>setNewPwd(e.target.value)} 
+                                        className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" 
+                                        required 
+                                    />
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-slate-700">Xác nhận mật khẩu</label>
-                                    <input type="password" value={confirmPwd} onChange={(e)=>setConfirmPwd(e.target.value)} className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" required />
+                                    <input 
+                                        type={showPasswords ? "text" : "password"} 
+                                        value={confirmPwd} 
+                                        onChange={(e)=>setConfirmPwd(e.target.value)} 
+                                        className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" 
+                                        required 
+                                    />
                                 </div>
                             </div>
+                            
+                            {/* Show password checkbox */}
+                            <div className="flex items-center gap-3">
+                                <input 
+                                    type="checkbox" 
+                                    id="showPasswords" 
+                                    checked={showPasswords}
+                                    onChange={(e) => setShowPasswords(e.target.checked)}
+                                    className="h-4 w-4 rounded border-slate-300 text-fuchsia-600 focus:ring-fuchsia-500"
+                                />
+                                <label htmlFor="showPasswords" className="text-sm font-medium text-slate-700 cursor-pointer">
+                                    Hiển thị mật khẩu
+                                </label>
+                            </div>
+                            
                             <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
                                 <ul className="list-disc space-y-1 pl-5 text-xs text-slate-500 md:text-sm">
                                     <li>Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</li>
