@@ -7,6 +7,7 @@ import { useMemo } from "react";
 export function useAuth() {
     return useMemo(() => {
         const user = window.__USER__ || null;
+        console.log("User data:", window.__USER__);
 
         return {
             user,
@@ -25,7 +26,8 @@ export function useAuth() {
             canManageDepartments:
                 user?.is_admin === true ||
                 (user?.role?.role_name?.toLowerCase() === "manager" &&
-                    user?.role?.level?.toLowerCase() === "unit"),
+                    (!user?.role?.level ||
+                        user?.role?.level?.toLowerCase() === "unit")),
             canCreateCompanyOKR: user?.is_admin === true,
             canCreatePersonalOKR: true, // Mọi user đều có thể tạo OKR cá nhân
         };

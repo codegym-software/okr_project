@@ -15,6 +15,7 @@ export function AdminOnly({
 }) {
     const auth = useAuth();
     const hasPermission = auth[permission];
+    console.log("AdminOnly permission:", permission, hasPermission);
 
     if (!hasPermission) {
         return fallback;
