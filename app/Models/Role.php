@@ -40,7 +40,7 @@ class Role extends Model
      */
     public function isDeptManager()
     {
-        return strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'unit';
+        return (strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'unit');
     }
 
     /**
@@ -48,7 +48,7 @@ class Role extends Model
      */
     public function isTeamManager()
     {
-        return strtolower($this->role_name) === 'manager' && ($this->level) === 'team';
+        return (strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'team');
     }
 
     /**

@@ -26,8 +26,9 @@ export function useAuth() {
             canManageDepartments:
                 user?.is_admin === true ||
                 (user?.role?.role_name?.toLowerCase() === "manager" &&
-                    (!user?.role?.level ||
-                        user?.role?.level?.toLowerCase() === "unit")),
+                    // (!user?.role?.level ||
+                    //     user?.role?.level?.toLowerCase() === "unit")),
+                    user?.role?.level?.toLowerCase() === "unit"),
             canCreateCompanyOKR: user?.is_admin === true,
             canCreatePersonalOKR: true, // Mọi user đều có thể tạo OKR cá nhân
         };
