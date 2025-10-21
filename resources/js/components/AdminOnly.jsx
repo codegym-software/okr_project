@@ -1,5 +1,5 @@
-import React from 'react';
-import { useAuth } from '../hooks/useAuth';
+import React from "react";
+import { useAuth } from "../hooks/useAuth";
 
 /**
  * Component wrapper để chỉ hiển thị children khi user có quyền admin
@@ -8,14 +8,18 @@ import { useAuth } from '../hooks/useAuth';
  * @param {string} props.permission - Loại quyền cần kiểm tra (optional)
  * @param {React.ReactNode} props.fallback - Nội dung hiển thị khi không có quyền (optional)
  */
-export function AdminOnly({ children, permission = 'canManageCycles', fallback = null }) {
+export function AdminOnly({
+    children,
+    permission = "canManageCycles",
+    fallback = null,
+}) {
     const auth = useAuth();
     const hasPermission = auth[permission];
-    
+
     if (!hasPermission) {
         return fallback;
     }
-    
+
     return <>{children}</>;
 }
 
@@ -26,28 +30,35 @@ export function AdminOnly({ children, permission = 'canManageCycles', fallback =
  * @param {string} props.level - Cấp độ OKR ('company', 'department', 'personal')
  * @param {React.ReactNode} props.fallback - Nội dung hiển thị khi không có quyền (optional)
  */
-export function OKRCreationOnly({ children, level = 'personal', fallback = null }) {
+export function OKRCreationOnly({
+    children,
+    level = "personal",
+    fallback = null,
+}) {
     const auth = useAuth();
-    
+
     let hasPermission = false;
     switch (level) {
-        case 'company':
+        case "company":
             hasPermission = auth.canCreateCompanyOKR;
             break;
-        case 'department':
+        case "unit":
             hasPermission = auth.canCreateCompanyOKR;
             break;
-        case 'personal':
+        case "team":
+            hasPermission = auth.canCreateCompanyOKR;
+            break;
+        case "personal":
             hasPermission = auth.canCreatePersonalOKR;
             break;
         default:
             hasPermission = false;
     }
-    
+
     if (!hasPermission) {
         return fallback;
     }
-    
+
     return <>{children}</>;
 }
 

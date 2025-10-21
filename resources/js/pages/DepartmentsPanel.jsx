@@ -10,7 +10,7 @@ function DepartmentFormModal({
     initialData = null,
     onSaved,
     onDelete = null,
-    isAdmin = true,
+    canManageDepartments = false,
     onReload,
 }) {
     const [name, setName] = useState(initialData?.d_name || "");
@@ -134,9 +134,11 @@ function DepartmentFormModal({
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !isAdmin ? "bg-gray-100 cursor-not-allowed" : ""
+                            !canManageDepartments
+                                ? "bg-gray-100 cursor-not-allowed"
+                                : ""
                         }`}
-                        disabled={!isAdmin}
+                        disabled={!canManageDepartments}
                         required
                     />
                 </div>
@@ -148,9 +150,11 @@ function DepartmentFormModal({
                         value={type}
                         onChange={(e) => setType(e.target.value)}
                         className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !isAdmin ? "bg-gray-100 cursor-not-allowed" : ""
+                            !canManageDepartments
+                                ? "bg-gray-100 cursor-not-allowed"
+                                : ""
                         }`}
-                        disabled={!isAdmin}
+                        disabled={!canManageDepartments}
                         required
                     >
                         <option value="phòng ban">Phòng ban</option>
@@ -168,9 +172,11 @@ function DepartmentFormModal({
                                 setParentDepartmentId(e.target.value)
                             }
                             className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                                !isAdmin ? "bg-gray-100 cursor-not-allowed" : ""
+                                !canManageDepartments
+                                    ? "bg-gray-100 cursor-not-allowed"
+                                    : ""
                             }`}
-                            disabled={!isAdmin}
+                            disabled={!canManageDepartments}
                             required
                         >
                             <option value="">Chọn phòng ban cha</option>
@@ -193,22 +199,26 @@ function DepartmentFormModal({
                         value={desc}
                         onChange={(e) => setDesc(e.target.value)}
                         className={`h-24 w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !isAdmin ? "bg-gray-100 cursor-not-allowed" : ""
+                            !canManageDepartments
+                                ? "bg-gray-100 cursor-not-allowed"
+                                : ""
                         }`}
-                        disabled={!isAdmin}
+                        disabled={!canManageDepartments}
                     />
                 </div>
                 <div className="flex justify-between gap-3 pt-2">
                     <div className="flex gap-3">
-                        {mode === "edit" && onDelete && isAdmin && (
-                            <button
-                                type="button"
-                                onClick={onDelete}
-                                className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                            >
-                                Xóa
-                            </button>
-                        )}
+                        {mode === "edit" &&
+                            onDelete &&
+                            canManageDepartments && (
+                                <button
+                                    type="button"
+                                    onClick={onDelete}
+                                    className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                                >
+                                    Xóa
+                                </button>
+                            )}
                     </div>
                     <div className="flex gap-3">
                         <button
@@ -218,7 +228,7 @@ function DepartmentFormModal({
                         >
                             Hủy
                         </button>
-                        {isAdmin && (
+                        {canManageDepartments && (
                             <button
                                 disabled={saving}
                                 type="submit"
@@ -533,7 +543,7 @@ export default function DepartmentsPanel() {
                 mode="create"
                 onSaved={handleSaved}
                 onReload={fetchDepartments}
-                isAdmin={canManageDepartments}
+                canManageDepartments={canManageDepartments}
             />
             <DepartmentFormModal
                 open={openEdit}
@@ -545,7 +555,7 @@ export default function DepartmentsPanel() {
                 initialData={editing}
                 onSaved={handleSaved}
                 onDelete={editing ? () => remove(editing.department_id) : null}
-                isAdmin={canManageDepartments}
+                canManageDepartments={canManageDepartments}
             />
         </div>
     );
