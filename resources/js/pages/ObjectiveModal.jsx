@@ -243,13 +243,13 @@ export default function ObjectiveModal({
     };
 
     const handleCreateObjective = async () => {
-        if (createForm.key_results.length < 1) {
-            setToast({
-                type: "error",
-                message: "Phải có ít nhất một Key Result",
-            });
-            return;
-        }
+        // if (createForm.key_results.length < 1) {
+        //     setToast({
+        //         type: "error",
+        //         message: "Phải có ít nhất một Key Result",
+        //     });
+        //     return;
+        // }
         if (
             createForm.level !== "company" &&
             createForm.level !== "" &&
@@ -589,9 +589,9 @@ export default function ObjectiveModal({
                     </div>
                     {creatingObjective && (
                         <div className="mt-4">
-                            <h3 className="text-sm font-semibold text-slate-700">
+                            {/* <h3 className="text-sm font-semibold text-slate-700">
                                 Key Results
-                            </h3>
+                            </h3> */}
                             {createForm.key_results.map((kr, index) => (
                                 <div
                                     key={index}
@@ -727,13 +727,13 @@ export default function ObjectiveModal({
                                     </div>
                                 </div>
                             ))}
-                            <button
+                            {/* <button
                                 type="button"
                                 onClick={addNewKR}
                                 className="mt-2 rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
                             >
                                 Thêm Key Result
-                            </button>
+                            </button> */}
                         </div>
                     )}
                     {editingObjective && (

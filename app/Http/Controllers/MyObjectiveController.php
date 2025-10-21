@@ -198,7 +198,6 @@ class MyObjectiveController extends Controller
 
         $objective = Objective::findOrFail($id);
 
-        // Chỉ chủ sở hữu được cập nhật
         if ($objective->user_id !== $user->user_id) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Objective này.'], 403)
@@ -336,7 +335,6 @@ class MyObjectiveController extends Controller
 
         $keyResult = KeyResult::with(['objective', 'cycle'])->findOrFail($id);
 
-        // Kiểm tra quyền: Chủ sở hữu hoặc người được gán
         if ($keyResult->objective->user_id !== $user->user_id &&
             !OkrAssignment::where('objective_id', $keyResult->objective_id)
                          ->where('user_id', $user->user_id)
@@ -353,23 +351,44 @@ class MyObjectiveController extends Controller
     public function getAllowedLevelsApi(): JsonResponse
     {
         $user = Auth::user();
+
         if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated'
+            ], 401);
         }
 
-        $allowedLevels = $this->getAllowedLevels($user->role->role_name);
-        return response()->json(['success' => true, 'data' => $allowedLevels]);
+        $role = $user->role;
+
+        if (!$role) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Role not found for user'
+            ], 404);
+        }
+
+        // ✅ Truyền cả role_name và level
+        $allowedLevels = $this->getAllowedLevels($role->role_name, $role->level);
+
+        return response()->json([
+            'success' => true,
+            'data' => $allowedLevels
+        ]);
     }
 
     /**
      * Lấy danh sách cấp độ Objective được phép dựa trên vai trò.
      */
-    private function getAllowedLevels(string $roleName): array
+    private function getAllowedLevels(string $roleName, string $roleLevel): array
     {
-        return match ($roleName) {
-            'admin' => ['company', 'unit', 'team', 'person'],
-            'manager' => ['unit', 'team', 'person'],
-            'member' => ['person'],
+        return match (true) {
+            $roleName === 'admin' => ['company', 'unit', 'team', 'person'],
+            $roleName === 'manager' && $roleLevel === 'unit' => ['unit', 'person'],
+            $roleName === 'manager' && $roleLevel === 'team' => ['team', 'person'],
+            $roleName === 'member' && $roleLevel === 'unit' => ['person'],
+            $roleName === 'member' && $roleLevel === 'team' => ['person'],
+
             default => ['person'],
         };
     }
@@ -385,7 +404,6 @@ class MyObjectiveController extends Controller
         if ($user->role->role_name === 'manager' && $user->department_id === $department->department_id) {
             return true;
         }
-        // Member có thể truy cập department của chính họ
         if ($user->role->role_name === 'member' && $user->department_id === $department->department_id) {
             return true;
         }
@@ -401,9 +419,8 @@ class MyObjectiveController extends Controller
             return true;
         }
         if ($objective->level !== 'company' && $objective->department_id) {
-            // Chỉ gán user trong cùng department cho Objective không phải company
             return $assignedUser->department_id === $objective->department_id;
         }
-        return true; // Cho phép gán bất kỳ user nào cho Objective cấp company
+        return true; 
     }
 }
