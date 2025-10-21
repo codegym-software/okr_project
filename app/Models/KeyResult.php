@@ -26,8 +26,8 @@ class KeyResult extends Model
         'department_id',
         'objective_id',
         'cycle_id',
-        'user_id',
-        'progress_percent'
+        'progress_percent',
+        'user_id'
     ];
 
     public function objective(): BelongsTo

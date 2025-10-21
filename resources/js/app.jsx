@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import DashboardLayout from "./layouts/DashboardLayout";
+import Dashboard from "./components/Dashboard";
 import UsersPage from "./pages/UsersPage";
 import CyclesPanel from "./pages/CyclesPanel";
 import DepartmentsPanel from "./pages/DepartmentsPanel";
@@ -364,16 +365,8 @@ export default function App() {
         else if (p.startsWith("/profile")) content = <ProfilePage />;
         else if (p.startsWith("/change-password"))
             content = <ChangePasswordPage />;
-        else
-            content = (
-                <div className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-900 shadow-sm">
-                    <h1 className="text-2xl font-extrabold">Dashboard</h1>
-                    <p className="mt-2 text-slate-600">
-                        Khu vực quản trị. Nội dung dashboard sẽ được bổ sung
-                        sau.
-                    </p>
-                </div>
-            );
+        else if (p.startsWith("/dashboard"))
+            content = <Dashboard />;
         return <DashboardLayout user={user}>{content}</DashboardLayout>;
     }
 

@@ -142,44 +142,27 @@ class CheckInController extends Controller
     /**
      * Hiển thị lịch sử check-ins của Key Result
      */
-    public function history(Request $request, $objectiveId, $krId)
+    public function history($objectiveId, $krId): View
     {
         $user = Auth::user();
-        $keyResult = KeyResult::with(['objective'])->findOrFail($krId);
+        $keyResult = KeyResult::with(['objective', 'checkIns.user'])
+            ->findOrFail($krId);
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
             $user->load('role');
         }
 
-        // Kiểm tra quyền xem lịch sử
+        // Kiểm tra quyền xem lịch sử: người sở hữu hoặc quản lý có thể xem
         if (!$this->canViewHistory($user, $keyResult)) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Bạn không có quyền xem lịch sử check-in của Key Result này.'
-                ], 403);
-            }
             abort(403, 'Bạn không có quyền xem lịch sử check-in của Key Result này.');
         }
 
         $checkIns = $keyResult->checkIns()
             ->with('user')
             ->latest()
-            ->get();
+            ->paginate(10);
 
-        // Nếu request từ API, trả về JSON
-        if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'key_result' => $keyResult,
-                    'check_ins' => $checkIns
-                ]
-            ]);
-        }
-
-        // Nếu không, trả về view
         return view('app');
     }
 
@@ -299,7 +282,6 @@ class CheckInController extends Controller
 
     /**
      * Kiểm tra quyền check-in
-     * Nhân viên phòng nào chỉ được check-in key result của phòng ban đó
      */
     private function canCheckIn($user, $keyResult): bool
     {
@@ -311,14 +293,19 @@ class CheckInController extends Controller
         // Admin có quyền check-in cho tất cả
         if ($user->isAdmin()) {
             return true;
+        } 
+
+        // Người sở hữu Key Result có thể check-in
+        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
+            return true;
         }
 
-        // Kiểm tra xem key result có thuộc phòng ban của user không
-        if ($keyResult->objective && 
-            $keyResult->objective->department_id && 
-            $user->department_id &&
-            $keyResult->objective->department_id === $user->department_id) {
-            return true;
+        // Manager/Member chỉ có thể check-in trong phòng ban của mình (trừ cá nhân)
+        if ($user->department_id && $keyResult->objective && $keyResult->objective->department_id) {
+            if ($keyResult->objective->department_id == $user->department_id && 
+                $keyResult->objective->level !== 'person') {
+                return true;
+            }
         }
 
         return false;

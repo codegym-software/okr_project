@@ -65,18 +65,41 @@ class MyKeyResultController extends Controller
 
         $objective = Objective::findOrFail($objectiveId);
 
-        // Kiểm tra quyền: Chủ sở hữu HOẶC cùng phòng ban (nếu là manager/member)
-        if (!$this->canManageKeyResult($user, $objective)) {
-            return $request->expectsJson()
-                ? response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective này.'], 403)
-                : redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Key Result cho Objective này.']);
+        // Load user relationships
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
         }
 
-        $validated = $request->validate([
+        // Kiểm tra quyền: Chủ sở hữu hoặc cùng phòng ban (với member/manager)
+        $roleName = $user->role ? strtolower($user->role->role_name) : 'member';
+        
+        // Admin có full quyền
+        $canCreate = false;
+        if ($roleName === 'admin') {
+            $canCreate = true;
+        }
+        // Chủ sở hữu của Objective được tạo
+        elseif ($objective->user_id === $user->user_id) {
+            $canCreate = true;
+        }
+        // Member/Manager chỉ được tạo KR cho Objective cùng phòng ban
+        elseif (in_array($roleName, ['member', 'manager'])) {
+            if ($objective->department_id && $user->department_id) {
+                $canCreate = ((int)$objective->department_id === (int)$user->department_id);
+            }
+        }
+
+        if (!$canCreate) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective của phòng ban khác.'], 403)
+                : redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Key Result cho Objective của phòng ban khác.']);
+        }
+
+        $validated = $request->validate([   
             'kr_title' => 'required|string|max:255',
             'target_value' => 'required|numeric|min:0',
             'current_value' => 'nullable|numeric|min:0',
-            'unit' => 'required|in:number,percent,completion',
+            'unit' => 'required|in:number,percent,completion,bai,num,bài',
             'status' => 'required|in:draft,active,completed',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
         ], [
@@ -99,9 +122,10 @@ class MyKeyResultController extends Controller
                     'weight' => $validated['weight'] ?? 0,
                     'progress_percent' => $validated['progress_percent'] ?? $progress,
                     'objective_id' => $objective->objective_id,
-                    'cycle_id' => $objective->cycle_id,
-                    'user_id' => $user->user_id,
-                ])->load('objective', 'cycle', 'user');
+                    'cycle_id' => $objective->cycle_id ?? null,
+                    'department_id' => $objective->department_id ?? null,
+                    'user_id' => $user->user_id, // Lưu người tạo KR
+                ])->load('objective', 'cycle');
             });
 
             return $request->expectsJson()
@@ -128,16 +152,41 @@ class MyKeyResultController extends Controller
         $objective = Objective::findOrFail($objectiveId);
         $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
 
-        // Kiểm tra quyền: Chủ sở hữu HOẶC cùng phòng ban (nếu là manager/member)
-        if (!$this->canManageKeyResult($user, $objective)) {
-            return response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Key Result này.'], 403);
+
+        // Load user relationships
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Kiểm tra quyền: Chủ sở hữu hoặc cùng phòng ban (với member/manager)
+        $roleName = $user->role ? strtolower($user->role->role_name) : 'member';
+        
+        // Admin có full quyền
+        $canUpdate = false;
+        if ($roleName === 'admin') {
+            $canUpdate = true;
+        }
+        // Chủ sở hữu của Objective được cập nhật
+        elseif ($objective->user_id === $user->user_id) {
+            $canUpdate = true;
+        }
+        // Member/Manager chỉ được cập nhật KR của Objective cùng phòng ban
+        elseif (in_array($roleName, ['member', 'manager'])) {
+            if ($objective->department_id && $user->department_id) {
+                $canUpdate = ((int)$objective->department_id === (int)$user->department_id);
+            }
+        }
+
+        if (!$canUpdate) {
+            return response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Key Result của phòng ban khác.'], 403);
+
         }
 
         $validated = $request->validate([
             'kr_title' => 'required|string|max:255',
             'target_value' => 'required|numeric|min:0',
             'current_value' => 'nullable|numeric|min:0',
-            'unit' => 'required|in:number,percent,completion',
+            'unit' => 'required|in:number,percent,completion,bai,num,bài',
             'status' => 'required|in:draft,active,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
@@ -188,9 +237,34 @@ class MyKeyResultController extends Controller
         $objective = Objective::findOrFail($objectiveId);
         $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
 
-        // Kiểm tra quyền: Chủ sở hữu HOẶC cùng phòng ban (nếu là manager/member)
-        if (!$this->canManageKeyResult($user, $objective)) {
-            return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Key Result này.'], 403);
+
+        // Load user relationships
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        // Kiểm tra quyền: Chủ sở hữu hoặc cùng phòng ban (với member/manager)
+        $roleName = $user->role ? strtolower($user->role->role_name) : 'member';
+        
+        // Admin có full quyền
+        $canDelete = false;
+        if ($roleName === 'admin') {
+            $canDelete = true;
+        }
+        // Chủ sở hữu của Objective được xóa
+        elseif ($objective->user_id === $user->user_id) {
+            $canDelete = true;
+        }
+        // Member/Manager chỉ được xóa KR của Objective cùng phòng ban
+        elseif (in_array($roleName, ['member', 'manager'])) {
+            if ($objective->department_id && $user->department_id) {
+                $canDelete = ((int)$objective->department_id === (int)$user->department_id);
+            }
+        }
+
+        if (!$canDelete) {
+            return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Key Result của phòng ban khác.'], 403);
+
         }
 
         try {

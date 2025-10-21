@@ -1,4 +1,5 @@
-import React from "react";
+// ObjectiveList.jsx
+import React, { useState, useEffect } from "react";
 
 export default function ObjectiveList({
     items,
@@ -12,66 +13,172 @@ export default function ObjectiveList({
     setEditingKR,
     setCreatingObjective,
     links,
+    cycleFilter,
+    setCycleFilter,
+    myOKRFilter,
+    setMyOKRFilter,
     openCheckInModal,
     openCheckInHistory,
     currentUser,
+    title = "Danh sách mục tiêu",
+    hideFilters = false,
 }) {
+    const [toast, setToast] = useState(null); // ← THÊM STATE TOAST
+    
+    // Kiểm tra xem user hiện tại có phải owner của objective không
+    const isObjectiveOwner = (objective) => {
+        if (!currentUser || !objective) return false;
+        return String(objective.user_id) === String(currentUser.user_id) || 
+               String(objective.user_id) === String(currentUser.id);
+    };
+
+    // Kiểm tra xem user hiện tại có phải người tạo Key Result không
+    const isKROwner = (kr) => {
+        if (!currentUser || !kr) return false;
+        // Kiểm tra user_id của Key Result
+        return String(kr.user_id) === String(currentUser.user_id) || 
+               String(kr.user_id) === String(currentUser.id);
+    };
+
+    // Kiểm tra quyền edit Objective
+    const canEditObjective = (objective) => {
+        if (!currentUser || !objective) return false;
+        
+        const roleName = currentUser.role?.role_name?.toLowerCase() || 'member';
+        
+        // Admin có full quyền
+        if (roleName === 'admin') return true;
+        
+        // Owner có quyền edit
+        if (isObjectiveOwner(objective)) return true;
+        
+        // Manager có quyền edit objectives trong department
+        if (roleName === 'manager' && objective.department_id && currentUser.department_id) {
+            return String(objective.department_id) === String(currentUser.department_id);
+        }
+        
+        // Member chỉ được edit objectives của chính mình
+        return false;
+    };
+
+    // Kiểm tra quyền edit/delete KR
+    const canEditKR = (objective) => {
+        // Chỉ admin và owner mới được edit/delete KR
+        if (!currentUser || !objective) return false;
+        
+        const roleName = currentUser.role?.role_name?.toLowerCase() || 'member';
+        return roleName === 'admin' || isObjectiveOwner(objective);
+    };
+
+    // Kiểm tra quyền thêm KR cho Objective
+    const canAddKR = (objective) => {
+        if (!currentUser || !objective) {
+            return false;
+        }
+        
+        const roleName = currentUser.role?.role_name?.toLowerCase() || 'member';
+        
+        // Admin có full quyền
+        if (roleName === 'admin') {
+            return true;
+        }
+        
+        // Member: BẮT BUỘC phải cùng phòng ban, không quan tâm owner
+        if (roleName === 'member') {
+            if (!objective.department_id || !currentUser.department_id) {
+                return false;
+            }
+            const isSameDept = String(objective.department_id) === String(currentUser.department_id);
+            return isSameDept;
+        }
+        
+        // Manager: Owner HOẶC cùng phòng ban
+        if (roleName === 'manager') {
+            if (isObjectiveOwner(objective)) {
+                return true;
+            }
+            if (!objective.department_id || !currentUser.department_id) {
+                return false;
+            }
+            const isSameDept = String(objective.department_id) === String(currentUser.department_id);
+            return isSameDept;
+        }
+        
+        return false;
+    };
+
+    // Items được truyền từ parent component (ObjectivesPage)
+    // Không cần fetch ở đây nữa
+
     const formatPercent = (value) => {
         const n = Number(value);
         return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
     };
 
-    // Kiểm tra quyền quản lý Key Result
-    const canManageKeyResult = (objective) => {
-        if (!currentUser) return false;
-        
-        // Admin có quyền quản lý tất cả
-        if (currentUser.role?.role_name === 'admin') return true;
-        
-        // Chủ sở hữu có quyền quản lý
-        if (objective.user_id === currentUser.user_id) return true;
-        
-        // Member chỉ được quản lý objectives của chính họ
-        if (currentUser.role?.role_name === 'member') return false;
-        
-        // Manager chỉ được quản lý objectives trong phòng ban của họ
-        if (currentUser.role?.role_name === 'manager') {
-            return objective.department_id && 
-                   objective.department_id === currentUser.department_id;
+    const getStatusText = (status) => {
+        switch (status?.toLowerCase()) {
+            case "draft":
+                return "Bản nháp";
+            case "active":
+                return "Đang thực hiện";
+            case "completed":
+                return "Hoàn thành";
+            default:
+                return status || "";
         }
-        
-        return false;
     };
 
-    // Kiểm tra quyền check-in (nhân viên phòng ban có quyền check-in key result của phòng ban mình)
-    const canCheckIn = (keyResult, objective) => {
-        if (!currentUser) return false;
-        
-        // Admin có quyền check-in tất cả
-        if (currentUser.role?.role_name === 'admin') return true;
-        
-        // Nhân viên chỉ được check-in key result của phòng ban mình
-        if (objective.department_id && 
-            currentUser.department_id &&
-            objective.department_id === currentUser.department_id) {
-            return true;
+    const getUnitText = (unit) => {
+        switch (unit?.toLowerCase()) {
+            case "number":
+                return "Số lượng";
+            case "percent":
+                return "Phần trăm";
+            case "completion":
+                return "Hoàn thành";
+            default:
+                return unit || "";
         }
-        
-        return false;
     };
 
     return (
         <div className="mx-auto w-full max-w-6xl">
             <div className="mb-4 flex w-full items-center justify-between">
                 <h2 className="text-2xl font-extrabold text-slate-900">
-                    Danh sách mục tiêu
+                    {title}
                 </h2>
-                <button
-                    onClick={() => setCreatingObjective(true)}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                >
-                    Thêm Objective
-                </button>
+                {!hideFilters && (
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setMyOKRFilter(!myOKRFilter)}
+                            className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                                myOKRFilter
+                                    ? "bg-green-600 text-white hover:bg-green-700"
+                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            }`}
+                        >
+                            {myOKRFilter ? "My OKR" : "Tất cả OKR"}
+                        </button>
+                        <select
+                            value={cycleFilter}
+                            onChange={(e) => setCycleFilter(e.target.value)}
+                            className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        >
+                            <option value="">-- Tất cả chu kỳ --</option>
+                            {cyclesList.map((cycle) => (
+                                <option key={cycle.cycle_id} value={cycle.cycle_id}>
+                                    {cycle.cycle_name}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={() => setCreatingObjective(true)}
+                            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                        >
+                            Thêm Objective
+                        </button>
+                    </div>
+                )}
             </div>
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
@@ -80,32 +187,29 @@ export default function ObjectiveList({
                             <th className="px-3 py-2 border-r border-slate-200 w-[25%] text-left">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
-                                Người được gán
+                            <th className="px-3 py-2 border-r border-slate-200 w-[14%] text-center">
+                                Phòng ban
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[13%] text-center">
                                 Chu kỳ
                             </th>
                             <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Trạng thái
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[8%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Đơn vị
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[8%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Thực tế
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[8%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
                                 Mục tiêu
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[8%] text-center">
+                            <th className="px-3 py-2 border-r border-slate-200 w-[10%] text-center">
                                 Tiến độ (%)
                             </th>
-                            <th className="px-3 py-2 border-r border-slate-200 w-[12%] text-center">
-                                Liên kết
-                            </th>
                             <th className="px-3 py-2 w-[10%] text-center">
-                                Hành động
+                                Thao tác
                             </th>
                         </tr>
                     </thead>
@@ -113,7 +217,7 @@ export default function ObjectiveList({
                         {loading && (
                             <tr>
                                 <td
-                                    colSpan={10}
+                                    colSpan={8}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -128,112 +232,115 @@ export default function ObjectiveList({
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        <td colSpan={10} className="px-4 py-3">
-                                            <div className="flex items-center justify-between">
-                                                <div className="inline-flex items-center gap-3">
-                                                    <button
-                                                        onClick={() =>
-                                                            setOpenObj(
-                                                                (prev) => ({
-                                                                    ...prev,
-                                                                    [obj.objective_id]:
-                                                                        !prev[
-                                                                            obj
-                                                                                .objective_id
-                                                                        ],
-                                                                })
-                                                            )
-                                                        }
-                                                        className="rounded-md border border-slate-300 bg-white p-1 text-slate-700 hover:bg-slate-50 shadow-sm"
-                                                        title="Đóng/mở Key Results"
-                                                    >
-                                                        <svg
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                            className={`h-4 w-4 ${
-                                                                openObj[
+                                        <td className="px-3 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() =>
+                                                        setOpenObj((prev) => ({
+                                                            ...prev,
+                                                            [obj.objective_id]:
+                                                                !prev[
                                                                     obj
                                                                         .objective_id
-                                                                ]
-                                                                    ? "rotate-180"
-                                                                    : ""
-                                                            }`}
-                                                        >
-                                                            <path
-                                                                fillRule="evenodd"
-                                                                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                                clipRule="evenodd"
-                                                            />
-                                                        </svg>
-                                                    </button>
+                                                                ],
+                                                        }))
+                                                    }
+                                                    className="rounded-md border border-slate-300 bg-white p-1 text-slate-700 hover:bg-slate-50 shadow-sm"
+                                                    title="Đóng/mở Key Results"
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 20 20"
+                                                        fill="currentColor"
+                                                        className={`h-4 w-4 ${
+                                                            openObj[
+                                                                obj.objective_id
+                                                            ]
+                                                                ? "rotate-180"
+                                                                : ""
+                                                        }`}
+                                                    >
+                                                        <path
+                                                            fillRule="evenodd"
+                                                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                            clipRule="evenodd"
+                                                        />
+                                                    </svg>
+                                                </button>
+                                                {canEditObjective(obj) ? (
                                                     <button
-                                                        onClick={() =>
-                                                            setEditingObjective(
-                                                                obj
-                                                            )
-                                                        }
+                                                        onClick={() => {
+                                                            setEditingObjective({
+                                                                ...obj,
+                                                                level:
+                                                                    obj.level ||
+                                                                    "team",
+                                                            });
+                                                        }}
                                                         className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
                                                         title="Sửa Objective"
                                                     >
                                                         {obj.obj_title}
                                                     </button>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs text-slate-500">
-                                                        {obj.description || ""}
+                                                ) : (
+                                                    <span className="inline-flex items-center rounded-md bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">
+                                                        {obj.obj_title}
                                                     </span>
-                                                    {canManageKeyResult(obj) && (
-                                                        <button
-                                                            onClick={() =>
-                                                                setCreatingFor(obj)
-                                                            }
-                                                            className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
-                                                            title="Thêm Key Result"
-                                                        >
-                                                            Thêm KR
-                                                        </button>
-                                                    )}
-                                                </div>
+                                                )}
                                             </div>
+                                        </td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3"></td>
+                                        <td className="px-3 py-3 text-center">
+                                            {/* Chỉ hiển thị nút Thêm KR nếu user có quyền */}
+                                            {canAddKR(obj) && (
+                                                <button
+                                                    onClick={() =>
+                                                        setCreatingFor(obj)
+                                                    }
+                                                    className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
+                                                    title="Thêm Key Result"
+                                                >
+                                                    Thêm KR
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                     {openObj[obj.objective_id] &&
                                         obj.key_results.map((kr) => (
                                             <tr key={kr.kr_id}>
                                                 <td className="px-8 py-3 border-r border-slate-200">
-                                                    <button
-                                                        onClick={() =>
-                                                            setEditingKR(kr)
-                                                        }
-                                                        className="text-indigo-600 hover:text-indigo-900 font-medium"
-                                                        title="Sửa Key Result"
-                                                    >
-                                                        {kr.kr_title || ""}
-                                                    </button>
+                                                    {canEditKR(obj) ? (
+                                                        <button
+                                                            onClick={() =>
+                                                                setEditingKR(kr)
+                                                            }
+                                                            className="text-indigo-600 hover:text-indigo-900 font-medium"
+                                                            title="Sửa Key Result"
+                                                        >
+                                                            {kr.kr_title || ""}
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-gray-700 font-medium">
+                                                            {kr.kr_title || ""}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="text-xs font-semibold text-slate-700">
-                                                            {obj.department?.d_name ||
-                                                                departments.find(
-                                                                    (d) =>
-                                                                        String(
-                                                                            d.department_id
-                                                                        ) ===
-                                                                        String(
-                                                                            obj.department_id
-                                                                        )
-                                                                )?.d_name ||
-                                                                ""}
-                                                        </span>
-                                                        <span className="text-[10px] text-slate-500">
-                                                            {obj.assignments
-                                                                ?.map((a) => a.user?.email || "")
-                                                                .filter(email => email)
-                                                                .join(", ") || ""}
-                                                        </span>
-                                                    </div>
+                                                    {departments.find(
+                                                        (d) =>
+                                                            String(
+                                                                d.department_id
+                                                            ) ===
+                                                            String(
+                                                                obj.department_id
+                                                            )
+                                                    )?.d_name || "-"}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {cyclesList.find(
@@ -261,11 +368,13 @@ export default function ObjectiveList({
                                                                 : "bg-slate-100 text-slate-700"
                                                         }`}
                                                     >
-                                                        {kr.status || ""}
+                                                        {getStatusText(
+                                                            kr.status
+                                                        )}
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                    {kr.unit || ""}
+                                                    {getUnitText(kr.unit)}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {kr.current_value ?? ""}
@@ -274,65 +383,38 @@ export default function ObjectiveList({
                                                     {kr.target_value ?? ""}
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                    {formatPercent(
-                                                        kr.progress_percent
-                                                    )}
-                                                </td>
-                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
-                                                    {links
-                                                        .filter(
-                                                            (l) =>
-                                                                l.source_objective_id ===
-                                                                obj.objective_id
-                                                        )
-                                                        .map((l) => {
-                                                            const targetKr =
-                                                                items
-                                                                    .flatMap(
-                                                                        (o) =>
-                                                                            o.key_results
-                                                                    )
-                                                                    .find(
-                                                                        (kr) =>
-                                                                            kr.kr_id ===
-                                                                            l.target_kr_id
-                                                                    );
-                                                            const targetObj =
-                                                                items.find(
-                                                                    (o) =>
-                                                                        o.key_results.some(
-                                                                            (
-                                                                                kr
-                                                                            ) =>
-                                                                                kr.kr_id ===
-                                                                                l.target_kr_id
-                                                                        )
-                                                                );
-                                                            return targetKr &&
-                                                                targetObj
-                                                                ? `Liên kết đến: ${targetObj.obj_title} - ${targetKr.kr_title} (${targetObj.level})`
-                                                                : "";
-                                                        })
-                                                        .filter((t) => t)
-                                                        .join(", ") || ""}
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <span>{formatPercent(kr.progress_percent)}</span>
+                                                        {parseFloat(kr.progress_percent) >= 100 && (
+                                                            <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-2">
-                                                        {canCheckIn(kr, obj) && (
+                                                        {/* Chỉ hiển thị nút Check-in nếu user là người tạo KR */}
+                                                        {isKROwner(kr) && (
                                                             <button
-                                                                onClick={() => openCheckInModal(kr)}
-                                                                className="rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
-                                                                title="Cập nhật tiến độ"
+                                                                onClick={() => openCheckInModal?.({ ...kr, objective_id: obj.objective_id })}
+                                                                className="p-1.5 rounded hover:bg-blue-50 transition-colors"
+                                                                title="Check-in tiến độ"
                                                             >
-                                                                Check-in
+                                                                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
                                                             </button>
                                                         )}
+                                                        {/* Mọi người có thể xem lịch sử để đảm bảo tính minh bạch */}
                                                         <button
-                                                            onClick={() => openCheckInHistory(kr)}
-                                                            className="rounded-md bg-slate-600 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-700"
-                                                            title="Xem lịch sử check-in"
+                                                            onClick={() => openCheckInHistory?.({ ...kr, objective_id: obj.objective_id })}
+                                                            className="p-1.5 rounded hover:bg-slate-50 transition-colors"
+                                                            title="Lịch sử check-in"
                                                         >
-                                                            Lịch sử
+                                                            <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
                                                         </button>
                                                     </div>
                                                 </td>

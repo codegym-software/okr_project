@@ -35,27 +35,63 @@ class KeyResultController extends Controller
     public function store(Request $request, $objectiveId)
     {
         $user = Auth::user();
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+
+        
+        // Load user relationships
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
         }
 
+        // Load Objective để kiểm tra quyền
         $objective = Objective::findOrFail($objectiveId);
-
-        // Kiểm tra quyền
-        if (!$this->canManageKeyResult($user, $objective)) {
-            return response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Key Result cho Objective này.'], 403);
-        }
 
         $validated = $request->validate([
             'kr_title' => 'required|string|max:255',
             'target_value' => 'required|numeric|min:0',
             'current_value' => 'nullable|numeric|min:0',
-            'unit' => 'required|in:number,percent,completion',
+            'unit' => 'required|in:number,percent,completion,bai,num,bài',
             'status' => 'nullable|string|max:255',
             'weight' => 'nullable|integer|min:0|max:100',
-            'cycle_id' => 'required|exists:cycles,cycle_id',
+            'cycle_id' => 'nullable|exists:cycles,cycle_id',
             'department_id' => 'nullable|exists:departments,department_id',
         ]);
+
+        // Kiểm tra quyền thêm KR
+        $roleName = $user->role ? strtolower($user->role->role_name) : 'member';
+        
+        // Admin có full quyền
+        $canAddKR = false;
+        if ($roleName === 'admin') {
+            $canAddKR = true;
+        }
+        // Owner của Objective có quyền thêm KR
+        elseif ($objective->user_id === $user->user_id) {
+            $canAddKR = true;
+        }
+        // Member/Manager CHỈ được thêm KR cho Objective cùng phòng ban
+        elseif (in_array($roleName, ['member', 'manager'])) {
+            if ($objective->department_id && $user->department_id) {
+                $canAddKR = ((int)$objective->department_id === (int)$user->department_id);
+            }
+        }
+        
+        if (!$canAddKR) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền thêm Key Result cho Objective này.'
+                ], 403);
+            }
+            return redirect()->back()->withErrors(['error' => 'Bạn không có quyền thêm Key Result cho Objective này.']);
+        }
+
+        // Tự động gán department_id từ Objective
+        $validated['department_id'] = $objective->department_id;
+        
+        // Tự động gán cycle_id từ Objective nếu không có
+        if (empty($validated['cycle_id']) && !empty($objective->cycle_id)) {
+            $validated['cycle_id'] = $objective->cycle_id;
+        }
 
         // Tính % tiến độ (nếu có current_value)
         $current = $validated['current_value'] ?? 0;
@@ -71,8 +107,9 @@ class KeyResultController extends Controller
             'weight' => $validated['weight'] ?? 0,
             'progress_percent' => $progress,
             'objective_id' => $objectiveId,
-            'cycle_id' => $validated['cycle_id'],
+            'cycle_id' => $validated['cycle_id'] ?? null,
             'department_id' => $validated['department_id'] ?? null,
+            'user_id' => $user->user_id, // Lưu người tạo KR
         ]);
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $kr]);
@@ -107,12 +144,15 @@ class KeyResultController extends Controller
     public function update(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+
+        
+        // Load user relationships
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
         }
 
-        $objective = Objective::findOrFail($objectiveId);
         $kr = KeyResult::where('kr_id', $krId)->where('objective_id', $objectiveId)->firstOrFail();
+        $objective = Objective::findOrFail($objectiveId);
 
         // Kiểm tra quyền
         if (!$this->canManageKeyResult($user, $objective)) {
@@ -123,12 +163,33 @@ class KeyResultController extends Controller
             'kr_title' => 'nullable|string|max:255',
             'target_value' => 'nullable|numeric|min:0',
             'current_value' => 'nullable|numeric|min:0',
-            'unit' => 'nullable|string|max:255',
+            'unit' => 'nullable|in:number,percent,completion,bai,num,bài',
             'status' => 'nullable|string|max:255',
-            'department_id' => 'nullable',
+            'department_id' => 'nullable|exists:departments,department_id',
             'cycle_id' => 'nullable|exists:cycles,cycle_id',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
         ]);
+
+        // Kiểm tra quyền phòng ban: Member/Manager chỉ được update KR cho phòng ban của mình
+        $roleName = $user->role ? strtolower($user->role->role_name) : 'member';
+        if (in_array($roleName, ['member', 'manager'])) {
+            // Nếu có department_id mới trong request, kiểm tra
+            if (isset($validated['department_id']) && $validated['department_id']) {
+                if ((int)$validated['department_id'] !== (int)$user->department_id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Bạn chỉ có thể cập nhật Key Result cho phòng ban của mình.'
+                    ], 403);
+                }
+            }
+            // Nếu KR hiện tại có department_id khác với user, không cho phép update
+            if ($kr->department_id && (int)$kr->department_id !== (int)$user->department_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền cập nhật Key Result của phòng ban khác.'
+                ], 403);
+            }
+        }
 
         // Only keep columns that actually exist in DB
         $data = [];

@@ -75,6 +75,15 @@ export default function KeyResultModal({
     };
 
     const handleDeleteKR = async (kr) => {
+        // Xác nhận trước khi xóa
+        const confirmed = window.confirm(
+            `Bạn có chắc chắn muốn xóa Key Result "${kr.kr_title}"?\n\nHành động này không thể hoàn tác.`
+        );
+        
+        if (!confirmed) {
+            return;
+        }
+
         try {
             const token = document
                 .querySelector('meta[name="csrf-token"]')
@@ -107,7 +116,7 @@ export default function KeyResultModal({
                 return merged;
             });
             setEditingKR(null);
-            setToast({ type: "success", message: "Đã xóa Key Result" });
+            setToast({ type: "success", message: "Đã xóa Key Result thành công" });
         } catch (err) {
             setToast({
                 type: "error",
@@ -136,7 +145,7 @@ export default function KeyResultModal({
                             current_value: Number(form.current_value.value),
                             unit: form.unit.value,
                             status: form.status.value,
-                            cycle_id: form.cycle_id.value,
+                            cycle_id: editingKR.cycle_id, // Giữ nguyên cycle_id từ KR hiện tại
                         };
                         await saveKr(updated);
                     }}
@@ -153,7 +162,44 @@ export default function KeyResultModal({
                             required
                         />
                     </div>
-                    <div className="grid gap-3 md:grid-cols-3">
+                    {/* Trạng thái và đơn vị - 1 hàng */}
+                    <div className="grid gap-3 md:grid-cols-2">
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Trạng thái
+                            </label>
+                            <select
+                                defaultValue={editingKR.status || ""}
+                                name="status"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            >
+                                <option value="">-- chọn trạng thái --</option>
+                                <option value="draft">Bản nháp</option>
+                                <option value="active">Đang thực hiện</option>
+                                <option value="completed">Hoàn thành</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Đơn vị
+                            </label>
+                            <select
+                                defaultValue={editingKR.unit}
+                                name="unit"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                required
+                            >
+                                <option value="">-- chọn đơn vị --</option>
+                                <option value="number">Số lượng</option>
+                                <option value="percent">Phần trăm</option>
+                                <option value="completion">Hoàn thành</option>
+                                <option value="bai">Bài</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    {/* Mục tiêu và Thực tế - 1 hàng */}
+                    <div className="grid gap-3 md:grid-cols-2">
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Mục tiêu
@@ -176,53 +222,6 @@ export default function KeyResultModal({
                                 type="number"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Đơn vị
-                            </label>
-                            <input
-                                defaultValue={editingKR.unit}
-                                name="unit"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            />
-                        </div>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-3">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Status
-                            </label>
-                            <select
-                                defaultValue={editingKR.status}
-                                name="status"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="draft">Draft</option>
-                                <option value="active">Active</option>
-                                <option value="completed">Completed</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Chu kỳ
-                            </label>
-                            <select
-                                defaultValue={editingKR.cycle_id || ""}
-                                name="cycle_id"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">Chọn chu kỳ</option>
-                                {cyclesList.map((c) => (
-                                    <option
-                                        key={c.cycle_id}
-                                        value={String(c.cycle_id)}
-                                    >
-                                        {c.cycle_name}
-                                    </option>
-                                ))}
-                            </select>
                         </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
@@ -267,8 +266,8 @@ export default function KeyResultModal({
                                     e.target.current_value.value || 0
                                 ),
                                 unit: e.target.unit.value || "",
-                                status: e.target.status.value || "draft",
-                                cycle_id: creatingFor.cycle_id,
+                                status: e.target.status.value || "",
+                                cycle_id: e.target.cycle_id.value || creatingFor.cycle_id,
                             };
                             const res = await fetch(`/my-key-results/store`, {
                                 method: "POST",
@@ -325,7 +324,63 @@ export default function KeyResultModal({
                             required
                         />
                     </div>
-                    <div className="grid gap-3 md:grid-cols-3">
+                    
+                    {/* Chu kỳ và Trạng thái - 1 hàng */}
+                    <div className="grid gap-3 md:grid-cols-2">
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Chu kỳ
+                            </label>
+                            <select
+                                name="cycle_id"
+                                defaultValue={creatingFor?.cycle_id || ""}
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                required
+                            >
+                                <option value="">-- chọn chu kỳ --</option>
+                                {cyclesList.map((cycle) => (
+                                    <option key={cycle.cycle_id} value={cycle.cycle_id}>
+                                        {cycle.cycle_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Trạng thái
+                            </label>
+                            <select
+                                name="status"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            >
+                                <option value="">-- chọn trạng thái --</option>
+                                <option value="draft">Bản nháp</option>
+                                <option value="active">Đang thực hiện</option>
+                                <option value="completed">Hoàn thành</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    {/* Đơn vị */}
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                            Đơn vị
+                        </label>
+                        <select
+                            name="unit"
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            required
+                        >
+                            <option value="">-- chọn đơn vị --</option>
+                            <option value="number">Số lượng</option>
+                            <option value="percent">Phần trăm</option>
+                            <option value="completion">Hoàn thành</option>
+                            <option value="bai">Bài</option>
+                        </select>
+                    </div>
+                    
+                    {/* Mục tiêu và Thực tế - 1 hàng */}
+                    <div className="grid gap-3 md:grid-cols-2">
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Mục tiêu
@@ -345,48 +400,6 @@ export default function KeyResultModal({
                                 name="current_value"
                                 type="number"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Đơn vị
-                            </label>
-                            <input
-                                name="unit"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            />
-                        </div>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-3">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Status
-                            </label>
-                            <select
-                                name="status"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="draft">Draft</option>
-                                <option value="active">Active</option>
-                                <option value="completed">Completed</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Chu kỳ
-                            </label>
-                            <input
-                                value={() => {
-                                    const cy = cyclesList.find(
-                                        (c) =>
-                                            String(c.cycle_id) ===
-                                            String(creatingFor?.cycle_id)
-                                    );
-                                    return cy?.cycle_name || "";
-                                }}
-                                disabled
-                                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm outline-none"
                             />
                         </div>
                     </div>

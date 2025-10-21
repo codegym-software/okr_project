@@ -6,19 +6,16 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('objectives', function (Blueprint $table) {
-            $table->foreignId('department_id')->nullable()->constrained('departments', 'department_id')->nullOnDelete();
+            $table->foreignId('department_id')
+                  ->nullable()
+                  ->constrained('departments', 'department_id') // Reference department_id instead of id
+                  ->onDelete('set null');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('objectives', function (Blueprint $table) {
