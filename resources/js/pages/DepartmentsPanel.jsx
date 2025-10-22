@@ -19,9 +19,9 @@ function DepartmentFormModal({
     const [type, setType] = useState(
         mode === "edit"
             ? initialData?.type
-            : canManageRooms
-            ? "phòng ban"
-            : "đội nhóm"
+            : canManageTeams && !canManageRooms
+            ? "đội nhóm"
+            : "phòng ban"
     );
     const [parentDepartmentId, setParentDepartmentId] = useState(
         initialData?.parent_department_id || ""
@@ -60,17 +60,7 @@ function DepartmentFormModal({
                 }
             })();
         }
-        setName(initialData?.d_name || "");
-        setDesc(initialData?.d_description || "");
-        setType(
-            mode === "edit"
-                ? initialData?.type
-                : canManageRooms
-                ? "phòng ban"
-                : "đội nhóm"
-        );
-        setParentDepartmentId(initialData?.parent_department_id || "");
-    }, [initialData, open, canManageRooms, type]);
+    }, [open, type]);
 
     const submit = async (e) => {
         e.preventDefault();
@@ -166,9 +156,23 @@ function DepartmentFormModal({
                     <label className="mb-1 block text-sm font-semibold text-slate-700">
                         Loại
                     </label>
-                    <div className="w-full rounded-2xl border border-slate-300 px-4 py-2 bg-gray-100">
-                        {type}
-                    </div>
+                    <select
+                        value={type}
+                        onChange={(e) => setType(e.target.value)}
+                        className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
+                            !currentPermission
+                                ? "bg-gray-100 cursor-not-allowed"
+                                : ""
+                        }`}
+                        disabled={!currentPermission}
+                    >
+                        {canManageRooms && (
+                            <option value="phòng ban">Phòng ban</option>
+                        )}
+                        {canManageTeams && (
+                            <option value="đội nhóm">Đội nhóm</option>
+                        )}
+                    </select>
                 </div>
                 {type === "đội nhóm" && (
                     <div>
@@ -252,12 +256,18 @@ function DepartmentFormModal({
 }
 
 function AssignUsersModal({ open, onClose, department, onReload }) {
-    const { canManageUsers } = useAuth();
+    const { canManageUsers, isAdmin } = useAuth();
     const [users, setUsers] = useState([]);
     const [selectedUsers, setSelectedUsers] = useState([]);
+    const [selectedRole, setSelectedRole] = useState("");
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
+    const roleOptions = [
+        { value: "", label: "Không thay đổi vai trò" },
+        { value: "member", label: "Member" },
+        { value: "manager", label: "Manager" },
+    ];
 
     useEffect(() => {
         if (open && canManageUsers) {
@@ -266,7 +276,7 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                 try {
                     const res = await fetch("/users", {
                         headers: { Accept: "application/json" },
-                        credentials: "include", // Gửi cookie xác thực nếu dùng Sanctum
+                        credentials: "include",
                     });
                     const data = await res.json();
                     if (res.status === 403) {
@@ -310,6 +320,10 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 .getAttribute("content");
+            const payload = { user_ids: selectedUsers };
+            if (selectedRole) {
+                payload.role = selectedRole; // Gửi role thay vì role_id
+            }
             const res = await fetch(
                 `/departments/${department.department_id}/assign-users`,
                 {
@@ -319,7 +333,7 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                         "X-CSRF-TOKEN": token,
                         Accept: "application/json",
                     },
-                    body: JSON.stringify({ user_ids: selectedUsers }),
+                    body: JSON.stringify(payload),
                 }
             );
             const data = await res.json();
@@ -385,6 +399,24 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                             className="basic-multi-select"
                             classNamePrefix="select"
                             placeholder="Chọn người dùng..."
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-sm font-semibold text-slate-700">
+                            Vai trò
+                        </label>
+                        <Select
+                            options={roleOptions}
+                            value={roleOptions.find(
+                                (option) => option.value === selectedRole
+                            )}
+                            onChange={(selected) =>
+                                setSelectedRole(selected ? selected.value : "")
+                            }
+                            className="basic-multi-select"
+                            classNamePrefix="select"
+                            placeholder="Chọn vai trò..."
+                            isClearable
                         />
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
@@ -674,7 +706,12 @@ export default function DepartmentsPanel() {
                                             )}
                                         </td>
                                         <td className="px-3 py-3 text-center">
-                                            <AdminOnly permission="canManageUsers">
+                                            <AdminOnly
+                                                permission={
+                                                    "canManageUsers" &&
+                                                    "canManageRooms"
+                                                }
+                                            >
                                                 <button
                                                     onClick={() =>
                                                         openAssignModal(d)
@@ -744,7 +781,12 @@ export default function DepartmentsPanel() {
                                                             )}
                                                     </td>
                                                     <td className="px-3 py-3 text-center">
-                                                        <AdminOnly permission="canManageUsers">
+                                                        <AdminOnly
+                                                            permission={
+                                                                "canManageUsers" &&
+                                                                "canManageTeams"
+                                                            }
+                                                        >
                                                             <button
                                                                 onClick={() =>
                                                                     openAssignModal(

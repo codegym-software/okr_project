@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
+use App\Models\Role;
 
 class DepartmentController extends Controller
 {
@@ -186,23 +187,53 @@ class DepartmentController extends Controller
      */
     public function storeAssignUsers(Request $request, Department $department): JsonResponse|RedirectResponse
     {
-        $validated = $request->validate([
-            'user_ids' => 'required|array',
-            'user_ids.*' => 'exists:users,user_id', // Kiểm tra các user_id hợp lệ
-        ]);
-
-        // Cập nhật department_id cho các người dùng được chọn
-        User::whereIn('user_id', $validated['user_ids'])->update(['department_id' => $department->department_id]);
-
-        // Xóa department_id cho những người dùng không còn được gán
-        User::where('department_id', $department->department_id)
-            ->whereNotIn('user_id', $validated['user_ids'])
-            ->update(['department_id' => null]);
-
-        if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Gán người dùng cho phòng ban thành công!']);
+        // Kiểm tra quyền admin hoặc unit manager
+        if (!Auth::user()->canManageUsers() && !Auth::user()->isDeptManager()) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Bạn không có quyền gán người dùng.'], 403);
+            }
+            return redirect()->back()->withErrors('Bạn không có quyền gán người dùng.');
         }
 
-        return redirect()->route('departments.index')->with('success', 'Gán người dùng cho phòng ban thành công!');
+        $validated = $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,user_id',
+            'role' => 'nullable|string|in:manager,member,Manager,Member',
+        ]);
+
+        // Xác định role_id từ role (nếu có)
+        $roleId = null;
+        if (!empty($validated['role'])) {
+            $roleName = strtolower($validated['role']);
+            $role = Role::whereRaw('LOWER(role_name) = ?', [$roleName])->first();
+            if (!$role) {
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Vai trò không hợp lệ.'], 422);
+                }
+                return redirect()->back()->withErrors('Vai trò không hợp lệ.');
+            }
+            $roleId = $role->role_id;
+
+            // Chỉ admin được gán vai trò manager
+            // if ($roleName === 'manager' && !Auth::user()->isAdmin()) {
+            //     if ($request->wantsJson()) {
+            //         return response()->json(['success' => false, 'message' => 'Chỉ admin được gán vai trò Manager.'], 403);
+            //     }
+            //     return redirect()->back()->withErrors('Chỉ admin được gán vai trò Manager.');
+            // }
+        }
+
+        // Cập nhật department_id và role_id (nếu có) cho các user được chọn
+        $updateData = ['department_id' => $department->department_id];
+        if ($roleId !== null) {
+            $updateData['role_id'] = $roleId;
+        }
+        User::whereIn('user_id', $validated['user_ids'])->update($updateData);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => 'Gán người dùng và vai trò thành công!']);
+        }
+
+        return redirect()->route('departments.index')->with('success', 'Gán người dùng và vai trò thành công!');
     }
 }
