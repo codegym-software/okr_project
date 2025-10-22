@@ -74,10 +74,58 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     };
 
     const handleInputChange = (field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
+        setFormData(prev => {
+            const newData = {
+                ...prev,
+                [field]: value
+            };
+            
+            // Khi thay đổi level, reset department_id
+            if (field === 'level') {
+                newData.department_id = '';
+            }
+            
+            return newData;
+        });
+    };
+
+    // Lọc departments theo level
+    const getFilteredDepartments = () => {
+        if (formData.level === 'unit') {
+            // Chỉ hiển thị phòng ban (parent_department_id === null và type === "phòng ban")
+            return departments.filter(d => 
+                d.parent_department_id === null && d.type === "phòng ban"
+            );
+        } else if (formData.level === 'team') {
+            // Chỉ hiển thị nhóm (type === "đội nhóm")
+            return departments.filter(d => d.type === "đội nhóm");
+        }
+        return departments;
+    };
+
+    // Tạo options cho dropdown phòng ban
+    const getDepartmentOptions = () => {
+        const filteredDepts = getFilteredDepartments();
+        
+        return [
+            { value: '', label: 'Không chọn' },
+            ...filteredDepts.map(d => {
+                let label = d.d_name;
+                
+                // Nếu là nhóm, thêm tên phòng ban vào đằng sau
+                if (formData.level === 'team' && d.parent_department_id) {
+                    const parentDept = departments.find(pd => pd.department_id === d.parent_department_id);
+                    if (parentDept) {
+                        label = `${d.d_name} (${parentDept.d_name})`;
+                    }
+                }
+                
+                return {
+                    value: String(d.department_id),
+                    label: label
+                };
+            })
+        ];
     };
 
     return (
@@ -151,19 +199,13 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                     {/* Phòng ban */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Phòng ban
+                            {formData.level === 'unit' ? 'Phòng ban' : 'Nhóm'}
                         </label>
                         <Select
                             value={formData.department_id}
                             onChange={(value) => handleInputChange('department_id', value)}
-                            placeholder="Chọn phòng ban (tùy chọn)"
-                            options={[
-                                { value: '', label: 'Không chọn' },
-                                ...departments.map(d => ({
-                                    value: String(d.department_id),
-                                    label: d.d_name
-                                }))
-                            ]}
+                            placeholder={`Chọn ${formData.level === 'unit' ? 'phòng ban' : 'nhóm'} (tùy chọn)`}
+                            options={getDepartmentOptions()}
                         />
                     </div>
 
