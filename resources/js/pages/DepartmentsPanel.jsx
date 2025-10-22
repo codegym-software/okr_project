@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Toast, Modal } from "../components/ui";
 import { useAuth } from "../hooks/useAuth";
 import { AdminOnly } from "../components/AdminOnly";
+import Select from "react-select"; // Nếu dùng React-Select
 
 function DepartmentFormModal({
     open,
@@ -10,12 +11,18 @@ function DepartmentFormModal({
     initialData = null,
     onSaved,
     onDelete = null,
-    canManageDepartments = false,
     onReload,
 }) {
+    const { canManageRooms, canManageTeams } = useAuth();
     const [name, setName] = useState(initialData?.d_name || "");
     const [desc, setDesc] = useState(initialData?.d_description || "");
-    const [type, setType] = useState(initialData?.type || "phòng ban");
+    const [type, setType] = useState(
+        mode === "edit"
+            ? initialData?.type
+            : canManageRooms
+            ? "phòng ban"
+            : "đội nhóm"
+    );
     const [parentDepartmentId, setParentDepartmentId] = useState(
         initialData?.parent_department_id || ""
     );
@@ -23,9 +30,16 @@ function DepartmentFormModal({
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
 
-    // Lấy danh sách phòng ban để chọn parent_department_id
+    const hasPermissionForType = (selectedType) => {
+        if (selectedType === "phòng ban") return canManageRooms;
+        if (selectedType === "đội nhóm") return canManageTeams;
+        return false;
+    };
+
+    const currentPermission = hasPermissionForType(type);
+
     useEffect(() => {
-        if (open) {
+        if (open && type === "đội nhóm") {
             (async () => {
                 try {
                     const res = await fetch("/departments?type=phòng ban", {
@@ -48,13 +62,19 @@ function DepartmentFormModal({
         }
         setName(initialData?.d_name || "");
         setDesc(initialData?.d_description || "");
-        setType(initialData?.type || "phòng ban");
+        setType(
+            mode === "edit"
+                ? initialData?.type
+                : canManageRooms
+                ? "phòng ban"
+                : "đội nhóm"
+        );
         setParentDepartmentId(initialData?.parent_department_id || "");
-    }, [initialData, open]);
+    }, [initialData, open, canManageRooms, type]);
 
     const submit = async (e) => {
         e.preventDefault();
-        if (saving) return;
+        if (saving || !currentPermission) return;
         setSaving(true);
         try {
             const token = document
@@ -95,7 +115,7 @@ function DepartmentFormModal({
             });
             onSaved && onSaved(data.data);
             if (!isEdit) {
-                onReload && onReload(); // Reload sau khi tạo mới
+                onReload && onReload();
             }
             onClose();
         } catch (e) {
@@ -134,11 +154,11 @@ function DepartmentFormModal({
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !canManageDepartments
+                            !currentPermission
                                 ? "bg-gray-100 cursor-not-allowed"
                                 : ""
                         }`}
-                        disabled={!canManageDepartments}
+                        disabled={!currentPermission}
                         required
                     />
                 </div>
@@ -146,20 +166,9 @@ function DepartmentFormModal({
                     <label className="mb-1 block text-sm font-semibold text-slate-700">
                         Loại
                     </label>
-                    <select
-                        value={type}
-                        onChange={(e) => setType(e.target.value)}
-                        className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !canManageDepartments
-                                ? "bg-gray-100 cursor-not-allowed"
-                                : ""
-                        }`}
-                        disabled={!canManageDepartments}
-                        required
-                    >
-                        <option value="phòng ban">Phòng ban</option>
-                        <option value="đội nhóm">Đội nhóm</option>
-                    </select>
+                    <div className="w-full rounded-2xl border border-slate-300 px-4 py-2 bg-gray-100">
+                        {type}
+                    </div>
                 </div>
                 {type === "đội nhóm" && (
                     <div>
@@ -172,11 +181,11 @@ function DepartmentFormModal({
                                 setParentDepartmentId(e.target.value)
                             }
                             className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                                !canManageDepartments
+                                !currentPermission
                                     ? "bg-gray-100 cursor-not-allowed"
                                     : ""
                             }`}
-                            disabled={!canManageDepartments}
+                            disabled={!currentPermission}
                             required
                         >
                             <option value="">Chọn phòng ban cha</option>
@@ -199,26 +208,24 @@ function DepartmentFormModal({
                         value={desc}
                         onChange={(e) => setDesc(e.target.value)}
                         className={`h-24 w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                            !canManageDepartments
+                            !currentPermission
                                 ? "bg-gray-100 cursor-not-allowed"
                                 : ""
                         }`}
-                        disabled={!canManageDepartments}
+                        disabled={!currentPermission}
                     />
                 </div>
                 <div className="flex justify-between gap-3 pt-2">
                     <div className="flex gap-3">
-                        {mode === "edit" &&
-                            onDelete &&
-                            canManageDepartments && (
-                                <button
-                                    type="button"
-                                    onClick={onDelete}
-                                    className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                                >
-                                    Xóa
-                                </button>
-                            )}
+                        {mode === "edit" && onDelete && currentPermission && (
+                            <button
+                                type="button"
+                                onClick={onDelete}
+                                className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                            >
+                                Xóa
+                            </button>
+                        )}
                     </div>
                     <div className="flex gap-3">
                         <button
@@ -228,7 +235,7 @@ function DepartmentFormModal({
                         >
                             Hủy
                         </button>
-                        {canManageDepartments && (
+                        {currentPermission && (
                             <button
                                 disabled={saving}
                                 type="submit"
@@ -244,6 +251,164 @@ function DepartmentFormModal({
     );
 }
 
+function AssignUsersModal({ open, onClose, department, onReload }) {
+    const { canManageUsers } = useAuth();
+    const [users, setUsers] = useState([]);
+    const [selectedUsers, setSelectedUsers] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [toast, setToast] = useState({ type: "success", message: "" });
+
+    useEffect(() => {
+        if (open && canManageUsers) {
+            (async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch("/users", {
+                        headers: { Accept: "application/json" },
+                        credentials: "include", // Gửi cookie xác thực nếu dùng Sanctum
+                    });
+                    const data = await res.json();
+                    if (res.status === 403) {
+                        throw new Error(
+                            "Bạn không có quyền truy cập danh sách người dùng"
+                        );
+                    }
+                    if (data.success === false) {
+                        throw new Error(
+                            data.message || "Tải danh sách người dùng thất bại"
+                        );
+                    }
+                    setUsers(data.data || []);
+                    setSelectedUsers(
+                        data.data
+                            .filter(
+                                (user) =>
+                                    user.department_id ===
+                                    department?.department_id
+                            )
+                            .map((user) => user.user_id)
+                    );
+                } catch (e) {
+                    setToast({
+                        type: "error",
+                        message:
+                            e.message || "Tải danh sách người dùng thất bại",
+                    });
+                } finally {
+                    setLoading(false);
+                }
+            })();
+        }
+    }, [open, department, canManageUsers]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (saving || !canManageUsers) return;
+        setSaving(true);
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                .getAttribute("content");
+            const res = await fetch(
+                `/departments/${department.department_id}/assign-users`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": token,
+                        Accept: "application/json",
+                    },
+                    body: JSON.stringify({ user_ids: selectedUsers }),
+                }
+            );
+            const data = await res.json();
+            if (!res.ok || data.success === false)
+                throw new Error(data.message || "Gán người dùng thất bại");
+            setToast({
+                type: "success",
+                message: "Gán người dùng thành công!",
+            });
+            onReload && onReload();
+            onClose();
+        } catch (e) {
+            setToast({
+                type: "error",
+                message: e.message || "Gán người dùng thất bại",
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const userOptions = users.map((user) => ({
+        value: user.user_id,
+        label: `${user.full_name} (${user.email})`,
+    }));
+
+    if (!open) return null;
+
+    return (
+        <Modal
+            open={open}
+            onClose={onClose}
+            title={`Gán người dùng cho ${department?.d_name}`}
+        >
+            <Toast
+                type={toast.type}
+                message={toast.message}
+                onClose={() => setToast({ type: "success", message: "" })}
+            />
+            {!canManageUsers ? (
+                <div className="text-center text-red-500">
+                    Bạn không có quyền gán người dùng.
+                </div>
+            ) : loading ? (
+                <div className="text-center text-slate-500">Đang tải...</div>
+            ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="mb-1 block text-sm font-semibold text-slate-700">
+                            Chọn người dùng
+                        </label>
+                        <Select
+                            isMulti
+                            options={userOptions}
+                            value={userOptions.filter((option) =>
+                                selectedUsers.includes(option.value)
+                            )}
+                            onChange={(selected) =>
+                                setSelectedUsers(
+                                    selected.map((option) => option.value)
+                                )
+                            }
+                            className="basic-multi-select"
+                            classNamePrefix="select"
+                            placeholder="Chọn người dùng..."
+                        />
+                    </div>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="rounded-2xl border border-slate-300 px-5 py-2 text-sm"
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            disabled={saving}
+                            type="submit"
+                            className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-60"
+                        >
+                            Lưu
+                        </button>
+                    </div>
+                </form>
+            )}
+        </Modal>
+    );
+}
+
 export default function DepartmentsPanel() {
     const [departments, setDepartments] = useState([]);
     const [teams, setTeams] = useState([]);
@@ -251,11 +416,14 @@ export default function DepartmentsPanel() {
     const [loading, setLoading] = useState(true);
     const [openCreate, setOpenCreate] = useState(false);
     const [openEdit, setOpenEdit] = useState(false);
+    const [openAssign, setOpenAssign] = useState(false);
+    const [assigningDepartment, setAssigningDepartment] = useState(null);
     const [editing, setEditing] = useState(null);
     const [toast, setToast] = useState({ type: "success", message: "" });
     const showToast = (type, message) => setToast({ type, message });
 
-    const { canManageDepartments } = useAuth();
+    const { canManageRooms, canManageTeams, canManageUsers } = useAuth();
+    const canCreateNew = canManageRooms || canManageTeams;
 
     const fetchDepartments = async () => {
         try {
@@ -308,6 +476,11 @@ export default function DepartmentsPanel() {
                 e.message || "Không tải được dữ liệu phòng ban/đội nhóm"
             );
         }
+    };
+
+    const openAssignModal = async (department) => {
+        setAssigningDepartment(department);
+        setOpenAssign(true);
     };
 
     const remove = async (id) => {
@@ -370,14 +543,14 @@ export default function DepartmentsPanel() {
                 <h2 className="text-2xl font-extrabold text-slate-900">
                     Phòng ban & Đội nhóm
                 </h2>
-                <AdminOnly permission="canManageDepartments">
+                {canCreateNew && (
                     <button
                         onClick={() => setOpenCreate(true)}
                         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
                     >
                         Tạo mới
                     </button>
-                </AdminOnly>
+                )}
             </div>
             <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
@@ -393,13 +566,16 @@ export default function DepartmentsPanel() {
                             <th className="px-3 py-2 w-[50%] text-center">
                                 Mô tả
                             </th>
+                            <th className="px-3 py-2 w-[20%] text-center">
+                                Hành động
+                            </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading && (
                             <tr>
                                 <td
-                                    colSpan={4}
+                                    colSpan={5}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -409,7 +585,7 @@ export default function DepartmentsPanel() {
                         {!loading && departments.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={4}
+                                    colSpan={5}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Chưa có phòng ban
@@ -464,7 +640,7 @@ export default function DepartmentsPanel() {
                                         </td>
                                         <td className="px-3 py-3 border-r border-slate-200">
                                             <AdminOnly
-                                                permission="canManageDepartments"
+                                                permission="canManageRooms"
                                                 fallback={
                                                     <span className="font-semibold text-green-700">
                                                         {d.d_name}
@@ -488,6 +664,26 @@ export default function DepartmentsPanel() {
                                         </td>
                                         <td className="px-3 py-3 text-center">
                                             {d.d_description || "-"}
+                                            {d.users && d.users.length > 0 && (
+                                                <div className="text-xs text-slate-500">
+                                                    Người dùng:{" "}
+                                                    {d.users
+                                                        .map((u) => u.full_name)
+                                                        .join(", ")}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-3 py-3 text-center">
+                                            <AdminOnly permission="canManageUsers">
+                                                <button
+                                                    onClick={() =>
+                                                        openAssignModal(d)
+                                                    }
+                                                    className="text-blue-600 hover:text-blue-900 font-medium"
+                                                >
+                                                    Gán người dùng
+                                                </button>
+                                            </AdminOnly>
                                         </td>
                                     </tr>
                                     {expanded[d.department_id] &&
@@ -505,7 +701,7 @@ export default function DepartmentsPanel() {
                                                     <td className="px-8 py-3"></td>
                                                     <td className="px-3 py-3 border-r border-slate-200">
                                                         <AdminOnly
-                                                            permission="canManageDepartments"
+                                                            permission="canManageTeams"
                                                             fallback={
                                                                 <span className="text-indigo-600">
                                                                     {t.d_name}
@@ -529,6 +725,37 @@ export default function DepartmentsPanel() {
                                                     </td>
                                                     <td className="px-3 py-3 text-center">
                                                         {t.d_description || "-"}
+                                                        {t.users &&
+                                                            t.users.length >
+                                                                0 && (
+                                                                <div className="text-xs text-slate-500">
+                                                                    Người dùng:{" "}
+                                                                    {t.users
+                                                                        .map(
+                                                                            (
+                                                                                u
+                                                                            ) =>
+                                                                                u.full_name
+                                                                        )
+                                                                        .join(
+                                                                            ", "
+                                                                        )}
+                                                                </div>
+                                                            )}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-center">
+                                                        <AdminOnly permission="canManageUsers">
+                                                            <button
+                                                                onClick={() =>
+                                                                    openAssignModal(
+                                                                        t
+                                                                    )
+                                                                }
+                                                                className="text-blue-600 hover:text-blue-900 font-medium"
+                                                            >
+                                                                Gán người dùng
+                                                            </button>
+                                                        </AdminOnly>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -543,7 +770,6 @@ export default function DepartmentsPanel() {
                 mode="create"
                 onSaved={handleSaved}
                 onReload={fetchDepartments}
-                canManageDepartments={canManageDepartments}
             />
             <DepartmentFormModal
                 open={openEdit}
@@ -555,7 +781,15 @@ export default function DepartmentsPanel() {
                 initialData={editing}
                 onSaved={handleSaved}
                 onDelete={editing ? () => remove(editing.department_id) : null}
-                canManageDepartments={canManageDepartments}
+            />
+            <AssignUsersModal
+                open={openAssign}
+                onClose={() => {
+                    setOpenAssign(false);
+                    setAssigningDepartment(null);
+                }}
+                department={assigningDepartment}
+                onReload={fetchDepartments}
             />
         </div>
     );

@@ -23,12 +23,10 @@ export function useAuth() {
             // Helper methods
             canManageCycles: user?.is_admin === true,
             canManageUsers: user?.is_admin === true,
-            canManageDepartments:
-                user?.is_admin === true ||
-                (user?.role?.role_name?.toLowerCase() === "manager" &&
-                    // (!user?.role?.level ||
-                    //     user?.role?.level?.toLowerCase() === "unit")),
-                    user?.role?.level?.toLowerCase() === "unit"),
+            canManageRooms: user?.is_admin === true, // Chỉ admin quản lý phòng ban
+            canManageTeams:
+                user?.role?.role_name?.toLowerCase() === "manager" &&
+                user?.role?.level?.toLowerCase() === "unit", // Chỉ unit manager quản lý đội nhóm
             canCreateCompanyOKR: user?.is_admin === true,
             canCreatePersonalOKR: true, // Mọi user đều có thể tạo OKR cá nhân
         };
