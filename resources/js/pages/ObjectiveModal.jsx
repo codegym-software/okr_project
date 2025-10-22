@@ -59,6 +59,21 @@ export default function ObjectiveModal({
         }
     }, [editingObjective]);
 
+    // Reset create form each time the "creatingObjective" modal is opened
+    useEffect(() => {
+        if (creatingObjective) {
+            setCreateForm({
+                obj_title: "",
+                description: "",
+                level: "",
+                status: "",
+                cycle_id: "",
+                department_id: "",
+                key_results: [],
+            });
+        }
+    }, [creatingObjective]);
+
     // Fetch available targets
     const fetchAvailableTargets = async () => {
         if (!editingObjective?.objective_id) {
@@ -242,14 +257,15 @@ export default function ObjectiveModal({
         }));
     };
 
-    const handleCreateObjective = async () => {
-        if (createForm.key_results.length < 1) {
-            setToast({
-                type: "error",
-                message: "Phải có ít nhất một Key Result",
-            });
-            return;
-        }
+    const handleCreateObjective = async (e) => {
+        if (e && typeof e.preventDefault === "function") e.preventDefault();
+        // if (createForm.key_results.length < 1) {
+        //     setToast({
+        //         type: "error",
+        //         message: "Phải có ít nhất một Key Result",
+        //     });
+        //     return;
+        // }
         if (
             createForm.level !== "company" &&
             createForm.level !== "" &&
@@ -297,7 +313,7 @@ export default function ObjectiveModal({
             setCreatingObjective(false);
             setToast({
                 type: "success",
-                message: "Tạo Objective và Key Results thành công",
+                message: "Tạo Objective thành công",
             });
         } catch (err) {
             setToast({ type: "error", message: err.message || "Tạo thất bại" });
@@ -589,9 +605,9 @@ export default function ObjectiveModal({
                     </div>
                     {creatingObjective && (
                         <div className="mt-4">
-                            <h3 className="text-sm font-semibold text-slate-700">
+                            {/* <h3 className="text-sm font-semibold text-slate-700">
                                 Key Results
-                            </h3>
+                            </h3> */}
                             {createForm.key_results.map((kr, index) => (
                                 <div
                                     key={index}
@@ -727,13 +743,13 @@ export default function ObjectiveModal({
                                     </div>
                                 </div>
                             ))}
-                            <button
+                            {/* <button
                                 type="button"
                                 onClick={addNewKR}
                                 className="mt-2 rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
                             >
                                 Thêm Key Result
-                            </button>
+                            </button> */}
                         </div>
                     )}
                     {editingObjective && (
