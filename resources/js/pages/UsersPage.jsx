@@ -215,25 +215,12 @@ export default function UsersPage() {
                         Quản lý người dùng
                     </h1>
                     <div className="flex items-center gap-2">
-                        {/* <button
+                        { <button
                             onClick={() => setShowInviteModal(true)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm flex items-center gap-2"
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm"
                         >
-                            <svg
-                                className="h-4 w-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                                />
-                            </svg>
                             Mời người dùng
-                        </button> */}
+                        </button>}
                         <button
                             onClick={() => setShowConfirmModal(true)}
                             disabled={Object.keys(pendingChanges).length === 0}
