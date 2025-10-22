@@ -22,7 +22,10 @@ export function useAuth() {
             isMember: user?.role?.role_name?.toLowerCase() === "member",
             // Helper methods
             canManageCycles: user?.is_admin === true,
-            canManageUsers: user?.is_admin === true,
+            canManageUsers:
+                user?.is_admin === true ||
+                (user?.role?.role_name?.toLowerCase() === "manager" &&
+                    user?.role?.level?.toLowerCase() === "unit"),
             canManageRooms: user?.is_admin === true, // Chỉ admin quản lý phòng ban
             canManageTeams:
                 user?.role?.role_name?.toLowerCase() === "manager" &&

@@ -6,8 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use App\Models\Role;
-use App\Models\Department;
-use Illuminate\Http\JsonResponse;
 
 class UserController extends Controller
 {
@@ -296,10 +294,4 @@ class UserController extends Controller
         return redirect()->route('users.index')
             ->with('success', "Đã xóa người dùng {$userName}.");
     }
-
-    // public function index2(): JsonResponse
-    // {
-    //     $users = User::select('user_id', 'full_name', 'email', 'department_id')->get();
-    //     return response()->json(['success' => true, 'data' => $users]);
-    // }
 }
