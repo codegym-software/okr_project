@@ -285,21 +285,146 @@ export default function DashboardLayout({ children, user }) {
         }
     };
     return (
-        <div className="flex min-h-screen bg-slate-50">
-            <DashboardSidebar open={sidebarOpen} user={user} />
-            <div className="flex w-full flex-col">
-                <DashboardTopbar
-                    user={user}
-                    onLogout={logout}
-                    onToggleSidebar={() => setSidebarOpen((o) => !o)}
-                    onOpenProfile={() => {
-                        navigateTo("/profile");
-                    }}
-                    onOpenPassword={() => {
-                        navigateTo("/change-password");
-                    }}
-                />
-                <div className="p-6">{children}</div>
+        <div className="min-h-screen bg-white">
+            {/* Sidebar */}
+            <div className="w-64 bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 z-10">
+                <div className="p-6">
+                    <div className="mb-8 flex items-center gap-3 px-2">
+                        <a
+                            href="/dashboard"
+                            className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 p-3"
+                            title="Dashboard"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-6 w-6 text-white"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+                            </svg>
+                        </a>
+                        <a
+                            href="/dashboard"
+                            className="text-xl font-extrabold text-slate-900"
+                        >
+                            OKRun
+                        </a>
+                    </div>
+                    <nav className="space-y-1">
+                        <SidebarItem
+                            collapsed={false}
+                            href="/dashboard"
+                            label="Tổng quan"
+                            icon={
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-6 w-6"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                >
+                                    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+                                </svg>
+                            }
+                        />
+                        {/* Chu kỳ - chỉ hiển thị cho Admin và Manager */}
+                        {(!user?.role?.role_name || 
+                          user.role.role_name.toLowerCase() === 'admin' || 
+                          user.role.role_name.toLowerCase() === 'manager') && (
+                            <SidebarItem
+                                collapsed={false}
+                                href="/cycles"
+                                label="Chu kỳ"
+                                icon={
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-6 w-6"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path d="M12 6V2l6 6-6 6V10C7.03 10 3 14.03 3 19c0 1.05.17 2.06.49 3.01C2.02 20.54 1 17.89 1 15c0-5.52 4.48-10 10-10z" />
+                                    </svg>
+                                }
+                            />
+                        )}
+                        <SidebarItem
+                            collapsed={false}
+                            href="/my-objectives"
+                            label="Mục tiêu"
+                            icon={
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-6 w-6"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                >
+                                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
+                                </svg>
+                            }
+                        />
+                        {/* Phòng ban/Đội nhóm - chỉ hiển thị cho Admin và Manager */}
+                        {(!user?.role?.role_name || 
+                          user.role.role_name.toLowerCase() === 'admin' || 
+                          user.role.role_name.toLowerCase() === 'manager') && (
+                            <SidebarItem
+                                collapsed={false}
+                                href="/departments"
+                                label="Phòng ban/Đội nhóm"
+                                icon={
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-6 w-6"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path d="M3 4h18v2H3V4zm2 4h14v12H5V8zm4 2v8h6v-8H9z" />
+                                    </svg>
+                                }
+                            />
+                        )}
+                        {/* Quản lý người dùng - chỉ hiển thị cho Admin */}
+                        {user?.is_admin === true && (
+                            <SidebarItem
+                                collapsed={false}
+                                href="/users"
+                                label="Quản lý người dùng"
+                                icon={
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-6 w-6"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13z" />
+                                    </svg>
+                                }
+                            />
+                        )}
+                    </nav>
+                </div>
+            </div>
+            
+            {/* Header */}
+            <div className="ml-64 bg-white border-b border-gray-200 px-6 py-4">
+                <div className="flex items-center justify-between">
+                       <div className="flex items-center space-x-4">
+                           {/* Header title removed */}
+                       </div>
+                    <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2 bg-gray-100 rounded-full px-4 py-2">
+                            <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+                            <span className="text-sm font-medium text-gray-700">khanhnguyen</span>
+                            <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Main Content */}
+            <div className="ml-64">
+                {children}
             </div>
         </div>
     );
