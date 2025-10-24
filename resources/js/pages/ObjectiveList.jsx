@@ -1,5 +1,6 @@
 // ObjectiveList.jsx
 import React, { useState, useEffect } from "react";
+import { canCheckInKeyResult } from "../utils/checkinPermissions";
 
 export default function ObjectiveList({
     items,
@@ -32,13 +33,6 @@ export default function ObjectiveList({
                String(objective.user_id) === String(currentUser.id);
     };
 
-    // Kiểm tra xem user hiện tại có phải người tạo Key Result không
-    const isKROwner = (kr) => {
-        if (!currentUser || !kr) return false;
-        // Kiểm tra user_id của Key Result
-        return String(kr.user_id) === String(currentUser.user_id) || 
-               String(kr.user_id) === String(currentUser.id);
-    };
 
     // Kiểm tra quyền edit Objective
     const canEditObjective = (objective) => {
@@ -112,7 +106,7 @@ export default function ObjectiveList({
 
     const formatPercent = (value) => {
         const n = Number(value);
-        return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
+        return Number.isFinite(n) ? `${n}%` : "";
     };
 
     const getStatusText = (status) => {
@@ -394,8 +388,8 @@ export default function ObjectiveList({
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-2">
-                                                        {/* Chỉ hiển thị nút Check-in nếu user là người tạo KR */}
-                                                        {isKROwner(kr) && (
+                                                        {/* Hiển thị nút Check-in cho những người có quyền check-in */}
+                                                        {canCheckInKeyResult(currentUser, kr, obj) && (
                                                             <button
                                                                 onClick={() => openCheckInModal?.({ ...kr, objective_id: obj.objective_id })}
                                                                 className="p-1.5 rounded hover:bg-blue-50 transition-colors"

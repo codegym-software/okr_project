@@ -57,10 +57,10 @@ export default function CheckInHistory({
             const checkInsData = data.data?.check_ins || data.check_ins || [];
             console.log('CheckInHistory - Setting checkIns:', checkInsData);
             
-            // Ensure all numeric values are properly parsed as tens
+            // Ensure all numeric values are properly parsed
             const parsedCheckIns = checkInsData.map(checkIn => ({
                 ...checkIn,
-                progress_percent: Math.round(parseFloat(checkIn.progress_percent) / 10) * 10,
+                progress_percent: parseFloat(checkIn.progress_percent),
                 progress_value: Math.round(parseFloat(checkIn.progress_value)),
                 is_completed: Boolean(checkIn.is_completed)
             }));
@@ -117,7 +117,7 @@ export default function CheckInHistory({
 
     const formatProgressValue = (checkIn) => {
         if (checkIn.check_in_type === 'percentage') {
-            return `${Math.round(parseFloat(checkIn.progress_percent) / 10) * 10}%`;
+            return `${parseFloat(checkIn.progress_percent)}%`;
         }
         return `${Math.round(parseFloat(checkIn.progress_value))} ${keyResult?.unit || ''}`;
     };
@@ -202,7 +202,7 @@ export default function CheckInHistory({
                                             <div>
                                                 <span className="text-xs text-slate-500">Phần trăm</span>
                                                 <p className="text-sm font-medium text-slate-900">
-                                                    {Math.round(parseFloat(checkIn.progress_percent) / 10) * 10}%
+                                                    {parseFloat(checkIn.progress_percent)}%
                                                 </p>
                                             </div>
                                         </div>

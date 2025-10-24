@@ -5,7 +5,7 @@ export default function PieChart({ data }) {
     const total = data.reduce((sum, item) => sum + item.value, 0);
     const pieData = data.map(item => ({
         ...item,
-        percentage: ((item.value / total) * 100).toFixed(2)
+        percentage: ((item.value / total) * 100)
     }));
 
     // Tính toán strokeDasharray cho SVG

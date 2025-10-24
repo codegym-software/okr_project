@@ -20,10 +20,24 @@ export default function CheckInModal({
 
     useEffect(() => {
         if (keyResult && open) {
+            // Tính phần trăm chính xác từ current_value / target_value
+            const currentValue = parseFloat(keyResult.current_value) || 0;
+            const targetValue = parseFloat(keyResult.target_value) || 0;
+            const calculatedPercent = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+            
+            console.log('🔍 Tính toán tiến độ:', {
+                keyResultRaw: keyResult,
+                currentValue,
+                targetValue,
+                calculatedPercent,
+                calculatedPercentFixed: calculatedPercent.toFixed(2),
+                isFinite: Number.isFinite(calculatedPercent)
+            });
+            
             setFormData({
                 check_in_type: keyResult.unit === '%' ? 'percentage' : 'quantity',
-                progress_value: Math.round(parseFloat(keyResult.current_value)) || 0,
-                progress_percent: Math.round(parseFloat(keyResult.progress_percent) / 10) * 10 || 0,
+                progress_value: currentValue,
+                progress_percent: calculatedPercent, // Không làm tròn
                 notes: '',
                 is_completed: keyResult.status === 'completed'
             });
@@ -32,23 +46,50 @@ export default function CheckInModal({
     }, [keyResult, open]);
 
     const handleInputChange = (field, value) => {
+        console.log('🔧 handleInputChange called:', { field, value, keyResult });
+        
         setFormData(prev => {
             const newData = { ...prev, [field]: value };
             
-            // Tự động tính toán progress_percent nếu thay đổi progress_value
+            // Auto-calculate: Tự động tính toán progress_percent khi nhập giá trị hiện tại
             if (field === 'progress_value' && keyResult?.target_value > 0) {
-                const percent = Math.min(100, Math.max(0, 
-                    Math.round((parseFloat(value) / parseFloat(keyResult.target_value)) * 100 / 10) * 10
-                ));
+                const currentValue = parseFloat(value) || 0;
+                const targetValue = parseFloat(keyResult.target_value);
+                const percent = Math.min(100, Math.max(0, (currentValue / targetValue) * 100));
+                
+                console.log('🔄 Auto-calculate từ giá trị:', {
+                    field,
+                    value,
+                    currentValue,
+                    targetValue,
+                    keyResultTargetValue: keyResult.target_value,
+                    calculatedPercent: percent,
+                    displayedPercent: percent,
+                    isFinite: Number.isFinite(percent)
+                });
+                
                 newData.progress_percent = percent;
                 newData.is_completed = percent >= 100;
             }
             
-            // Tự động tính toán progress_value nếu thay đổi progress_percent
+            // Auto-calculate: Tự động tính toán progress_value khi nhập phần trăm
             if (field === 'progress_percent' && keyResult?.target_value > 0) {
-                const progressValue = Math.round((parseFloat(value) / 100) * parseFloat(keyResult.target_value));
+                const percent = parseFloat(value) || 0;
+                const targetValue = parseFloat(keyResult.target_value);
+                const progressValue = (percent / 100) * targetValue;
+                
+                console.log('🔄 Auto-calculate từ phần trăm:', {
+                    field,
+                    value,
+                    percent,
+                    targetValue,
+                    keyResultTargetValue: keyResult.target_value,
+                    calculatedValue: progressValue,
+                    displayedValue: progressValue
+                });
+                
                 newData.progress_value = progressValue;
-                newData.is_completed = parseFloat(value) >= 100;
+                newData.is_completed = percent >= 100;
             }
             
             return newData;
@@ -160,14 +201,22 @@ export default function CheckInModal({
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
                             Giá trị hiện tại
+                            <span className="text-xs text-blue-600 ml-1">(Auto-calculate %)</span>
                         </label>
                         <input
                             type="number"
                             min="0"
-                            step="1"
+                            step="0.000001"
                             value={formData.progress_value}
-                            onChange={(e) => handleInputChange('progress_value', parseFloat(e.target.value) || 0)}
+                            onChange={(e) => {
+                                console.log('🔧 Input onChange triggered:', e.target.value);
+                                handleInputChange('progress_value', parseFloat(e.target.value) || 0);
+                            }}
+                            onInput={(e) => {
+                                console.log('🔧 Input onInput triggered:', e.target.value);
+                            }}
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Nhập giá trị..."
                             required
                         />
                     </div>
@@ -184,23 +233,202 @@ export default function CheckInModal({
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                         Tiến độ (%)
+                        <span className="text-xs text-blue-600 ml-1">(Auto-calculate giá trị)</span>
                     </label>
-                    <div className="flex items-center space-x-2">
-                        <input
-                            type="range"
-                            min="0"
-                            max="10"
-                            step="1"
-                            value={Math.round(formData.progress_percent / 10)}
-                            onChange={(e) => handleInputChange('progress_percent', parseInt(e.target.value) * 10)}
-                            className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                            style={{
-                                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${formData.progress_percent}%, #e2e8f0 ${formData.progress_percent}%, #e2e8f0 100%)`
-                            }}
-                        />
-                        <span className="text-sm font-medium text-slate-600 w-16">
-                            {Math.round(formData.progress_percent / 10) * 10}%
-                        </span>
+                    <div className="space-y-2">
+                        {/* Slider */}
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={formData.progress_percent}
+                                onChange={(e) => {
+                                    console.log('🔧 Slider onChange triggered:', e.target.value);
+                                    handleInputChange('progress_percent', parseFloat(e.target.value));
+                                }}
+                                onInput={(e) => {
+                                    console.log('🔧 Slider onInput triggered:', e.target.value);
+                                }}
+                                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                style={{
+                                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${formData.progress_percent}%, #e2e8f0 ${formData.progress_percent}%, #e2e8f0 100%)`
+                                }}
+                            />
+                            <span className="text-sm font-medium text-slate-600 w-32">
+                                {formData.progress_percent}%
+                            </span>
+                        </div>
+                        
+                        {/* Input field để nhập chính xác */}
+                        <div className="flex items-center space-x-2">
+                            <span className="text-xs text-slate-500 w-16">Nhập %:</span>
+                            <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={formData.progress_percent}
+                                onChange={(e) => handleInputChange('progress_percent', parseFloat(e.target.value) || 0)}
+                                className="flex-1 rounded-lg border border-slate-300 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="0.00"
+                            />
+                            <span className="text-xs text-slate-500">%</span>
+                        </div>
+                    </div>
+                    {/* Hiển thị công thức tính toán chi tiết */}
+                    <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                        <div className="font-medium mb-1">🔄 Auto-calculate hoạt động:</div>
+                        <div className="mb-1">
+                            • Nhập <strong>giá trị hiện tại</strong> → Tự động tính <strong>phần trăm</strong>
+                        </div>
+                        <div className="mb-1">
+                            • Nhập <strong>phần trăm</strong> → Tự động tính <strong>giá trị hiện tại</strong>
+                        </div>
+                        <div className="font-medium mt-2">Công thức:</div>
+                        <div>
+                            ({formData.progress_value} ÷ {keyResult.target_value}) × 100 = {formData.progress_percent}%
+                        </div>
+                        <div className="mt-1 text-blue-600">
+                            Giá trị hiện tại: {formData.progress_value} | Phần trăm: {formData.progress_percent}%
+                        </div>
+                        <div className="mt-1 text-red-600 text-xs">
+                            DEBUG: Raw={formData.progress_percent} | Type: {typeof formData.progress_percent}
+                        </div>
+                        <div className="mt-2 p-2 bg-yellow-100 rounded text-yellow-800 text-xs">
+                            ⚠️ Nếu vẫn thấy số nguyên (10%), hãy refresh browser (Ctrl+F5) để clear cache
+                        </div>
+                        <div className="mt-2 p-2 bg-green-100 rounded text-green-800 text-xs">
+                            ✅ Database đã lưu: 60.16% | Hiển thị: {formData.progress_percent}% | Slider step: 0.01%
+                        </div>
+                        <div className="mt-2 p-2 bg-purple-100 rounded text-purple-800 text-xs">
+                            🔄 KeyResult Data: current_value={keyResult?.current_value}, target_value={keyResult?.target_value}
+                        </div>
+                        <div className="mt-2 p-2 bg-orange-100 rounded text-orange-800 text-xs">
+                            🧮 Auto-calc Test: Nhập {formData.progress_value} → Tính {(formData.progress_value / keyResult?.target_value * 100)}% | Target: {keyResult?.target_value}
+                        </div>
+                        <div className="mt-2 p-2 bg-cyan-100 rounded text-cyan-800 text-xs">
+                            📊 Công thức: (Giá trị hiện tại ÷ Mục tiêu) × 100 = ({formData.progress_value} ÷ {keyResult?.target_value}) × 100 = {(formData.progress_value / keyResult?.target_value * 100)}%
+                        </div>
+                        <div className="mt-2 p-2 bg-pink-100 rounded text-pink-800 text-xs">
+                            🎚️ Slider Debug: min=0, max=100, step=0.01, value={formData.progress_percent} | Range: 0% - 100%
+                        </div>
+                        <div className="mt-2 flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => window.location.reload()}
+                                className="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                            >
+                                🔄 Refresh Page
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const currentValue = parseFloat(keyResult?.current_value) || 0;
+                                    const targetValue = parseFloat(keyResult?.target_value) || 0;
+                                    const calculatedPercent = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        progress_value: currentValue,
+                                        progress_percent: calculatedPercent
+                                    }));
+                                }}
+                                className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                            >
+                                🔄 Recalculate
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Test với giá trị 30
+                                    const testValue = 30;
+                                    const targetValue = parseFloat(keyResult?.target_value) || 123;
+                                    const calculatedPercent = (testValue / targetValue) * 100;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        progress_value: testValue,
+                                        progress_percent: calculatedPercent
+                                    }));
+                                    console.log('🧪 Test với giá trị 30:', { testValue, targetValue, calculatedPercent });
+                                }}
+                                className="px-3 py-1 bg-yellow-500 text-white text-xs rounded hover:bg-yellow-600"
+                            >
+                                🧪 Test 30
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Test với giá trị 50
+                                    const testValue = 50;
+                                    const targetValue = parseFloat(keyResult?.target_value) || 123;
+                                    const calculatedPercent = (testValue / targetValue) * 100;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        progress_value: testValue,
+                                        progress_percent: calculatedPercent
+                                    }));
+                                    console.log('🧪 Test với giá trị 50:', { testValue, targetValue, calculatedPercent });
+                                }}
+                                className="px-3 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600"
+                            >
+                                🧪 Test 50
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Test với giá trị 75
+                                    const testValue = 75;
+                                    const targetValue = parseFloat(keyResult?.target_value) || 123;
+                                    const calculatedPercent = (testValue / targetValue) * 100;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        progress_value: testValue,
+                                        progress_percent: calculatedPercent
+                                    }));
+                                    console.log('🧪 Test với giá trị 75:', { testValue, targetValue, calculatedPercent });
+                                }}
+                                className="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
+                            >
+                                🧪 Test 75
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Test với giá trị 0
+                                    const testValue = 0;
+                                    const targetValue = parseFloat(keyResult?.target_value) || 123;
+                                    const calculatedPercent = (testValue / targetValue) * 100;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        progress_value: testValue,
+                                        progress_percent: calculatedPercent
+                                    }));
+                                    console.log('🧪 Test với giá trị 0:', { testValue, targetValue, calculatedPercent });
+                                }}
+                                className="px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                            >
+                                🧪 Test 0
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Test với giá trị 100
+                                    const testValue = 100;
+                                    const targetValue = parseFloat(keyResult?.target_value) || 123;
+                                    const calculatedPercent = (testValue / targetValue) * 100;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        progress_value: testValue,
+                                        progress_percent: calculatedPercent
+                                    }));
+                                    console.log('🧪 Test với giá trị 100:', { testValue, targetValue, calculatedPercent });
+                                }}
+                                className="px-3 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
+                            >
+                                🧪 Test 100
+                            </button>
+                        </div>
                     </div>
                 </div>
 

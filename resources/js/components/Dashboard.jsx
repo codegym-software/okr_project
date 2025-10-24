@@ -91,7 +91,7 @@ export default function Dashboard() {
             }
 
             // Tạo URL với filter
-            let url = `/my-objectives?page=${pageNum}&dashboard=1`;
+            let url = `/my-objectives?page=${pageNum}&dashboard=1&_t=${Date.now()}`;
             if (filter) {
                 url += `&cycle_id=${filter}`;
             }
@@ -236,9 +236,9 @@ export default function Dashboard() {
                         break;
                     case 'progress':
                         aValue = a.key_results?.length > 0 ? 
-                            Math.round(a.key_results.reduce((sum, kr) => sum + (parseFloat(kr.progress_percent) || 0), 0) / a.key_results.length) : 0;
+                            (a.key_results.reduce((sum, kr) => sum + (parseFloat(kr.progress_percent) || 0), 0) / a.key_results.length) : 0;
                         bValue = b.key_results?.length > 0 ? 
-                            Math.round(b.key_results.reduce((sum, kr) => sum + (parseFloat(kr.progress_percent) || 0), 0) / b.key_results.length) : 0;
+                            (b.key_results.reduce((sum, kr) => sum + (parseFloat(kr.progress_percent) || 0), 0) / b.key_results.length) : 0;
                         break;
                     default:
                         aValue = (a.obj_title || '').toLowerCase();
