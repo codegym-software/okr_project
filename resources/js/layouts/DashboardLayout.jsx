@@ -270,6 +270,7 @@ function DashboardTopbar({
 
 export default function DashboardLayout({ children, user }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    
     const logout = async () => {
         try {
             const token = document
@@ -284,6 +285,15 @@ export default function DashboardLayout({ children, user }) {
             console.error(e);
         }
     };
+
+    const openProfile = () => {
+        window.location.href = "/profile";
+    };
+
+    const openPassword = () => {
+        window.location.href = "/change-password";
+    };
+
     return (
         <div className="min-h-screen bg-white">
             {/* Sidebar */}
@@ -407,17 +417,83 @@ export default function DashboardLayout({ children, user }) {
             {/* Header */}
             <div className="ml-64 bg-white border-b border-gray-200 px-6 py-4">
                 <div className="flex items-center justify-between">
-                       <div className="flex items-center space-x-4">
-                           {/* Header title removed */}
-                       </div>
                     <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2 bg-gray-100 rounded-full px-4 py-2">
-                            <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
-                            <span className="text-sm font-medium text-gray-700">khanhnguyen</span>
-                            <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                        </div>
+                        {/* Header title removed */}
+                    </div>
+                    <div className="flex items-center space-x-4">
+                        <Dropdown
+                            position="right"
+                            zIndex={10000}
+                            className="min-w-[360px]"
+                            trigger={
+                                <button className="flex items-center gap-3 rounded-full border border-slate-200 bg-white pl-3 pr-4 py-2 hover:bg-slate-50">
+                                    <img
+                                        src={user?.avatar || "/images/default.png"}
+                                        alt="avatar"
+                                        className="h-10 w-10 rounded-full object-cover"
+                                    />
+                                    <span className="hidden md:block text-base font-semibold text-slate-700">
+                                        {user?.name || "User"}
+                                    </span>
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-5 w-5 text-slate-500"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            fillRule="evenodd"
+                                            d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                                            clipRule="evenodd"
+                                        />
+                                    </svg>
+                                </button>
+                            }
+                        >
+                            <DropdownHeader>
+                                <div className="font-semibold text-slate-900">
+                                    {user?.name || "User"}
+                                </div>
+                                <div className="text-sm text-slate-500">
+                                    {user?.email || "user@example.com"}
+                                </div>
+                            </DropdownHeader>
+                            <DropdownContent>
+                                <DropdownItem onClick={openProfile}>
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-5 w-5"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm-7 9a7 7 0 1114 0H5z" />
+                                    </svg>
+                                    Hồ sơ cá nhân
+                                </DropdownItem>
+                                <DropdownItem onClick={openPassword}>
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-5 w-5"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8 4a8 8 0 11-16 0 8 8 0 0116 0z" />
+                                    </svg>
+                                    Đổi mật khẩu
+                                </DropdownItem>
+                                <DropdownItem onClick={logout} variant="danger">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-5 w-5"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path d="M16 13v-2H7V8l-5 4 5 4v-3h9zM20 3H10a2 2 0 00-2 2v4h2V5h10v14H10v-4H8v4a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2z" />
+                                    </svg>
+                                    Đăng xuất
+                                </DropdownItem>
+                            </DropdownContent>
+                        </Dropdown>
                     </div>
                 </div>
             </div>
