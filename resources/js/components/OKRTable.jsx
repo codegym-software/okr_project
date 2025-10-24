@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { canCheckInKeyResult } from '../utils/checkinPermissions';
 
 export default function OKRTable({ 
     items, 
@@ -27,11 +28,9 @@ export default function OKRTable({
         );
     }
 
-    // Kiểm tra quyền checkin Key Result
-    const canCheckIn = (kr) => {
-        if (!currentUser || !kr) return false;
-        return String(kr.user_id) === String(currentUser.user_id) || 
-               String(kr.user_id) === String(currentUser.id);
+    // Kiểm tra quyền checkin Key Result - sử dụng logic đồng bộ với backend
+    const canCheckIn = (kr, objective) => {
+        return canCheckInKeyResult(currentUser, kr, objective);
     };
 
     return (
@@ -60,9 +59,14 @@ export default function OKRTable({
                     </div>
                 ) : (
                     items.map((item, index) => {
-                        // Tính tiến độ trung bình của các Key Results
+                        // Tính tiến độ trung bình của các Key Results từ công thức hiện tại/mục tiêu
                         const avgProgress = item.key_results?.length > 0 
-                            ? Math.round(item.key_results.reduce((sum, kr) => sum + (parseFloat(kr.progress_percent) || 0), 0) / item.key_results.length)
+                            ? (item.key_results.reduce((sum, kr) => {
+                                const currentValue = parseFloat(kr.current_value) || 0;
+                                const targetValue = parseFloat(kr.target_value) || 0;
+                                const percentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                return sum + percentage;
+                            }, 0) / item.key_results.length)
                             : 0;
                         
                         // Đếm số Key Results đã check-in
@@ -139,14 +143,20 @@ export default function OKRTable({
                                     <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
                                         <div className="ml-8 space-y-3">
                                             <h4 className="text-sm font-semibold text-gray-700 mb-3">Key Results:</h4>
-                                            {item.key_results.map((kr, krIndex) => (
+                                            {item.key_results.map((kr, krIndex) => {
+                                                // Tính phần trăm chính xác từ công thức hiện tại/mục tiêu
+                                                const currentValue = parseFloat(kr.current_value) || 0;
+                                                const targetValue = parseFloat(kr.target_value) || 0;
+                                                const calculatedPercentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                                
+                                                return (
                                                 <div key={kr.kr_id} className="bg-white rounded-lg p-3 border border-gray-200">
                                                     <div className="flex items-center justify-between mb-2">
                                                         <span className="text-sm font-medium text-gray-900">{kr.kr_title}</span>
                                                         <div className="flex items-center space-x-2">
-                                                            <span className="text-sm font-bold text-blue-600">{parseFloat(kr.progress_percent || 0).toFixed(0)}%</span>
+                                                            <span className="text-sm font-bold text-blue-600">{calculatedPercentage}%</span>
                                                             {/* Nút Check-in cho Key Result */}
-                                                            {canCheckIn(kr) && (
+                                                            {canCheckIn(kr, item) && (
                                                                 <button
                                                                     onClick={() => onCheckIn?.({ ...kr, objective_id: item.objective_id })}
                                                                     className="p-1 rounded hover:bg-blue-50 transition-colors"
@@ -172,7 +182,7 @@ export default function OKRTable({
                                                     <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                                                         <div 
                                                             className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                                                            style={{ width: `${Math.min(parseFloat(kr.progress_percent || 0), 100)}%` }}
+                                                            style={{ width: `${Math.min(calculatedPercentage, 100)}%` }}
                                                         ></div>
                                                     </div>
                                                     <div className="flex items-center justify-between text-xs text-gray-500">
@@ -180,7 +190,8 @@ export default function OKRTable({
                                                         <span>Current: {kr.current_value || 0} {kr.unit || ''}</span>
                                                     </div>
                                                 </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}

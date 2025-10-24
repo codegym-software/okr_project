@@ -24,7 +24,7 @@ export default function KeyResultModal({
                 ...kr,
                 cycle_id: kr.cycle_id,
                 progress_percent: Number.isFinite(computed)
-                    ? Number(computed.toFixed(2))
+                    ? computed
                     : 0,
             };
             const res = await fetch(
@@ -208,6 +208,7 @@ export default function KeyResultModal({
                                 defaultValue={editingKR.target_value}
                                 name="target_value"
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 required
                             />
@@ -220,6 +221,7 @@ export default function KeyResultModal({
                                 defaultValue={editingKR.current_value}
                                 name="current_value"
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
                         </div>
@@ -388,6 +390,7 @@ export default function KeyResultModal({
                             <input
                                 name="target_value"
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 required
                             />
@@ -399,6 +402,7 @@ export default function KeyResultModal({
                             <input
                                 name="current_value"
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
                         </div>
