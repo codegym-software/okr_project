@@ -303,8 +303,11 @@ export default function Dashboard() {
     }, [sortedItems]);
 
     const openCheckInModal = (keyResult) => {
-        console.log('Opening check-in modal for Key Result:', keyResult);
-        console.log('Key Result ID:', keyResult?.kr_id);
+        console.log('🔧 Dashboard: Opening check-in modal for Key Result:', keyResult);
+        console.log('🔧 Dashboard: Key Result ID:', keyResult?.kr_id);
+        console.log('🔧 Dashboard: Key Result current_value:', keyResult?.current_value);
+        console.log('🔧 Dashboard: Key Result target_value:', keyResult?.target_value);
+        console.log('🔧 Dashboard: Key Result progress_percent:', keyResult?.progress_percent);
         setCheckInModal({ open: true, keyResult, type: 'keyResult' });
     };
 
@@ -605,6 +608,7 @@ export default function Dashboard() {
             {/* Check-in Modal */}
             <ErrorBoundary>
                 <CheckInModal
+                    key={`checkin-${checkInModal.keyResult?.kr_id}-${checkInModal.keyResult?.current_value}-${checkInModal.keyResult?.progress_percent}`}
                     open={checkInModal.open}
                     onClose={() => setCheckInModal({ open: false, keyResult: null })}
                     keyResult={checkInModal.keyResult}

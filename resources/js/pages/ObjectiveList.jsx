@@ -106,7 +106,7 @@ export default function ObjectiveList({
 
     const formatPercent = (value) => {
         const n = Number(value);
-        return Number.isFinite(n) ? `${n}%` : "";
+        return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
     };
 
     const getStatusText = (status) => {

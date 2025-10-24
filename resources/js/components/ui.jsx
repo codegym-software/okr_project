@@ -41,16 +41,16 @@ export function GradientText({ children }) {
 export function Modal({ open, onClose, title, children }) {
     if (!open) return null;
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-            <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-200 p-4">
+            <div className="relative w-full max-w-2xl max-h-[90vh] rounded-2xl bg-white shadow-xl flex flex-col">
+                <div className="flex items-center justify-between border-b border-slate-200 p-4 flex-shrink-0">
                     <h3 className="text-lg font-bold text-slate-900">{title}</h3>
                     <button onClick={onClose} className="rounded-md p-2 text-slate-500 hover:bg-slate-100" aria-label="Close">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L10.59 13.41 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29 10.59 10.59 16.89 4.29z"/></svg>
                     </button>
                 </div>
-                <div className="p-6">{children}</div>
+                <div className="p-6 overflow-y-auto flex-1">{children}</div>
             </div>
         </div>
     );

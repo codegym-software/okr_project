@@ -117,7 +117,7 @@ export default function CheckInHistory({
 
     const formatProgressValue = (checkIn) => {
         if (checkIn.check_in_type === 'percentage') {
-            return `${parseFloat(checkIn.progress_percent)}%`;
+            return `${parseFloat(checkIn.progress_percent).toFixed(2)}%`;
         }
         return `${Math.round(parseFloat(checkIn.progress_value))} ${keyResult?.unit || ''}`;
     };
@@ -178,10 +178,10 @@ export default function CheckInHistory({
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                        <div className="flex items-center space-x-2 mb-2">
-                                            <span className="text-sm font-medium text-slate-900">
+                                        <div className="flex items-center space-x-3 mb-3">
+                                            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-full text-sm font-semibold">
                                                 #{checkIns.length - index}
-                                            </span>
+                                            </div>
                                             {checkIn.is_completed && (
                                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                                     <svg className="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -192,18 +192,20 @@ export default function CheckInHistory({
                                             )}
                                         </div>
                                         
-                                        <div className="grid grid-cols-2 gap-4 mb-2">
-                                            <div>
-                                                <span className="text-xs text-slate-500">Tiến độ</span>
-                                                <p className="text-sm font-medium text-slate-900">
-                                                    {formatProgressValue(checkIn)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <span className="text-xs text-slate-500">Phần trăm</span>
-                                                <p className="text-sm font-medium text-slate-900">
-                                                    {parseFloat(checkIn.progress_percent)}%
-                                                </p>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center space-x-4">
+                                                <div>
+                                                    <span className="text-xs text-slate-500">Tiến độ</span>
+                                                    <p className="text-sm font-medium text-slate-900">
+                                                        {formatProgressValue(checkIn)}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-500">Phần trăm</span>
+                                                    <p className="text-sm font-medium text-slate-900">
+                                                        {parseFloat(checkIn.progress_percent).toFixed(2)}%
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -216,13 +218,19 @@ export default function CheckInHistory({
                                             </div>
                                         )}
 
-                                        <div className="flex items-center justify-between text-xs text-slate-500">
-                                            <span>
-                                                Bởi: {checkIn.user?.full_name || 'Người dùng'}
-                                            </span>
-                                            <span>
-                                                {formatDate(checkIn.created_at)}
-                                            </span>
+                                        <div className="flex items-center justify-between text-xs text-slate-500 mt-3 pt-2 border-t border-slate-100">
+                                            <div className="flex items-center space-x-2">
+                                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                <span>Bởi: {checkIn.user?.full_name || 'Người dùng'}</span>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span>{formatDate(checkIn.created_at)}</span>
+                                            </div>
                                         </div>
                                     </div>
 

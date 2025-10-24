@@ -111,7 +111,7 @@ export default function OKRTable({
                                         <div className="hidden md:block text-sm text-gray-600">100%</div>
                                         <div className="text-sm text-gray-600">
                                             <div className="flex items-center space-x-2">
-                                                <span className="font-medium">{avgProgress}%</span>
+                                                <span className="font-medium">{avgProgress.toFixed(2)}%</span>
                                                 <div className="w-16 bg-gray-200 rounded-full h-2">
                                                     <div 
                                                         className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
@@ -154,7 +154,7 @@ export default function OKRTable({
                                                     <div className="flex items-center justify-between mb-2">
                                                         <span className="text-sm font-medium text-gray-900">{kr.kr_title}</span>
                                                         <div className="flex items-center space-x-2">
-                                                            <span className="text-sm font-bold text-blue-600">{calculatedPercentage}%</span>
+                                                            <span className="text-sm font-bold text-blue-600">{calculatedPercentage.toFixed(2)}%</span>
                                                             {/* Nút Check-in cho Key Result */}
                                                             {canCheckIn(kr, item) && (
                                                                 <button
