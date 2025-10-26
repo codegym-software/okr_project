@@ -20,7 +20,7 @@
                     name: u.full_name || u.name || null,
                     email: u.email || null,
                     avatar: u.avatar_url || null,
-                    role: u.role ? { role_name: u.role.role_name } : null,
+                    role: u.role ? { role_name: u.role.role_name, level: u.role.level } : null,
                     is_admin: <?php echo json_encode(auth()->check() && auth()->user()->isAdmin(), 15, 512) ?>,
                 };
             } else {
