@@ -59,14 +59,23 @@ export default function ObjectiveModal({
         }
     }, [editingObjective]);
 
+    // Reset create form each time the "creatingObjective" modal is opened
+    useEffect(() => {
+        if (creatingObjective) {
+            setCreateForm({
+                obj_title: "",
+                description: "",
+                level: "",
+                status: "",
+                cycle_id: "",
+                department_id: "",
+                key_results: [],
+            });
+        }
+    }, [creatingObjective]);
+
     // Fetch available targets
     const fetchAvailableTargets = async () => {
-        // TODO: Implement linking feature
-        // Tạm thời disable để tránh lỗi route not found
-        setAvailableTargets([]);
-        return;
-        
-        /* DISABLED - Route not implemented yet
         if (!editingObjective?.objective_id) {
             setAvailableTargets([]);
             return;
@@ -99,7 +108,6 @@ export default function ObjectiveModal({
             });
             setAvailableTargets([]);
         }
-        */
     };
 
     useEffect(() => {
@@ -128,9 +136,6 @@ export default function ObjectiveModal({
                     );
                 }
             } catch (err) {
-                console.error("Error fetching allowed levels:", err);
-                // Fallback to default levels for member
-                setAllowedLevels(['person']);
                 setToast({
                     type: "error",
                     message: err.message || "Không thể lấy danh sách cấp độ",
@@ -252,19 +257,15 @@ export default function ObjectiveModal({
         }));
     };
 
-    const handleCreateObjective = async () => {
-        // Filter out empty key results
-        const validKeyResults = createForm.key_results.filter(kr => 
-            kr.kr_title && kr.kr_title.trim() !== '' && kr.unit && kr.status
-        );
-        
-        if (validKeyResults.length < 1) {
-            setToast({
-                type: "error",
-                message: "Phải có ít nhất một Key Result",
-            });
-            return;
-        }
+    const handleCreateObjective = async (e) => {
+        if (e && typeof e.preventDefault === "function") e.preventDefault();
+        // if (createForm.key_results.length < 1) {
+        //     setToast({
+        //         type: "error",
+        //         message: "Phải có ít nhất một Key Result",
+        //     });
+        //     return;
+        // }
         if (
             createForm.level !== "company" &&
             createForm.level !== "" &&
@@ -286,10 +287,10 @@ export default function ObjectiveModal({
                     createForm.level === "company"
                         ? null
                         : createForm.department_id,
-                key_results: validKeyResults.map((kr) => ({
+                key_results: createForm.key_results.map((kr) => ({
                     ...kr,
-                    target_value: Number(kr.target_value) || 0,
-                    current_value: Number(kr.current_value) || 0,
+                    target_value: Number(kr.target_value),
+                    current_value: Number(kr.current_value),
                 })),
             };
             const res = await fetch("/my-objectives/store", {
@@ -305,27 +306,14 @@ export default function ObjectiveModal({
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Tạo thất bại");
             const created = json.data;
-            const next = [
-                ...(
-                    (Array.isArray(await (async () => null)()) && []) || []
-                ),
-            ];
-            const updatedList = (prev => {
-                const merged = [
-                    ...prev,
-                    { 
-                        ...created, 
-                        key_results: created.key_results || created.keyResults || [] 
-                    },
-                ];
-                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
-                return merged;
-            });
-            setItems(updatedList);
+            setItems((prev) => [
+                ...prev,
+                { ...created, key_results: created.key_results || [] },
+            ]);
             setCreatingObjective(false);
             setToast({
                 type: "success",
-                message: "Tạo Objective và Key Results thành công",
+                message: "Tạo Objective thành công",
             });
         } catch (err) {
             setToast({ type: "error", message: err.message || "Tạo thất bại" });
@@ -414,11 +402,11 @@ export default function ObjectiveModal({
             const json = await res.json().catch(() => ({ success: res.ok }));
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Xóa Objective thất bại");
-            setItems((prev) => {
-                const merged = prev.filter((o) => o.objective_id !== editingObjective.objective_id);
-                try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
-                return merged;
-            });
+            setItems((prev) =>
+                prev.filter(
+                    (o) => o.objective_id !== editingObjective.objective_id
+                )
+            );
             setEditingObjective(null);
             setToast({
                 type: "success",
@@ -562,17 +550,11 @@ export default function ObjectiveModal({
                                         onChange={(e) => {
                                             const selectedDeptId =
                                                 e.target.value;
-                                            // Admin có quyền chọn bất kỳ phòng ban nào
-                                            const isAdmin = 
-                                                currentUser?.is_admin === true || 
-                                                currentUser?.role?.role_name?.toLowerCase() === 'admin';
-                                            
-                                            // Nếu không phải Admin và chọn phòng ban khác phòng ban của mình
                                             if (
-                                                !isAdmin &&
-                                                selectedDeptId &&
-                                                selectedDeptId !== "" &&
-                                                selectedDeptId !== String(currentUser?.department_id)
+                                                selectedDeptId !==
+                                                String(
+                                                    currentUser?.department_id
+                                                )
                                             ) {
                                                 setToast({
                                                     type: "error",
@@ -591,32 +573,41 @@ export default function ObjectiveModal({
                                         <option value="">
                                             -- chọn phòng ban --
                                         </option>
-                                        {departments.map((dept) => {
-                                            const isUserDept = String(dept.department_id) === String(currentUser?.department_id);
-                                            const isAdmin = 
-                                                currentUser?.is_admin === true || 
-                                                currentUser?.role?.role_name?.toLowerCase() === 'admin';
-                                            
-                                            return (
-                                                <option
-                                                    key={dept.department_id}
-                                                    value={String(dept.department_id)}
-                                                    className={isUserDept ? "font-semibold text-blue-600" : ""}
-                                                >
-                                                    {dept.d_name}
-                                                    {isUserDept ? " (Phòng ban của bạn)" : ""}
-                                                </option>
-                                            );
-                                        })}
+                                        {departments.map((dept) => (
+                                            <option
+                                                key={dept.department_id}
+                                                value={String(
+                                                    dept.department_id
+                                                )}
+                                                className={
+                                                    String(
+                                                        dept.department_id
+                                                    ) ===
+                                                    String(
+                                                        currentUser?.department_id
+                                                    )
+                                                        ? "font-semibold text-blue-600"
+                                                        : ""
+                                                }
+                                            >
+                                                {dept.d_name}
+                                                {String(dept.department_id) ===
+                                                String(
+                                                    currentUser?.department_id
+                                                )
+                                                    ? " (Phòng ban của bạn)"
+                                                    : ""}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                             )}
                     </div>
                     {creatingObjective && (
                         <div className="mt-4">
-                            <h3 className="text-sm font-semibold text-slate-700">
+                            {/* <h3 className="text-sm font-semibold text-slate-700">
                                 Key Results
-                            </h3>
+                            </h3> */}
                             {createForm.key_results.map((kr, index) => (
                                 <div
                                     key={index}
@@ -710,9 +701,6 @@ export default function ObjectiveModal({
                                                 <option value="completion">
                                                     Hoàn thành
                                                 </option>
-                                                <option value="bai">
-                                                    Bài
-                                                </option>
                                             </select>
                                         </div>
                                     </div>
@@ -731,7 +719,6 @@ export default function ObjectiveModal({
                                                     )
                                                 }
                                                 type="number"
-                                                step="0.01"
                                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                                 required
                                             />
@@ -750,20 +737,19 @@ export default function ObjectiveModal({
                                                     )
                                                 }
                                                 type="number"
-                                                step="0.01"
                                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                             />
                                         </div>
                                     </div>
                                 </div>
                             ))}
-                            <button
+                            {/* <button
                                 type="button"
                                 onClick={addNewKR}
                                 className="mt-2 rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
                             >
                                 Thêm Key Result
-                            </button>
+                            </button> */}
                         </div>
                     )}
                     {editingObjective && (
@@ -875,7 +861,7 @@ export default function ObjectiveModal({
                         </div>
                     )}
                     <div className="flex justify-end gap-2 pt-2">
-                        {editingObjective && currentUser && currentUser.role?.role_name?.toLowerCase() !== 'member' && (
+                        {editingObjective && (
                             <button
                                 type="button"
                                 onClick={handleDeleteObjective}
