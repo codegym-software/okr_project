@@ -43,15 +43,16 @@ class Role extends Model
         return (strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'unit');
     }
 
-    /**
-     * Kiểm tra xem role có phải Team Manager không
+     /**
+     * Kiểm tra xem role có phải Manager không
      */
-    public function isTeamManager()
+    public function isManager()
     {
-        return (strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'team');
+        return strtolower($this->role_name) === 'manager';
     }
-
+    
     /**
+
      * Kiểm tra xem role có phải Member không
      */
     public function isMember()

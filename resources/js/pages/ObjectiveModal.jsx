@@ -10,6 +10,7 @@ export default function ObjectiveModal({
     cyclesList,
     setItems,
     setToast,
+    reloadData,
 }) {
     console.log("🚨 FULL editingObjective:", editingObjective); // DEBUG
     const [createForm, setCreateForm] = useState(
@@ -305,12 +306,7 @@ export default function ObjectiveModal({
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Tạo thất bại");
             const created = json.data;
-            const next = [
-                ...(
-                    (Array.isArray(await (async () => null)()) && []) || []
-                ),
-            ];
-            const updatedList = (prev => {
+            setItems(prev => {
                 const merged = [
                     ...prev,
                     { 
@@ -321,8 +317,11 @@ export default function ObjectiveModal({
                 try { localStorage.setItem('my_objectives', JSON.stringify(merged)); } catch {}
                 return merged;
             });
-            setItems(updatedList);
             setCreatingObjective(false);
+            // Reload data from server to ensure consistency
+            if (reloadData) {
+                reloadData();
+            }
             setToast({
                 type: "success",
                 message: "Tạo Objective và Key Results thành công",

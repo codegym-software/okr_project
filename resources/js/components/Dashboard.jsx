@@ -175,7 +175,7 @@ export default function Dashboard() {
     }, [myOKRFilter]);
 
     useEffect(() => {
-        // Khi Department filter thay đổi, chỉ reset về trang 1 (lọc client-side)
+        // Khi Department filter thay đổi, reset về trang 1 và reload (filter client-side)
         setPage(1);
     }, [departmentFilter]);
 
@@ -233,25 +233,34 @@ export default function Dashboard() {
         [items, cycleFilter, departmentFilter, myOKRFilter, currentUser]
     );
 
+    const sortedItems = useMemo(() => {
+        // Sort by created_at descending (newest first)
+        return [...filteredItems].sort((a, b) => {
+            const dateA = new Date(a.created_at || 0);
+            const dateB = new Date(b.created_at || 0);
+            return dateB - dateA; // Descending order
+        });
+    }, [filteredItems]);
+
     // Tính toán dữ liệu cho pie chart
     useEffect(() => {
-        if (filteredItems.length > 0) {
-            const total = filteredItems.length;
+        if (sortedItems.length > 0) {
+            const total = sortedItems.length;
             
             // Tính toán các trạng thái dựa trên progress của Key Results
-            const completed = filteredItems.filter(item => {
+            const completed = sortedItems.filter(item => {
                 if (!item.key_results || item.key_results.length === 0) return false;
                 return item.key_results.every(kr => parseFloat(kr.progress_percent || 0) >= 100);
             }).length;
             
-            const inProgress = filteredItems.filter(item => {
+            const inProgress = sortedItems.filter(item => {
                 if (!item.key_results || item.key_results.length === 0) return false;
                 const hasProgress = item.key_results.some(kr => parseFloat(kr.progress_percent || 0) > 0);
                 const notCompleted = item.key_results.some(kr => parseFloat(kr.progress_percent || 0) < 100);
                 return hasProgress && notCompleted;
             }).length;
             
-            const draft = filteredItems.filter(item => {
+            const draft = sortedItems.filter(item => {
                 if (!item.key_results || item.key_results.length === 0) return true;
                 return item.key_results.every(kr => parseFloat(kr.progress_percent || 0) === 0);
             }).length;
@@ -267,7 +276,7 @@ export default function Dashboard() {
         } else {
             setPieChartData([]);
         }
-    }, [filteredItems]);
+    }, [sortedItems]);
 
     const openCheckInModal = (keyResult) => {
         console.log('🔧 Dashboard: Opening check-in modal for Key Result:', keyResult);
@@ -413,7 +422,7 @@ export default function Dashboard() {
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <div className="text-2xl font-bold text-gray-900">{filteredItems.length}</div>
+                        <div className="text-2xl font-bold text-gray-900">{sortedItems.length}</div>
                         <div className="text-sm text-gray-600">Tổng OKR</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
@@ -478,7 +487,7 @@ export default function Dashboard() {
 
                 {/* OKR Table */}
                 <OKRTable 
-                items={filteredItems}
+                items={sortedItems}
                 departments={departments}
                 cyclesList={cyclesList}
                 loading={loading}
@@ -539,6 +548,7 @@ export default function Dashboard() {
                     setEditingKR={setEditingKR}
                     setItems={setItems}
                     setToast={setToast}
+                    reloadData={() => load(page, cycleFilter, myOKRFilter)}
                 />
             )}
             {creatingFor && (
@@ -549,6 +559,7 @@ export default function Dashboard() {
                     setCreatingFor={setCreatingFor}
                     setItems={setItems}
                     setToast={setToast}
+                    reloadData={() => load(page, cycleFilter, myOKRFilter)}
                 />
             )}
             {creatingObjective && (
@@ -559,6 +570,13 @@ export default function Dashboard() {
                     cyclesList={cyclesList}
                     setItems={setItems}
                     setToast={setToast}
+                    reloadData={() => {
+                        // Reset all filters when creating new objective to ensure it shows
+                        setCycleFilter("");
+                        setDepartmentFilter("");
+                        setMyOKRFilter(false);
+                        load(1, "", false); // Reload with no filters
+                    }}
                 />
             )}
             {editingObjective && (
