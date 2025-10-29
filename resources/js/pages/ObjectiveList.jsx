@@ -498,15 +498,9 @@ export default function ObjectiveList({
                                         obj.key_results.map((kr) => (
                                             <tr key={kr.kr_id}>
                                                 <td className="px-8 py-3 border-r border-slate-200">
-                                                    <button
-                                                        onClick={() =>
-                                                            setEditingKR(kr)
-                                                        }
-                                                        className="text-indigo-600 hover:text-indigo-900 font-medium"
-                                                        title="Sửa Key Result"
-                                                    >
-                                                        {kr.kr_title || ""}
-                                                    </button>
+                                                    <span className="font-medium text-slate-900 flex-1">
+                                                        {kr.kr_title}
+                                                    </span>
                                                 </td>
                                                 <td className="px-3 py-3 border-r border-slate-200 text-center">
                                                     {departments.find(
