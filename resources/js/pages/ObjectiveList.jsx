@@ -288,7 +288,7 @@ export default function ObjectiveList({
                 <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
-                            <th className="px-3 py-2 text-left w-[30%]">
+                            <th className="px-3 py-2 text-left w-[30%] border-r border-slate-200">
                                 Tiêu đề
                             </th>
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
@@ -346,7 +346,7 @@ export default function ObjectiveList({
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        <td className="px-3 py-3">
+                                        <td className="px-3 py-3 border-r border-slate-200">
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() =>
@@ -387,13 +387,7 @@ export default function ObjectiveList({
                                             </div>
                                         </td>
 
-                                        <td className="px-3 py-3 text-center border-r border-slate-200">
-                                            {departments.find(
-                                                (d) =>
-                                                    String(d.department_id) ===
-                                                    String(obj.department_id)
-                                            )?.d_name || "-"}
-                                        </td>
+                                        <td className="px-3 py-3 text-center border-r border-slate-200"></td>
 
                                         <td className="px-3 py-3 text-center border-r border-slate-200">
                                             {cyclesList.find(
