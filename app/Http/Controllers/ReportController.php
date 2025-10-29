@@ -27,11 +27,27 @@ class ReportController extends Controller
         // Fallback: if objective progress is null, compute from KRs on demand
         $objectiveProgress = $objectives->map(function ($obj) {
             $progress = $obj->progress_percent;
-            if ($progress === null) {
-                $krAvg = DB::table('key_results')
+            if ($progress === null || (float) $progress === 0.0) {
+                // Fallback an toàn: tính bằng PHP để tránh khác biệt SQL/nullable
+                $krs = DB::table('key_results')
+                    ->select(['progress_percent','current_value','target_value'])
                     ->where('objective_id', $obj->objective_id)
-                    ->avg('progress_percent');
-                $progress = $krAvg !== null ? (float) $krAvg : 0.0;
+                    ->get();
+                if ($krs->count() === 0) {
+                    $progress = 0.0;
+                } else {
+                    $sum = 0.0;
+                    foreach ($krs as $kr) {
+                        if ($kr->progress_percent !== null) {
+                            $sum += (float) $kr->progress_percent;
+                        } elseif (!empty($kr->target_value) && (float) $kr->target_value > 0) {
+                            $sum += max(0.0, min(100.0, ((float) $kr->current_value / (float) $kr->target_value) * 100.0));
+                        } else {
+                            $sum += 0.0;
+                        }
+                    }
+                    $progress = $sum / $krs->count();
+                }
             }
             return [
                 'objective_id' => $obj->objective_id,
@@ -44,14 +60,19 @@ class ReportController extends Controller
         $overall = round($objectiveProgress->avg('progress') ?? 0, 2);
 
         // Status distribution thresholds
-        $onTrack = $objectiveProgress->where('progress', '>=', 70)->count();
-        $atRisk = $objectiveProgress->where('progress', '>=', 40)->where('progress', '<', 70)->count();
-        $offTrack = $objectiveProgress->where('progress', '<', 40)->count();
+        $onTrackCount = $objectiveProgress->where('progress', '>=', 70)->count();
+        $atRiskCount = $objectiveProgress->where('progress', '>=', 40)->where('progress', '<', 70)->count();
+        $offTrackCount = $objectiveProgress->where('progress', '<', 40)->count();
 
         $status = [
-            'onTrack' => round($onTrack * 100 / $totalCount, 2),
-            'atRisk' => round($atRisk * 100 / $totalCount, 2),
-            'offTrack' => round($offTrack * 100 / $totalCount, 2),
+            'onTrack' => round($onTrackCount * 100 / $totalCount, 2),
+            'atRisk' => round($atRiskCount * 100 / $totalCount, 2),
+            'offTrack' => round($offTrackCount * 100 / $totalCount, 2),
+        ];
+        $statusCounts = [
+            'onTrack' => $onTrackCount,
+            'atRisk' => $atRiskCount,
+            'offTrack' => $offTrackCount,
         ];
 
         // Department averages
@@ -86,10 +107,12 @@ class ReportController extends Controller
                 'overallProgress' => $overall,
                 'statusDistribution' => $status,
                 'departments' => $byDept,
+                'statusCounts' => $statusCounts,
             ],
             'meta' => [
                 'cycleId' => $cycleId ? (int) $cycleId : null,
                 'cycleName' => $cycleName,
+                'totalObjectives' => $objectiveProgress->count(),
                 'computedAt' => now()->toISOString(),
             ],
         ]);

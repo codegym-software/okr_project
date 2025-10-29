@@ -54,11 +54,14 @@ export default function CompanyOverviewReport() {
         })();
     }, [cycleId]);
 
-    const pieData = useMemo(() => [
-        { label: 'On track', value: data.statusDistribution.onTrack || 0, color: '#22c55e' },
-        { label: 'At risk', value: data.statusDistribution.atRisk || 0, color: '#f59e0b' },
-        { label: 'Off track', value: data.statusDistribution.offTrack || 0, color: '#ef4444' },
-    ], [data]);
+    const pieData = useMemo(() => {
+        const counts = data.statusCounts || {};
+        return [
+            { label: 'On track', value: counts.onTrack || 0, color: '#22c55e' },
+            { label: 'At risk', value: counts.atRisk || 0, color: '#f59e0b' },
+            { label: 'Off track', value: counts.offTrack || 0, color: '#ef4444' },
+        ];
+    }, [data]);
 
     return (
         <div className="px-6 py-8">
