@@ -70,7 +70,7 @@ class ReportController extends Controller
         // Attach department names
         $deptIds = collect($byDept)->pluck('departmentId')->filter()->all();
         $deptNames = Department::whereIn('department_id', $deptIds)
-            ->pluck('dept_name', 'department_id');
+            ->pluck('d_name', 'department_id');
         foreach ($byDept as &$row) {
             $row['departmentName'] = $row['departmentId'] ? ($deptNames[$row['departmentId']] ?? 'N/A') : 'Công ty';
         }
