@@ -29,48 +29,19 @@ export default function ObjectiveList({
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [currentCycleId, setCurrentCycleId] = useState(null);
 
-    // === TẢI OKR: LUÔN LỌC CHỈ OKR DO NGƯỜI DÙNG TẠO ===
     useEffect(() => {
         const fetchOKRs = async () => {
-            try {
-                const token = document
-                    .querySelector('meta[name="csrf-token"]')
-                    ?.getAttribute("content");
-
-                const params = new URLSearchParams();
-
-                // Luôn lọc theo chu kỳ nếu có
-                if (cycleFilter) params.append("cycle_id", cycleFilter);
-
-                // BẮT BUỘC: chỉ OKR do người dùng tạo
-                // params.append("my_okr", "1");
-
-                const res = await fetch(`/my-objectives?${params}`, {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                });
-
-                const json = await res.json();
-
-                if (json.success) {
-                    setItems(json.data.data || []);
-                    if (json.current_cycle_id && !cycleFilter) {
-                        setCycleFilter(json.current_cycle_id);
-                    }
-                } else {
-                    throw new Error(json.message || "Lỗi tải OKR");
-                }
-            } catch (err) {
-                setToast({ type: "error", message: err.message });
+            const res = await fetch("/my-objectives");
+            const json = await res.json();
+            if (json.success) {
+                setItems(json.data.data);
+                setCurrentCycleId(json.current_cycle_id);
             }
         };
-
         fetchOKRs();
-    }, [cycleFilter, setItems, setCycleFilter, setToast]);
+    }, []);
 
-    // === TẢI OKR LƯU TRỮ (VẪN GIỮ LỌC my_okr=1) ===
+    // === LOAD OKR ĐÃ LƯU TRỮ KHI CHUYỂN TAB ===
     useEffect(() => {
         if (showArchived) {
             const fetchArchived = async () => {
@@ -80,8 +51,9 @@ export default function ObjectiveList({
                         .querySelector('meta[name="csrf-token"]')
                         ?.getAttribute("content");
                     const params = new URLSearchParams({ archived: "1" });
-                    if (cycleFilter) params.append("cycle_id", cycleFilter);
-                    params.append("my_okr", "1"); // Vẫn giữ lọc
+                    if (cycleFilter) {
+                        params.append("cycle_id", cycleFilter);
+                    }
 
                     const res = await fetch(`/my-objectives?${params}`, {
                         headers: {
@@ -93,6 +65,13 @@ export default function ObjectiveList({
                     if (json.success) {
                         setArchivedItems(json.data.data || []);
                         setArchivedCount(json.data.total || 0);
+
+                        // TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI NẾU CHƯA CÓ
+                        if (json.current_cycle_id && !cycleFilter) {
+                            setCycleFilter(json.current_cycle_id);
+                        }
+                    } else {
+                        throw new Error(json.message || "Lỗi tải OKR lưu trữ");
                     }
                 } catch (err) {
                     setToast({ type: "error", message: err.message });
@@ -105,7 +84,33 @@ export default function ObjectiveList({
             setArchivedItems([]);
             setArchivedCount(0);
         }
-    }, [showArchived, cycleFilter, setToast]);
+    }, [showArchived, cycleFilter, setCycleFilter, setToast]);
+
+    // === TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI KHI VÀO TRANG ===
+    useEffect(() => {
+        if (items.length > 0 && !cycleFilter) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlCycleId = urlParams.get("cycle_id");
+
+            if (urlCycleId) {
+                setCycleFilter(urlCycleId);
+                return;
+            }
+
+            // ƯU TIÊN: DÙNG current_cycle_id TỪ BACKEND (nếu có)
+            // → Bạn PHẢI truyền currentCycleId từ component cha
+            if (currentCycleId) {
+                setCycleFilter(currentCycleId);
+                return;
+            }
+
+            // Fallback: chỉ dùng items[0] nếu không có current_cycle_id
+            const firstItemCycleId = items[0]?.cycle_id;
+            if (firstItemCycleId) {
+                setCycleFilter(firstItemCycleId);
+            }
+        }
+    }, [items, cycleFilter, setCycleFilter, currentCycleId]);
 
     // === FORMAT HELPER ===
     const formatPercent = (value) => {
