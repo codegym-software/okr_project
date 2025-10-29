@@ -15,12 +15,11 @@ export default function ObjectiveList({
     links,
     cycleFilter,
     setCycleFilter,
-    myOKRFilter,
-    setMyOKRFilter,
     openCheckInModal,
     openCheckInHistory,
     currentUser,
     hideFilters = false,
+    setItems, // Bắt buộc có
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -30,18 +29,48 @@ export default function ObjectiveList({
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [currentCycleId, setCurrentCycleId] = useState(null);
 
+    // === TẢI OKR: LUÔN LỌC CHỈ OKR DO NGƯỜI DÙNG TẠO ===
     useEffect(() => {
         const fetchOKRs = async () => {
-            const res = await fetch("/my-objectives");
-            const json = await res.json();
-            if (json.success) {
-                setItems(json.data.data);
-                setCurrentCycleId(json.current_cycle_id);
+            try {
+                const token = document
+                    .querySelector('meta[name="csrf-token"]')
+                    ?.getAttribute("content");
+
+                const params = new URLSearchParams();
+
+                // Luôn lọc theo chu kỳ nếu có
+                if (cycleFilter) params.append("cycle_id", cycleFilter);
+
+                // BẮT BUỘC: chỉ OKR do người dùng tạo
+                // params.append("my_okr", "1");
+
+                const res = await fetch(`/my-objectives?${params}`, {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                });
+
+                const json = await res.json();
+
+                if (json.success) {
+                    setItems(json.data.data || []);
+                    if (json.current_cycle_id && !cycleFilter) {
+                        setCycleFilter(json.current_cycle_id);
+                    }
+                } else {
+                    throw new Error(json.message || "Lỗi tải OKR");
+                }
+            } catch (err) {
+                setToast({ type: "error", message: err.message });
             }
         };
-        fetchOKRs();
-    }, []);
 
+        fetchOKRs();
+    }, [cycleFilter, setItems, setCycleFilter, setToast]);
+
+    // === TẢI OKR LƯU TRỮ (VẪN GIỮ LỌC my_okr=1) ===
     useEffect(() => {
         if (showArchived) {
             const fetchArchived = async () => {
@@ -51,9 +80,8 @@ export default function ObjectiveList({
                         .querySelector('meta[name="csrf-token"]')
                         ?.getAttribute("content");
                     const params = new URLSearchParams({ archived: "1" });
-                    if (cycleFilter) {
-                        params.append("cycle_id", cycleFilter);
-                    }
+                    if (cycleFilter) params.append("cycle_id", cycleFilter);
+                    params.append("my_okr", "1"); // Vẫn giữ lọc
 
                     const res = await fetch(`/my-objectives?${params}`, {
                         headers: {
@@ -65,12 +93,6 @@ export default function ObjectiveList({
                     if (json.success) {
                         setArchivedItems(json.data.data || []);
                         setArchivedCount(json.data.total || 0);
-
-                        if (json.current_cycle_id && !cycleFilter) {
-                            setCycleFilter(json.current_cycle_id);
-                        }
-                    } else {
-                        throw new Error(json.message || "Lỗi tải OKR lưu trữ");
                     }
                 } catch (err) {
                     setToast({ type: "error", message: err.message });
@@ -83,56 +105,9 @@ export default function ObjectiveList({
             setArchivedItems([]);
             setArchivedCount(0);
         }
-    }, [showArchived, cycleFilter, setCycleFilter, setToast]);
+    }, [showArchived, cycleFilter, setToast]);
 
-    useEffect(() => {
-        if (items.length > 0 && !cycleFilter) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlCycleId = urlParams.get("cycle_id");
-
-            if (urlCycleId) {
-                setCycleFilter(urlCycleId);
-                return;
-            }
-
-            if (currentCycleId) {
-                setCycleFilter(currentCycleId);
-                return;
-            }
-
-            const firstItemCycleId = items[0]?.cycle_id;
-            if (firstItemCycleId) {
-                setCycleFilter(firstItemCycleId);
-            }
-        }
-    }, [items, cycleFilter, setCycleFilter, currentCycleId]);
-
-    useEffect(() => {
-        const fetchObjectives = async () => {
-            try {
-                const token = document
-                    .querySelector('meta[name="csrf-token"]')
-                    .getAttribute("content");
-                const res = await fetch("/my-objectives", {
-                    headers: {
-                        "X-CSRF-TOKEN": token,
-                        Accept: "application/json",
-                    },
-                });
-                const json = await res.json();
-                console.log("OBJECTIVES DATA:", json);
-                if (res.ok && json.success) {
-                    setItems(json.data || []);
-                } else {
-                    throw new Error(json.message || "Lỗi khi lấy objectives");
-                }
-            } catch (err) {
-                setToast({ type: "error", message: err.message });
-            }
-        };
-        fetchObjectives();
-    }, []);
-
+    // === FORMAT HELPER ===
     const formatPercent = (value) => {
         const n = Number(value);
         return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
@@ -164,37 +139,56 @@ export default function ObjectiveList({
         }
     };
 
-    // === THÊM HÀM TÍNH TIẾN ĐỘ OBJECTIVE ===
     const calculateObjectiveProgress = (keyResults) => {
         if (!keyResults || keyResults.length === 0) return 0;
-
         const validKRs = keyResults.filter(
             (kr) => kr.target_value && Number(kr.target_value) > 0
         );
-
         if (validKRs.length === 0) return 0;
-
         const totalProgress = validKRs.reduce((sum, kr) => {
             const current = Number(kr.current_value) || 0;
             const target = Number(kr.target_value) || 0;
             const progress = target > 0 ? (current / target) * 100 : 0;
             return sum + Math.min(progress, 100);
         }, 0);
-
         return totalProgress / validKRs.length;
     };
 
     return (
         <div className="mx-auto w-full max-w-6xl">
+            {/* HEADER: CHỈ CÒN FILTER CHU KỲ + NÚT TẠO */}
             <div className="mb-4 flex w-full items-center justify-between">
-                <div className="relative w-64">
-                    <button
-                        onClick={() => setDropdownOpen((prev) => !prev)}
-                        className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    >
-                        <span className="flex items-center gap-2">
+                <div className="flex items-center gap-4">
+                    {/* Dropdown chu kỳ */}
+                    <div className="relative w-64">
+                        <button
+                            onClick={() => setDropdownOpen((prev) => !prev)}
+                            className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        >
+                            <span className="flex items-center gap-2">
+                                <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                    />
+                                </svg>
+                                {cyclesList.find(
+                                    (c) =>
+                                        String(c.cycle_id) ===
+                                        String(cycleFilter)
+                                )?.cycle_name || "Chọn chu kỳ"}
+                            </span>
                             <svg
-                                className="w-4 h-4"
+                                className={`w-4 h-4 transition-transform ${
+                                    dropdownOpen ? "rotate-180" : ""
+                                }`}
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -203,92 +197,77 @@ export default function ObjectiveList({
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                     strokeWidth={2}
-                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                    d="M19 9l-7 7-7-7"
                                 />
                             </svg>
-                            {cyclesList.find(
-                                (c) =>
-                                    String(c.cycle_id) === String(cycleFilter)
-                            )?.cycle_name || "Chọn chu kỳ"}
-                        </span>
-                        <svg
-                            className={`w-4 h-4 transition-transform ${
-                                dropdownOpen ? "rotate-180" : ""
-                            }`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 9l-7 7-7-7"
-                            />
-                        </svg>
-                    </button>
+                        </button>
 
-                    {dropdownOpen && (
-                        <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
-                            {cyclesList.map((cycle) => {
-                                const match =
-                                    cycle.cycle_name.match(
-                                        /Quý (\d+) năm (\d+)/
+                        {dropdownOpen && (
+                            <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
+                                {cyclesList.map((cycle) => {
+                                    const match =
+                                        cycle.cycle_name.match(
+                                            /Quý (\d+) năm (\d+)/
+                                        );
+                                    const quarter = match
+                                        ? parseInt(match[1])
+                                        : null;
+                                    const year = match
+                                        ? parseInt(match[2])
+                                        : null;
+                                    const now = new Date();
+                                    const currentQuarter = Math.ceil(
+                                        (now.getMonth() + 1) / 3
                                     );
-                                const quarter = match
-                                    ? parseInt(match[1])
-                                    : null;
-                                const year = match ? parseInt(match[2]) : null;
-                                const now = new Date();
-                                const currentQuarter = Math.ceil(
-                                    (now.getMonth() + 1) / 3
-                                );
-                                const currentYear = now.getFullYear();
-                                const isCurrent =
-                                    quarter === currentQuarter &&
-                                    year === currentYear;
+                                    const currentYear = now.getFullYear();
+                                    const isCurrent =
+                                        quarter === currentQuarter &&
+                                        year === currentYear;
 
-                                return (
-                                    <label
-                                        key={cycle.cycle_id}
-                                        className={`flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
-                                            String(cycleFilter) ===
-                                            String(cycle.cycle_id)
-                                                ? "bg-blue-50 border-l-4 border-l-blue-500"
-                                                : isCurrent
-                                                ? "bg-blue-50 border-l-4 border-l-blue-500"
-                                                : ""
-                                        }`}
-                                    >
-                                        <input
-                                            type="radio"
-                                            name="cycle"
-                                            value={cycle.cycle_id}
-                                            checked={
+                                    return (
+                                        <label
+                                            key={cycle.cycle_id}
+                                            className={`flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
                                                 String(cycleFilter) ===
                                                 String(cycle.cycle_id)
-                                            }
-                                            onChange={(e) => {
-                                                setCycleFilter(e.target.value);
-                                                setDropdownOpen(false);
-                                            }}
-                                            className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                                                {cycle.cycle_name}
-                                                {isCurrent && (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                        Hiện tại
-                                                    </span>
-                                                )}
-                                            </p>
-                                        </div>
-                                    </label>
-                                );
-                            })}
-                        </div>
-                    )}
+                                                    ? "bg-blue-50 border-l-4 border-l-blue-500"
+                                                    : isCurrent
+                                                    ? "bg-blue-50 border-l-4 border-l-blue-500"
+                                                    : ""
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="cycle"
+                                                value={cycle.cycle_id}
+                                                checked={
+                                                    String(cycleFilter) ===
+                                                    String(cycle.cycle_id)
+                                                }
+                                                onChange={(e) => {
+                                                    setCycleFilter(
+                                                        e.target.value
+                                                    );
+                                                    setDropdownOpen(false);
+                                                }}
+                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-slate-900 flex items-center gap-2">
+                                                    {cycle.cycle_name}
+                                                    {isCurrent && (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                            Hiện tại
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <button
@@ -299,6 +278,7 @@ export default function ObjectiveList({
                 </button>
             </div>
 
+            {/* BẢNG OKR */}
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
@@ -324,7 +304,7 @@ export default function ObjectiveList({
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Mục tiêu
                             </th>
-                            <th className="px-3 py-2 text-center w-[10%]">
+                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Tiến độ (%)
                             </th>
                             <th className="px-3 py-2 text-center w-[10%]">
@@ -343,6 +323,16 @@ export default function ObjectiveList({
                                 </td>
                             </tr>
                         )}
+                        {!loading && items.length === 0 && (
+                            <tr>
+                                <td
+                                    colSpan={9}
+                                    className="px-3 py-5 text-center text-slate-500"
+                                >
+                                    Bạn chưa tạo OKR nào.
+                                </td>
+                            </tr>
+                        )}
                         {!loading &&
                             items.map((obj, index) => (
                                 <React.Fragment key={obj.objective_id}>
@@ -351,7 +341,6 @@ export default function ObjectiveList({
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        {/* CỘT TIÊU ĐỀ */}
                                         <td className="px-3 py-3">
                                             <div className="flex items-center gap-2">
                                                 <button
@@ -393,11 +382,14 @@ export default function ObjectiveList({
                                             </div>
                                         </td>
 
-                                        {/* PHÒNG BAN */}
+                                        <td className="px-3 py-3 text-center border-r border-slate-200">
+                                            {departments.find(
+                                                (d) =>
+                                                    String(d.department_id) ===
+                                                    String(obj.department_id)
+                                            )?.d_name || "-"}
+                                        </td>
 
-                                        <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-
-                                        {/* CHU KỲ */}
                                         <td className="px-3 py-3 text-center border-r border-slate-200">
                                             {cyclesList.find(
                                                 (c) =>
@@ -406,7 +398,6 @@ export default function ObjectiveList({
                                             )?.cycle_name || ""}
                                         </td>
 
-                                        {/* TRẠNG THÁI */}
                                         <td className="px-3 py-3 text-center border-r border-slate-200">
                                             <span
                                                 className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
@@ -427,7 +418,6 @@ export default function ObjectiveList({
                                             </span>
                                         </td>
 
-                                        {/* ĐƠN VỊ, THỰC TẾ, MỤC TIÊU, TIẾN ĐỘ (Objective) */}
                                         <td className="px-3 py-3 text-center border-r border-slate-200"></td>
                                         <td className="px-3 py-3 text-center border-r border-slate-200"></td>
                                         <td className="px-3 py-3 text-center border-r border-slate-200"></td>
@@ -439,23 +429,17 @@ export default function ObjectiveList({
                                             )}
                                         </td>
 
-                                        {/* CỘT HÀNH ĐỘNG */}
                                         <td className="px-3 py-3 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                {/* NÚT CHỈNH SỬA */}
                                                 <button
-                                                    onClick={() => {
-                                                        console.log(
-                                                            "Chỉnh sửa Objective:",
-                                                            obj
-                                                        );
+                                                    onClick={() =>
                                                         setEditingObjective({
                                                             ...obj,
                                                             level:
                                                                 obj.level ||
                                                                 "team",
-                                                        });
-                                                    }}
+                                                        })
+                                                    }
                                                     className="rounded p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
                                                     title="Chỉnh sửa Objective"
                                                 >
@@ -474,8 +458,6 @@ export default function ObjectiveList({
                                                         />
                                                     </svg>
                                                 </button>
-
-                                                {/* NÚT THÊM KR */}
                                                 <button
                                                     onClick={() =>
                                                         setCreatingFor(obj)
