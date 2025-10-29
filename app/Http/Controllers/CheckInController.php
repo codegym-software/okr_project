@@ -19,13 +19,18 @@ class CheckInController extends Controller
     public function create($objectiveId, $krId): View
     {
         $user = Auth::user();
-        $keyResult = KeyResult::with(['objective', 'checkIns' => function($query) {
+        $keyResult = KeyResult::with(['objective.cycle', 'cycle', 'checkIns' => function($query) {
             $query->latest()->limit(5);
         }])->findOrFail($krId);
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
             $user->load('role');
+        }
+
+        // Chặn check-in nếu chu kỳ đã đóng (status != active)
+        if (($keyResult->cycle && strtolower((string)$keyResult->cycle->status) !== 'active') || ($keyResult->objective && $keyResult->objective->cycle && strtolower((string)$keyResult->objective->cycle->status) !== 'active')) {
+            abort(403, 'Chu kỳ đã đóng. Không thể check-in.');
         }
 
         // Kiểm tra quyền check-in: chỉ người sở hữu Key Result mới có quyền check-in
@@ -42,11 +47,19 @@ class CheckInController extends Controller
     public function store(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-        $keyResult = KeyResult::findOrFail($krId);
+    $keyResult = KeyResult::with(['objective.cycle', 'cycle'])->findOrFail($krId);
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
             $user->load('role');
+        }
+
+        // Chặn check-in nếu chu kỳ đã đóng (status != active)
+        if (($keyResult->cycle && strtolower((string)$keyResult->cycle->status) !== 'active') || ($keyResult->objective && $keyResult->objective->cycle && strtolower((string)$keyResult->objective->cycle->status) !== 'active')) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể check-in.'], 403);
+            }
+            abort(403, 'Chu kỳ đã đóng. Không thể check-in.');
         }
 
         // Kiểm tra quyền check-in
@@ -208,6 +221,16 @@ class CheckInController extends Controller
     {
         $user = Auth::user();
         $checkIn = CheckIn::with('keyResult')->findOrFail($checkInId);
+        $checkIn->load('keyResult.cycle', 'keyResult.objective.cycle');
+
+        // Chặn xóa check-in nếu chu kỳ đã đóng (bảo toàn lịch sử)
+        if (($checkIn->keyResult && $checkIn->keyResult->cycle && strtolower((string)$checkIn->keyResult->cycle->status) !== 'active') ||
+            ($checkIn->keyResult && $checkIn->keyResult->objective && $checkIn->keyResult->objective->cycle && strtolower((string)$checkIn->keyResult->objective->cycle->status) !== 'active')) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể xóa check-in.'], 403);
+            }
+            abort(403, 'Chu kỳ đã đóng. Không thể xóa check-in.');
+        }
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {

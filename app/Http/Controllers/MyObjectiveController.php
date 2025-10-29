@@ -138,6 +138,14 @@ class MyObjectiveController extends Controller
         }
 
         $isAdmin = $user->role && strtolower($user->role->role_name) === 'admin';
+
+    // Chặn tạo OKR nếu chu kỳ đã đóng (status != active)
+    $cycle = Cycle::find($validated['cycle_id']);
+    if ($cycle && strtolower((string)$cycle->status) !== 'active') {
+            return $request->expectsJson()
+        ? response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể tạo Objective mới.'], 403)
+        : redirect()->back()->withErrors(['error' => 'Chu kỳ đã đóng. Không thể tạo Objective mới.']);
+        }
         
         // Cho phép tất cả user tạo Objective cá nhân (person)
         if ($validated['level'] === 'person') {
@@ -272,6 +280,14 @@ class MyObjectiveController extends Controller
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
 
+    // Chặn sửa nếu chu kỳ đã đóng (status != active)
+    $cycle = Cycle::find($validated['cycle_id']);
+    if ($cycle && strtolower((string)$cycle->status) !== 'active') {
+            return $request->expectsJson()
+        ? response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.'], 403)
+        : redirect()->back()->withErrors(['error' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.']);
+        }
+
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
         if (!in_array($validated['level'], $allowedLevels)) {
             return $request->expectsJson()
@@ -389,6 +405,12 @@ class MyObjectiveController extends Controller
         // Member chỉ được xóa OKR cấp person
         if ($user->isMember() && $objective->level !== 'person') {
             return response()->json(['success' => false, 'message' => 'Member chỉ được xóa OKR cấp cá nhân.'], 403);
+        }
+
+        // Chặn xóa nếu chu kỳ đã đóng (status != active)
+        $objective->load('cycle');
+        if ($objective->cycle && strtolower((string)$objective->cycle->status) !== 'active') {
+            return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể xóa Objective.'], 403);
         }
 
         try {

@@ -82,6 +82,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::delete('/cycles/{cycle}',[CycleController::class,'destroy'])->middleware('auth','admin')->name('cycles.destroy');
     Route::get('/cycles/create',[CycleController::class,'create'])->middleware('auth','admin')->name('cycles.create');
     Route::post('/cycles/create',[CycleController::class,'store'])->middleware('auth','admin')->name('cycles.store.create');
+    Route::post('/cycles/{cycle}/close',[CycleController::class,'close'])->middleware('auth','admin')->name('cycles.close');
 
     //Routes cho Department
     Route::resource('departments', DepartmentController::class);
