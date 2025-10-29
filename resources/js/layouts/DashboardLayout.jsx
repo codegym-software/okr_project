@@ -372,6 +372,19 @@ export default function DashboardLayout({ children, user }) {
                                 </svg>
                             }
                         />
+                        {/* Báo cáo tổng quan - chỉ Admin */}
+                        {user?.is_admin === true && (
+                            <SidebarItem
+                                collapsed={false}
+                                href="/reports/company-overview"
+                                label="Báo cáo"
+                                icon={
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-10h4v24h-4V-3z" />
+                                    </svg>
+                                }
+                            />
+                        )}
                         {/* Phòng ban/Đội nhóm - chỉ hiển thị cho Admin và Manager */}
                         {(!user?.role?.role_name || 
                           user.role.role_name.toLowerCase() === 'admin' || 

@@ -215,6 +215,17 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->name('api.check-in.history');
     });
 
+    // Reports API (Admin only)
+    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOnly::class])->group(function () {
+        Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
+            ->name('api.reports.company-overview');
+    });
+
+    // Frontend page route for Reports (SPA)
+    Route::get('/reports/company-overview', function() { return view('app'); })
+        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->name('reports.company-overview');
+
     // OKR Assignments
     Route::prefix('my-links')->group(function () {
         Route::get('/', [LinkController::class, 'index'])->middleware('auth')->name('my-links.index');

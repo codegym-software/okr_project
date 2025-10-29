@@ -8,6 +8,7 @@ import ObjectivesPage from "./pages/ObjectivesPage";
 import ProfileSettings from "./pages/ProfileSettings";
 import ProfilePage from "./pages/ProfilePage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
+import CompanyOverviewReport from "./pages/CompanyOverviewReport";
 import { GradientText } from "./components/ui";
 
 function NavBar({ activeTab, onChangeTab }) {
@@ -351,6 +352,7 @@ export default function App() {
         p.startsWith("/users") ||
         p.startsWith("/cycles") ||
         p.startsWith("/departments") ||
+        p.startsWith("/reports") ||
         p.startsWith("/my-objectives") ||
         p.startsWith("/profile") ||
         p.startsWith("/change-password");
@@ -367,6 +369,8 @@ export default function App() {
             content = <ChangePasswordPage />;
         else if (p.startsWith("/dashboard"))
             content = <Dashboard />;
+        else if (p.startsWith("/reports"))
+            content = <CompanyOverviewReport />;
         return <DashboardLayout user={user}>{content}</DashboardLayout>;
     }
 
