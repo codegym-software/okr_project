@@ -197,6 +197,13 @@ export default function CyclesPanel() {
         const yyyy = d.getFullYear();
         return `${dd}/${mm}/${yyyy}`;
     };
+    const isEnded = (v) => {
+        if (!v) return false;
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return false;
+        const now = new Date();
+        return d.getTime() <= now.getTime();
+    };
 
     const sortByStartDesc = (arr = []) =>
         [...arr].sort(
@@ -204,6 +211,35 @@ export default function CyclesPanel() {
                 new Date(b.start_date || b.startDate) -
                 new Date(a.start_date || a.startDate)
         );
+
+    const isActive = (c) => String(c?.status).toLowerCase() === "active";
+    const isClosed = (c) => !isActive(c);
+    const formatRange = (c) => `${formatDMY(c.start_date)} - ${formatDMY(c.end_date)}`;
+
+    async function closeCycle(cy) {
+        const id = cy?.cycle_id || cy?.id;
+        const ok = window.confirm(
+            "Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?"
+        );
+        if (!ok) return;
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                .getAttribute('content');
+            const res = await fetch(`/cycles/${id}/close`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+            });
+            const json = await res.json().catch(() => ({ success: res.ok }));
+            if (!res.ok || json.success === false)
+                throw new Error(json.message || 'Đóng chu kỳ thất bại');
+            const cyNew = json.data || {};
+            setCycles((prev) => prev.map((c) => String(c.cycle_id || c.id) === String(id) ? { ...c, ...cyNew } : c));
+            setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
+        } catch (e) {
+            setToast({ type: 'error', message: e.message || 'Đóng chu kỳ thất bại' });
+        }
+    }
 
     useEffect(() => {
         (async () => {
@@ -285,6 +321,40 @@ export default function CyclesPanel() {
                                 >
                                     Sửa
                                 </button>
+                                {detail?.cycle && detail.cycle?.status === 'active' && isEnded(detail.cycle?.end_date) && (
+                                    <button
+                                        onClick={async () => {
+                                            const ok = window.confirm(
+                                                "Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?"
+                                            );
+                                            if (!ok) return;
+                                            try {
+                                                const token = document
+                                                    .querySelector('meta[name="csrf-token"]')
+                                                    .getAttribute('content');
+                                                const id = detail?.cycle?.cycle_id || detail?.cycle_id;
+                                                const res = await fetch(`/cycles/${id}/close`, {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'X-CSRF-TOKEN': token,
+                                                        Accept: 'application/json',
+                                                    },
+                                                });
+                                                const json = await res.json().catch(() => ({ success: res.ok }));
+                                                if (!res.ok || json.success === false) throw new Error(json.message || 'Đóng chu kỳ thất bại');
+                                                const cy = json.data || {};
+                                                setDetail((prev) => ({ ...(prev || {}), cycle: { ...(prev?.cycle || prev), ...cy } }));
+                                                setCycles((prev) => prev.map((c) => String(c.cycle_id || c.id) === String(id) ? { ...c, ...cy } : c));
+                                                setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
+                                            } catch (e) {
+                                                setToast({ type: 'error', message: e.message || 'Đóng chu kỳ thất bại' });
+                                            }
+                                        }}
+                                        className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100"
+                                    >
+                                        Đóng chu kỳ
+                                    </button>
+                                )}
                                 <button
                                     onClick={async () => {
                                         const ok = window.confirm(
@@ -678,14 +748,16 @@ export default function CyclesPanel() {
                         </div>
                     </div>
                     <AdminOnly permission="canManageCycles">
-                        <div className="px-6 pb-4">
-                            <button
-                                onClick={() => setOpenCreateObjective(true)}
-                                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-                            >
-                                Thêm Objective
-                            </button>
-                        </div>
+                        {detail?.cycle?.status === 'active' && (
+                            <div className="px-6 pb-4">
+                                <button
+                                    onClick={() => setOpenCreateObjective(true)}
+                                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                                >
+                                    Thêm Objective
+                                </button>
+                            </div>
+                        )}
                     </AdminOnly>
                     {(detail.objectives || []).map((obj) => (
                         <div
@@ -754,51 +826,76 @@ export default function CyclesPanel() {
             )}
             {!isDetail && (
                 <>
-                    <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                        {loading && (
-                            <div className="px-4 py-6 text-center text-slate-500">
-                                Đang tải...
-                            </div>
-                        )}
-                        {!loading && (
-                            <div className="divide-y divide-slate-100">
-                                {cycles.map((c) => {
-                                    const id = c.cycle_id || c.id;
-                                    const active = c.status === "active";
-                                    return (
-                                        <div key={id} className="px-4 py-3">
-                                            <button
-                                                onClick={() => goDetail(id)}
-                                                className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-left hover:bg-slate-100"
-                                            >
-                                                <div className="font-semibold text-slate-900">
-                                                    {c.cycle_name}
+                    {loading ? (
+                        <div className="mx-auto w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 shadow-sm">
+                            Đang tải...
+                        </div>
+                    ) : (
+                        <div className="mx-auto grid w-full max-w-6xl gap-6 md:grid-cols-3">
+                            {/* Left: Active cycles (span 2) */}
+                            <div className="md:col-span-2">
+                                <div className="mb-3 text-sm font-semibold text-slate-700">Chu kỳ đang hoạt động</div>
+                                <div className="space-y-3">
+                                    {sortByStartDesc(cycles.filter(isActive)).map((c) => {
+                                        const id = c.cycle_id || c.id;
+                                        const canClose = isEnded(c.end_date);
+                                        return (
+                                            <div key={id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+                                                    <div className="font-semibold text-slate-900">{c.cycle_name}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge color="emerald">Đang hoạt động</Badge>
+                                                        <button onClick={() => goDetail(id)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Xem chi tiết</button>
+                                                        <AdminOnly permission="canManageCycles">
+                                                            {canClose && (
+                                                                <button onClick={() => closeCycle(c)} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Đóng chu kỳ</button>
+                                                            )}
+                                                        </AdminOnly>
+                                                    </div>
                                                 </div>
-                                                {active ? (
-                                                    <Badge color="emerald">
-                                                        Active
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge color="red">
-                                                        Inactive
-                                                    </Badge>
-                                                )}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                                <div className="px-4 py-3 text-sm text-slate-600">{formatRange(c)}</div>
+                                            </div>
+                                        );
+                                    })}
+                                    {sortByStartDesc(cycles.filter(isActive)).length === 0 && (
+                                        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-500">Chưa có chu kỳ hoạt động</div>
+                                    )}
+                                </div>
                             </div>
-                        )}
-                    </div>
+                            {/* Right: Closed cycles */}
+                            <div>
+                                <div className="mb-3 text-sm font-semibold text-slate-700">Chu kỳ đã đóng</div>
+                                <div className="space-y-3">
+                                    {sortByStartDesc(cycles.filter(isClosed)).map((c) => {
+                                        const id = c.cycle_id || c.id;
+                                        return (
+                                            <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="font-semibold text-slate-900">{c.cycle_name}</div>
+                                                    <Badge color="red">Đã đóng</Badge>
+                                                </div>
+                                                <div className="mt-1 text-xs text-slate-600">{formatRange(c)}</div>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <button onClick={() => goDetail(id)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Xem chi tiết</button>
+                                                    <a href={`/cycles/${id}/detail`} className="text-xs font-semibold text-blue-600 hover:underline">Xem báo cáo</a>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {sortByStartDesc(cycles.filter(isClosed)).length === 0 && (
+                                        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-500">Chưa có chu kỳ đã đóng</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <NewCycleModal
                         open={open}
                         onClose={() => setOpen(false)}
                         onCreated={(cy) => {
                             setCycles((prev) => sortByStartDesc([cy, ...prev]));
-                            setToast({
-                                type: "success",
-                                message: "Tạo chu kỳ thành công",
-                            });
+                            setToast({ type: 'success', message: 'Tạo chu kỳ thành công' });
                         }}
                     />
                 </>

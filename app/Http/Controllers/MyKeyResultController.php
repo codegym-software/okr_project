@@ -63,7 +63,14 @@ class MyKeyResultController extends Controller
                 : redirect()->back()->withErrors(['error' => 'Không tìm thấy ID của Objective.'])->withInput();
         }
 
-        $objective = Objective::findOrFail($objectiveId);
+        $objective = Objective::with('cycle')->findOrFail($objectiveId);
+
+        // Chặn tạo KR nếu chu kỳ đã đóng
+        if ($objective->cycle && strtolower((string)$objective->cycle->status) !== 'active') {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể tạo Key Result.'], 403)
+                : redirect()->back()->withErrors(['error' => 'Chu kỳ đã đóng. Không thể tạo Key Result.'])->withInput();
+        }
 
         // Load user relationships
         if (!$user->relationLoaded('role')) {
@@ -149,8 +156,13 @@ class MyKeyResultController extends Controller
     public function update(Request $request, string $objectiveId, string $keyResultId): JsonResponse|RedirectResponse
     {
         $user = Auth::user();
-        $objective = Objective::findOrFail($objectiveId);
-        $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
+        $objective = Objective::with('cycle')->findOrFail($objectiveId);
+        $keyResult = KeyResult::with('cycle')->where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
+
+        // Chặn cập nhật nếu chu kỳ đã đóng
+        if (($objective->cycle && strtolower((string)$objective->cycle->status) !== 'active') || ($keyResult->cycle && strtolower((string)$keyResult->cycle->status) !== 'active')) {
+            return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Key Result.'], 403);
+        }
 
 
         // Load user relationships
@@ -234,8 +246,13 @@ class MyKeyResultController extends Controller
     public function destroy(string $objectiveId, string $keyResultId): JsonResponse|RedirectResponse
     {
         $user = Auth::user();
-        $objective = Objective::findOrFail($objectiveId);
-        $keyResult = KeyResult::where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
+        $objective = Objective::with('cycle')->findOrFail($objectiveId);
+        $keyResult = KeyResult::with('cycle')->where('objective_id', $objectiveId)->where('kr_id', $keyResultId)->firstOrFail();
+
+        // Chặn xóa nếu chu kỳ đã đóng
+        if (($objective->cycle && strtolower((string)$objective->cycle->status) !== 'active') || ($keyResult->cycle && strtolower((string)$keyResult->cycle->status) !== 'active')) {
+            return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể xóa Key Result.'], 403);
+        }
 
 
         // Load user relationships
