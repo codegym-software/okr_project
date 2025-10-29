@@ -571,7 +571,7 @@ class MyObjectiveController extends Controller
     private function getAllowedLevels(string $roleName): array
     {
         return match ($roleName) {
-            'admin' => ['company'],  // Admin CHỈ tạo OKR cấp công ty
+            'admin' => ['company', 'person'],  // Admin CHỈ tạo OKR cấp công ty
             'manager' => ['unit', 'person'],  // Manager tạo OKR phòng ban + cá nhân
             'member' => ['person'],  // Member chỉ tạo OKR cá nhân
             default => ['person'],
