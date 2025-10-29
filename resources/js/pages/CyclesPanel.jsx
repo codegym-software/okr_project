@@ -350,7 +350,7 @@ export default function CyclesPanel() {
     }
 
     return (
-        <div className="px-4 py-6">
+        <div className="px-4 py-6 m-auto max-w-6xl  ">
             <Toast
                 type={toast.type}
                 message={toast.message}
@@ -882,7 +882,7 @@ export default function CyclesPanel() {
                             Đang tải...
                         </div>
                     ) : (
-                        <div className="mx-auto grid w-full max-w-6xl gap-6 md:grid-cols-3">
+                        <div className=" grid w-full  gap-6 md:grid-cols-3">
                             {/* Left: Active cycles (span 2) */}
                             <div className="md:col-span-2">
                                 <div className="mb-3 text-sm font-semibold text-slate-700">Chu kỳ đang hoạt động</div>
@@ -928,7 +928,6 @@ export default function CyclesPanel() {
                                                 <div className="mt-1 text-xs text-slate-600">{formatRange(c)}</div>
                                                 <div className="mt-3 flex items-center gap-2">
                                                     <button onClick={() => goDetail(id)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Xem chi tiết</button>
-                                                    <a href={`/cycles/${id}/detail`} className="text-xs font-semibold text-blue-600 hover:underline">Xem báo cáo</a>
                                                 </div>
                                             </div>
                                         );
