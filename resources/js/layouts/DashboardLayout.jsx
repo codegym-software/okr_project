@@ -1,5 +1,9 @@
 import React, { useRef, useState, useEffect } from "react";
-import Dropdown, { DropdownItem, DropdownHeader, DropdownContent } from "../components/Dropdown";
+import Dropdown, {
+    DropdownItem,
+    DropdownHeader,
+    DropdownContent,
+} from "../components/Dropdown";
 import { navigateTo } from "../utils/navigation";
 
 function SidebarItem({ icon, label, href, collapsed }) {
@@ -21,7 +25,9 @@ function SidebarItem({ icon, label, href, collapsed }) {
 function DashboardSidebar({ open, user }) {
     const collapsed = !open;
     const isAdmin = user?.is_admin === true;
-    const isMember = user?.role?.role_name?.toLowerCase() === 'member';
+    // const isAdmin2 = user?.role?.role_name?.toLowerCase() === "admin";
+    // const isManager = user?.role?.role_name?.toLowerCase() === "manager";
+    // const isMember = user?.role?.role_name?.toLowerCase() === "member";
     return (
         <aside
             className={`${
@@ -72,22 +78,7 @@ function DashboardSidebar({ open, user }) {
                         </svg>
                     }
                 />
-                {/* <SidebarItem
-                    collapsed={collapsed}
-                    href="/team"
-                    label="Đội nhóm"
-                    icon={
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-6 w-6"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                        >
-                            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13z" />
-                        </svg>
-                    }
-                {/* Chu kỳ - Ẩn cho Member */}
-                {!isMember && (
+                {isAdmin && (
                     <SidebarItem
                         collapsed={collapsed}
                         href="/cycles"
@@ -223,9 +214,7 @@ function DashboardTopbar({
                         <div className="font-semibold text-slate-900">
                             {displayName}
                         </div>
-                        <div className="text-sm text-slate-500">
-                            {email}
-                        </div>
+                        <div className="text-sm text-slate-500">{email}</div>
                     </DropdownHeader>
                     <DropdownContent>
                         <DropdownItem onClick={onOpenProfile}>
@@ -270,7 +259,7 @@ function DashboardTopbar({
 
 export default function DashboardLayout({ children, user }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
-    
+
     const logout = async () => {
         try {
             const token = document
@@ -338,9 +327,8 @@ export default function DashboardLayout({ children, user }) {
                             }
                         />
                         {/* Chu kỳ - chỉ hiển thị cho Admin và Manager */}
-                        {(!user?.role?.role_name || 
-                          user.role.role_name.toLowerCase() === 'admin' || 
-                          user.role.role_name.toLowerCase() === 'manager') && (
+                        {(!user?.role?.role_name ||
+                            user.role.role_name.toLowerCase() === "admin") && (
                             <SidebarItem
                                 collapsed={false}
                                 href="/cycles"
@@ -379,16 +367,22 @@ export default function DashboardLayout({ children, user }) {
                                 href="/reports/company-overview"
                                 label="Báo cáo"
                                 icon={
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-6 w-6"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
                                         <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-10h4v24h-4V-3z" />
                                     </svg>
                                 }
                             />
                         )}
                         {/* Phòng ban/Đội nhóm - chỉ hiển thị cho Admin và Manager */}
-                        {(!user?.role?.role_name || 
-                          user.role.role_name.toLowerCase() === 'admin' || 
-                          user.role.role_name.toLowerCase() === 'manager') && (
+                        {(!user?.role?.role_name ||
+                            user.role.role_name.toLowerCase() === "admin" ||
+                            user.role.role_name.toLowerCase() ===
+                                "manager") && (
                             <SidebarItem
                                 collapsed={false}
                                 href="/departments"
@@ -426,7 +420,7 @@ export default function DashboardLayout({ children, user }) {
                     </nav>
                 </div>
             </div>
-            
+
             {/* Header */}
             <div className="ml-64 bg-white border-b border-gray-200 px-6 py-4">
                 <div className="flex items-center justify-between">
@@ -441,7 +435,10 @@ export default function DashboardLayout({ children, user }) {
                             trigger={
                                 <button className="flex items-center gap-3 rounded-full border border-slate-200 bg-white pl-3 pr-4 py-2 hover:bg-slate-50">
                                     <img
-                                        src={user?.avatar || "/images/default.png"}
+                                        src={
+                                            user?.avatar ||
+                                            "/images/default.png"
+                                        }
                                         alt="avatar"
                                         className="h-10 w-10 rounded-full object-cover"
                                     />
@@ -510,11 +507,9 @@ export default function DashboardLayout({ children, user }) {
                     </div>
                 </div>
             </div>
-            
+
             {/* Main Content */}
-            <div className="ml-64">
-                {children}
-            </div>
+            <div className="ml-64">{children}</div>
         </div>
     );
 }

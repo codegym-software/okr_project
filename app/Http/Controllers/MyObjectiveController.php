@@ -517,7 +517,7 @@ class MyObjectiveController extends Controller
     {
         return match ($roleName) {
             'admin' => ['company', 'person'],  // Admin CHỈ tạo OKR cấp công ty
-            'manager' => ['unit', 'person'],  // Manager tạo OKR phòng ban + cá nhân
+            'manager' => ['unit', 'team', 'person'],  // Manager tạo OKR phòng ban + cá nhân
             'member' => ['person'],  // Member chỉ tạo OKR cá nhân
             default => ['person'],
         };
