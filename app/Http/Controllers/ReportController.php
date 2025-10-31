@@ -144,38 +144,30 @@ class ReportController extends Controller
 
         // Base objectives with optional filters
         $objectivesQuery = Objective::query()
-            ->select(['objective_id','department_id','cycle_id','progress_percent','user_id'])
+            ->select(['objective_id','obj_title','department_id','cycle_id','progress_percent','user_id'])
             ->when($cycleId, fn ($q) => $q->where('cycle_id', $cycleId))
             ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
             ->when($ownerId, fn ($q) => $q->where('user_id', $ownerId));
 
         $objectives = $objectivesQuery->get();
 
-        // Compute progress per objective (fallback to KRs)
-        $objectiveProgress = $objectives->map(function ($obj) {
-            $progress = $obj->progress_percent;
-            if ($progress === null) {
-                $krs = DB::table('key_results')
-                    ->select(['progress_percent','current_value','target_value'])
-                    ->where('objective_id', $obj->objective_id)
-                    ->get();
-                if ($krs->count() === 0) {
-                    $progress = 0.0;
-                } else {
-                    $sum = 0.0;
-                    foreach ($krs as $kr) {
-                        if ($kr->progress_percent !== null) {
-                            $sum += (float) $kr->progress_percent;
-                        } elseif (!empty($kr->target_value) && (float) $kr->target_value > 0) {
-                            $sum += max(0.0, min(100.0, ((float) $kr->current_value / (float) $kr->target_value) * 100.0));
-                        }
-                    }
-                    $progress = $sum / $krs->count();
-                }
-            }
+        // Compute progress per objective from live KRs (real-time)
+        $objectiveIds = $objectives->pluck('objective_id');
+        $krAgg = DB::table('key_results')
+            ->select('objective_id',
+                DB::raw('AVG(CASE WHEN progress_percent IS NOT NULL THEN progress_percent ELSE CASE WHEN target_value IS NOT NULL AND target_value > 0 THEN LEAST(100, GREATEST(0, (current_value/target_value)*100)) ELSE 0 END END) as avg_progress')
+            )
+            ->whereIn('objective_id', $objectiveIds)
+            ->groupBy('objective_id')
+            ->pluck('avg_progress', 'objective_id');
+
+        $objectiveProgress = $objectives->map(function ($obj) use ($krAgg) {
+            $avgFromKrs = $krAgg[$obj->objective_id] ?? null;
+            $progress = $avgFromKrs !== null ? (float) $avgFromKrs : (float) ($obj->progress_percent ?? 0.0);
             $computedStatus = $progress >= 70 ? 'on_track' : ($progress >= 40 ? 'at_risk' : 'off_track');
             return [
                 'objective_id' => (int) $obj->objective_id,
+                'objective_title' => (string) ($obj->obj_title ?? ''),
                 'department_id' => $obj->department_id ? (int) $obj->department_id : null,
                 'user_id' => $obj->user_id ? (int) $obj->user_id : null,
                 'progress' => (float) round((float) $progress, 2),
@@ -209,8 +201,9 @@ class ReportController extends Controller
         // Department details with trend vs previous cycle
         $deptGrouped = $objectiveProgress->groupBy('department_id');
         $deptIds = $deptGrouped->keys()->filter()->values();
-        $deptNames = Department::whereIn('department_id', $deptIds)
-            ->pluck('d_name', 'department_id');
+        $allDeptRecords = Department::whereIn('department_id', $deptIds)
+            ->get(['department_id','d_name','type','parent_department_id']);
+        $deptNames = $allDeptRecords->pluck('d_name', 'department_id');
 
         // Previous cycle for trend
         $prevCycleAvgByDept = [];
@@ -242,6 +235,99 @@ class ReportController extends Controller
         }
 
         $departments = [];
+        $departmentsHierarchy = [];
+
+        // Build top-level and teams metrics
+        $deptInfoById = $allDeptRecords->keyBy('department_id');
+        $topLevelAgg = [];
+        $teamsAgg = [];
+        foreach ($deptGrouped as $deptIdKey => $items) {
+            $deptIdInt = $deptIdKey ? (int) $deptIdKey : null;
+            $avg = (float) round(collect($items)->avg('progress') ?? 0, 2);
+            $count = collect($items)->count();
+            $on = collect($items)->where('status','on_track')->count();
+            $risk = collect($items)->where('status','at_risk')->count();
+            $off = collect($items)->where('status','off_track')->count();
+            $prevAvg = $deptIdInt && isset($prevCycleAvgByDept[$deptIdInt]) ? (float) $prevCycleAvgByDept[$deptIdInt] : null;
+            $trendDelta = $prevAvg !== null ? round($avg - $prevAvg, 2) : null;
+
+            $row = [
+                'departmentId' => $deptIdInt,
+                'departmentName' => $deptIdInt ? ($deptNames[$deptIdInt] ?? 'N/A') : 'Công ty',
+                'count' => $count,
+                'averageProgress' => $avg,
+                'onTrack' => $on,
+                'atRisk' => $risk,
+                'offTrack' => $off,
+                'onTrackPct' => $count ? round($on * 100 / $count, 2) : 0,
+                'atRiskPct' => $count ? round($risk * 100 / $count, 2) : 0,
+                'offTrackPct' => $count ? round($off * 100 / $count, 2) : 0,
+                'trendDelta' => $trendDelta,
+            ];
+            $departments[] = $row;
+
+            // Hierarchy aggregation
+            $deptRec = $deptInfoById->get($deptIdInt);
+            $parentId = $deptRec && $deptRec->parent_department_id ? (int) $deptRec->parent_department_id : null;
+            $isTeam = $deptRec && $deptRec->type === 'đội nhóm' && $parentId;
+            $topKey = $isTeam ? $parentId : $deptIdInt;
+            if (!isset($topLevelAgg[$topKey])) {
+                $topLevelAgg[$topKey] = [
+                    'departmentId' => $topKey,
+                    'departmentName' => $topKey ? ($deptNames[$topKey] ?? 'N/A') : 'Công ty',
+                    'count' => 0,'averageProgressSum' => 0,'averageProgressDen' => 0,
+                    'onTrack' => 0,'atRisk' => 0,'offTrack' => 0,
+                    'trendDeltaSum' => 0,'trendDeltaDen' => 0,
+                    'children' => [],
+                ];
+            }
+            // Add to top-level agg
+            $top = &$topLevelAgg[$topKey];
+            $top['count'] += $count;
+            $top['onTrack'] += $on; $top['atRisk'] += $risk; $top['offTrack'] += $off;
+            $top['averageProgressSum'] += $avg; $top['averageProgressDen'] += 1;
+            if ($trendDelta !== null) { $top['trendDeltaSum'] += $trendDelta; $top['trendDeltaDen'] += 1; }
+
+            if ($isTeam) {
+                $top['children'][] = $row + ['teamId' => $deptIdInt, 'teamName' => $row['departmentName']];
+            }
+            unset($top);
+        }
+
+        // Normalize top-level averages
+        foreach ($topLevelAgg as $k => $agg) {
+            $avgProg = $agg['averageProgressDen'] ? round($agg['averageProgressSum'] / $agg['averageProgressDen'], 2) : 0.0;
+            $trendDelta = $agg['trendDeltaDen'] ? round($agg['trendDeltaSum'] / $agg['trendDeltaDen'], 2) : null;
+            $count = max(1, (int) $agg['count']);
+            $departmentsHierarchy[] = [
+                'departmentId' => $agg['departmentId'],
+                'departmentName' => $agg['departmentName'],
+                'count' => (int) $agg['count'],
+                'averageProgress' => $avgProg,
+                'onTrack' => (int) $agg['onTrack'],
+                'atRisk' => (int) $agg['atRisk'],
+                'offTrack' => (int) $agg['offTrack'],
+                'onTrackPct' => round($agg['onTrack'] * 100 / $count, 2),
+                'atRiskPct' => round($agg['atRisk'] * 100 / $count, 2),
+                'offTrackPct' => round($agg['offTrack'] * 100 / $count, 2),
+                'trendDelta' => $trendDelta,
+                'children' => array_map(function ($child) {
+                    return [
+                        'departmentId' => $child['departmentId'],
+                        'departmentName' => $child['departmentName'],
+                        'count' => $child['count'],
+                        'averageProgress' => $child['averageProgress'],
+                        'onTrack' => $child['onTrack'],
+                        'atRisk' => $child['atRisk'],
+                        'offTrack' => $child['offTrack'],
+                        'onTrackPct' => $child['onTrackPct'],
+                        'atRiskPct' => $child['atRiskPct'],
+                        'offTrackPct' => $child['offTrackPct'],
+                        'trendDelta' => $child['trendDelta'],
+                    ];
+                }, $agg['children']),
+            ];
+        }
         foreach ($deptGrouped as $deptIdKey => $items) {
             $deptIdInt = $deptIdKey ? (int) $deptIdKey : null;
             $avg = (float) round(collect($items)->avg('progress') ?? 0, 2);
@@ -296,7 +382,7 @@ class ReportController extends Controller
             ->values()
             ->all();
 
-        return response()->json([
+        $json = response()->json([
             'success' => true,
             'data' => [
                 'overall' => [
@@ -306,6 +392,7 @@ class ReportController extends Controller
                     'statusDistribution' => $statusDistribution,
                 ],
                 'departments' => $departments,
+                'departmentsHierarchy' => $departmentsHierarchy,
                 'trend' => $trend,
                 'risks' => $riskObjectives,
             ],
@@ -317,6 +404,7 @@ class ReportController extends Controller
                 'computedAt' => now()->toISOString(),
             ],
         ]);
+        return $json->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     /**
