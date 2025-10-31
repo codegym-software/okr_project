@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Objective;
 use App\Models\Department;
 use App\Models\Cycle;
+use App\Models\CheckIn;
+use App\Models\KeyResult;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
@@ -115,6 +118,242 @@ class ReportController extends Controller
                 'totalObjectives' => $objectiveProgress->count(),
                 'computedAt' => now()->toISOString(),
             ],
+        ]);
+    }
+
+    /**
+     * Enhanced OKR company report with filters and trend/risk breakdowns.
+     */
+    public function companyOkrReport(Request $request)
+    {
+        $cycleId = $request->integer('cycle_id');
+        $departmentId = $request->integer('department_id');
+        $status = $request->string('status')->toString(); // on_track | at_risk | off_track
+        $ownerId = $request->integer('owner_id');
+
+        // Determine current cycle if missing
+        if (!$cycleId) {
+            $now = now();
+            $currentCycle = Cycle::where('start_date', '<=', $now)
+                ->where('end_date', '>=', $now)
+                ->first();
+            if ($currentCycle) {
+                $cycleId = (int) $currentCycle->cycle_id;
+            }
+        }
+
+        // Base objectives with optional filters
+        $objectivesQuery = Objective::query()
+            ->select(['objective_id','department_id','cycle_id','progress_percent','user_id'])
+            ->when($cycleId, fn ($q) => $q->where('cycle_id', $cycleId))
+            ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
+            ->when($ownerId, fn ($q) => $q->where('user_id', $ownerId));
+
+        $objectives = $objectivesQuery->get();
+
+        // Compute progress per objective (fallback to KRs)
+        $objectiveProgress = $objectives->map(function ($obj) {
+            $progress = $obj->progress_percent;
+            if ($progress === null) {
+                $krs = DB::table('key_results')
+                    ->select(['progress_percent','current_value','target_value'])
+                    ->where('objective_id', $obj->objective_id)
+                    ->get();
+                if ($krs->count() === 0) {
+                    $progress = 0.0;
+                } else {
+                    $sum = 0.0;
+                    foreach ($krs as $kr) {
+                        if ($kr->progress_percent !== null) {
+                            $sum += (float) $kr->progress_percent;
+                        } elseif (!empty($kr->target_value) && (float) $kr->target_value > 0) {
+                            $sum += max(0.0, min(100.0, ((float) $kr->current_value / (float) $kr->target_value) * 100.0));
+                        }
+                    }
+                    $progress = $sum / $krs->count();
+                }
+            }
+            $computedStatus = $progress >= 70 ? 'on_track' : ($progress >= 40 ? 'at_risk' : 'off_track');
+            return [
+                'objective_id' => (int) $obj->objective_id,
+                'department_id' => $obj->department_id ? (int) $obj->department_id : null,
+                'user_id' => $obj->user_id ? (int) $obj->user_id : null,
+                'progress' => (float) round((float) $progress, 2),
+                'status' => $computedStatus,
+            ];
+        });
+
+        // Filter by computed status if requested
+        if (in_array($status, ['on_track','at_risk','off_track'], true)) {
+            $objectiveProgress = $objectiveProgress->where('status', $status)->values();
+        }
+
+        $totalObjectives = $objectiveProgress->count();
+        $overall = (float) round($objectiveProgress->avg('progress') ?? 0, 2);
+
+        $onTrackCount = $objectiveProgress->where('status', 'on_track')->count();
+        $atRiskCount = $objectiveProgress->where('status', 'at_risk')->count();
+        $offTrackCount = $objectiveProgress->where('status', 'off_track')->count();
+
+        $statusDistribution = [
+            'onTrack' => $totalObjectives ? round($onTrackCount * 100 / $totalObjectives, 2) : 0,
+            'atRisk' => $totalObjectives ? round($atRiskCount * 100 / $totalObjectives, 2) : 0,
+            'offTrack' => $totalObjectives ? round($offTrackCount * 100 / $totalObjectives, 2) : 0,
+        ];
+        $statusCounts = [
+            'onTrack' => $onTrackCount,
+            'atRisk' => $atRiskCount,
+            'offTrack' => $offTrackCount,
+        ];
+
+        // Department details with trend vs previous cycle
+        $deptGrouped = $objectiveProgress->groupBy('department_id');
+        $deptIds = $deptGrouped->keys()->filter()->values();
+        $deptNames = Department::whereIn('department_id', $deptIds)
+            ->pluck('d_name', 'department_id');
+
+        // Previous cycle for trend
+        $prevCycleAvgByDept = [];
+        if ($cycleId) {
+            $currentCycle = Cycle::find($cycleId);
+            if ($currentCycle) {
+                $prevCycle = Cycle::where('end_date', '<', $currentCycle->start_date)
+                    ->orderBy('end_date', 'desc')
+                    ->first();
+                if ($prevCycle) {
+                    $prevObjs = Objective::query()
+                        ->select(['objective_id','department_id','progress_percent'])
+                        ->where('cycle_id', $prevCycle->cycle_id)
+                        ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
+                        ->get();
+                    $tmp = $prevObjs->map(function ($obj) {
+                        $p = $obj->progress_percent;
+                        if ($p === null) $p = 0.0;
+                        return [
+                            'department_id' => $obj->department_id ? (int) $obj->department_id : null,
+                            'progress' => (float) $p,
+                        ];
+                    })->groupBy('department_id');
+                    foreach ($tmp as $deptIdKey => $items) {
+                        $prevCycleAvgByDept[(int) $deptIdKey] = round(collect($items)->avg('progress') ?? 0, 2);
+                    }
+                }
+            }
+        }
+
+        $departments = [];
+        foreach ($deptGrouped as $deptIdKey => $items) {
+            $deptIdInt = $deptIdKey ? (int) $deptIdKey : null;
+            $avg = (float) round(collect($items)->avg('progress') ?? 0, 2);
+            $count = collect($items)->count();
+            $on = collect($items)->where('status','on_track')->count();
+            $risk = collect($items)->where('status','at_risk')->count();
+            $off = collect($items)->where('status','off_track')->count();
+            $prevAvg = $deptIdInt && isset($prevCycleAvgByDept[$deptIdInt]) ? (float) $prevCycleAvgByDept[$deptIdInt] : null;
+            $trendDelta = $prevAvg !== null ? round($avg - $prevAvg, 2) : null;
+            $departments[] = [
+                'departmentId' => $deptIdInt,
+                'departmentName' => $deptIdInt ? ($deptNames[$deptIdInt] ?? 'N/A') : 'Công ty',
+                'count' => $count,
+                'averageProgress' => $avg,
+                'onTrack' => $on,
+                'atRisk' => $risk,
+                'offTrack' => $off,
+                'onTrackPct' => $count ? round($on * 100 / $count, 2) : 0,
+                'atRiskPct' => $count ? round($risk * 100 / $count, 2) : 0,
+                'offTrackPct' => $count ? round($off * 100 / $count, 2) : 0,
+                'trendDelta' => $trendDelta,
+            ];
+        }
+
+        // Trend over time: weekly average completion_rate from check_in grouped by objective
+        $trend = [];
+        if ($cycleId) {
+            $objIds = Objective::query()
+                ->where('cycle_id', $cycleId)
+                ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
+                ->when($ownerId, fn ($q) => $q->where('user_id', $ownerId))
+                ->pluck('objective_id');
+            if ($objIds->count() > 0) {
+                $checkIns = CheckIn::query()
+                    ->select(DB::raw("DATE_FORMAT(created_at, '%Y-%u') as year_week"), DB::raw('AVG(completion_rate) as avg_progress'))
+                    ->whereIn('objective_id', $objIds)
+                    ->groupBy('year_week')
+                    ->orderBy('year_week')
+                    ->get();
+                $trend = $checkIns->map(fn ($r) => [
+                    'bucket' => $r->year_week,
+                    'avgProgress' => (float) round((float) $r->avg_progress, 2),
+                ])->all();
+            }
+        }
+
+        // Risk section: objectives with low progress
+        $riskObjectives = $objectiveProgress
+            ->filter(fn ($o) => $o['status'] === 'at_risk' || $o['status'] === 'off_track' || $o['progress'] < 50)
+            ->sortBy('progress')
+            ->take(5)
+            ->values()
+            ->all();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'overall' => [
+                    'totalObjectives' => $totalObjectives,
+                    'averageProgress' => $overall,
+                    'statusCounts' => $statusCounts,
+                    'statusDistribution' => $statusDistribution,
+                ],
+                'departments' => $departments,
+                'trend' => $trend,
+                'risks' => $riskObjectives,
+            ],
+            'meta' => [
+                'cycleId' => $cycleId,
+                'departmentId' => $departmentId,
+                'ownerId' => $ownerId,
+                'status' => $status ?: null,
+                'computedAt' => now()->toISOString(),
+            ],
+        ]);
+    }
+
+    /**
+     * Export CSV for OKR company report (Excel-friendly).
+     */
+    public function exportCompanyOkrCsv(Request $request): StreamedResponse
+    {
+        $response = $this->companyOkrReport($request);
+        $payload = $response->getData(true);
+        $rows = [];
+        $rows[] = ['Department','Count','Avg Progress','On Track','At Risk','Off Track','On%','At%','Off%','Trend Δ'];
+        foreach ($payload['data']['departments'] as $d) {
+            $rows[] = [
+                $d['departmentName'],
+                $d['count'],
+                $d['averageProgress'],
+                $d['onTrack'],
+                $d['atRisk'],
+                $d['offTrack'],
+                $d['onTrackPct'],
+                $d['atRiskPct'],
+                $d['offTrackPct'],
+                $d['trendDelta'] ?? '',
+            ];
+        }
+
+        $callback = function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            foreach ($rows as $row) {
+                fputcsv($handle, $row);
+            }
+            fclose($handle);
+        };
+
+        $filename = 'okr_company_report_' . now()->format('Ymd_His') . '.csv';
+        return response()->streamDownload($callback, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
 }
