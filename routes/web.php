@@ -186,6 +186,15 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
             ->middleware('auth')
             ->name('my-objectives.user-levels');
+        Route::post('/{id}/archive', [MyObjectiveController::class, 'archive'])
+            ->middleware('auth')
+            ->name('my-objectives.archive');
+        Route::post('/{id}/unarchive', [MyObjectiveController::class, 'unarchive'])
+            ->middleware('auth')
+            ->name('my-objectives.unarchive');
+        Route::delete('/{id}', [MyObjectiveController::class, 'destroy'])  
+            ->middleware('auth')
+            ->name('my-objectives.destroy');
     });
 
     Route::prefix('my-key-results')->group(function () {

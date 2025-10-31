@@ -18,6 +18,40 @@ use Carbon\Carbon;
 
 class MyObjectiveController extends Controller
 {
+    public function archive(Request $request, $id): JsonResponse
+    {
+        $user = Auth::user();
+        $objective = Objective::findOrFail($id);
+
+        if ($objective->user_id !== $user->user_id) {
+            return response()->json(['success' => false, 'message' => 'Bạn chỉ được lưu trữ OKR của mình.'], 403);
+        }
+
+        if ($objective->archived_at) {
+            return response()->json(['success' => false, 'message' => 'OKR đã được lưu trữ.'], 422);
+        }
+
+        $objective->archived_at = now();
+        $objective->save();
+
+        return response()->json(['success' => true, 'message' => 'OKR đã được lưu trữ.']);
+    }
+
+    public function unarchive(Request $request, $id): JsonResponse
+    {
+        $user = Auth::user();
+        $objective = Objective::findOrFail($id);
+
+        if ($objective->user_id !== $user->user_id && !$user->isAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Không có quyền.'], 403);
+        }
+
+        $objective->archived_at = null;
+        $objective->save();
+
+        return response()->json(['success' => true, 'message' => 'Đã bỏ lưu trữ OKR.']);
+    }
+
     /**
      * Hiển thị danh sách Objective của người dùng (chủ sở hữu hoặc được gán).
      */
@@ -28,7 +62,6 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        // === XÁC ĐỊNH CHU KỲ HIỆN TẠI (nếu không có cycle_id trong request) ===
         $currentCycleId = null;
         $currentCycleName = null;
 
@@ -65,9 +98,8 @@ class MyObjectiveController extends Controller
             }
         }
 
-        // === XÂY DỰNG QUERY: CHỈ OKR DO NGƯỜI DÙNG TẠO ===
         $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            ->where('user_id', $user->user_id); // ← BẮT BUỘC: CHỈ OKR CỦA USER
+            ->where('user_id', $user->user_id); 
 
         // Lọc archived
         if ($request->has('archived') && $request->archived == '1') {
@@ -431,10 +463,10 @@ class MyObjectiveController extends Controller
         }
 
         // Chặn xóa nếu chu kỳ đã đóng (status != active)
-        $objective->load('cycle');
-        if ($objective->cycle && strtolower((string)$objective->cycle->status) !== 'active') {
-            return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể xóa Objective.'], 403);
-        }
+        // $objective->load('cycle');
+        // if ($objective->cycle && strtolower((string)$objective->cycle->status) !== 'active') {
+        //     return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể xóa Objective.'], 403);
+        // }
 
         try {
             DB::transaction(function () use ($objective) {
