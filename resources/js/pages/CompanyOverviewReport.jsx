@@ -17,6 +17,7 @@ export default function CompanyOverviewReport() {
     const [cycles, setCycles] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [owners, setOwners] = useState([]);
+    const [filterOpen, setFilterOpen] = useState(false);
 
     const [filters, setFilters] = useState({
         cycleId: '',
@@ -91,79 +92,89 @@ export default function CompanyOverviewReport() {
         ];
     }, [report]);
 
-    const exportCsv = async () => {
-        const params = new URLSearchParams();
-        if (filters.cycleId) params.set('cycle_id', filters.cycleId);
-        if (filters.departmentId) params.set('department_id', filters.departmentId);
-        if (filters.status) params.set('status', filters.status);
-        if (filters.ownerId) params.set('owner_id', filters.ownerId);
-        const url = `/api/reports/okr-company/export.csv${params.toString() ? `?${params.toString()}` : ''}`;
-        window.open(url, '_blank');
+    // Close filter popover when clicking outside
+    useEffect(() => {
+        const handler = (e) => {
+            const pop = document.getElementById('okr-filter-popover');
+            const btn = document.getElementById('okr-filter-button');
+            if (!pop || !btn) return;
+            if (!pop.contains(e.target) && !btn.contains(e.target)) {
+                setFilterOpen(false);
+            }
+        };
+        if (filterOpen) document.addEventListener('click', handler);
+        return () => document.removeEventListener('click', handler);
+    }, [filterOpen]);
+
+    const resetFilters = () => {
+        setFilters(f => ({ ...f, departmentId: '', status: '' }));
     };
 
     return (
         <div className="px-6 py-8">
             <div className="mb-6 flex items-center justify-between">
                 <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo tổng quan OKR công ty</h1>
-                <div className="flex items-center gap-3">
-                    <button onClick={() => window.print()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Xuất PDF</button>
-                    <button onClick={exportCsv} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:opacity-95">Xuất Excel (CSV)</button>
-                </div>
-            </div>
-
-            <div className="mb-4 grid gap-3 md:grid-cols-4">
-                <div className="flex items-center gap-2">
-                    <label className="text-sm text-slate-600">Chu kỳ</label>
-                    <select
-                        value={filters.cycleId ?? ''}
-                        onChange={(e) => setFilters(f => ({...f, cycleId: e.target.value}))}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                <div className="relative">
+                    <button
+                        id="okr-filter-button"
+                        onClick={() => setFilterOpen(v => !v)}
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:opacity-95"
                     >
-                        {cycles.map(c => (
-                            <option key={c.cycle_id || c.cycleId} value={c.cycle_id || c.cycleId}>
-                                {c.cycle_name || c.cycleName}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-                <div className="flex items-center gap-2">
-                    <label className="text-sm text-slate-600">Phòng ban</label>
-                    <select
-                        value={filters.departmentId ?? ''}
-                        onChange={(e) => setFilters(f => ({...f, departmentId: e.target.value}))}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                        <option value="">Tất cả</option>
-                        {departments.map(d => (
-                            <option key={d.department_id} value={d.department_id}>{d.d_name}</option>
-                        ))}
-                    </select>
-                </div>
-                <div className="flex items-center gap-2">
-                    <label className="text-sm text-slate-600">Trạng thái</label>
-                    <select
-                        value={filters.status ?? ''}
-                        onChange={(e) => setFilters(f => ({...f, status: e.target.value}))}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                        <option value="">Tất cả</option>
-                        <option value="on_track">On Track</option>
-                        <option value="at_risk">At Risk</option>
-                        <option value="off_track">Off Track</option>
-                    </select>
-                </div>
-                <div className="flex items-center gap-2">
-                    <label className="text-sm text-slate-600">Phụ trách</label>
-                    <select
-                        value={filters.ownerId ?? ''}
-                        onChange={(e) => setFilters(f => ({...f, ownerId: e.target.value}))}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                        <option value="">Tất cả</option>
-                        {owners.map(u => (
-                            <option key={u.user_id} value={u.user_id}>{u.full_name}</option>
-                        ))}
-                    </select>
+                        filter
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                    {filterOpen && (
+                        <div id="okr-filter-popover" className="absolute right-0 z-20 mt-2 w-[720px] max-w-[90vw] rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
+                            <div className="text-base font-semibold text-slate-900 mb-4">My OKR</div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <div className="mb-2 text-sm font-semibold text-slate-700">Chu kỳ</div>
+                                    <select
+                                        value={filters.cycleId ?? ''}
+                                        onChange={(e) => setFilters(f => ({...f, cycleId: e.target.value}))}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                                    >
+                                        {cycles.map(c => (
+                                            <option key={c.cycle_id || c.cycleId} value={c.cycle_id || c.cycleId}>
+                                                {c.cycle_name || c.cycleName}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <div className="mb-2 text-sm font-semibold text-slate-700">Phòng ban</div>
+                                    <select
+                                        value={filters.departmentId ?? ''}
+                                        onChange={(e) => setFilters(f => ({...f, departmentId: e.target.value}))}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                                    >
+                                        <option value="">-- Tất cả phòng ban --</option>
+                                        {departments.map(d => (
+                                            <option key={d.department_id} value={d.department_id}>{d.d_name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <div className="mb-2 text-sm font-semibold text-slate-700">Trạng thái</div>
+                                    <select
+                                        value={filters.status ?? ''}
+                                        onChange={(e) => setFilters(f => ({...f, status: e.target.value}))}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                                    >
+                                        <option value="">-- Tất cả trạng thái --</option>
+                                        <option value="on_track">On Track</option>
+                                        <option value="at_risk">At Risk</option>
+                                        <option value="off_track">Off Track</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-end">
+                                    <button onClick={resetFilters} className="w-full rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">Reset</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
