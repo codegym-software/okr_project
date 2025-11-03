@@ -190,10 +190,15 @@ export default function OKRTable({
                                                 
                                                 return (
                                                 <div key={kr.kr_id} className="bg-white rounded-lg p-3 border border-gray-200">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-sm font-medium text-gray-900">{kr.kr_title}</span>
-                                                        <div className="flex items-center space-x-2">
-                                                            <span className="text-sm font-bold text-blue-600">{calculatedPercentage.toFixed(2)}%</span>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <span className="text-sm font-medium text-gray-900 block truncate">{kr.kr_title}</span>
+                                                        </div>
+                                                        <div className="flex items-center space-x-2 ml-3 flex-shrink-0">
+                                                            {/* Hiển thị phần trăm tiến độ của từng KR - nổi bật hơn */}
+                                                            <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-lg">
+                                                                <span className="text-sm font-bold text-blue-700">{calculatedPercentage.toFixed(2)}%</span>
+                                                            </div>
                                                             {/* Nút Check-in cho Key Result */}
                                                             {canCheckIn(kr, item) && (
                                                                 <button
@@ -218,15 +223,27 @@ export default function OKRTable({
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                                                        <div 
-                                                            className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                                                            style={{ width: `${Math.min(calculatedPercentage, 100)}%` }}
-                                                        ></div>
+                                                    {/* Thanh tiến độ với nhãn phần trăm */}
+                                                    <div className="space-y-1 mb-2">
+                                                        <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                                            <span>Tiến độ: {calculatedPercentage.toFixed(2)}%</span>
+                                                            <span>{kr.current_value || 0} / {kr.target_value} {kr.unit || ''}</span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                                            <div 
+                                                                className={`h-2.5 rounded-full transition-all duration-300 ${
+                                                                    calculatedPercentage >= 100 ? 'bg-green-500' :
+                                                                    calculatedPercentage >= 75 ? 'bg-blue-600' :
+                                                                    calculatedPercentage >= 50 ? 'bg-yellow-500' :
+                                                                    'bg-red-500'
+                                                                }`}
+                                                                style={{ width: `${Math.min(calculatedPercentage, 100)}%` }}
+                                                            ></div>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center justify-between text-xs text-gray-500">
-                                                        <span>Target: {kr.target_value} {kr.unit || ''}</span>
-                                                        <span>Current: {kr.current_value || 0} {kr.unit || ''}</span>
+                                                    <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
+                                                        <span>Mục tiêu: {kr.target_value} {kr.unit || ''}</span>
+                                                        <span>Hiện tại: {kr.current_value || 0} {kr.unit || ''}</span>
                                                     </div>
                                                 </div>
                                                 );

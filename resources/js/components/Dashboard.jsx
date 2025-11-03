@@ -7,6 +7,8 @@ import ToastComponent from "../pages/ToastComponent.jsx";
 import ErrorBoundary from "./ErrorBoundary";
 import OKRBarChart from "./OKRBarChart";
 import OKRTable from "./OKRTable";
+import CheckInModal from "./CheckInModal";
+import CheckInHistory from "./CheckInHistory";
 
 export default function Dashboard() {
     const [items, setItems] = useState([]);
@@ -29,6 +31,8 @@ export default function Dashboard() {
     const [pieChartData, setPieChartData] = useState([]);
     const [error, setError] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
+    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
+    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
 
     const loadStaticData = async () => {
         try {
@@ -304,6 +308,43 @@ export default function Dashboard() {
         });
     }, [filteredItems]);
 
+    const handleCheckInSuccess = (keyResultData) => {
+        if (keyResultData && keyResultData.kr_id) {
+            // Cập nhật Key Result trong danh sách
+            setItems((prev) =>
+                prev.map((obj) => ({
+                    ...obj,
+                    key_results: (obj.key_results || []).map((kr) =>
+                        kr.kr_id === keyResultData.kr_id ? { ...kr, ...keyResultData } : kr
+                    ),
+                }))
+            );
+        }
+        
+        // Hiển thị thông báo thành công
+        setToast({
+            type: "success",
+            message: keyResultData?.progress_percent >= 100 
+                ? "🎉 Chúc mừng! Key Result đã hoàn thành 100%."
+                : "✅ Cập nhật tiến độ thành công!",
+        });
+        
+        // Reload data để đảm bảo đồng bộ
+        load(page, cycleFilter, myOKRFilter);
+    };
+
+    const openCheckInModal = (keyResult) => {
+        console.log('Opening check-in modal for:', keyResult);
+        console.log('Objective ID:', keyResult?.objective_id);
+        setCheckInModal({ open: true, keyResult });
+    };
+
+    const openCheckInHistory = (keyResult) => {
+        console.log('Opening check-in history for:', keyResult);
+        console.log('Objective ID:', keyResult?.objective_id);
+        setCheckInHistory({ open: true, keyResult });
+    };
+
     // Tính toán dữ liệu cho pie chart
     useEffect(() => {
         if (sortedItems.length > 0) {
@@ -511,6 +552,8 @@ export default function Dashboard() {
                         console.log('View OKR:', item);
                         // You can implement navigation here
                     }}
+                    onCheckIn={openCheckInModal}
+                    onViewCheckInHistory={openCheckInHistory}
                     currentUser={currentUser}
                 />
 
@@ -588,6 +631,28 @@ export default function Dashboard() {
                     reloadData={load}
                 />
             )}
+
+            {/* Check-in Modal */}
+            <ErrorBoundary>
+                <CheckInModal
+                    open={checkInModal.open}
+                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
+                    keyResult={checkInModal.keyResult}
+                    objectiveId={checkInModal.keyResult?.objective_id}
+                    onSuccess={handleCheckInSuccess}
+                />
+            </ErrorBoundary>
+
+            {/* Check-in History Modal */}
+            <ErrorBoundary>
+                <CheckInHistory
+                    open={checkInHistory.open}
+                    onClose={() => setCheckInHistory({ open: false, keyResult: null })}
+                    keyResult={checkInHistory.keyResult}
+                    objectiveId={checkInHistory.keyResult?.objective_id}
+                    onSuccess={handleCheckInSuccess}
+                />
+            </ErrorBoundary>
 
         </div>
     );

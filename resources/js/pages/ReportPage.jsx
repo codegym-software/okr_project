@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { Select } from "../components/ui";
-import LineChart from "../components/LineChart";
 import BarChart from "../components/BarChart";
 
 export default function ReportPage() {
@@ -10,8 +9,6 @@ export default function ReportPage() {
     const [reportData, setReportData] = useState(null);
     const [departmentName, setDepartmentName] = useState(null);
     const [error, setError] = useState(null);
-    const [trendData, setTrendData] = useState([]);
-    const [showTrendChart, setShowTrendChart] = useState(true);
     const [showTeamOKRs, setShowTeamOKRs] = useState(true);
     const [showTeamMembers, setShowTeamMembers] = useState(true);
 
@@ -45,29 +42,18 @@ export default function ReportPage() {
         setLoading(true);
         setError(null);
         try {
-            const [reportRes, trendRes] = await Promise.all([
-                fetch(`/api/reports/my-team?cycle_id=${cycleId}`, {
-                    headers: { Accept: "application/json" },
-                    credentials: "include",
-                }),
-                fetch(`/api/reports/progress-trend?cycle_id=${cycleId}`, {
-                    headers: { Accept: "application/json" },
-                    credentials: "include",
-                })
-            ]);
+            const reportRes = await fetch(`/api/reports/my-team?cycle_id=${cycleId}`, {
+                headers: { Accept: "application/json" },
+                credentials: "include",
+            });
 
             const reportData = await reportRes.json();
-            const trendData = await trendRes.json();
 
             if (reportData.success) {
                 setReportData(reportData.data);
                 setDepartmentName(reportData.department_name);
             } else {
                 setError(reportData.message || "Không thể tải dữ liệu báo cáo");
-            }
-
-            if (trendData.success) {
-                setTrendData(trendData.data || []);
             }
         } catch (e) {
             console.error("Error loading report:", e);
@@ -165,38 +151,6 @@ export default function ReportPage() {
                                 </div>
                             </div>
                         </div>
-
-                        {/* Biểu đồ xu hướng tiến độ nhóm */}
-                        {trendData.length > 0 && (
-                            <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-6">
-                                <button
-                                    onClick={() => setShowTrendChart(!showTrendChart)}
-                                    className="w-full flex items-center justify-between p-6 hover:bg-gray-50 transition-colors"
-                                >
-                                    <h2 className="text-xl font-bold text-gray-900">
-                                        Biểu đồ xu hướng tiến độ nhóm theo thời gian
-                                    </h2>
-                                    <svg
-                                        className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
-                                            showTrendChart ? 'transform rotate-180' : ''
-                                        }`}
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
-                                {showTrendChart && (
-                                    <div className="px-6 pb-6">
-                                        <LineChart 
-                                            data={trendData}
-                                            title=""
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
 
                         {/* Team OKRs */}
                         {reportData.team_okrs && reportData.team_okrs.length > 0 && (

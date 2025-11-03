@@ -138,34 +138,33 @@ class ReportController extends Controller
         foreach ($objectives as $objective) {
             // Lấy tất cả OKR không phải personal (team, unit)
             if (in_array($objective->level, ['team', 'unit'])) {
-                // Đếm tất cả Key Results của thành viên trong nhóm
-                // Load check-ins mới nhất để đảm bảo dữ liệu chính xác
-                $teamMemberIds = $teamMembers->pluck('user_id');
-                $allMemberKeyResults = KeyResult::whereIn('user_id', $teamMemberIds)
-                    ->with(['objective', 'latestCheckIn'])
+                // Lấy các Key Results thuộc Objective này và load check-ins mới nhất
+                $objectiveKeyResults = KeyResult::where('objective_id', $objective->objective_id)
+                    ->with(['latestCheckIn'])
                     ->get()
-                    ->filter(function($kr) use ($cycleId) {
-                        if ($cycleId) {
-                            return $kr->objective && $kr->objective->cycle_id == $cycleId;
-                        }
-                        return true;
-                    })
                     ->map(function($kr) {
                         // Ưu tiên sử dụng check-in mới nhất nếu có
                         if ($kr->latestCheckIn) {
                             $kr->progress_percent = $kr->latestCheckIn->progress_percent;
+                        } else {
+                            // Nếu không có check-in, tính từ current_value và target_value
+                            if ($kr->target_value > 0) {
+                                $kr->progress_percent = min(100, max(0, ($kr->current_value / $kr->target_value) * 100));
+                            } else {
+                                $kr->progress_percent = 0;
+                            }
                         }
                         return $kr;
                     });
 
-                $totalKR = $allMemberKeyResults->count();
-                $completedKR = $allMemberKeyResults->filter(function($kr) {
+                $totalKR = $objectiveKeyResults->count();
+                $completedKR = $objectiveKeyResults->filter(function($kr) {
                     return ($kr->progress_percent ?? 0) >= 100;
                 })->count();
 
-                // Tính tiến độ dựa trên tất cả Key Results của thành viên
+                // Tính tiến độ dựa trên các Key Results thuộc Objective này (từ check-in)
                 $teamProgress = $totalKR > 0
-                    ? round($allMemberKeyResults->avg('progress_percent'), 2)
+                    ? round($objectiveKeyResults->avg('progress_percent'), 2)
                     : 0;
 
                 $teamOKRs[] = [
