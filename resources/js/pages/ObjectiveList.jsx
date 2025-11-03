@@ -1,5 +1,6 @@
 // ObjectiveList.jsx
 import React, { useState, useEffect } from "react";
+import { canCheckInKeyResult } from "../utils/checkinPermissions";
 
 export default function ObjectiveList({
     items,
@@ -17,6 +18,9 @@ export default function ObjectiveList({
     setCycleFilter,
     myOKRFilter,
     setMyOKRFilter,
+    openCheckInModal,
+    openCheckInHistory,
+    currentUser,
 }) {
     const [toast, setToast] = useState(null); // ← THÊM STATE TOAST
 
@@ -303,9 +307,35 @@ export default function ObjectiveList({
                                                     {kr.target_value ?? ""}
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
-                                                    {formatPercent(
-                                                        kr.progress_percent
-                                                    )}
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <span className="text-blue-600 font-medium">
+                                                            {formatPercent(kr.progress_percent)}
+                                                        </span>
+                                                        {/* Nút Check-in cho Key Result */}
+                                                        {openCheckInModal && canCheckInKeyResult(currentUser, kr, obj) && (
+                                                            <button
+                                                                onClick={() => openCheckInModal({ ...kr, objective_id: obj.objective_id })}
+                                                                className="p-1 rounded hover:bg-blue-50 transition-colors"
+                                                                title="Check-in Key Result"
+                                                            >
+                                                                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                        {/* Nút Xem lịch sử Key Result */}
+                                                        {openCheckInHistory && (
+                                                            <button
+                                                                onClick={() => openCheckInHistory({ ...kr, objective_id: obj.objective_id })}
+                                                                className="p-1 rounded hover:bg-gray-50 transition-colors"
+                                                                title="Lịch sử check-in Key Result"
+                                                            >
+                                                                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}

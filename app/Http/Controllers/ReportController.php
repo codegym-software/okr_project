@@ -109,15 +109,23 @@ class ReportController extends Controller
     {
         // 1. Tính tỷ lệ hoàn thành trung bình của team (bao gồm OKR cá nhân và OKR nhóm)
         // Tính progress của tất cả Key Results của thành viên trong nhóm
+        // Load check-ins mới nhất để đảm bảo dữ liệu chính xác
         $teamMemberIds = $teamMembers->pluck('user_id');
         $allMemberKeyResults = KeyResult::whereIn('user_id', $teamMemberIds)
-            ->with('objective')
+            ->with(['objective', 'latestCheckIn'])
             ->get()
             ->filter(function($kr) use ($cycleId) {
                 if ($cycleId) {
                     return $kr->objective && $kr->objective->cycle_id == $cycleId;
                 }
                 return true;
+            })
+            ->map(function($kr) {
+                // Ưu tiên sử dụng check-in mới nhất nếu có
+                if ($kr->latestCheckIn) {
+                    $kr->progress_percent = $kr->latestCheckIn->progress_percent;
+                }
+                return $kr;
             });
 
         // Tính progress trung bình của tất cả Key Results
@@ -131,15 +139,23 @@ class ReportController extends Controller
             // Lấy tất cả OKR không phải personal (team, unit)
             if (in_array($objective->level, ['team', 'unit'])) {
                 // Đếm tất cả Key Results của thành viên trong nhóm
+                // Load check-ins mới nhất để đảm bảo dữ liệu chính xác
                 $teamMemberIds = $teamMembers->pluck('user_id');
                 $allMemberKeyResults = KeyResult::whereIn('user_id', $teamMemberIds)
-                    ->with('objective')
+                    ->with(['objective', 'latestCheckIn'])
                     ->get()
                     ->filter(function($kr) use ($cycleId) {
                         if ($cycleId) {
                             return $kr->objective && $kr->objective->cycle_id == $cycleId;
                         }
                         return true;
+                    })
+                    ->map(function($kr) {
+                        // Ưu tiên sử dụng check-in mới nhất nếu có
+                        if ($kr->latestCheckIn) {
+                            $kr->progress_percent = $kr->latestCheckIn->progress_percent;
+                        }
+                        return $kr;
                     });
 
                 $totalKR = $allMemberKeyResults->count();
@@ -174,14 +190,22 @@ class ReportController extends Controller
             $personalOKRs = $objectives->where('user_id', $member->user_id);
 
             // Lấy tất cả Key Results do thành viên này tạo (từ database, filter theo cycle)
+            // Load check-ins mới nhất để đảm bảo dữ liệu chính xác
             $allKeyResults = KeyResult::where('user_id', $member->user_id)
-                ->with('objective')
+                ->with(['objective', 'latestCheckIn'])
                 ->get()
                 ->filter(function($kr) use ($cycleId) {
                     if ($cycleId) {
                         return $kr->objective && $kr->objective->cycle_id == $cycleId;
                     }
                     return true;
+                })
+                ->map(function($kr) {
+                    // Ưu tiên sử dụng check-in mới nhất nếu có
+                    if ($kr->latestCheckIn) {
+                        $kr->progress_percent = $kr->latestCheckIn->progress_percent;
+                    }
+                    return $kr;
                 });
 
             $totalKeyResults = $allKeyResults->count();
@@ -231,6 +255,144 @@ class ReportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi khi lấy danh sách cycles: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Lấy dữ liệu xu hướng tiến độ nhóm theo thời gian
+     */
+    public function getTeamProgressTrend(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Người dùng chưa đăng nhập'
+                ], 401);
+            }
+
+            $cycleId = $request->query('cycle_id');
+            
+            if (!$cycleId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vui lòng chọn chu kỳ'
+                ], 400);
+            }
+
+            // Lấy department của manager
+            $managerDepartment = Department::where('department_id', $user->department_id)->first();
+            
+            if (!$managerDepartment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không thuộc nhóm nào'
+                ], 404);
+            }
+
+            // Lấy danh sách thành viên trong team
+            $teamMemberIds = User::where('department_id', $managerDepartment->department_id)
+                ->pluck('user_id');
+
+            // Lấy tất cả Key Results của team trong cycle này
+            $keyResults = \App\Models\KeyResult::whereIn('user_id', $teamMemberIds)
+                ->whereHas('objective', function($query) use ($cycleId) {
+                    $query->where('cycle_id', $cycleId);
+                })
+                ->with(['checkIns' => function($query) {
+                    $query->orderBy('created_at', 'asc');
+                }])
+                ->get();
+
+            // Nhóm check-ins theo ngày và tính tỷ lệ hoàn thành trung bình tại mỗi thời điểm
+            $trendData = [];
+            $checkInsByDate = [];
+
+            // Thu thập tất cả check-ins với progress của Key Results tại thời điểm đó
+            foreach ($keyResults as $kr) {
+                foreach ($kr->checkIns as $checkIn) {
+                    $dateKey = \Carbon\Carbon::parse($checkIn->created_at)->format('Y-m-d');
+                    $dateLabel = \Carbon\Carbon::parse($checkIn->created_at)->format('d/m/Y');
+                    
+                    if (!isset($checkInsByDate[$dateKey])) {
+                        $checkInsByDate[$dateKey] = [
+                            'label' => $dateLabel,
+                            'values' => [],
+                            'date' => $checkIn->created_at
+                        ];
+                    }
+                    $checkInsByDate[$dateKey]['values'][] = floatval($checkIn->progress_percent ?? 0);
+                }
+            }
+
+            // Tính tỷ lệ trung bình cho mỗi ngày
+            foreach ($checkInsByDate as $dateKey => $dateData) {
+                $averageProgress = count($dateData['values']) > 0 
+                    ? round(array_sum($dateData['values']) / count($dateData['values']), 2)
+                    : 0;
+                
+                $trendData[] = [
+                    'label' => $dateData['label'],
+                    'value' => $averageProgress,
+                    'date' => $dateData['date']
+                ];
+            }
+
+            // Sắp xếp theo ngày
+            usort($trendData, function($a, $b) {
+                return strtotime($a['date']) - strtotime($b['date']);
+            });
+
+            // Nếu có quá nhiều điểm, nhóm lại theo tuần để hiển thị rõ hơn (tối đa 12 điểm)
+            if (count($trendData) > 12) {
+                // Nhóm lại theo tuần
+                $groupedByWeek = [];
+                
+                foreach ($trendData as $item) {
+                    $weekKey = \Carbon\Carbon::parse($item['date'])->format('Y-W');
+                    if (!isset($groupedByWeek[$weekKey])) {
+                        $groupedByWeek[$weekKey] = [
+                            'label' => 'Tuần ' . \Carbon\Carbon::parse($item['date'])->format('W/Y'),
+                            'values' => [],
+                            'date' => $item['date']
+                        ];
+                    }
+                    $groupedByWeek[$weekKey]['values'][] = $item['value'];
+                }
+
+                $trendData = [];
+                foreach ($groupedByWeek as $weekData) {
+                    $averageProgress = count($weekData['values']) > 0 
+                        ? round(array_sum($weekData['values']) / count($weekData['values']), 2)
+                        : 0;
+                    $trendData[] = [
+                        'label' => $weekData['label'],
+                        'value' => $averageProgress,
+                        'date' => $weekData['date']
+                    ];
+                }
+
+                // Sắp xếp lại theo ngày
+                usort($trendData, function($a, $b) {
+                    return strtotime($a['date']) - strtotime($b['date']);
+                });
+
+                // Lấy 12 điểm gần nhất
+                $trendData = array_slice($trendData, -12);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $trendData
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy dữ liệu xu hướng: ' . $e->getMessage()
             ], 500);
         }
     }

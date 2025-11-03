@@ -37,13 +37,14 @@ export default function OKRTable({
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
             {/* Table Header */}
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                <div className="grid grid-cols-6 gap-4 text-sm font-medium text-gray-500">
+                <div className="grid grid-cols-7 gap-4 text-sm font-medium text-gray-500">
                     <div>tiêu đề</div>
                     <div className="hidden md:block">phòng ban</div>
-                    <div className="hidden lg:block">chu kỳ</div>
                     <div className="hidden md:block">mục tiêu</div>
                     <div>tiến độ</div>
-                    <div>checkin</div>
+                    <div className="hidden lg:block">ngày hết hạn</div>
+                    <div className="hidden lg:block">trạng thái</div>
+                    <div>mức độ ưu tiên</div>
                 </div>
             </div>
             
@@ -76,27 +77,12 @@ export default function OKRTable({
                             }, 0) / item.key_results.length)
                             : 0;
                         
-                        // Đếm số Key Results đã đạt 100% (chỉ tính KR đạt 100% mới hiện vào checkin)
-                        const checkinCount = item.key_results?.filter(kr => {
-                            // Tính progress của KR
-                            let progress = 0;
-                            if (kr.progress_percent !== null && kr.progress_percent !== undefined) {
-                                progress = parseFloat(kr.progress_percent);
-                            } else {
-                                const currentValue = parseFloat(kr.current_value) || 0;
-                                const targetValue = parseFloat(kr.target_value) || 0;
-                                progress = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
-                            }
-                            // Chỉ tính KR đạt 100%
-                            return progress >= 100;
-                        }).length || 0;
-                        
                         const isExpanded = expandedObjectives[item.objective_id];
                         
                         return (
                             <React.Fragment key={item.objective_id}>
                                 <div className={`px-6 py-4 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}>
-                                    <div className="grid grid-cols-6 gap-4 items-center">
+                                    <div className="grid grid-cols-7 gap-4 items-center">
                                         <div className="flex items-center space-x-3 min-w-0">
                                             <button
                                                 onClick={() => toggleExpand(item.objective_id)}
@@ -122,9 +108,6 @@ export default function OKRTable({
                                         <div className="hidden md:block text-sm text-gray-600 truncate">
                                             {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
                                         </div>
-                                        <div className="hidden lg:block text-sm text-gray-600 truncate">
-                                            {cyclesList.find(c => String(c.cycle_id) === String(item.cycle_id))?.cycle_name || '-'}
-                                        </div>
                                         <div className="hidden md:block text-sm text-gray-600">100%</div>
                                         <div className="text-sm text-gray-600">
                                             <div className="flex items-center space-x-2">
@@ -137,10 +120,34 @@ export default function OKRTable({
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="text-sm text-gray-600">
-                                            <div className="flex items-center space-x-2">
-                                                <span className="text-xs">{checkinCount}/{item.key_results?.length || 0}</span>
-                                            </div>
+                                        <div className="hidden lg:block text-sm text-gray-600">
+                                            {item.deadlineCharacter ? item.deadlineCharacter : '-'}
+                                        </div>
+                                        <div className="hidden lg:block text-sm">
+                                            {item.isOverdue !== undefined && (
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    item.isOverdue 
+                                                        ? 'bg-red-100 text-red-700' 
+                                                        : item.isUpcoming
+                                                        ? 'bg-amber-100 text-amber-700'
+                                                        : 'bg-green-100 text-green-700'
+                                                }`}>
+                                                    {item.isOverdue ? 'Quá hạn' : item.isUpcoming ? 'Sắp hết hạn' : 'Còn hạn'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-sm">
+                                            {item.priority !== undefined && (
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    item.priority === 'high'
+                                                        ? 'bg-red-100 text-red-700' 
+                                                        : item.priority === 'medium'
+                                                        ? 'bg-yellow-100 text-yellow-700'
+                                                        : 'bg-gray-100 text-gray-700'
+                                                }`}>
+                                                    {item.priority === 'high' ? 'Cao' : item.priority === 'medium' ? 'Trung bình' : 'Thấp'}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                     
@@ -149,9 +156,19 @@ export default function OKRTable({
                                         <div className="text-xs text-gray-500">
                                             Phòng ban: {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
                                         </div>
-                                        <div className="text-xs text-gray-500">
-                                            Chu kỳ: {cyclesList.find(c => String(c.cycle_id) === String(item.cycle_id))?.cycle_name || '-'}
-                                        </div>
+                                        {item.isOverdue !== undefined && (
+                                            <div className="text-xs">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    item.isOverdue 
+                                                        ? 'bg-red-100 text-red-700' 
+                                                        : item.isUpcoming
+                                                        ? 'bg-amber-100 text-amber-700'
+                                                        : 'bg-green-100 text-green-700'
+                                                }`}>
+                                                    {item.isOverdue ? 'Quá hạn' : item.isUpcoming ? 'Sắp hết hạn' : 'Còn hạn'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

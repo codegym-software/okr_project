@@ -4,10 +4,8 @@ import ObjectiveList from "../pages/ObjectiveList.jsx";
 import ObjectiveModal from "../pages/ObjectiveModal.jsx";
 import KeyResultModal from "../pages/KeyResultModal.jsx";
 import ToastComponent from "../pages/ToastComponent.jsx";
-import CheckInModal from "./CheckInModal";
-import CheckInHistory from "./CheckInHistory";
 import ErrorBoundary from "./ErrorBoundary";
-import PieChart from "./PieChart";
+import OKRBarChart from "./OKRBarChart";
 import OKRTable from "./OKRTable";
 
 export default function Dashboard() {
@@ -27,8 +25,6 @@ export default function Dashboard() {
     const [cycleFilter, setCycleFilter] = useState("");
     const [departmentFilter, setDepartmentFilter] = useState("");
     const [myOKRFilter, setMyOKRFilter] = useState(false);
-    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null, type: 'keyResult' });
-    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null, type: 'keyResult' });
     const [currentUser, setCurrentUser] = useState(null);
     const [pieChartData, setPieChartData] = useState([]);
     const [error, setError] = useState(null);
@@ -234,8 +230,74 @@ export default function Dashboard() {
     );
 
     const sortedItems = useMemo(() => {
-        // Sort by created_at descending (newest first)
-        return [...filteredItems].sort((a, b) => {
+        const now = new Date();
+        // Tính tổng tiến độ của tất cả OKR
+        const totalProgress = filteredItems.reduce((sum, item) => {
+            if (!item.key_results || item.key_results.length === 0) return sum;
+            const itemProgress = item.key_results.reduce((krSum, kr) => {
+                const percentage = kr.progress_percent !== null && kr.progress_percent !== undefined
+                    ? parseFloat(kr.progress_percent)
+                    : (kr.target_value > 0 ? (parseFloat(kr.current_value || 0) / parseFloat(kr.target_value)) * 100 : 0);
+                return krSum + percentage;
+            }, 0) / item.key_results.length;
+            return sum + itemProgress;
+        }, 0);
+        const overallAvgProgress = filteredItems.length > 0 ? totalProgress / filteredItems.length : 0;
+
+        // Sort by created_at descending (newest first) và thêm thông tin deadline
+        return [...filteredItems].map(item => {
+            // Tính overall progress cho item này (tỷ lệ % chung)
+            let itemOverallProgress = 0;
+            if (item.key_results && item.key_results.length > 0) {
+                const itemProgress = item.key_results.reduce((krSum, kr) => {
+                    const percentage = kr.progress_percent !== null && kr.progress_percent !== undefined
+                        ? parseFloat(kr.progress_percent)
+                        : (kr.target_value > 0 ? (parseFloat(kr.current_value || 0) / parseFloat(kr.target_value)) * 100 : 0);
+                    return krSum + percentage;
+                }, 0);
+                itemOverallProgress = itemProgress / item.key_results.length;
+            }
+
+            // Kiểm tra quá hạn và tính deadline, priority dựa trên cycle end_date
+            let isOverdue = false;
+            let isUpcoming = false; // Sắp hết hạn (còn <= 7 ngày)
+            let deadlineCharacter = '-';
+            let priority = 'low'; // Mặc định là thấp
+
+            if (item.cycle && item.cycle.end_date) {
+                const endDate = new Date(item.cycle.end_date);
+                isOverdue = endDate < now;
+                
+                // Format ngày hết hạn
+                deadlineCharacter = endDate.toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+
+                // Tính mức độ ưu tiên và trạng thái dựa trên thời gian còn lại
+                const daysRemaining = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+                
+                if (isOverdue) {
+                    priority = 'high'; // Quá hạn = ưu tiên cao
+                } else if (daysRemaining <= 7 && daysRemaining > 0) {
+                    priority = 'high'; // Còn <= 7 ngày = ưu tiên cao
+                    isUpcoming = true; // Sắp hết hạn
+                } else if (daysRemaining <= 30) {
+                    priority = 'medium'; // Còn <= 30 ngày = ưu tiên trung bình
+                } else {
+                    priority = 'low'; // Còn > 30 ngày = ưu tiên thấp
+                }
+            }
+
+            return {
+                ...item,
+                deadlineCharacter,
+                isOverdue,
+                isUpcoming,
+                priority
+            };
+        }).sort((a, b) => {
             const dateA = new Date(a.created_at || 0);
             const dateB = new Date(b.created_at || 0);
             return dateB - dateA; // Descending order
@@ -278,43 +340,6 @@ export default function Dashboard() {
         }
     }, [sortedItems]);
 
-    const openCheckInModal = (keyResult) => {
-        console.log('🔧 Dashboard: Opening check-in modal for Key Result:', keyResult);
-        console.log('🔧 Dashboard: Key Result ID:', keyResult?.kr_id);
-        console.log('🔧 Dashboard: Key Result current_value:', keyResult?.current_value);
-        console.log('🔧 Dashboard: Key Result target_value:', keyResult?.target_value);
-        console.log('🔧 Dashboard: Key Result progress_percent:', keyResult?.progress_percent);
-        setCheckInModal({ open: true, keyResult, type: 'keyResult' });
-    };
-
-    const openCheckInHistory = (keyResult) => {
-        console.log('Opening check-in history for Key Result:', keyResult);
-        console.log('Key Result ID:', keyResult?.kr_id);
-        setCheckInHistory({ open: true, keyResult, type: 'keyResult' });
-    };
-
-    const handleCheckInSuccess = (keyResultData) => {
-        if (keyResultData && keyResultData.kr_id) {
-            // Cập nhật Key Result trong danh sách
-            setItems((prev) =>
-                prev.map((obj) => ({
-                    ...obj,
-                    key_results: (obj.key_results || []).map((kr) =>
-                        kr.kr_id === keyResultData.kr_id ? { ...kr, ...keyResultData } : kr
-                    ),
-                }))
-            );
-        }
-        
-        // Hiển thị thông báo thành công
-        setToast({
-            type: "success",
-            message: keyResultData?.progress_percent >= 100 
-                ? "🎉 Chúc mừng! Key Result đã hoàn thành 100%."
-                : "✅ Cập nhật tiến độ thành công!",
-        });
-    };
-
     return (
         <div className="min-h-screen bg-white">
             <ToastComponent
@@ -329,27 +354,19 @@ export default function Dashboard() {
                 <div className="bg-blue-50 px-6 py-4 rounded-lg mb-6 shadow-sm">
                     <div className="flex items-center justify-between">
                         <h2 className="text-2xl font-bold text-gray-900">My OKR</h2>
-                        <div className="flex items-center space-x-3">
-                            <button 
-                                onClick={() => setShowFilters(!showFilters)}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                    showFilters 
-                                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                                }`}
-                            >
-                                <span>filter</span>
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                            </button>
-                            <button 
-                                onClick={() => setCreatingObjective(true)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
-                            >
-                                Thêm OKR
-                            </button>
-                        </div>
+                        <button 
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                showFilters 
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                            }`}
+                        >
+                            <span>filter</span>
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
@@ -466,20 +483,18 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* Pie Chart Section */}
-                {console.log('🔍 Dashboard Debug:', { 
-                    pieChartDataLength: pieChartData.length, 
-                    pieChartData, 
-                    error, 
-                    sortedItemsLength: sortedItems.length 
-                })}
+                {/* Bar Chart Section */}
                 {pieChartData.length > 0 && !error && (
-                    <PieChart data={pieChartData} />
+                    <div className="mb-6">
+                        <OKRBarChart 
+                            okrData={pieChartData}
+                        />
+                    </div>
                 )}
                 {pieChartData.length === 0 && !error && (
                     <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
                         <div className="text-center text-gray-500">
-                            <p>Không có dữ liệu để hiển thị pie chart</p>
+                            <p>Không có dữ liệu để hiển thị biểu đồ</p>
                             <p className="text-sm">Số objectives: {sortedItems.length}</p>
                         </div>
                     </div>
@@ -487,35 +502,17 @@ export default function Dashboard() {
 
                 {/* OKR Table */}
                 <OKRTable 
-                items={sortedItems}
-                departments={departments}
-                cyclesList={cyclesList}
-                loading={loading}
+                    items={sortedItems}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    loading={loading}
                     onViewOKR={(item) => {
                         // Navigate to objective detail page or open modal
                         console.log('View OKR:', item);
                         // You can implement navigation here
                     }}
-                    onCheckIn={(keyResult) => {
-                        console.log('Check-in Key Result:', keyResult);
-                        // Mở modal checkin cho Key Result
-                        setCheckInModal({ 
-                            open: true, 
-                            keyResult: keyResult,
-                            type: 'keyResult' 
-                        });
-                    }}
-                    onViewCheckInHistory={(keyResult) => {
-                        console.log('View Key Result History:', keyResult);
-                        // Mở modal lịch sử checkin cho Key Result
-                        setCheckInHistory({ 
-                            open: true, 
-                            keyResult: keyResult,
-                            type: 'keyResult' 
-                        });
-                    }}
-                currentUser={currentUser}
-            />
+                    currentUser={currentUser}
+                />
 
                 {/* Pagination */}
                 {totalPages > 1 && (
@@ -592,27 +589,6 @@ export default function Dashboard() {
                 />
             )}
 
-            {/* Check-in Modal */}
-            <ErrorBoundary>
-                <CheckInModal
-                    key={`checkin-${checkInModal.keyResult?.kr_id}-${checkInModal.keyResult?.current_value}-${checkInModal.keyResult?.progress_percent}`}
-                    open={checkInModal.open}
-                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
-                    keyResult={checkInModal.keyResult}
-                    objectiveId={checkInModal.keyResult?.objective_id}
-                    onSuccess={handleCheckInSuccess}
-                />
-            </ErrorBoundary>
-
-            {/* Check-in History Modal */}
-            <ErrorBoundary>
-                <CheckInHistory
-                    open={checkInHistory.open}
-                    onClose={() => setCheckInHistory({ open: false, keyResult: null })}
-                    keyResult={checkInHistory.keyResult}
-                    objectiveId={checkInHistory.keyResult?.objective_id}
-                />
-            </ErrorBoundary>
         </div>
     );
 }
