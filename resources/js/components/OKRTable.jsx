@@ -23,7 +23,7 @@ export default function OKRTable({
     if (loading) {
         return (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="text-center text-gray-500">Đang tải...</div>
+                <div className="text-center text-gray-500">Đang Tải...</div>
             </div>
         );
     }
@@ -38,13 +38,13 @@ export default function OKRTable({
             {/* Table Header */}
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
                 <div className="grid grid-cols-7 gap-4 text-sm font-medium text-gray-500">
-                    <div>tiêu đề</div>
-                    <div className="hidden md:block">phòng ban</div>
-                    <div className="hidden md:block">mục tiêu</div>
-                    <div>tiến độ</div>
-                    <div className="hidden lg:block">ngày hết hạn</div>
-                    <div className="hidden lg:block">trạng thái</div>
-                    <div>mức độ ưu tiên</div>
+                    <div>Tiêu Đề</div>
+                    <div className="hidden md:block">Phòng Ban</div>
+                    <div className="hidden md:block">Mục Tiêu</div>
+                    <div>Tiến Độ</div>
+                    <div className="hidden lg:block">Ngày Hết Hạn</div>
+                    <div className="hidden lg:block">Trạng Thái</div>
+                    <div>Mức Độ Ưu Tiên</div>
                 </div>
             </div>
             
@@ -55,8 +55,8 @@ export default function OKRTable({
                         <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">Không có OKR nào</h3>
-                        <p className="mt-1 text-sm text-gray-500">Hãy tạo OKR đầu tiên của bạn.</p>
+                        <h3 className="mt-2 text-sm font-medium text-gray-900">Không Có OKR Nào</h3>
+                        <p className="mt-1 text-sm text-gray-500">Hãy Tạo OKR Đầu Tiên Của Bạn.</p>
                     </div>
                 ) : (
                     items.map((item, index) => {
@@ -87,7 +87,7 @@ export default function OKRTable({
                                             <button
                                                 onClick={() => toggleExpand(item.objective_id)}
                                                 className="p-1 rounded hover:bg-gray-100 transition-colors"
-                                                title={isExpanded ? "Thu gọn" : "Mở rộng"}
+                                                title={isExpanded ? "Thu Gọn" : "Mở Rộng"}
                                             >
                                                 <svg 
                                                     className={`w-4 h-4 text-gray-400 transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} 
@@ -132,7 +132,7 @@ export default function OKRTable({
                                                         ? 'bg-amber-100 text-amber-700'
                                                         : 'bg-green-100 text-green-700'
                                                 }`}>
-                                                    {item.isOverdue ? 'Quá hạn' : item.isUpcoming ? 'Sắp hết hạn' : 'Còn hạn'}
+                                                    {item.isOverdue ? 'Quá Hạn' : item.isUpcoming ? 'Sắp Hết Hạn' : 'Còn Hạn'}
                                                 </span>
                                             )}
                                         </div>
@@ -145,7 +145,7 @@ export default function OKRTable({
                                                         ? 'bg-yellow-100 text-yellow-700'
                                                         : 'bg-gray-100 text-gray-700'
                                                 }`}>
-                                                    {item.priority === 'high' ? 'Cao' : item.priority === 'medium' ? 'Trung bình' : 'Thấp'}
+                                                    {item.priority === 'high' ? 'Cao' : item.priority === 'medium' ? 'Trung Bình' : 'Thấp'}
                                                 </span>
                                             )}
                                         </div>
@@ -154,7 +154,7 @@ export default function OKRTable({
                                     {/* Mobile view */}
                                     <div className="md:hidden mt-2 space-y-1">
                                         <div className="text-xs text-gray-500">
-                                            Phòng ban: {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
+                                            Phòng Ban: {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
                                         </div>
                                         {item.isOverdue !== undefined && (
                                             <div className="text-xs">
@@ -165,7 +165,7 @@ export default function OKRTable({
                                                         ? 'bg-amber-100 text-amber-700'
                                                         : 'bg-green-100 text-green-700'
                                                 }`}>
-                                                    {item.isOverdue ? 'Quá hạn' : item.isUpcoming ? 'Sắp hết hạn' : 'Còn hạn'}
+                                                    {item.isOverdue ? 'Quá Hạn' : item.isUpcoming ? 'Sắp Hết Hạn' : 'Còn Hạn'}
                                                 </span>
                                             </div>
                                         )}
@@ -176,7 +176,7 @@ export default function OKRTable({
                                 {isExpanded && item.key_results && item.key_results.length > 0 && (
                                     <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
                                         <div className="ml-8 space-y-3">
-                                            <h4 className="text-sm font-semibold text-gray-700 mb-3">Key Results:</h4>
+                                            <h4 className="text-sm font-semibold text-gray-700 mb-3">Kết Quả Chính (Key Results):</h4>
                                             {item.key_results.map((kr, krIndex) => {
                                                 // Tính phần trăm: ưu tiên progress_percent, nếu không có thì tính từ current_value/target_value
                                                 let calculatedPercentage = 0;
@@ -199,7 +199,7 @@ export default function OKRTable({
                                                                 <button
                                                                     onClick={() => onCheckIn?.({ ...kr, objective_id: item.objective_id })}
                                                                     className="p-1 rounded hover:bg-blue-50 transition-colors"
-                                                                    title="Check-in Key Result"
+                                                                    title="Check-In Kết Quả Chính"
                                                                 >
                                                                     <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -210,7 +210,7 @@ export default function OKRTable({
                                                             <button
                                                                 onClick={() => onViewCheckInHistory?.({ ...kr, objective_id: item.objective_id })}
                                                                 className="p-1 rounded hover:bg-gray-50 transition-colors"
-                                                                title="Lịch sử check-in Key Result"
+                                                                title="Lịch Sử Check-In"
                                                             >
                                                                 <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
