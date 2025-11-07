@@ -210,6 +210,13 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         })->middleware('auth')->name('my-key-results.edit');
         Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->middleware('auth')->name('my-key-results.update');
         Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
+        Route::post('/{objectiveId}/{keyResultId}/archive', [MyKeyResultController::class, 'archive'])
+            ->name('my-key-results.archive');
+        Route::post('/{objectiveId}/{keyResultId}/unarchive', [MyKeyResultController::class, 'unarchive'])
+            ->name('my-key-results.unarchive');
+        Route::delete('/{id}', [MyKeyResultController::class, 'destroy'])  
+            ->middleware('auth')
+            ->name('my-key-result.destroy');
     });
 
     // Check-in Routes
