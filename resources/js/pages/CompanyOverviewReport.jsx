@@ -229,7 +229,7 @@ export default function CompanyOverviewReport() {
     return (
         <div className="px-6 py-8">
             <div className="mb-2 flex items-center justify-between">
-                <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo tổng quan OKR công ty</h1>
+                <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo tổng quan</h1>
                 <div className="relative inline-block">
                     <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M7 2a1 1 0 011 1v1h8V3a1 1 0 112 0v1h1a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h1V3a1 1 0 011-1zm13 9H4v7a1 1 0 001 1h14a1 1 0 001-1v-7zM6 6h12V5H6v1z" />
@@ -337,7 +337,6 @@ export default function CompanyOverviewReport() {
                                         <th className="px-6 py-3">On Track</th>
                                         <th className="px-6 py-3">At Risk</th>
                                         <th className="px-6 py-3">Off Track</th>
-                                        <th className="px-6 py-3">Xu hướng</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -352,7 +351,6 @@ export default function CompanyOverviewReport() {
                                             onTrackPct: report.overall?.statusDistribution?.onTrack || 0,
                                             atRiskPct: report.overall?.statusDistribution?.atRisk || 0,
                                             offTrackPct: report.overall?.statusDistribution?.offTrack || 0,
-                                            trendDelta: null,
                                         }
                                     ] : level==='departments' ? (report.departmentsHierarchy || report.departments || [])
                                       : (()=>{
@@ -378,7 +376,6 @@ export default function CompanyOverviewReport() {
                                             <td className="px-6 py-3">{d.onTrack} ({d.onTrackPct}%)</td>
                                             <td className="px-6 py-3">{d.atRisk} ({d.atRiskPct}%)</td>
                                             <td className="px-6 py-3">{d.offTrack} ({d.offTrackPct}%)</td>
-                                            <td className="px-6 py-3"><TrendIcon delta={d.trendDelta} /></td>
                                         </tr>
                                     ))}
                                 </tbody>
