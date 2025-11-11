@@ -355,25 +355,39 @@ export default function DashboardLayout({ children, user }) {
                                 </svg>
                             }
                         />
-                        {/* Chu kỳ - chỉ hiển thị cho Admin và Manager */}
-                        {(!user?.role?.role_name || 
-                          user.role.role_name.toLowerCase() === 'admin' || 
-                          user.role.role_name.toLowerCase() === 'manager') && (
-                            <SidebarItem
-                                collapsed={false}
-                                href="/cycles"
-                                label="Chu kỳ"
-                                icon={
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-6 w-6"
-                                        viewBox="0 0 24 24"
-                                        fill="currentColor"
-                                    >
-                                        <path d="M12 6V2l6 6-6 6V10C7.03 10 3 14.03 3 19c0 1.05.17 2.06.49 3.01C2.02 20.54 1 17.89 1 15c0-5.52 4.48-10 10-10z" />
-                                    </svg>
-                                }
-                            />
+                        {/* Nhóm Quản trị (Admin): gom Chu kỳ, Phòng ban/Đội nhóm, Quản lý người dùng) */}
+                        {user?.is_admin === true && (
+                            <div className="rounded-xl">
+                                <details
+                                    className="group [&_summary::-webkit-details-marker]:hidden"
+                                    open={typeof window !== 'undefined' && ['/cycles', '/departments', '/users'].some(p => window.location.pathname.startsWith(p))}
+                                >
+                                    <summary className="flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold text-slate-700 hover:bg-slate-50">
+                                        <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-open:text-blue-600">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                                            </svg>
+                                        </span>
+                                        <span className="truncate">Quản trị</span>
+                                        <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                            </svg>
+                                        </span>
+                                    </summary>
+                                    <div className="mt-1 pl-12 pr-2 space-y-1">
+                                        <a href="/cycles" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
+                                            Chu kỳ
+                                        </a>
+                                        <a href="/departments" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
+                                            Phòng ban/Đội nhóm
+                                        </a>
+                                        <a href="/users" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
+                                            Quản lý người dùng
+                                        </a>
+                                    </div>
+                                </details>
+                            </div>
                         )}
                         <SidebarItem
                             collapsed={false}
@@ -403,10 +417,8 @@ export default function DashboardLayout({ children, user }) {
                                 }
                             />
                         )}
-                        {/* Phòng ban/Đội nhóm - chỉ hiển thị cho Admin và Manager */}
-                        {(!user?.role?.role_name || 
-                          user.role.role_name.toLowerCase() === 'admin' || 
-                          user.role.role_name.toLowerCase() === 'manager') && (
+                        {/* Phòng ban/Đội nhóm - hiển thị riêng cho Manager (Admin đã nằm trong Quản trị) */}
+                        {user?.role?.role_name?.toLowerCase() === 'manager' && (
                             <SidebarItem
                                 collapsed={false}
                                 href="/departments"
@@ -423,24 +435,7 @@ export default function DashboardLayout({ children, user }) {
                                 }
                             />
                         )}
-                        {/* Quản lý người dùng - chỉ hiển thị cho Admin */}
-                        {user?.is_admin === true && (
-                            <SidebarItem
-                                collapsed={false}
-                                href="/users"
-                                label="Quản lý người dùng"
-                                icon={
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-6 w-6"
-                                        viewBox="0 0 24 24"
-                                        fill="currentColor"
-                                    >
-                                        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13z" />
-                                    </svg>
-                                }
-                            />
-                        )}
+                        {/* Ẩn mục Quản lý người dùng rời cho Admin vì đã gom nhóm */}
                         {/* Báo cáo - chỉ hiển thị cho Manager */}
                         {user?.role?.role_name?.toLowerCase() === 'manager' && (
                             <SidebarItem
