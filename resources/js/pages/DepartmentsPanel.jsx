@@ -702,12 +702,7 @@ export default function DepartmentsPanel() {
                                             )}
                                         </td>
                                         <td className="px-3 py-3 text-center">
-                                            <AdminOnly
-                                                permission={
-                                                    "canManageUsers" &&
-                                                    "canManageRooms"
-                                                }
-                                            >
+                                            <AdminOnly permission={["canManageUsers", "canManageRooms"]}>
                                                 <button
                                                     onClick={() =>
                                                         openAssignModal(d)
@@ -777,12 +772,7 @@ export default function DepartmentsPanel() {
                                                             )}
                                                     </td>
                                                     <td className="px-3 py-3 text-center">
-                                                        <AdminOnly
-                                                            permission={
-                                                                "canManageUsers" &&
-                                                                "canManageTeams"
-                                                            }
-                                                        >
+                                                        <AdminOnly permission="canManageUsers">
                                                             <button
                                                                 onClick={() =>
                                                                     openAssignModal(

@@ -308,41 +308,13 @@ class CheckInController extends Controller
      */
     private function canCheckIn($user, $keyResult): bool
     {
-        // Load objective relationship nếu chưa có
-        if (!$keyResult->relationLoaded('objective')) {
-            $keyResult->load('objective');
-        }
-
-        // Admin có quyền check-in cho tất cả
-        if ($user->isAdmin()) {
-            return true;
-        } 
-
+        // CHỈ người sở hữu Key Result mới có quyền check-in
         // Người sở hữu Key Result có thể check-in
         if ($keyResult->user_id == $user->user_id) {
             return true;
         }
 
-        // Người sở hữu Objective có thể check-in cho tất cả KeyResult của Objective đó
-        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
-            return true;
-        }
-
-        // Cùng phòng ban có thể check-in cho nhau
-        if ($user->department_id && $keyResult->objective && $keyResult->objective->department_id) {
-            // Kiểm tra cùng phòng ban
-            if ($keyResult->objective->department_id == $user->department_id) {
-                return true;
-            }
-        }
-
-        // Kiểm tra KeyResult có department_id và cùng phòng ban với user
-        if ($user->department_id && $keyResult->department_id) {
-            if ($keyResult->department_id == $user->department_id) {
-                return true;
-            }
-        }
-
+        // Tất cả các trường hợp khác đều không có quyền check-in
         return false;
     }
 

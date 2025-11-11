@@ -151,6 +151,24 @@ function DashboardSidebar({ open, user }) {
                         }
                     />
                 )}
+                {/* Báo cáo - chỉ hiển thị cho Manager */}
+                {user?.role?.role_name?.toLowerCase() === 'manager' && (
+                    <SidebarItem
+                        collapsed={collapsed}
+                        href="/reports"
+                        label="Báo cáo"
+                        icon={
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-6 w-6"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                            </svg>
+                        }
+                    />
+                )}
             </nav>
         </aside>
     );
@@ -419,6 +437,24 @@ export default function DashboardLayout({ children, user }) {
                                         fill="currentColor"
                                     >
                                         <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13z" />
+                                    </svg>
+                                }
+                            />
+                        )}
+                        {/* Báo cáo - chỉ hiển thị cho Manager */}
+                        {user?.role?.role_name?.toLowerCase() === 'manager' && (
+                            <SidebarItem
+                                collapsed={false}
+                                href="/reports"
+                                label="Báo cáo"
+                                icon={
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-6 w-6"
+                                        viewBox="0 0 24 24"
+                                        fill="currentColor"
+                                    >
+                                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
                                     </svg>
                                 }
                             />

@@ -324,14 +324,41 @@ export default function UserTableRow({
                     )}
                 </div>
             </td>
-            <td className="px-3 py-2">
-                {(user.department?.d_name || "").trim() ? (
-                    <Badge color="blue">
-                        {user.department?.d_name}
-                    </Badge>
-                ) : (
-                    <Badge color="slate">Chưa gán</Badge>
-                )}
+            <td className={editingDept[user.user_id] ? "px-3 py-2 relative z-50" : "px-3 py-2 relative"}>
+                <div ref={deptRef}>
+                    {editingDept[user.user_id] ? (
+                        <Select
+                            value={String(user.department_id || "")}
+                            onChange={(val) => {
+                                onChangeDept(val);
+                                setEditingDept((prev) => ({
+                                    ...prev,
+                                    [user.user_id]: false,
+                                }));
+                            }}
+                            placeholder="Chọn phòng ban/đội nhóm"
+                            options={getDeptOrTeamOptions()}
+                        />
+                    ) : (
+                        <button
+                            onClick={() =>
+                                setEditingDept((prev) => ({
+                                    ...prev,
+                                    [user.user_id]: true,
+                                }))
+                            }
+                            className="focus:outline-none"
+                        >
+                            {(user.department?.d_name || "").trim() ? (
+                                <Badge color="blue">
+                                    {user.department?.d_name}
+                                </Badge>
+                            ) : (
+                                <Badge color="slate">Chưa gán</Badge>
+                            )}
+                        </button>
+                    )}
+                </div>
             </td>
             <td className="px-3 py-2">
                 <button

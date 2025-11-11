@@ -41,9 +41,12 @@ class MyOKRController extends Controller
         }
 
         // Query objectives của user trong cycle hiện tại + eager load key results
-        $query = Objective::with(['keyResults' => function ($q) {
-                $q->orderBy('weight', 'desc');
-            }])
+        $query = Objective::with([
+                'keyResults' => function ($q) {
+                    $q->orderBy('weight', 'desc');
+                },
+                'keyResults.checkIns'
+            ])
             ->where('user_id', $user->user_id)
             ->where('cycle_id', $currentCycle->cycle_id);
 

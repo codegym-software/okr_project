@@ -5,7 +5,8 @@ export default function CheckInHistory({
     open, 
     onClose, 
     keyResult, 
-    objectiveId 
+    objectiveId,
+    onSuccess
 }) {
     const [checkIns, setCheckIns] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -99,6 +100,11 @@ export default function CheckInHistory({
 
             // Reload history
             loadCheckInHistory();
+            
+            // Call onSuccess callback to reload parent data if provided
+            if (onSuccess && data.data?.key_result) {
+                onSuccess(data.data.key_result);
+            }
         } catch (err) {
             alert(err.message || 'Có lỗi xảy ra khi xóa check-in');
         }

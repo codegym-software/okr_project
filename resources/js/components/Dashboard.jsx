@@ -4,14 +4,15 @@ import ObjectiveList from "../pages/ObjectiveList.jsx";
 import ObjectiveModal from "../pages/ObjectiveModal.jsx";
 import KeyResultModal from "../pages/KeyResultModal.jsx";
 import ToastComponent from "../pages/ToastComponent.jsx";
-import CheckInModal from "./CheckInModal";
-import CheckInHistory from "./CheckInHistory";
 import ErrorBoundary from "./ErrorBoundary";
-import PieChart from "./PieChart";
+import OKRBarChart from "./OKRBarChart";
 import OKRTable from "./OKRTable";
+import CheckInHistory from "./CheckInHistory";
+import OKRStats from "./OKRStats";
 
 export default function Dashboard() {
     const [items, setItems] = useState([]);
+    const [allItems, setAllItems] = useState([]); // Lưu tất cả items đã tải
     const [departments, setDepartments] = useState([]);
     const [cyclesList, setCyclesList] = useState([]);
     const [links, setLinks] = useState([]);
@@ -23,16 +24,47 @@ export default function Dashboard() {
     const [editingObjective, setEditingObjective] = useState(null);
     const [openObj, setOpenObj] = useState({});
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [cycleFilter, setCycleFilter] = useState("");
-    const [departmentFilter, setDepartmentFilter] = useState("");
-    const [myOKRFilter, setMyOKRFilter] = useState(false);
-    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null, type: 'keyResult' });
-    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null, type: 'keyResult' });
+    const [itemsPerPage] = useState(5); // Số items hiển thị mỗi trang (client-side)
     const [currentUser, setCurrentUser] = useState(null);
     const [pieChartData, setPieChartData] = useState([]);
     const [error, setError] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
+    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
+    const [activeTab, setActiveTab] = useState('my'); // 'my', 'department', 'company'
+    
+    // Filters riêng cho từng tab
+    const [myFilters, setMyFilters] = useState({
+        cycle: "",
+        department: "",
+        myOKROnly: false,
+        showFilters: false
+    });
+    const [departmentFilters, setDepartmentFilters] = useState({
+        cycle: "",
+        department: "",
+        myOKROnly: false,
+        showFilters: false
+    });
+    const [companyFilters, setCompanyFilters] = useState({
+        cycle: "",
+        department: "",
+        myOKROnly: false,
+        showFilters: false
+    });
+
+    // Helper để lấy filters hiện tại dựa trên tab
+    const getCurrentFilters = () => {
+        if (activeTab === 'my') return myFilters;
+        if (activeTab === 'department') return departmentFilters;
+        return companyFilters;
+    };
+
+    // Helper để set filters cho tab hiện tại
+    const setCurrentFilters = (newFilters) => {
+        if (activeTab === 'my') setMyFilters(newFilters);
+        else if (activeTab === 'department') setDepartmentFilters(newFilters);
+        else setCompanyFilters(newFilters);
+    };
 
     const loadStaticData = async () => {
         try {
@@ -75,7 +107,7 @@ export default function Dashboard() {
         }
     };
 
-    const load = async (pageNum = 1, filter = "", myOKR = false) => {
+    const load = async (filter = "", myOKR = false) => {
         try {
             setLoading(true);
             const token = document
@@ -89,8 +121,8 @@ export default function Dashboard() {
                 throw new Error("CSRF token not found");
             }
 
-            // Tạo URL với filter
-            let url = `/my-objectives?page=${pageNum}&dashboard=1&_t=${Date.now()}`;
+            // Tải TẤT CẢ dữ liệu một lần (per_page lớn để lấy tất cả)
+            let url = `/my-objectives?page=1&dashboard=1&per_page=1000&_t=${Date.now()}`;
             if (filter) {
                 url += `&cycle_id=${filter}`;
             }
@@ -122,7 +154,7 @@ export default function Dashboard() {
                     type: "error",
                     message: "Lỗi phân tích dữ liệu objectives",
                 });
-                return { success: false, data: { data: [], last_page: 1 } };
+                return { success: false, data: { data: [] } };
             });
             // Normalize data: convert keyResults to key_results
             const list = Array.isArray(objData?.data?.data) ? objData.data.data : (Array.isArray(objData?.data) ? objData.data : []);
@@ -133,9 +165,9 @@ export default function Dashboard() {
                 }))
                 : [];
             if (resObj.ok && Array.isArray(list)) {
-                setItems(normalizedItems);
+                setAllItems(normalizedItems); // Lưu tất cả items
+                setItems(normalizedItems); // Set items ban đầu
                 try { localStorage.setItem('my_objectives', JSON.stringify(normalizedItems)); } catch {}
-                if (objData?.data?.last_page) setTotalPages(objData.data.last_page);
             } else {
                 console.warn('Keeping previous objectives due to bad response');
             }
@@ -152,32 +184,15 @@ export default function Dashboard() {
         }
     };
 
-    const handlePageChange = (newPage) => {
-        if (newPage >= 1 && newPage <= totalPages) {
-            setPage(newPage);
-        }
-    };
+    useEffect(() => {
+        const currentFilters = getCurrentFilters();
+        load(currentFilters.cycle, currentFilters.myOKROnly);
+    }, []); // Chỉ load một lần khi mount
 
     useEffect(() => {
-        load(page, cycleFilter, myOKRFilter);
-    }, [page]);
-
-    useEffect(() => {
-        // Khi filter thay đổi, reset về trang 1 và reload
+        // Reset page khi chuyển tab hoặc filter thay đổi
         setPage(1);
-        load(1, cycleFilter, myOKRFilter);
-    }, [cycleFilter]);
-
-    useEffect(() => {
-        // Khi My OKR filter thay đổi, reset về trang 1 và reload
-        setPage(1);
-        load(1, cycleFilter, myOKRFilter);
-    }, [myOKRFilter]);
-
-    useEffect(() => {
-        // Khi Department filter thay đổi, chỉ reset về trang 1 (lọc client-side)
-        setPage(1);
-    }, [departmentFilter]);
+    }, [activeTab, myFilters, departmentFilters, companyFilters]);
 
     useEffect(() => {
         // Load static data một lần khi component mount
@@ -204,24 +219,49 @@ export default function Dashboard() {
         loadCurrentUser();
     }, []);
 
+    // Phân loại OKR theo level
+    const { myOKRs, departmentOKRs, companyOKRs } = useMemo(() => {
+        const allItems = Array.isArray(items) ? items : [];
+        
+        return {
+            myOKRs: allItems.filter(item => item.level === 'person'),
+            departmentOKRs: allItems.filter(item => item.level === 'unit'),
+            companyOKRs: allItems.filter(item => item.level === 'company')
+        };
+    }, [items]);
+
     const filteredItems = useMemo(
         () => {
             let result = Array.isArray(items) ? items : [];
 
-            // Apply filters
-            if (cycleFilter) {
+            // Filter by active tab
+            if (activeTab === 'my') {
+                result = result.filter(item => item.level === 'person');
+            } else if (activeTab === 'department') {
+                result = result.filter(item => item.level === 'unit');
+            } else if (activeTab === 'company') {
+                result = result.filter(item => item.level === 'company');
+            }
+
+            // Get filters cho tab hiện tại
+            const currentFilters = activeTab === 'my' ? myFilters : 
+                                 activeTab === 'department' ? departmentFilters : 
+                                 companyFilters;
+
+            // Apply filters riêng cho từng tab
+            if (currentFilters.cycle) {
                 result = result.filter(item => 
-                    String(item.cycle_id) === String(cycleFilter)
+                    String(item.cycle_id) === String(currentFilters.cycle)
                 );
             }
 
-            if (departmentFilter) {
+            if (currentFilters.department) {
                 result = result.filter(item => 
-                    String(item.department_id) === String(departmentFilter)
+                    String(item.department_id) === String(currentFilters.department)
                 );
             }
 
-            if (myOKRFilter && currentUser) {
+            if (currentFilters.myOKROnly && currentUser) {
                 result = result.filter(item => 
                     String(item.user_id) === String(currentUser.user_id || currentUser.id)
                 );
@@ -230,10 +270,123 @@ export default function Dashboard() {
             // No sorting as requested; keep server order
             return result;
         },
-        [items, cycleFilter, departmentFilter, myOKRFilter, currentUser]
+        [items, activeTab, myFilters, departmentFilters, companyFilters, currentUser]
     );
 
+    const sortedItems = useMemo(() => {
+        const now = new Date();
+        // Tính tổng tiến độ của tất cả OKR
+        const totalProgress = filteredItems.reduce((sum, item) => {
+            if (!item.key_results || item.key_results.length === 0) return sum;
+            const itemProgress = item.key_results.reduce((krSum, kr) => {
+                const percentage = kr.progress_percent !== null && kr.progress_percent !== undefined
+                    ? parseFloat(kr.progress_percent)
+                    : (kr.target_value > 0 ? (parseFloat(kr.current_value || 0) / parseFloat(kr.target_value)) * 100 : 0);
+                return krSum + percentage;
+            }, 0) / item.key_results.length;
+            return sum + itemProgress;
+        }, 0);
+        const overallAvgProgress = filteredItems.length > 0 ? totalProgress / filteredItems.length : 0;
+
+        // Sort by created_at descending (newest first) và thêm thông tin deadline
+        const sorted = [...filteredItems].map(item => {
+            // Tính overall progress cho item này (tỷ lệ % chung)
+            let itemOverallProgress = 0;
+            if (item.key_results && item.key_results.length > 0) {
+                const itemProgress = item.key_results.reduce((krSum, kr) => {
+                    const percentage = kr.progress_percent !== null && kr.progress_percent !== undefined
+                        ? parseFloat(kr.progress_percent)
+                        : (kr.target_value > 0 ? (parseFloat(kr.current_value || 0) / parseFloat(kr.target_value)) * 100 : 0);
+                    return krSum + percentage;
+                }, 0);
+                itemOverallProgress = itemProgress / item.key_results.length;
+            }
+
+            // Kiểm tra quá hạn và tính deadline, priority dựa trên cycle end_date
+            let isOverdue = false;
+            let isUpcoming = false; // Sắp hết hạn (còn <= 7 ngày)
+            let deadlineCharacter = '-';
+            let priority = 'low'; // Mặc định là thấp
+            let status = 'in_progress'; // Mặc định là đang thực hiện
+
+            // Format ngày hết hạn nếu có
+            if (item.cycle && item.cycle.end_date) {
+                const endDate = new Date(item.cycle.end_date);
+                deadlineCharacter = endDate.toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+            }
+
+            // Nếu tiến độ đạt 100% (hoặc >= 99.99 để tránh sai số làm tròn), trạng thái là hoàn thành (ưu tiên cao nhất)
+            if (itemOverallProgress >= 99.99) {
+                status = 'completed';
+                priority = 'low'; // Hoàn thành = ưu tiên thấp
+                // Không kiểm tra deadline nữa nếu đã hoàn thành
+            } else if (item.cycle && item.cycle.end_date) {
+                const endDate = new Date(item.cycle.end_date);
+                isOverdue = endDate < now;
+
+                // Tính mức độ ưu tiên và trạng thái dựa trên thời gian còn lại
+                const daysRemaining = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+                
+                if (isOverdue) {
+                    priority = 'high'; // Quá hạn = ưu tiên cao
+                    status = 'overdue';
+                } else if (daysRemaining <= 7 && daysRemaining > 0) {
+                    priority = 'high'; // Còn <= 7 ngày = ưu tiên cao
+                    isUpcoming = true; // Sắp hết hạn
+                    status = 'upcoming';
+                } else if (daysRemaining <= 30) {
+                    priority = 'medium'; // Còn <= 30 ngày = ưu tiên trung bình
+                    status = 'in_progress';
+                } else {
+                    priority = 'low'; // Còn > 30 ngày = ưu tiên thấp
+                    status = 'in_progress';
+                }
+            }
+
+            return {
+                ...item,
+                deadlineCharacter,
+                isOverdue,
+                isUpcoming,
+                priority,
+                status,
+                itemOverallProgress
+            };
+        }).sort((a, b) => {
+            const dateA = new Date(a.created_at || 0);
+            const dateB = new Date(b.created_at || 0);
+            return dateB - dateA; // Descending order
+        });
+
+        // Phân trang ở client-side: lấy 5 items cho trang hiện tại
+        const startIndex = (page - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        return sorted.slice(startIndex, endIndex);
+    }, [filteredItems, page, itemsPerPage]);
+
+    // Tính tổng số trang dựa trên filteredItems
+    const totalPages = useMemo(() => {
+        return Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+    }, [filteredItems.length, itemsPerPage]);
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
+        }
+    };
+
+    const openCheckInHistory = (keyResult) => {
+        console.log('Opening check-in history for:', keyResult);
+        console.log('Objective ID:', keyResult?.objective_id);
+        setCheckInHistory({ open: true, keyResult });
+    };
+
     // Tính toán dữ liệu cho pie chart
+    // Tính toán dữ liệu cho chart dựa trên filteredItems
     useEffect(() => {
         if (filteredItems.length > 0) {
             const total = filteredItems.length;
@@ -269,43 +422,6 @@ export default function Dashboard() {
         }
     }, [filteredItems]);
 
-    const openCheckInModal = (keyResult) => {
-        console.log('🔧 Dashboard: Opening check-in modal for Key Result:', keyResult);
-        console.log('🔧 Dashboard: Key Result ID:', keyResult?.kr_id);
-        console.log('🔧 Dashboard: Key Result current_value:', keyResult?.current_value);
-        console.log('🔧 Dashboard: Key Result target_value:', keyResult?.target_value);
-        console.log('🔧 Dashboard: Key Result progress_percent:', keyResult?.progress_percent);
-        setCheckInModal({ open: true, keyResult, type: 'keyResult' });
-    };
-
-    const openCheckInHistory = (keyResult) => {
-        console.log('Opening check-in history for Key Result:', keyResult);
-        console.log('Key Result ID:', keyResult?.kr_id);
-        setCheckInHistory({ open: true, keyResult, type: 'keyResult' });
-    };
-
-    const handleCheckInSuccess = (keyResultData) => {
-        if (keyResultData && keyResultData.kr_id) {
-            // Cập nhật Key Result trong danh sách
-            setItems((prev) =>
-                prev.map((obj) => ({
-                    ...obj,
-                    key_results: (obj.key_results || []).map((kr) =>
-                        kr.kr_id === keyResultData.kr_id ? { ...kr, ...keyResultData } : kr
-                    ),
-                }))
-            );
-        }
-        
-        // Hiển thị thông báo thành công
-        setToast({
-            type: "success",
-            message: keyResultData?.progress_percent >= 100 
-                ? "🎉 Chúc mừng! Key Result đã hoàn thành 100%."
-                : "✅ Cập nhật tiến độ thành công!",
-        });
-    };
-
     return (
         <div className="min-h-screen bg-white">
             <ToastComponent
@@ -316,47 +432,61 @@ export default function Dashboard() {
             
             {/* Main Content */}
             <div className="p-6 max-w-7xl mx-auto">
-                {/* Section Header */}
-                <div className="bg-blue-50 px-6 py-4 rounded-lg mb-6 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-2xl font-bold text-gray-900">My OKR</h2>
-                        <div className="flex items-center space-x-3">
-                            <button 
-                                onClick={() => setShowFilters(!showFilters)}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                    showFilters 
-                                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                                }`}
-                            >
-                                <span>filter</span>
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                            </button>
-                            <button 
-                                onClick={() => setCreatingObjective(true)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
-                            >
-                                Thêm OKR
-                            </button>
-                        </div>
+                {/* Dashboard Title */}
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900">Dashboard OKR</h1>
+                    <p className="text-gray-600 mt-2">Theo dõi và quản lý các mục tiêu của bạn</p>
+                </div>
+
+                {/* Tab Navigation */}
+                <div className="mb-6 border-b border-gray-200">
+                    <div className="flex space-x-8">
+                        <button
+                            onClick={() => setActiveTab('my')}
+                            className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                                activeTab === 'my'
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            My OKR ({myOKRs.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('department')}
+                            className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                                activeTab === 'department'
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            OKR Phòng ban ({departmentOKRs.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('company')}
+                            className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                                activeTab === 'company'
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            OKR Công ty ({companyOKRs.length})
+                        </button>
                     </div>
                 </div>
 
                 {/* Filter Dropdown */}
-                {showFilters && (
+                {getCurrentFilters().showFilters && (
                     <div className="relative mb-6">
                         <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Chu kỳ</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Chu Kỳ</label>
                                     <select
-                                        value={cycleFilter}
-                                        onChange={(e) => setCycleFilter(e.target.value)}
+                                        value={getCurrentFilters().cycle}
+                                        onChange={(e) => setCurrentFilters({...getCurrentFilters(), cycle: e.target.value})}
                                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                     >
-                                        <option value="">-- Tất cả chu kỳ --</option>
+                                        <option value="">-- Tất Cả Chu Kỳ --</option>
                                         {cyclesList.map((cycle) => (
                                             <option key={cycle.cycle_id} value={cycle.cycle_id}>
                                                 {cycle.cycle_name}
@@ -365,13 +495,13 @@ export default function Dashboard() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Phòng ban</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Phòng Ban</label>
                                     <select
-                                        value={departmentFilter}
-                                        onChange={(e) => setDepartmentFilter(e.target.value)}
+                                        value={getCurrentFilters().department}
+                                        onChange={(e) => setCurrentFilters({...getCurrentFilters(), department: e.target.value})}
                                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                     >
-                                        <option value="">-- Tất cả phòng ban --</option>
+                                        <option value="">-- Tất Cả Phòng Ban --</option>
                                         {departments.map((dept) => (
                                             <option key={dept.department_id} value={dept.department_id}>
                                                 {dept.d_name || dept.department_name}
@@ -383,13 +513,16 @@ export default function Dashboard() {
                                 <div className="flex flex-col justify-end">
                                     <button
                                         onClick={() => {
-                                            setCycleFilter('');
-                                            setDepartmentFilter('');
-                                            setMyOKRFilter(false);
+                                            setCurrentFilters({
+                                                ...getCurrentFilters(),
+                                                cycle: '',
+                                                department: '',
+                                                myOKROnly: false
+                                            });
                                         }}
                                         className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
                                     >
-                                        Reset
+                                        Đặt Lại
                                     </button>
                                 </div>
                             </div>
@@ -398,43 +531,29 @@ export default function Dashboard() {
                                 <input
                                     type="checkbox"
                                     id="myOKR"
-                                    checked={myOKRFilter}
-                                    onChange={(e) => setMyOKRFilter(e.target.checked)}
+                                    checked={getCurrentFilters().myOKROnly}
+                                    onChange={(e) => setCurrentFilters({...getCurrentFilters(), myOKROnly: e.target.checked})}
                                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                 />
                                 <label htmlFor="myOKR" className="ml-2 text-sm text-gray-700">
-                                    Chỉ hiển thị OKR của tôi
+                                    Chỉ Hiển Thị OKR Của Tôi
                                 </label>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <div className="text-2xl font-bold text-gray-900">{filteredItems.length}</div>
-                        <div className="text-sm text-gray-600">Tổng OKR</div>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <div className="text-2xl font-bold text-purple-600">
-                            {pieChartData.find(d => d.label === "mục tiêu")?.value || 0}
-                        </div>
-                        <div className="text-sm text-gray-600">Đang thực hiện</div>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <div className="text-2xl font-bold text-pink-600">
-                            {pieChartData.find(d => d.label === "đã hoàn thành")?.value || 0}
-                        </div>
-                        <div className="text-sm text-gray-600">Đã hoàn thành</div>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <div className="text-2xl font-bold text-amber-600">
-                            {pieChartData.find(d => d.label === "thực tế")?.value || 0}
-                        </div>
-                        <div className="text-sm text-gray-600">Chưa bắt đầu</div>
-                    </div>
-                </div>
+                {/* Stats Section based on Active Tab */}
+                <OKRStats 
+                    title={
+                        activeTab === 'my' ? 'My OKR' : 
+                        activeTab === 'department' ? 'OKR Phòng Ban' : 
+                        'OKR Công Ty'
+                    }
+                    items={filteredItems}
+                    onFilterClick={() => setCurrentFilters({...getCurrentFilters(), showFilters: !getCurrentFilters().showFilters})}
+                    showFilters={getCurrentFilters().showFilters}
+                />
 
                 {/* Error State */}
                 {error && (
@@ -447,73 +566,76 @@ export default function Dashboard() {
                             <button 
                                 onClick={() => {
                                     setError(null);
-                                    load(page, cycleFilter, myOKRFilter);
+                                    const filters = getCurrentFilters();
+                                    load(filters.cycle, filters.myOKROnly);
                                 }}
                                 className="ml-auto text-red-600 hover:text-red-800 underline"
                             >
-                                Thử lại
+                                Thử Lại
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Pie Chart Section */}
-                {pieChartData.length > 0 && !error && (
-                    <PieChart data={pieChartData} />
+                {/* Bar Chart Section */}
+                {pieChartData.length > 0 && !error && filteredItems.length > 0 && (
+                    <div className="mb-6">
+                        <OKRBarChart 
+                            okrData={pieChartData}
+                        />
+                    </div>
+                )}
+                {filteredItems.length === 0 && !error && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-8 mb-6">
+                        <div className="text-center text-gray-500">
+                            <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p className="text-lg font-medium">Không Có Dữ Liệu Để Hiển Thị</p>
+                            <p className="text-sm mt-1">
+                                {activeTab === 'my' && 'Chưa Có OKR Cá Nhân Nào. Hãy Tạo OKR Đầu Tiên Của Bạn!'}
+                                {activeTab === 'department' && 'Chưa Có OKR Phòng Ban Nào.'}
+                                {activeTab === 'company' && 'Chưa Có OKR Công Ty Nào.'}
+                            </p>
+                        </div>
+                    </div>
                 )}
 
                 {/* OKR Table */}
                 <OKRTable 
-                items={filteredItems}
-                departments={departments}
-                cyclesList={cyclesList}
-                loading={loading}
+                    items={sortedItems}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    loading={loading}
                     onViewOKR={(item) => {
                         // Navigate to objective detail page or open modal
                         console.log('View OKR:', item);
                         // You can implement navigation here
                     }}
-                    onCheckIn={(keyResult) => {
-                        console.log('Check-in Key Result:', keyResult);
-                        // Mở modal checkin cho Key Result
-                        setCheckInModal({ 
-                            open: true, 
-                            keyResult: keyResult,
-                            type: 'keyResult' 
-                        });
-                    }}
-                    onViewCheckInHistory={(keyResult) => {
-                        console.log('View Key Result History:', keyResult);
-                        // Mở modal lịch sử checkin cho Key Result
-                        setCheckInHistory({ 
-                            open: true, 
-                            keyResult: keyResult,
-                            type: 'keyResult' 
-                        });
-                    }}
-                currentUser={currentUser}
-            />
+                    onViewCheckInHistory={openCheckInHistory}
+                    currentUser={currentUser}
+                />
 
                 {/* Pagination */}
                 {totalPages > 1 && (
                     <div className="mt-6 flex justify-center gap-2">
-                <button
-                    onClick={() => handlePageChange(page - 1)}
-                    disabled={page === 1}
+                        <button
+                            onClick={() => handlePageChange(page - 1)}
+                            disabled={page === 1}
                             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300 hover:bg-blue-700 transition-colors"
-                >
-                    Trước
-                </button>
+                        >
+                            Trước
+                        </button>
                         <span className="text-sm text-slate-600 flex items-center px-4">
-                    Trang {page} / {totalPages}
-                </span>
-                <button
-                    onClick={() => handlePageChange(page + 1)}
-                    disabled={page === totalPages}
+                            Trang {page} / {totalPages}
+                        </span>
+                        <button
+                            onClick={() => handlePageChange(page + 1)}
+                            disabled={page === totalPages}
                             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300 hover:bg-blue-700 transition-colors"
-                >
-                    Sau
-                </button>
+                        >
+                            Sau
+                        </button>
                     </div>
                 )}
             </div>
@@ -525,6 +647,10 @@ export default function Dashboard() {
                     setEditingKR={setEditingKR}
                     setItems={setItems}
                     setToast={setToast}
+                    reloadData={() => {
+                        const filters = getCurrentFilters();
+                        load(filters.cycle, filters.myOKROnly);
+                    }}
                 />
             )}
             {creatingFor && (
@@ -535,6 +661,10 @@ export default function Dashboard() {
                     setCreatingFor={setCreatingFor}
                     setItems={setItems}
                     setToast={setToast}
+                    reloadData={() => {
+                        const filters = getCurrentFilters();
+                        load(filters.cycle, filters.myOKROnly);
+                    }}
                 />
             )}
             {creatingObjective && (
@@ -545,6 +675,16 @@ export default function Dashboard() {
                     cyclesList={cyclesList}
                     setItems={setItems}
                     setToast={setToast}
+                    reloadData={() => {
+                        // Reset all filters when creating new objective to ensure it shows
+                        setCurrentFilters({
+                            cycle: "",
+                            department: "",
+                            myOKROnly: false,
+                            showFilters: getCurrentFilters().showFilters
+                        });
+                        load("", false); // Reload with no filters
+                    }}
                 />
             )}
             {editingObjective && (
@@ -556,21 +696,12 @@ export default function Dashboard() {
                     setItems={setItems}
                     setToast={setToast}
                     setLinks={setLinks}
-                    reloadData={load}
+                    reloadData={() => {
+                        const filters = getCurrentFilters();
+                        load(filters.cycle, filters.myOKROnly);
+                    }}
                 />
             )}
-
-            {/* Check-in Modal */}
-            <ErrorBoundary>
-                <CheckInModal
-                    key={`checkin-${checkInModal.keyResult?.kr_id}-${checkInModal.keyResult?.current_value}-${checkInModal.keyResult?.progress_percent}`}
-                    open={checkInModal.open}
-                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
-                    keyResult={checkInModal.keyResult}
-                    objectiveId={checkInModal.keyResult?.objective_id}
-                    onSuccess={handleCheckInSuccess}
-                />
-            </ErrorBoundary>
 
             {/* Check-in History Modal */}
             <ErrorBoundary>
@@ -581,6 +712,7 @@ export default function Dashboard() {
                     objectiveId={checkInHistory.keyResult?.objective_id}
                 />
             </ErrorBoundary>
+
         </div>
     );
 }

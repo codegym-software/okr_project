@@ -31,6 +31,8 @@ export default function CheckInModal({
         notes: ''
     });
 
+    const [isInputFocused, setIsInputFocused] = useState(false);
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -56,13 +58,13 @@ export default function CheckInModal({
         });
     }, [keyResult]);
 
-    // Auto-calculate progress_percent when progress_value changes
+    // Auto-calculate progress_percent when progress_value changes (giá trị hiện tại → thanh tiến độ)
     useEffect(() => {
-        if (formData.check_in_type === 'quantity' && keyResult?.target_value) {
+        if (keyResult?.target_value) {
             const targetValue = parseFloat(keyResult.target_value);
             if (targetValue > 0) {
                 const calculatedPercent = (formData.progress_value / targetValue) * 100;
-                console.log('🔧 Auto-calculate progress_percent:', {
+                console.log('🔧 Auto-calculate progress_percent from value:', {
                     progress_value: formData.progress_value,
                     target_value: targetValue,
                     calculated_percent: calculatedPercent,
@@ -75,28 +77,7 @@ export default function CheckInModal({
                 }));
             }
         }
-    }, [formData.progress_value, formData.check_in_type, keyResult?.target_value]);
-
-    // Auto-calculate progress_value when progress_percent changes
-    useEffect(() => {
-        if (formData.check_in_type === 'percentage' && keyResult?.target_value) {
-            const targetValue = parseFloat(keyResult.target_value);
-            if (targetValue > 0) {
-                const calculatedValue = (formData.progress_percent / 100) * targetValue;
-                console.log('🔧 Auto-calculate progress_value:', {
-                    progress_percent: formData.progress_percent,
-                    target_value: targetValue,
-                    calculated_value: calculatedValue,
-                    current_value: formData.progress_value
-                });
-                
-                setFormData(prev => ({
-                    ...prev,
-                    progress_value: calculatedValue
-                }));
-            }
-        }
-    }, [formData.progress_percent, formData.check_in_type, keyResult?.target_value]);
+    }, [formData.progress_value, keyResult?.target_value]);
 
     const handleInputChange = (field, value) => {
         console.log('🔧 handleInputChange called:', { field, value, type: typeof value });
@@ -170,6 +151,14 @@ export default function CheckInModal({
             setLoading(false);
             return;
         }
+
+        // Debug: Log form data before submit
+        console.log('🔧 Submitting form data:', {
+            progress_value: formData.progress_value,
+            progress_percent: formData.progress_percent,
+            check_in_type: formData.check_in_type,
+            notes: formData.notes
+        });
 
         try {
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -246,8 +235,34 @@ export default function CheckInModal({
                             type="number"
                             min="0"
                             step="1"
-                            value={formData.progress_value}
-                            onChange={(e) => handleInputChange('progress_value', parseFloat(e.target.value) || 0)}
+                            value={formData.progress_value === 0 && !isInputFocused ? '' : formData.progress_value}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                console.log('🔧 Input change:', { value, type: typeof value });
+                                
+                                if (value === '') {
+                                    handleInputChange('progress_value', 0);
+                                } else {
+                                    const numValue = parseFloat(value);
+                                    console.log('🔧 Parsed value:', { numValue, isNaN: isNaN(numValue) });
+                                    
+                                    if (isNaN(numValue)) {
+                                        handleInputChange('progress_value', 0);
+                                    } else {
+                                        handleInputChange('progress_value', numValue);
+                                    }
+                                }
+                            }}
+                            onFocus={(e) => {
+                                setIsInputFocused(true);
+                                if (formData.progress_value === 0) {
+                                    // Select all text when focusing on 0 value
+                                    setTimeout(() => {
+                                        e.target.select();
+                                    }, 0);
+                                }
+                            }}
+                            onBlur={() => setIsInputFocused(false)}
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Nhập giá trị..."
                             required

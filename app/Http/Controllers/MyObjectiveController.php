@@ -31,6 +31,10 @@ class MyObjectiveController extends Controller
         // === XÁC ĐỊNH CHU KỲ HIỆN TẠI (nếu không có cycle_id trong request) ===
         $currentCycleId = null;
         $currentCycleName = null;
+        
+        // Kiểm tra role an toàn
+        $isAdmin = $user->role && strtolower($user->role->role_name) === 'admin';
+        $isDashboard = $request->has('dashboard') && $request->dashboard == '1';
 
         if (!$request->filled('cycle_id')) {
             $now = Carbon::now('Asia/Ho_Chi_Minh');
@@ -66,8 +70,34 @@ class MyObjectiveController extends Controller
         }
 
         // === XÂY DỰNG QUERY: CHỈ OKR DO NGƯỜI DÙNG TẠO ===
-        $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            ->where('user_id', $user->user_id); // ← BẮT BUỘC: CHỈ OKR CỦA USER
+        $query = Objective::with(['keyResults.checkIns', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+            ->where(function ($q) use ($user, $request, $isAdmin, $isDashboard) {
+                // Nếu có filter My OKR, chỉ hiển thị OKR của user hiện tại
+                if ($request->has('my_okr') && $request->my_okr == '1') {
+                    $q->where('user_id', $user->user_id);
+                    return;
+                }
+                
+                // Nếu là Dashboard: Chỉ hiển thị OKR cùng phòng ban
+                if ($isDashboard) {
+                    if ($isAdmin) {
+                        // Admin thấy tất cả ngay cả ở Dashboard
+                        return;
+                    }
+                    
+                    // Member/Manager: chỉ thấy OKR của phòng ban mình ở Dashboard
+                    if ($user->department_id) {
+                        $q->where('department_id', $user->department_id);
+                    } else {
+                        // Nếu không có department, chỉ thấy objectives của chính mình
+                        $q->where('user_id', $user->user_id);
+                    }
+                    return;
+                }
+                
+                // Mặc định: CHỈ OKR CỦA USER (My Objective)
+                $q->where('user_id', $user->user_id);
+            });
 
         // Lọc archived
         if ($request->has('archived') && $request->archived == '1') {
@@ -81,7 +111,9 @@ class MyObjectiveController extends Controller
             $query->where('cycle_id', $request->cycle_id);
         }
 
-        $objectives = $query->paginate(10);
+        // Hỗ trợ per_page, mặc định ít nhất 5 items mỗi trang
+        $perPage = max(5, (int) $request->get('per_page', 10));
+        $objectives = $query->paginate($perPage);
 
         // === TRẢ KẾT QUẢ ===
         if ($request->expectsJson()) {

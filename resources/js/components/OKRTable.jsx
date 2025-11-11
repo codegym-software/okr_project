@@ -23,12 +23,12 @@ export default function OKRTable({
     if (loading) {
         return (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="text-center text-gray-500">Đang tải...</div>
+                <div className="text-center text-gray-500">Đang Tải...</div>
             </div>
         );
     }
 
-    // Kiểm tra quyền checkin Key Result - sử dụng logic đồng bộ với backend
+    // Kiểm tra quyền checkin Key Result - chỉ owner của Key Result mới có quyền
     const canCheckIn = (kr, objective) => {
         return canCheckInKeyResult(currentUser, kr, objective);
     };
@@ -37,13 +37,14 @@ export default function OKRTable({
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
             {/* Table Header */}
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                <div className="grid grid-cols-6 gap-4 text-sm font-medium text-gray-500">
-                    <div>tiêu đề</div>
-                    <div className="hidden md:block">phòng ban</div>
-                    <div className="hidden lg:block">chu kỳ</div>
-                    <div className="hidden md:block">mục tiêu</div>
-                    <div>tiến độ</div>
-                    <div>checkin</div>
+                <div className="grid grid-cols-7 gap-4 text-sm font-medium text-gray-500">
+                    <div>Tiêu Đề</div>
+                    <div className="hidden md:block">Phòng Ban</div>
+                    <div className="hidden md:block">Mục Tiêu</div>
+                    <div>Tiến Độ</div>
+                    <div className="hidden lg:block">Ngày Hết Hạn</div>
+                    <div className="hidden lg:block">Trạng Thái</div>
+                    <div>Mức Độ Ưu Tiên</div>
                 </div>
             </div>
             
@@ -54,24 +55,26 @@ export default function OKRTable({
                         <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">Không có OKR nào</h3>
-                        <p className="mt-1 text-sm text-gray-500">Hãy tạo OKR đầu tiên của bạn.</p>
+                        <h3 className="mt-2 text-sm font-medium text-gray-900">Không Có OKR Nào</h3>
+                        <p className="mt-1 text-sm text-gray-500">Hãy Tạo OKR Đầu Tiên Của Bạn.</p>
                     </div>
                 ) : (
                     items.map((item, index) => {
-                        // Tính tiến độ trung bình của các Key Results từ công thức hiện tại/mục tiêu
+                        // Tính tiến độ trung bình của các Key Results từ progress_percent hoặc công thức
                         const avgProgress = item.key_results?.length > 0 
                             ? (item.key_results.reduce((sum, kr) => {
-                                const currentValue = parseFloat(kr.current_value) || 0;
-                                const targetValue = parseFloat(kr.target_value) || 0;
-                                const percentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                // Ưu tiên dùng progress_percent nếu có
+                                let percentage = 0;
+                                if (kr.progress_percent !== null && kr.progress_percent !== undefined) {
+                                    percentage = parseFloat(kr.progress_percent);
+                                } else {
+                                    // Nếu không có progress_percent, tính từ current_value/target_value
+                                    const currentValue = parseFloat(kr.current_value) || 0;
+                                    const targetValue = parseFloat(kr.target_value) || 0;
+                                    percentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                }
                                 return sum + percentage;
                             }, 0) / item.key_results.length)
-                            : 0;
-                        
-                        // Đếm số Key Results đã check-in
-                        const checkinCount = item.key_results?.length > 0 
-                            ? item.key_results.filter(kr => kr.checkins?.length > 0).length
                             : 0;
                         
                         const isExpanded = expandedObjectives[item.objective_id];
@@ -79,12 +82,12 @@ export default function OKRTable({
                         return (
                             <React.Fragment key={item.objective_id}>
                                 <div className={`px-6 py-4 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}>
-                                    <div className="grid grid-cols-6 gap-4 items-center">
+                                    <div className="grid grid-cols-7 gap-4 items-center">
                                         <div className="flex items-center space-x-3 min-w-0">
                                             <button
                                                 onClick={() => toggleExpand(item.objective_id)}
                                                 className="p-1 rounded hover:bg-gray-100 transition-colors"
-                                                title={isExpanded ? "Thu gọn" : "Mở rộng"}
+                                                title={isExpanded ? "Thu Gọn" : "Mở Rộng"}
                                             >
                                                 <svg 
                                                     className={`w-4 h-4 text-gray-400 transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} 
@@ -105,9 +108,6 @@ export default function OKRTable({
                                         <div className="hidden md:block text-sm text-gray-600 truncate">
                                             {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
                                         </div>
-                                        <div className="hidden lg:block text-sm text-gray-600 truncate">
-                                            {cyclesList.find(c => String(c.cycle_id) === String(item.cycle_id))?.cycle_name || '-'}
-                                        </div>
                                         <div className="hidden md:block text-sm text-gray-600">100%</div>
                                         <div className="text-sm text-gray-600">
                                             <div className="flex items-center space-x-2">
@@ -120,21 +120,65 @@ export default function OKRTable({
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="text-sm text-gray-600">
-                                            <div className="flex items-center space-x-2">
-                                                <span className="text-xs">{checkinCount}/{item.key_results?.length || 0}</span>
-                                            </div>
+                                        <div className="hidden lg:block text-sm text-gray-600">
+                                            {item.deadlineCharacter ? item.deadlineCharacter : '-'}
+                                        </div>
+                                        <div className="hidden lg:block text-sm">
+                                            {item.status && (
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    item.status === 'completed'
+                                                        ? 'bg-blue-100 text-blue-700' 
+                                                        : item.status === 'overdue'
+                                                        ? 'bg-red-100 text-red-700'
+                                                        : item.status === 'upcoming'
+                                                        ? 'bg-amber-100 text-amber-700'
+                                                        : 'bg-green-100 text-green-700'
+                                                }`}>
+                                                    {item.status === 'completed' ? 'Hoàn Thành' : 
+                                                     item.status === 'overdue' ? 'Quá Hạn' : 
+                                                     item.status === 'upcoming' ? 'Sắp Hết Hạn' : 
+                                                     'Còn Hạn'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-sm">
+                                            {item.priority !== undefined && (
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    item.priority === 'high'
+                                                        ? 'bg-red-100 text-red-700' 
+                                                        : item.priority === 'medium'
+                                                        ? 'bg-yellow-100 text-yellow-700'
+                                                        : 'bg-gray-100 text-gray-700'
+                                                }`}>
+                                                    {item.priority === 'high' ? 'Cao' : item.priority === 'medium' ? 'Trung Bình' : 'Thấp'}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                     
                                     {/* Mobile view */}
                                     <div className="md:hidden mt-2 space-y-1">
                                         <div className="text-xs text-gray-500">
-                                            Phòng ban: {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
+                                            Phòng Ban: {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
                                         </div>
-                                        <div className="text-xs text-gray-500">
-                                            Chu kỳ: {cyclesList.find(c => String(c.cycle_id) === String(item.cycle_id))?.cycle_name || '-'}
-                                        </div>
+                                        {item.status && (
+                                            <div className="text-xs">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    item.status === 'completed'
+                                                        ? 'bg-blue-100 text-blue-700' 
+                                                        : item.status === 'overdue'
+                                                        ? 'bg-red-100 text-red-700'
+                                                        : item.status === 'upcoming'
+                                                        ? 'bg-amber-100 text-amber-700'
+                                                        : 'bg-green-100 text-green-700'
+                                                }`}>
+                                                    {item.status === 'completed' ? 'Hoàn Thành' : 
+                                                     item.status === 'overdue' ? 'Quá Hạn' : 
+                                                     item.status === 'upcoming' ? 'Sắp Hết Hạn' : 
+                                                     'Còn Hạn'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -142,25 +186,35 @@ export default function OKRTable({
                                 {isExpanded && item.key_results && item.key_results.length > 0 && (
                                     <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
                                         <div className="ml-8 space-y-3">
-                                            <h4 className="text-sm font-semibold text-gray-700 mb-3">Key Results:</h4>
+                                            <h4 className="text-sm font-semibold text-gray-700 mb-3">Kết Quả Chính (Key Results):</h4>
                                             {item.key_results.map((kr, krIndex) => {
-                                                // Tính phần trăm chính xác từ công thức hiện tại/mục tiêu
-                                                const currentValue = parseFloat(kr.current_value) || 0;
-                                                const targetValue = parseFloat(kr.target_value) || 0;
-                                                const calculatedPercentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                                // Tính phần trăm: ưu tiên progress_percent, nếu không có thì tính từ current_value/target_value
+                                                let calculatedPercentage = 0;
+                                                if (kr.progress_percent !== null && kr.progress_percent !== undefined) {
+                                                    calculatedPercentage = parseFloat(kr.progress_percent);
+                                                } else {
+                                                    const currentValue = parseFloat(kr.current_value) || 0;
+                                                    const targetValue = parseFloat(kr.target_value) || 0;
+                                                    calculatedPercentage = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+                                                }
                                                 
                                                 return (
                                                 <div key={kr.kr_id} className="bg-white rounded-lg p-3 border border-gray-200">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className="text-sm font-medium text-gray-900">{kr.kr_title}</span>
-                                                        <div className="flex items-center space-x-2">
-                                                            <span className="text-sm font-bold text-blue-600">{calculatedPercentage.toFixed(2)}%</span>
-                                                            {/* Nút Check-in cho Key Result */}
-                                                            {canCheckIn(kr, item) && (
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <span className="text-sm font-medium text-gray-900 block truncate">{kr.kr_title}</span>
+                                                        </div>
+                                                        <div className="flex items-center space-x-2 ml-3 flex-shrink-0">
+                                                            {/* Hiển thị phần trăm tiến độ của từng KR - nổi bật hơn */}
+                                                            <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-lg">
+                                                                <span className="text-sm font-bold text-blue-700">{calculatedPercentage.toFixed(2)}%</span>
+                                                            </div>
+                                                            {/* Nút Check-in cho Key Result - chỉ hiển thị khi onCheckIn được cung cấp */}
+                                                            {onCheckIn && canCheckIn(kr, item) && (
                                                                 <button
                                                                     onClick={() => onCheckIn?.({ ...kr, objective_id: item.objective_id })}
                                                                     className="p-1 rounded hover:bg-blue-50 transition-colors"
-                                                                    title="Check-in Key Result"
+                                                                    title="Check-In Kết Quả Chính"
                                                                 >
                                                                     <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -171,7 +225,7 @@ export default function OKRTable({
                                                             <button
                                                                 onClick={() => onViewCheckInHistory?.({ ...kr, objective_id: item.objective_id })}
                                                                 className="p-1 rounded hover:bg-gray-50 transition-colors"
-                                                                title="Lịch sử check-in Key Result"
+                                                                title="Lịch Sử Check-In"
                                                             >
                                                                 <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -179,15 +233,27 @@ export default function OKRTable({
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                                                        <div 
-                                                            className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                                                            style={{ width: `${Math.min(calculatedPercentage, 100)}%` }}
-                                                        ></div>
+                                                    {/* Thanh tiến độ với nhãn phần trăm */}
+                                                    <div className="space-y-1 mb-2">
+                                                        <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                                            <span>Tiến độ: {calculatedPercentage.toFixed(2)}%</span>
+                                                            <span>{kr.current_value || 0} / {kr.target_value} {kr.unit || ''}</span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                                            <div 
+                                                                className={`h-2.5 rounded-full transition-all duration-300 ${
+                                                                    calculatedPercentage >= 100 ? 'bg-green-500' :
+                                                                    calculatedPercentage >= 75 ? 'bg-blue-600' :
+                                                                    calculatedPercentage >= 50 ? 'bg-yellow-500' :
+                                                                    'bg-red-500'
+                                                                }`}
+                                                                style={{ width: `${Math.min(calculatedPercentage, 100)}%` }}
+                                                            ></div>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center justify-between text-xs text-gray-500">
-                                                        <span>Target: {kr.target_value} {kr.unit || ''}</span>
-                                                        <span>Current: {kr.current_value || 0} {kr.unit || ''}</span>
+                                                    <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
+                                                        <span>Mục tiêu: {kr.target_value} {kr.unit || ''}</span>
+                                                        <span>Hiện tại: {kr.current_value || 0} {kr.unit || ''}</span>
                                                     </div>
                                                 </div>
                                                 );

@@ -10,6 +10,7 @@ export default function ObjectiveModal({
     cyclesList,
     setItems,
     setToast,
+    reloadData,
 }) {
     console.log("🚨 FULL editingObjective:", editingObjective); // DEBUG
     const [createForm, setCreateForm] = useState(
@@ -299,11 +300,17 @@ export default function ObjectiveModal({
             if (!res.ok || json.success === false)
                 throw new Error(json.message || "Tạo thất bại");
             const created = json.data;
+
             setItems((prev) => [
                 ...prev,
                 { ...created, key_results: created.key_results || [] },
             ]);
+
             setCreatingObjective(false);
+            // Reload data from server to ensure consistency
+            if (reloadData) {
+                reloadData();
+            }
             setToast({
                 type: "success",
                 message: "Tạo Objective thành công",

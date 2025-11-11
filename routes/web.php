@@ -88,6 +88,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::resource('departments', DepartmentController::class);
     Route::post('/departments/{department}/assign-users', [DepartmentController::class, 'storeAssignUsers'])->name('departments.assign.users.store');
 
+    //Routes cho Report - chỉ Manager
+    Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('reports.index');
+    Route::get('/api/reports/my-team', [App\Http\Controllers\ReportController::class, 'getMyTeamReport'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.my-team');
+    Route::get('/api/reports/cycles', [App\Http\Controllers\ReportController::class, 'getCycles'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.cycles');
+    Route::get('/api/reports/progress-trend', [App\Http\Controllers\ReportController::class, 'getTeamProgressTrend'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.progress-trend');
+
     // Routes cho Profile - trả về React app
     Route::get('/profile', function () {
         return view('app');
