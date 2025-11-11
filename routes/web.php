@@ -220,12 +220,19 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOnly::class])->group(function () {
         Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
             ->name('api.reports.company-overview');
+        Route::get('/okr-company', [\App\Http\Controllers\ReportController::class, 'companyOkrReport'])
+            ->name('api.reports.okr-company');
+        Route::get('/okr-company/export.csv', [\App\Http\Controllers\ReportController::class, 'exportCompanyOkrCsv'])
+            ->name('api.reports.okr-company.export.csv');
     });
 
     // Frontend page route for Reports (SPA)
     Route::get('/reports/company-overview', function() { return view('app'); })
         ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
         ->name('reports.company-overview');
+    Route::get('/reports/okr-company', function() { return view('app'); })
+        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->name('reports.okr-company');
 
     // OKR Assignments
     Route::prefix('my-links')->group(function () {
