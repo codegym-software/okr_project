@@ -855,10 +855,12 @@ export default function Dashboard() {
                             );
                         })()}
 
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {metrics
-                                .filter((metric) => metric.type !== "status")
-                                .map((metric, index) => {
+                        {(() => {
+                            const nonStatusMetrics = metrics.filter((metric) => metric.type !== "status");
+                            const gridCols = nonStatusMetrics.length === 4 ? "grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3";
+                            return (
+                                <div className={`grid gap-4 ${gridCols}`}>
+                                    {nonStatusMetrics.map((metric, index) => {
                                     const accent =
                                         accentPalette[index % accentPalette.length];
                                     const valueIsPrimitive =
@@ -908,7 +910,9 @@ export default function Dashboard() {
         </div>
     );
                                 })}
-                        </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
@@ -1110,17 +1114,19 @@ export default function Dashboard() {
             },
             type: "total",
         },
-        {
-            label: "Sắp đến hạn",
-            value: `${personalSummary.upcoming}`,
-        },
-        {
-            label: "Quá hạn",
-            value: `${personalSummary.overdue}`,
-        },
     ];
 
     const teamMetrics = [
+        {
+            label: "Trạng thái tổng quan",
+            value: {
+                inProgress: teamSummary.inProgress,
+                upcoming: teamSummary.upcoming,
+                completed: teamSummary.completed,
+                overdue: teamSummary.overdue,
+            },
+            type: "status",
+        },
         {
             label: "Team nổi bật",
             value:
@@ -1143,25 +1149,13 @@ export default function Dashboard() {
                 : "--",
         },
         {
-            label: "Trạng thái tổng quan",
-            value: {
-                inProgress: teamSummary.inProgress,
-                upcoming: teamSummary.upcoming,
-                completed: teamSummary.completed,
-                overdue: teamSummary.overdue,
-            },
-            type: "status",
-        },
-        {
             label: "Tổng OKR",
             value: {
                 total: teamSummary.total,
                 completed: teamSummary.completed,
-            },
+        },
             type: "total",
         },
-        { label: "Sắp đến hạn", value: `${teamSummary.upcoming}` },
-        { label: "Quá hạn", value: `${teamSummary.overdue}` },
     ];
 
     const companyMetrics = [
@@ -1195,11 +1189,9 @@ export default function Dashboard() {
             value: {
                 total: companySummary.total,
                 completed: companySummary.completed,
-            },
+        },
             type: "total",
         },
-        { label: "Sắp đến hạn", value: `${companySummary.upcoming}` },
-        { label: "Quá hạn", value: `${companySummary.overdue}` },
     ];
 
     const formatPercentValue = (value) =>
