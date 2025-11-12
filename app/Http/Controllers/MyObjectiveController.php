@@ -93,7 +93,7 @@ class MyObjectiveController extends Controller
         }
 
         $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            ->with('assignedUser')
+            // ->with('assignedUser')
             ->where('user_id', $user->user_id);
 
         if ($request->has('archived') && $request->archived == '1') {
@@ -111,9 +111,10 @@ class MyObjectiveController extends Controller
         }
 
         if ($request->boolean('include_archived_kr')) {
-            $query->with(['keyResults']);
+            $query->with(['keyResults' => function ($q) {
+    $q->with('assignedUser');}]);
         } else {
-            $query->with(['keyResults' => fn($q) => $q->whereNull('archived_at')]);
+            $query->with(['keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at')]);
         }
 
         $objectives = $query->paginate(10);

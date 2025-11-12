@@ -485,18 +485,27 @@ export default function ObjectiveList({
 
     const handleAssignKR = async () => {
         const { kr, objective, email } = assignModal;
+
+        // 1. Validate email
         if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
             setToast({ type: "error", message: "Vui lòng nhập email hợp lệ." });
             return;
         }
 
+        // 2. Bật loading
         setAssignModal((prev) => ({ ...prev, loading: true }));
 
         try {
+            // 3. Lấy CSRF token
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 ?.getAttribute("content");
 
+            if (!token) {
+                throw new Error("Không tìm thấy CSRF token");
+            }
+
+            // 4. Gửi request
             const res = await fetch(`/my-key-results/${kr.kr_id}/assign`, {
                 method: "POST",
                 headers: {
@@ -507,18 +516,61 @@ export default function ObjectiveList({
                 body: JSON.stringify({ email }),
             });
 
-            const json = await res.json();
+            // 5. Parse JSON (có thể lỗi nếu server trả HTML)
+            let json;
+            try {
+                json = await res.json();
+            } catch (parseErr) {
+                throw new Error("Phản hồi từ server không hợp lệ");
+            }
 
-            if (json.success) {
-                await reloadBothTabs(token);
-                setToast({ type: "success", message: json.message });
-                closeAssignModal();
-            } else {
+            // 6. Kiểm tra HTTP status + success
+            if (!res.ok) {
+                throw new Error(
+                    json.message || `Lỗi ${res.status}: Giao việc thất bại`
+                );
+            }
+
+            if (!json.success) {
+                console.log("Assign KR success:", {
+                    kr_id: kr.kr_id,
+                    email,
+                    assignee: json.assignee,
+                });
                 throw new Error(json.message || "Giao việc thất bại");
             }
+
+            // 7. Cập nhật KR với assignee từ API
+            if (json.assignee) {
+                setKeyResults((prev) =>
+                    prev.map((item) =>
+                        item.kr_id === kr.kr_id
+                            ? { ...item, assignee: json.assignee }
+                            : item
+                    )
+                );
+            }
+
+            // 8. (Tùy chọn) Reload các tab khác nếu cần đồng bộ realtime
+            if (typeof reloadBothTabs === "function") {
+                await reloadBothTabs(token);
+            }
+
+            // 9. Thành công
+            setToast({
+                type: "success",
+                message: json.message || "Giao việc thành công!",
+            });
+            closeAssignModal();
         } catch (err) {
-            setToast({ type: "error", message: err.message });
+            // 10. Xử lý lỗi
+            console.error("Assign KR error:", err);
+            setToast({
+                type: "error",
+                message: err.message || "Đã có lỗi xảy ra",
+            });
         } finally {
+            // 11. Tắt loading
             setAssignModal((prev) => ({ ...prev, loading: false }));
         }
     };
@@ -813,12 +865,10 @@ export default function ObjectiveList({
                                                                 />
                                                             </svg>
                                                             <span className="text-sm text-slate-700">
-                                                                {/* Ưu tiên tên, nếu không có thì email */}
-                                                                {kr.assignedUser
-                                                                    .name ||
-                                                                    kr
-                                                                        .assignedUser
-                                                                        .email}
+                                                                {
+                                                                    kr.assignee
+                                                                        .name
+                                                                }
                                                             </span>
                                                         </div>
                                                     ) : (
