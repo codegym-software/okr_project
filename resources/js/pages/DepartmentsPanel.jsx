@@ -268,9 +268,17 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                     setSelectedUsers(
                         data.data
                             .filter(
-                                (user) =>
-                                    user.department_id ===
-                                    department?.department_id
+                                (user) => {
+                                    // Lọc admin ra
+                                    const isAdminUser =
+                                        (user.role?.role_name || "").toLowerCase() === "admin" ||
+                                        user.email === "okr.admin@company.com";
+                                    return (
+                                        !isAdminUser &&
+                                        user.department_id ===
+                                        department?.department_id
+                                    );
+                                }
                             )
                             .map((user) => user.user_id)
                     );
@@ -328,7 +336,15 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
         }
     };
 
-    const userOptions = users.map((user) => ({
+    // Lọc admin ra khỏi danh sách users
+    const filteredUsers = users.filter((user) => {
+        const isAdminUser =
+            (user.role?.role_name || "").toLowerCase() === "admin" ||
+            user.email === "okr.admin@company.com";
+        return !isAdminUser;
+    });
+
+    const userOptions = filteredUsers.map((user) => ({
         value: user.user_id,
         label: `${user.full_name} (${user.email})`,
     }));
@@ -366,12 +382,17 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                             )}
                             onChange={(selected) =>
                                 setSelectedUsers(
-                                    selected.map((option) => option.value)
+                                    selected ? selected.map((option) => option.value) : []
                                 )
                             }
                             className="basic-multi-select"
                             classNamePrefix="select"
                             placeholder="Chọn người dùng..."
+                            menuPortalTarget={document.body}
+                            styles={{
+                                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                                menu: (base) => ({ ...base, zIndex: 9999 }),
+                            }}
                         />
                     </div>
                     <div>
@@ -390,6 +411,11 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                             classNamePrefix="select"
                             placeholder="Chọn vai trò..."
                             isClearable
+                            menuPortalTarget={document.body}
+                            styles={{
+                                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                                menu: (base) => ({ ...base, zIndex: 9999 }),
+                            }}
                         />
                     </div>
                     <div className="flex justify-end gap-3 pt-2">

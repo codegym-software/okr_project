@@ -6,35 +6,24 @@ import { Select, Badge } from "./ui";
  * @param {Object} props - Props của component
  * @param {Object} props.user - Thông tin người dùng
  * @param {Array} props.departments - Danh sách phòng ban và đội nhóm
- * @param {Array} props.roles - Danh sách vai trò
- * @param {Object} props.editingRole - Trạng thái chỉnh sửa vai trò
+ * @param {Array} props.roles - Danh sách vai trò (chỉ để hiển thị)
  * @param {Object} props.editingDept - Trạng thái chỉnh sửa phòng ban/đội nhóm
- * @param {Function} props.setEditingRole - Hàm cập nhật trạng thái chỉnh sửa vai trò
  * @param {Function} props.setEditingDept - Hàm cập nhật trạng thái chỉnh sửa phòng ban/đội nhóm
- * @param {Function} props.onChangeRole - Hàm xử lý thay đổi vai trò
- * @param {Object} props.editingLevel - Trạng thái chỉnh sửa cấp độ
- * @param {Function} props.setEditingLevel - Hàm cập nhật trạng thái chỉnh sửa cấp độ
- * @param {Object} props.rolesByLevel - Cache các roles theo level
- * @param {Function} props.loadRolesByLevel - Hàm load roles theo level
+ * @param {Function} props.onChangeDept - Hàm xử lý thay đổi phòng ban/đội nhóm
  * @param {Function} props.toggleStatus - Hàm xử lý thay đổi trạng thái
  * @param {Object} props.pendingChanges - Thay đổi đang chờ xử lý
  * @param {Function} props.setPendingChanges - Hàm cập nhật thay đổi đang chờ
  * @param {Function} props.setUsers - Hàm cập nhật danh sách người dùng
+ * 
+ * Lưu ý: Cấp độ và vai trò chỉ hiển thị, không cho phép chỉnh sửa (được gán khi gán người dùng cho phòng ban)
  */
 export default function UserTableRow({
     user,
     departments,
     roles,
-    editingRole,
     editingDept,
-    editingLevel,
-    setEditingRole,
     setEditingDept,
-    setEditingLevel,
-    onChangeRole,
     onChangeDept,
-    onChangeLevel,
-    loadRolesByLevel,
     toggleStatus,
     pendingChanges = {},
     setPendingChanges,
@@ -46,32 +35,12 @@ export default function UserTableRow({
         pendingChanges[user.user_id] &&
         Object.keys(pendingChanges[user.user_id]).length > 0;
 
-    // Refs cho các phần tử có thể chỉnh sửa
-    const levelRef = useRef(null);
-    const roleRef = useRef(null);
+    // Refs cho các phần tử có thể chỉnh sửa (chỉ còn Department/Team)
     const deptRef = useRef(null);
 
     // Logic click outside để thoát khỏi chế độ chỉnh sửa
     useEffect(() => {
         const handleClickOutside = (event) => {
-            // Thoát khỏi chế độ chỉnh sửa Level
-            if (
-                editingLevel[user.user_id] &&
-                levelRef.current &&
-                !levelRef.current.contains(event.target)
-            ) {
-                setEditingLevel((prev) => ({ ...prev, [user.user_id]: false }));
-            }
-
-            // Thoát khỏi chế độ chỉnh sửa Role
-            if (
-                editingRole[user.user_id] &&
-                roleRef.current &&
-                !roleRef.current.contains(event.target)
-            ) {
-                setEditingRole((prev) => ({ ...prev, [user.user_id]: false }));
-            }
-
             // Thoát khỏi chế độ chỉnh sửa Department/Team
             if (
                 editingDept[user.user_id] &&
@@ -87,12 +56,8 @@ export default function UserTableRow({
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, [
-        editingLevel,
-        editingRole,
         editingDept,
         user.user_id,
-        setEditingLevel,
-        setEditingRole,
         setEditingDept,
     ]);
 
@@ -223,106 +188,20 @@ export default function UserTableRow({
                 </div>
             </td>
             <td className="px-3 py-2 text-slate-700">{user.email}</td>
-            <td className={editingLevel[user.user_id] ? "px-3 py-2 relative z-50" : "px-3 py-2 relative"}>
-                <div ref={levelRef}>
-                    {editingLevel[user.user_id] ? (
-                        <Select
-                            value={user.role?.level || ""}
-                            onChange={(val) => {
-                                onChangeLevel(val);
-                                setEditingLevel((prev) => ({
-                                    ...prev,
-                                    [user.user_id]: false,
-                                }));
-                            }}
-                            placeholder="Chọn cấp độ"
-                            options={[
-                                { value: "unit", label: "Phòng ban" },
-                                { value: "team", label: "Nhóm" },
-                            ]}
-                        />
-                    ) : (
-                        <button
-                            onClick={() =>
-                                setEditingLevel((prev) => ({
-                                    ...prev,
-                                    [user.user_id]: true,
-                                }))
-                            }
-                            className="focus:outline-none"
-                        >
-                            <Badge color={getLevelColor(user.role?.level)}>
-                                {getLevelDisplayName(user.role?.level)}
-                            </Badge>
-                        </button>
-                    )}
-                </div>
+            <td className="px-3 py-2">
+                <Badge color={getLevelColor(user.role?.level)}>
+                    {getLevelDisplayName(user.role?.level)}
+                </Badge>
             </td>
-            <td className={editingRole[user.user_id] ? "px-3 py-2 relative z-50" : "px-3 py-2 relative"}>
-                <div ref={roleRef}>
-                    {editingRole[user.user_id] ? (
-                        <Select
-                            value={String(user.role?.role_id || "")}
-                            onChange={(val) => {
-                                onChangeRole(val);
-                                setEditingRole((prev) => ({
-                                    ...prev,
-                                    [user.user_id]: false,
-                                }));
-                            }}
-                            placeholder="Chọn vai trò"
-                            options={(() => {
-                                const availableRoles = roles.filter(
-                                    (role) => role.role_name !== "admin"
-                                );
-                                const uniqueRoles = availableRoles.reduce(
-                                    (acc, role) => {
-                                        const roleName = getRoleDisplayName(
-                                            role.role_name
-                                        );
-                                        if (
-                                            !acc.find(
-                                                (item) =>
-                                                    item.label === roleName
-                                            )
-                                        ) {
-                                            acc.push({
-                                                value: String(role.role_id),
-                                                label: roleName,
-                                            });
-                                        }
-                                        return acc;
-                                    },
-                                    []
-                                );
-                                return uniqueRoles;
-                            })()}
-                        />
-                    ) : (
-                        <button
-                            onClick={() => {
-                                if (isAdmin) {
-                                    // Admin không thể thay đổi vai trò của mình
-                                    return;
-                                }
-                                setEditingRole((prev) => ({
-                                    ...prev,
-                                    [user.user_id]: true,
-                                }));
-                            }}
-                            className={`focus:outline-none ${isAdmin ? 'cursor-not-allowed' : ''}`}
-                        >
-                            {isAdmin ? (
-                                <Badge color="indigo">ADMIN</Badge>
-                            ) : (user.role?.role_name || "").toLowerCase() ===
-                            "member" ? (
-                                <Badge color="amber">Thành viên</Badge>
-                            ) : (
-                                <Badge color="blue">Quản lý</Badge>
-                            )}
-                        </button>
-                    )}
-                </div>
+            <td className="px-3 py-2">
+                {isAdmin ? (
+                    <Badge color="indigo">ADMIN</Badge>
+                ) : (user.role?.role_name || "").toLowerCase() ===
+                "member" ? (
+                    <Badge color="amber">Thành viên</Badge>
+                ) : (
+                    <Badge color="blue">Quản lý</Badge>
+                )}
             </td>
             <td className={editingDept[user.user_id] ? "px-3 py-2 relative z-50" : "px-3 py-2 relative"}>
                 <div ref={deptRef}>

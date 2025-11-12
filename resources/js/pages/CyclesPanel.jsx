@@ -170,8 +170,6 @@ export default function CyclesPanel() {
     const [openObj, setOpenObj] = useState({});
     const [editOpen, setEditOpen] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
-    const [openCreateObjective, setOpenCreateObjective] = useState(false);
-    const [openCreateKRForObjId, setOpenCreateKRForObjId] = useState(null);
     // Xác nhận hành động qua modal thay vì window.confirm
     const [confirm, setConfirm] = useState({
         open: false,
@@ -412,29 +410,6 @@ export default function CyclesPanel() {
                                         className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                                     >
                                         Sửa
-                                    </button>
-                                )}
-                                {detail?.cycle && detail.cycle?.status === 'active' && isEnded(detail.cycle?.end_date) && (
-                                    <button
-                                        onClick={() => {
-                                            const id = detail?.cycle?.cycle_id || detail?.cycle_id;
-                                            openConfirm({
-                                                title: 'Đóng chu kỳ',
-                                                message:
-                                                    'Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?',
-                                                confirmText: 'Đóng chu kỳ',
-                                                onConfirm: async () => {
-                                                    const json = await postCloseCycle(id);
-                                                    const cy = json.data || {};
-                                                    setDetail((prev) => ({ ...(prev || {}), cycle: { ...(prev?.cycle || prev), ...cy } }));
-                                                    setCycles((prev) => prev.map((c) => String(c.cycle_id || c.id) === String(id) ? { ...c, ...cy } : c));
-                                                    setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
-                                                },
-                                            });
-                                        }}
-                                        className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100"
-                                    >
-                                        Đóng chu kỳ
                                     </button>
                                 )}
                                 <button
@@ -796,18 +771,6 @@ export default function CyclesPanel() {
                             </div>
                         </div>
                     </div>
-                    <AdminOnly permission="canManageCycles">
-                        {detail?.cycle?.status === 'active' && (
-                            <div className="px-6 pb-4">
-                                <button
-                                    onClick={() => setOpenCreateObjective(true)}
-                                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-                                >
-                                    Thêm Objective
-                                </button>
-                            </div>
-                        )}
-                    </AdminOnly>
                     {(detail.objectives || []).map((obj) => (
                         <div
                             key={obj.objective_id}
@@ -837,22 +800,6 @@ export default function CyclesPanel() {
                                         </div>
                                     </div>
                                 </button>
-                                <AdminOnly permission="canManageCycles">
-                                    {detail?.cycle?.status === 'active' && (
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={() =>
-                                                    setOpenCreateKRForObjId(
-                                                        obj.objective_id
-                                                    )
-                                                }
-                                                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
-                                            >
-                                                Thêm KR
-                                            </button>
-                                        </div>
-                                    )}
-                                </AdminOnly>
                             </div>
                             {openObj[obj.objective_id] !== false && (
                                 <div className="mt-3 space-y-3">
@@ -951,91 +898,7 @@ export default function CyclesPanel() {
                 </>
             )}
 
-            {/* Modal tạo Objective mới trong chu kỳ hiện tại */}
-            {isDetail && openCreateObjective && (
-                <Modal
-                    open={true}
-                    onClose={() => setOpenCreateObjective(false)}
-                    title="Tạo Objective mới"
-                >
-                    <div className="max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400 rounded-lg">
-                        <ObjectiveCreateForm
-                            cycleId={
-                                detail?.cycle?.cycle_id || detail?.cycle_id
-                            }
-                            onCreated={(objective) => {
-                                setToast({
-                                    type: "success",
-                                    message: "Tạo Objective thành công",
-                                });
-                                const objId =
-                                    objective?.objective_id || objective?.id;
-                                const krList =
-                                    objective?.keyResults ||
-                                    objective?.key_results ||
-                                    [];
-                                // Cập nhật danh sách KR map để hiển thị ngay
-                                if (objId) {
-                                    setKrs((prev) => ({
-                                        ...prev,
-                                        [objId]: krList,
-                                    }));
-                                }
-                                // Thêm objective vào danh sách hiện tại, giữ nguyên KR trong card
-                                setDetail((prev) => ({
-                                    ...prev,
-                                    objectives: [
-                                        ...(prev?.objectives || []),
-                                        { ...objective },
-                                    ],
-                                }));
-                                setOpenCreateObjective(false);
-                            }}
-                            onError={(msg) =>
-                                setToast({
-                                    type: "error",
-                                    message: msg || "Tạo Objective thất bại",
-                                })
-                            }
-                        />
-                    </div>
-                </Modal>
-            )}
 
-            {/* Modal tạo KR cho một Objective */}
-            {isDetail && openCreateKRForObjId && (
-                <Modal
-                    open={true}
-                    onClose={() => setOpenCreateKRForObjId(null)}
-                    title="Tạo Key Result"
-                >
-                    <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400 rounded-lg">
-                        <KeyResultCreateForm
-                            objectiveId={openCreateKRForObjId}
-                            onCreated={(kr) => {
-                                setToast({
-                                    type: "success",
-                                    message: "Tạo Key Result thành công",
-                                });
-                                setKrs((prev) => ({
-                                    ...prev,
-                                    [openCreateKRForObjId]: [
-                                        kr,
-                                        ...(prev[openCreateKRForObjId] || []),
-                                    ],
-                                }));
-                                setOpenCreateKRForObjId(null);
-                            }}
-                            onError={(msg) =>
-                                setToast({
-                                    type: "error",
-                                    message: msg || "Tạo Key Result thất bại",
-                                })
-                            }
-                        />
-                    </div>
-                </Modal>
-            )}
         </div>
     );
 }

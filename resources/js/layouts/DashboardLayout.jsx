@@ -119,21 +119,24 @@ function DashboardSidebar({ open, user }) {
                         </svg>
                     }
                 />
-                <SidebarItem
-                    collapsed={collapsed}
-                    href="/departments"
-                    label="Phòng ban & Đội nhóm"
-                    icon={
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-6 w-6"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                        >
-                            <path d="M3 4h18v2H3V4zm2 4h14v12H5V8zm4 2v8h6v-8H9z" />
-                        </svg>
-                    }
-                />
+                {/* Phòng ban & Đội nhóm - chỉ hiển thị cho Admin */}
+                {isAdmin && (
+                    <SidebarItem
+                        collapsed={collapsed}
+                        href="/departments"
+                        label="Phòng ban & Đội nhóm"
+                        icon={
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-6 w-6"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M3 4h18v2H3V4zm2 4h14v12H5V8zm4 2v8h6v-8H9z" />
+                            </svg>
+                        }
+                    />
+                )}
                 {isAdmin && (
                     <SidebarItem
                         collapsed={collapsed}
@@ -151,8 +154,8 @@ function DashboardSidebar({ open, user }) {
                         }
                     />
                 )}
-                {/* Báo cáo - chỉ hiển thị cho Manager */}
-                {user?.role?.role_name?.toLowerCase() === 'manager' && (
+                {/* Báo cáo - chỉ hiển thị cho Admin */}
+                {isAdmin && (
                     <SidebarItem
                         collapsed={collapsed}
                         href="/reports"
@@ -289,6 +292,10 @@ function DashboardTopbar({
 export default function DashboardLayout({ children, user }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     
+    const toggleSidebar = () => {
+        setSidebarOpen(!sidebarOpen);
+    };
+    
     const logout = async () => {
         try {
             const token = document
@@ -315,12 +322,12 @@ export default function DashboardLayout({ children, user }) {
     return (
         <div className="min-h-screen bg-white">
             {/* Sidebar */}
-            <div className="w-64 bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 z-10">
-                <div className="p-6">
-                    <div className="mb-8 flex items-center gap-3 px-2">
+            <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 z-10 transition-all duration-300`}>
+                <div className={`p-6 ${!sidebarOpen ? 'px-3' : ''}`}>
+                    <div className={`mb-8 flex items-center gap-3 ${!sidebarOpen ? 'justify-center px-0' : 'px-2'}`}>
                         <a
                             href="/dashboard"
-                            className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 p-3"
+                            className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 p-3 shrink-0"
                             title="Dashboard"
                         >
                             <svg
@@ -332,16 +339,18 @@ export default function DashboardLayout({ children, user }) {
                                 <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
                             </svg>
                         </a>
-                        <a
-                            href="/dashboard"
-                            className="text-xl font-extrabold text-slate-900"
-                        >
-                            OKRun
-                        </a>
+                        {sidebarOpen && (
+                            <a
+                                href="/dashboard"
+                                className="text-xl font-extrabold text-slate-900"
+                            >
+                                OKRun
+                            </a>
+                        )}
                     </div>
                     <nav className="space-y-1">
                         <SidebarItem
-                            collapsed={false}
+                            collapsed={!sidebarOpen}
                             href="/dashboard"
                             label="Tổng quan"
                             icon={
@@ -355,42 +364,8 @@ export default function DashboardLayout({ children, user }) {
                                 </svg>
                             }
                         />
-                        {/* Nhóm Quản trị (Admin): gom Chu kỳ, Phòng ban/Đội nhóm, Quản lý người dùng) */}
-                        {user?.is_admin === true && (
-                            <div className="rounded-xl">
-                                <details
-                                    className="group [&_summary::-webkit-details-marker]:hidden"
-                                    open={typeof window !== 'undefined' && ['/cycles', '/departments', '/users'].some(p => window.location.pathname.startsWith(p))}
-                                >
-                                    <summary className="flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold text-slate-700 hover:bg-slate-50">
-                                        <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-open:text-blue-600">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
-                                            </svg>
-                                        </span>
-                                        <span className="truncate">Quản trị</span>
-                                        <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                                            </svg>
-                                        </span>
-                                    </summary>
-                                    <div className="mt-1 pl-12 pr-2 space-y-1">
-                                        <a href="/cycles" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
-                                            Chu kỳ
-                                        </a>
-                                        <a href="/departments" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
-                                            Phòng ban/Đội nhóm
-                                        </a>
-                                        <a href="/users" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
-                                            Quản lý người dùng
-                                        </a>
-                                    </div>
-                                </details>
-                            </div>
-                        )}
                         <SidebarItem
-                            collapsed={false}
+                            collapsed={!sidebarOpen}
                             href="/my-objectives"
                             label="Mục tiêu"
                             icon={
@@ -407,7 +382,7 @@ export default function DashboardLayout({ children, user }) {
                         {/* Báo cáo tổng quan - chỉ Admin */}
                         {user?.is_admin === true && (
                             <SidebarItem
-                                collapsed={false}
+                                collapsed={!sidebarOpen}
                                 href="/reports/company-overview"
                                 label="Báo cáo"
                                 icon={
@@ -417,52 +392,76 @@ export default function DashboardLayout({ children, user }) {
                                 }
                             />
                         )}
-                        {/* Phòng ban/Đội nhóm - hiển thị riêng cho Manager (Admin đã nằm trong Quản trị) */}
-                        {user?.role?.role_name?.toLowerCase() === 'manager' && (
-                            <SidebarItem
-                                collapsed={false}
-                                href="/departments"
-                                label="Phòng ban/Đội nhóm"
-                                icon={
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-6 w-6"
-                                        viewBox="0 0 24 24"
-                                        fill="currentColor"
+                        {/* Nhóm Quản trị (Admin): gom Chu kỳ, Phòng ban/Đội nhóm, Quản lý người dùng) */}
+                        {user?.is_admin === true && (
+                            <div className="rounded-xl">
+                                {sidebarOpen ? (
+                                    <details
+                                        className="group [&_summary::-webkit-details-marker]:hidden"
+                                        open={typeof window !== 'undefined' && ['/cycles', '/departments', '/users'].some(p => window.location.pathname.startsWith(p))}
                                     >
-                                        <path d="M3 4h18v2H3V4zm2 4h14v12H5V8zm4 2v8h6v-8H9z" />
-                                    </svg>
-                                }
-                            />
-                        )}
-                        {/* Ẩn mục Quản lý người dùng rời cho Admin vì đã gom nhóm */}
-                        {/* Báo cáo - chỉ hiển thị cho Manager */}
-                        {user?.role?.role_name?.toLowerCase() === 'manager' && (
-                            <SidebarItem
-                                collapsed={false}
-                                href="/reports"
-                                label="Báo cáo"
-                                icon={
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-6 w-6"
-                                        viewBox="0 0 24 24"
-                                        fill="currentColor"
+                                        <summary className="flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold text-slate-700 hover:bg-slate-50">
+                                            <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-open:text-blue-600">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                                                </svg>
+                                            </span>
+                                            <span className="truncate">Quản trị</span>
+                                            <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                                </svg>
+                                            </span>
+                                        </summary>
+                                        <div className="mt-1 pl-12 pr-2 space-y-1">
+                                            <a href="/cycles" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
+                                                Chu kỳ
+                                            </a>
+                                            <a href="/departments" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
+                                                Phòng ban/Đội nhóm
+                                            </a>
+                                            <a href="/users" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
+                                                Quản lý người dùng
+                                            </a>
+                                        </div>
+                                    </details>
+                                ) : (
+                                    <a
+                                        href="/cycles"
+                                        className="group flex items-center justify-center rounded-xl px-4 py-3.5 text-slate-700 hover:bg-slate-50"
+                                        title="Quản trị"
                                     >
-                                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
-                                    </svg>
-                                }
-                            />
+                                        <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-hover:text-blue-600">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                                            </svg>
+                                        </span>
+                                    </a>
+                                )}
+                            </div>
                         )}
                     </nav>
                 </div>
             </div>
             
             {/* Header */}
-            <div className="ml-64 bg-white border-b border-gray-200 px-6 py-4">
+            <div className={`${sidebarOpen ? 'ml-64' : 'ml-20'} bg-white border-b border-gray-200 px-6 py-4 transition-all duration-300`}>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                        {/* Header title removed */}
+                        <button
+                            onClick={toggleSidebar}
+                            className="rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 transition-colors"
+                            aria-label="Toggle sidebar"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-6 w-6"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" />
+                            </svg>
+                        </button>
                     </div>
                     <div className="flex items-center space-x-4">
                         <Dropdown
@@ -543,7 +542,7 @@ export default function DashboardLayout({ children, user }) {
             </div>
             
             {/* Main Content */}
-            <div className="ml-64">
+            <div className={`${sidebarOpen ? 'ml-64' : 'ml-20'} transition-all duration-300`}>
                 {children}
             </div>
         </div>

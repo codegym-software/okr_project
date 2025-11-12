@@ -332,3 +332,63 @@ input[type="range"]::-moz-range-thumb {
 .action-button.checkin:hover .action-button-icon {
     color: #1d4ed8;
 }
+
+/* React Select Styles */
+.select__control {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 0.5rem !important;
+    min-height: 2.5rem !important;
+    box-shadow: none !important;
+}
+
+.select__control:hover {
+    border-color: #94a3b8 !important;
+}
+
+.select__control--is-focused {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 1px #3b82f6 !important;
+}
+
+.select__menu {
+    z-index: 9999 !important;
+}
+
+.select__menu-portal {
+    z-index: 9999 !important;
+}
+
+.select__option {
+    padding: 0.5rem 0.75rem !important;
+    cursor: pointer !important;
+}
+
+.select__option--is-focused {
+    background-color: #e0f2fe !important;
+    color: #1e40af !important;
+}
+
+.select__option--is-selected {
+    background-color: #3b82f6 !important;
+    color: #ffffff !important;
+}
+
+.select__multi-value {
+    background-color: #e0f2fe !important;
+    border-radius: 0.375rem !important;
+}
+
+.select__multi-value__label {
+    color: #1e40af !important;
+    font-size: 0.875rem !important;
+}
+
+.select__multi-value__remove {
+    color: #1e40af !important;
+    cursor: pointer !important;
+}
+
+.select__multi-value__remove:hover {
+    background-color: #bfdbfe !important;
+    color: #1e3a8a !important;
+}
