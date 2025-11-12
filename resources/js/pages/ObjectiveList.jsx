@@ -31,6 +31,20 @@ export default function ObjectiveList({
     const [archivingKR, setArchivingKR] = useState(null);
     const [unarchivingKR, setUnarchivingKR] = useState(null);
     const [deletingKR, setDeletingKR] = useState(null);
+
+    const canCheckInKR = (kr, objective) => {
+        return canCheckInKeyResult(currentUser, kr, objective);
+    };
+
+    const handleOpenCheckIn = (kr, objective) => {
+        if (!openCheckInModal) return;
+        openCheckInModal({ ...kr, objective_id: objective.objective_id });
+    };
+
+    const handleOpenCheckInHistory = (kr, objective) => {
+        if (!openCheckInHistory) return;
+        openCheckInHistory({ ...kr, objective_id: objective.objective_id });
+    };
     const [archiving, setArchiving] = useState(null);
     const [unarchiving, setUnarchiving] = useState(null);
     const [deleting, setDeleting] = useState(null);
@@ -868,54 +882,109 @@ export default function ObjectiveList({
                                                     )}
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
-                                                    <button
-                                                        onClick={() =>
-                                                            setEditingKR(kr)
-                                                        }
-                                                        className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                                                        title="Sửa KR"
-                                                    >
-                                                        <svg
-                                                            className="h-4 w-4"
-                                                            fill="none"
-                                                            viewBox="0 0 24 24"
-                                                            stroke="currentColor"
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        {openCheckInModal &&
+                                                            canCheckInKR(kr, obj) && (
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleOpenCheckIn(
+                                                                            kr,
+                                                                            obj
+                                                                        )
+                                                                    }
+                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                                                    title="Check-in Key Result"
+                                                                >
+                                                                    <svg
+                                                                        className="h-4 w-4"
+                                                                        fill="none"
+                                                                        viewBox="0 0 24 24"
+                                                                        stroke="currentColor"
+                                                                    >
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={2}
+                                                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        {openCheckInHistory && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleOpenCheckInHistory(
+                                                                        kr,
+                                                                        obj
+                                                                    )
+                                                                }
+                                                                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                                                title="Lịch sử Check-in"
+                                                            >
+                                                                <svg
+                                                                    className="h-4 w-4"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={2}
+                                                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                    />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() =>
+                                                                setEditingKR(kr)
+                                                            }
+                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                                            title="Sửa KR"
                                                         >
-                                                            <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                                            />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        onClick={() =>
-                                                            handleArchiveKR(
+                                                            <svg
+                                                                className="h-4 w-4"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={2}
+                                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                                                />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() =>
+                                                                handleArchiveKR(
+                                                                    kr.kr_id
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                archivingKR ===
                                                                 kr.kr_id
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            archivingKR ===
-                                                            kr.kr_id
-                                                        }
-                                                        className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 ml-1"
-                                                        title="Lưu trữ KR"
-                                                    >
-                                                        <svg
-                                                            className="h-4 w-4"
-                                                            fill="none"
-                                                            viewBox="0 0 24 24"
-                                                            stroke="currentColor"
+                                                            }
+                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
+                                                            title="Lưu trữ KR"
                                                         >
-                                                            <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                                                            />
-                                                        </svg>
-                                                    </button>
+                                                            <svg
+                                                                className="h-4 w-4"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={2}
+                                                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                                                />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
