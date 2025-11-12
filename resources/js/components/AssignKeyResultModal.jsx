@@ -1,4 +1,5 @@
 import React from "react";
+import { Modal } from "./ui"; // Giả sử bạn có component Modal chung từ './ui' giống như CheckInModal
 
 export default function AssignKeyResultModal({
     show,
@@ -13,12 +14,8 @@ export default function AssignKeyResultModal({
     if (!show) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">
-                    Giao Key Result
-                </h3>
-
+        <Modal open={show} onClose={onClose} title="Giao Key Result">
+            <div className="space-y-4">
                 <div className="mb-4">
                     <p className="text-sm text-slate-700 font-medium">
                         {kr.kr_title}
@@ -79,6 +76,6 @@ export default function AssignKeyResultModal({
                     </button>
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 }
