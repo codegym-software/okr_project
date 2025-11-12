@@ -9,7 +9,8 @@ export default function OKRTable({
     onViewOKR, 
     onCheckIn, 
     onViewCheckInHistory,
-    currentUser 
+    currentUser,
+    viewMode = 'my',
 }) {
     const [expandedObjectives, setExpandedObjectives] = useState({});
 
@@ -18,6 +19,91 @@ export default function OKRTable({
             ...prev,
             [objectiveId]: !prev[objectiveId]
         }));
+    };
+
+    const isPersonalView = viewMode === 'my';
+
+    const formatDateTime = (value) => {
+        if (!value) return '--';
+        if (value instanceof Date && !Number.isNaN(value.getTime())) {
+            return value.toLocaleString('vi-VN', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+        }
+        let dateValue = value;
+        if (typeof value === 'number') {
+            // Nếu là giây (10 chữ số) chuyển sang mili giây
+            dateValue = value > 1e12 ? value : value * 1000;
+        }
+        const date = new Date(dateValue);
+        if (Number.isNaN(date.getTime())) return '--';
+        return date.toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
+
+    const getLastCheckInAt = (objective) => {
+        if (!objective) return '--';
+
+        const timestamps = [];
+        const pushDate = (raw) => {
+            if (!raw) return;
+            if (raw instanceof Date) {
+                if (!Number.isNaN(raw.getTime())) {
+                    timestamps.push(raw);
+                }
+                return;
+            }
+            let input = raw;
+            if (typeof raw === 'number') {
+                input = raw > 1e12 ? raw : raw * 1000;
+            }
+            const parsed = new Date(input);
+            if (!Number.isNaN(parsed.getTime())) {
+                timestamps.push(parsed);
+            }
+        };
+
+        pushDate(
+            objective.last_check_in_at ||
+                objective.last_checkin_at ||
+                objective.latest_check_in_at ||
+                objective.latest_checkin_at ||
+                objective.updated_at
+        );
+
+        if (Array.isArray(objective.key_results)) {
+            objective.key_results.forEach((kr) => {
+                pushDate(
+                    kr?.last_check_in_at ||
+                        kr?.last_checkin_at ||
+                        kr?.latest_check_in_at ||
+                        kr?.latest_checkin_at ||
+                        kr?.updated_at
+                );
+                if (Array.isArray(kr?.check_ins)) {
+                    kr.check_ins.forEach((checkIn) => {
+                        pushDate(
+                            checkIn?.checked_in_at ||
+                                checkIn?.created_at ||
+                                checkIn?.updated_at
+                        );
+                    });
+                }
+            });
+        }
+
+        if (!timestamps.length) return '--';
+        const latest = timestamps.sort((a, b) => b.getTime() - a.getTime())[0];
+        return formatDateTime(latest);
     };
 
     if (loading) {
@@ -37,15 +123,22 @@ export default function OKRTable({
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
             {/* Table Header */}
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                <div className="grid grid-cols-7 gap-4 text-sm font-medium text-gray-500">
-                    <div>Tiêu Đề</div>
-                    <div className="hidden md:block">Phòng Ban</div>
-                    <div className="hidden md:block">Mục Tiêu</div>
-                    <div>Tiến Độ</div>
-                    <div className="hidden lg:block">Ngày Hết Hạn</div>
-                    <div className="hidden lg:block">Trạng Thái</div>
-                    <div>Mức Độ Ưu Tiên</div>
-                </div>
+                {isPersonalView ? (
+                    <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-500">
+                        <div>Tiêu Đề</div>
+                        <div>Tiến Độ</div>
+                        <div className="hidden lg:block">Lần Check-in Cuối</div>
+                        <div className="hidden lg:block">Trạng Thái</div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-5 gap-4 text-sm font-medium text-gray-500">
+                        <div>Tiêu Đề</div>
+                        <div className="hidden md:block">Phòng Ban</div>
+                        <div>Tiến Độ</div>
+                        <div className="hidden lg:block">Lần Check-in Cuối</div>
+                        <div className="hidden lg:block">Trạng Thái</div>
+                    </div>
+                )}
             </div>
             
             {/* Table Body */}
@@ -78,11 +171,18 @@ export default function OKRTable({
                             : 0;
                         
                         const isExpanded = expandedObjectives[item.objective_id];
+                        const lastCheckInDisplay = getLastCheckInAt(item);
                         
                         return (
                             <React.Fragment key={item.objective_id}>
                                 <div className={`px-6 py-4 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}>
-                                    <div className="grid grid-cols-7 gap-4 items-center">
+                                    <div
+                                        className={`grid ${
+                                            isPersonalView
+                                                ? 'grid-cols-4'
+                                                : 'grid-cols-5'
+                                        } gap-4 items-center`}
+                                    >
                                         <div className="flex items-center space-x-3 min-w-0">
                                             <button
                                                 onClick={() => toggleExpand(item.objective_id)}
@@ -105,10 +205,11 @@ export default function OKRTable({
                                                 {item.obj_title}
                                             </button>
                                         </div>
-                                        <div className="hidden md:block text-sm text-gray-600 truncate">
-                                            {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
-                                        </div>
-                                        <div className="hidden md:block text-sm text-gray-600">100%</div>
+                                        {!isPersonalView && (
+                                            <div className="hidden md:block text-sm text-gray-600 truncate">
+                                                {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
+                                            </div>
+                                        )}
                                         <div className="text-sm text-gray-600">
                                             <div className="flex items-center space-x-2">
                                                 <span className="font-medium">{avgProgress.toFixed(2)}%</span>
@@ -121,13 +222,13 @@ export default function OKRTable({
                                             </div>
                                         </div>
                                         <div className="hidden lg:block text-sm text-gray-600">
-                                            {item.deadlineCharacter ? item.deadlineCharacter : '-'}
+                                            {lastCheckInDisplay}
                                         </div>
                                         <div className="hidden lg:block text-sm">
                                             {item.status && (
                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                                     item.status === 'completed'
-                                                        ? 'bg-blue-100 text-blue-700' 
+                                                        ? 'bg-blue-100 text-blue-700'
                                                         : item.status === 'overdue'
                                                         ? 'bg-red-100 text-red-700'
                                                         : item.status === 'upcoming'
@@ -137,20 +238,7 @@ export default function OKRTable({
                                                     {item.status === 'completed' ? 'Hoàn Thành' : 
                                                      item.status === 'overdue' ? 'Quá Hạn' : 
                                                      item.status === 'upcoming' ? 'Sắp Hết Hạn' : 
-                                                     'Còn Hạn'}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="text-sm">
-                                            {item.priority !== undefined && (
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                    item.priority === 'high'
-                                                        ? 'bg-red-100 text-red-700' 
-                                                        : item.priority === 'medium'
-                                                        ? 'bg-yellow-100 text-yellow-700'
-                                                        : 'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                    {item.priority === 'high' ? 'Cao' : item.priority === 'medium' ? 'Trung Bình' : 'Thấp'}
+                                                     'Đang Tiến Hành'}
                                                 </span>
                                             )}
                                         </div>
@@ -158,8 +246,13 @@ export default function OKRTable({
                                     
                                     {/* Mobile view */}
                                     <div className="md:hidden mt-2 space-y-1">
+                                        {!isPersonalView && (
+                                            <div className="text-xs text-gray-500">
+                                                Phòng Ban: {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
+                                            </div>
+                                        )}
                                         <div className="text-xs text-gray-500">
-                                            Phòng Ban: {departments.find(d => String(d.department_id) === String(item.department_id))?.d_name || '-'}
+                                            {`Lần check-in cuối: ${lastCheckInDisplay}`}
                                         </div>
                                         {item.status && (
                                             <div className="text-xs">
@@ -175,7 +268,7 @@ export default function OKRTable({
                                                     {item.status === 'completed' ? 'Hoàn Thành' : 
                                                      item.status === 'overdue' ? 'Quá Hạn' : 
                                                      item.status === 'upcoming' ? 'Sắp Hết Hạn' : 
-                                                     'Còn Hạn'}
+                                                     'Đang Tiến Hành'}
                                                 </span>
                                             </div>
                                         )}

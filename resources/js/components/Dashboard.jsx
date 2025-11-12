@@ -1,14 +1,14 @@
 
 import React, { useEffect, useMemo, useState } from "react";
-import ObjectiveList from "../pages/ObjectiveList.jsx";
 import ObjectiveModal from "../pages/ObjectiveModal.jsx";
 import KeyResultModal from "../pages/KeyResultModal.jsx";
 import ToastComponent from "../pages/ToastComponent.jsx";
 import ErrorBoundary from "./ErrorBoundary";
-import OKRBarChart from "./OKRBarChart";
 import OKRTable from "./OKRTable";
 import CheckInHistory from "./CheckInHistory";
-import OKRStats from "./OKRStats";
+import BarChart from "./BarChart";
+import LineChart from "./LineChart";
+import PieChart from "./PieChart";
 
 export default function Dashboard() {
     const [items, setItems] = useState([]);
@@ -26,11 +26,21 @@ export default function Dashboard() {
     const [page, setPage] = useState(1);
     const [itemsPerPage] = useState(5); // Số items hiển thị mỗi trang (client-side)
     const [currentUser, setCurrentUser] = useState(null);
-    const [pieChartData, setPieChartData] = useState([]);
     const [error, setError] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
     const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
     const [activeTab, setActiveTab] = useState('my'); // 'my', 'department', 'company'
+    const [teamTrendRange, setTeamTrendRange] = useState("month"); // 'day' | 'week' | 'month'
+    const teamTrendOptions = [
+        { value: "day", label: "Ngày" },
+        { value: "week", label: "Tuần" },
+        { value: "month", label: "Tháng" },
+    ];
+    const teamTrendLabelMap = {
+        day: "ngày",
+        week: "tuần",
+        month: "tháng",
+    };
     
     // Filters riêng cho từng tab
     const [myFilters, setMyFilters] = useState({
@@ -52,6 +62,157 @@ export default function Dashboard() {
         showFilters: false
     });
 
+    const calculateObjectiveProgress = (objective) => {
+        const keyResults = objective?.key_results || [];
+        if (!keyResults.length) return 0;
+        const total = keyResults.reduce((sum, kr) => {
+            let value = 0;
+            if (kr.progress_percent !== null && kr.progress_percent !== undefined) {
+                value = parseFloat(kr.progress_percent) || 0;
+            } else if (kr.target_value) {
+                const target = parseFloat(kr.target_value) || 0;
+                const current = parseFloat(kr.current_value) || 0;
+                value = target > 0 ? (current / target) * 100 : 0;
+            }
+            return sum + (isFinite(value) ? value : 0);
+        }, 0);
+        return total / keyResults.length;
+    };
+
+    const formatDate = (value) => {
+        if (!value) return "--";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "--";
+        return date.toLocaleDateString("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+        });
+    };
+
+    const formatDateRange = (start, end) => {
+        if (!start && !end) return "--";
+        return `${formatDate(start)} - ${formatDate(end)}`;
+    };
+
+    const buildSummary = (list) => {
+        if (!Array.isArray(list) || list.length === 0) {
+            return {
+                total: 0,
+                completed: 0,
+                overdue: 0,
+                upcoming: 0,
+                progressAvg: 0,
+                inProgress: 0,
+                notStarted: 0,
+            };
+        }
+        let completed = 0;
+        let overdue = 0;
+        let upcoming = 0;
+        let inProgress = 0;
+        let notStarted = 0;
+        let progressSum = 0;
+
+        list.forEach((objective) => {
+            const progress = calculateObjectiveProgress(objective);
+            progressSum += progress;
+            const statusMeta = getObjectiveStatusMeta(objective);
+            const statusLabel = statusMeta?.label || "";
+            if (statusLabel === "Hoàn thành") {
+                completed += 1;
+            } else if (statusLabel === "Trễ hạn") {
+                            overdue += 1;
+            } else if (statusLabel === "Sắp đến hạn") {
+                            upcoming += 1;
+                inProgress += 1;
+            } else if (statusLabel === "Đang tiến hành") {
+                inProgress += 1;
+            } else if (statusLabel === "Chưa bắt đầu") {
+                notStarted += 1;
+            }
+        });
+
+        return {
+            total: list.length,
+            completed,
+            overdue,
+            upcoming,
+            progressAvg: list.length ? progressSum / list.length : 0,
+            inProgress,
+            notStarted,
+        };
+    };
+
+    const getObjectiveStatusMeta = (objective) => {
+        const now = new Date();
+        const progress = calculateObjectiveProgress(objective);
+        const endDate =
+            objective?.cycle?.end_date || objective?.end_date || null;
+
+        if (progress >= 99.99) {
+            return { label: "Hoàn thành", tone: "emerald" };
+        }
+
+        if (endDate) {
+            const end = new Date(endDate);
+            if (!Number.isNaN(end.getTime())) {
+                const diffMs = end.getTime() - now.getTime();
+                const diffDays = diffMs / (1000 * 60 * 60 * 24);
+                if (diffDays < 0) {
+                    return { label: "Trễ hạn", tone: "rose" };
+                }
+                if (diffDays <= 7) {
+                    return { label: "Sắp đến hạn", tone: "amber" };
+                }
+            }
+        }
+
+        if (progress > 0) {
+            return { label: "Đang tiến hành", tone: "blue" };
+        }
+
+        return { label: "Chưa bắt đầu", tone: "slate" };
+    };
+
+    const renderStatusBadge = (meta) => {
+        if (!meta) {
+            return (
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                    --
+                </span>
+            );
+        }
+        const toneMap = {
+            emerald: "bg-emerald-100 text-emerald-700",
+            blue: "bg-blue-100 text-blue-700",
+            amber: "bg-amber-100 text-amber-700",
+            rose: "bg-rose-100 text-rose-700",
+            slate: "bg-slate-100 text-slate-700",
+        };
+        return (
+            <span
+                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${toneMap[meta.tone] || toneMap.slate
+                    }`}
+            >
+                {meta.label}
+            </span>
+        );
+    };
+
+    const getOwnerName = (objective) =>
+        objective?.owner?.full_name ||
+        objective?.owner_name ||
+        objective?.user?.full_name ||
+        objective?.user_name ||
+        objective?.assignee_name ||
+        "Không xác định";
+
+    const getStartDate = (objective) =>
+        objective?.cycle?.start_date || objective?.start_date || null;
+    const getEndDate = (objective) =>
+        objective?.cycle?.end_date || objective?.end_date || null;
+
     // Helper để lấy filters hiện tại dựa trên tab
     const getCurrentFilters = () => {
         if (activeTab === 'my') return myFilters;
@@ -64,6 +225,106 @@ export default function Dashboard() {
         if (activeTab === 'my') setMyFilters(newFilters);
         else if (activeTab === 'department') setDepartmentFilters(newFilters);
         else setCompanyFilters(newFilters);
+    };
+
+    const normalizeCheckIns = (checkIns) => {
+        if (!Array.isArray(checkIns)) return [];
+        return checkIns
+            .map((checkIn) => {
+                if (!checkIn) return null;
+                const progressPercent =
+                    checkIn.progress_percent !== undefined && checkIn.progress_percent !== null
+                        ? parseFloat(checkIn.progress_percent)
+                        : undefined;
+                const progressValue =
+                    checkIn.progress_value !== undefined && checkIn.progress_value !== null
+                        ? parseFloat(checkIn.progress_value)
+                        : undefined;
+                return {
+                    ...checkIn,
+                    progress_percent: Number.isFinite(progressPercent) ? progressPercent : undefined,
+                    progress_value: Number.isFinite(progressValue) ? progressValue : undefined,
+                };
+            })
+            .filter(Boolean);
+    };
+
+    const fetchCheckInsForKeyResult = async (objectiveId, keyResultId, token) => {
+        if (!objectiveId || !keyResultId) return [];
+        try {
+            const res = await fetch(
+                `/api/check-in/${objectiveId}/${keyResultId}/history`,
+                {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                }
+            );
+            if (!res.ok) {
+                console.warn(
+                    "Failed to load check-ins for KR",
+                    keyResultId,
+                    res.status,
+                    res.statusText
+                );
+                return [];
+            }
+            const data = await res.json().catch((err) => {
+                console.error(
+                    "Error parsing check-in history",
+                    keyResultId,
+                    err
+                );
+                return null;
+            });
+            if (!data) return [];
+            const checkInsData =
+                data.data?.check_ins || data.check_ins || data.data || [];
+            return normalizeCheckIns(checkInsData);
+        } catch (error) {
+            console.error(
+                "Unexpected error fetching check-ins for KR",
+                keyResultId,
+                error
+            );
+            return [];
+        }
+    };
+
+    const attachCheckInsToObjectives = async (objectives, token) => {
+        if (!Array.isArray(objectives) || objectives.length === 0) {
+            return objectives;
+        }
+        const enrichedObjectives = [];
+        for (const objective of objectives) {
+            const objectiveId =
+                objective.objective_id || objective.id || objective.obj_id;
+            const keyResults = Array.isArray(objective.key_results)
+                ? objective.key_results
+                : [];
+            const enrichedKeyResults = [];
+            for (const kr of keyResults) {
+                const keyResultId = kr.kr_id || kr.id;
+                let history =
+                    Array.isArray(kr.check_ins) && kr.check_ins.length > 0
+                        ? normalizeCheckIns(kr.check_ins)
+                        : await fetchCheckInsForKeyResult(
+                              objectiveId,
+                              keyResultId,
+                              token
+                          );
+                enrichedKeyResults.push({
+                    ...kr,
+                    check_ins: history,
+                });
+            }
+            enrichedObjectives.push({
+                ...objective,
+                key_results: enrichedKeyResults,
+            });
+        }
+        return enrichedObjectives;
     };
 
     const loadStaticData = async () => {
@@ -157,7 +418,11 @@ export default function Dashboard() {
                 return { success: false, data: { data: [] } };
             });
             // Normalize data: convert keyResults to key_results
-            const list = Array.isArray(objData?.data?.data) ? objData.data.data : (Array.isArray(objData?.data) ? objData.data : []);
+            const list = Array.isArray(objData?.data?.data)
+                ? objData.data.data
+                : Array.isArray(objData?.data)
+                ? objData.data
+                : [];
             const normalizedItems = Array.isArray(list)
                 ? list.map(obj => ({
                     ...obj,
@@ -165,9 +430,18 @@ export default function Dashboard() {
                 }))
                 : [];
             if (resObj.ok && Array.isArray(list)) {
-                setAllItems(normalizedItems); // Lưu tất cả items
-                setItems(normalizedItems); // Set items ban đầu
-                try { localStorage.setItem('my_objectives', JSON.stringify(normalizedItems)); } catch {}
+                const enrichedItems = await attachCheckInsToObjectives(
+                    normalizedItems,
+                    token
+                );
+                setAllItems(enrichedItems); // Lưu tất cả items
+                setItems(enrichedItems); // Set items ban đầu
+                try {
+                    localStorage.setItem(
+                        "my_objectives",
+                        JSON.stringify(enrichedItems)
+                    );
+                } catch {}
             } else {
                 console.warn('Keeping previous objectives due to bad response');
             }
@@ -229,6 +503,417 @@ export default function Dashboard() {
             companyOKRs: allItems.filter(item => item.level === 'company')
         };
     }, [items]);
+
+    const personalSummary = useMemo(() => buildSummary(myOKRs), [myOKRs]);
+    const teamSummary = useMemo(() => buildSummary(departmentOKRs), [departmentOKRs]);
+    const companySummary = useMemo(() => buildSummary(companyOKRs), [companyOKRs]);
+
+    const prioritizeObjectives = (list) => {
+        if (!Array.isArray(list)) return [];
+        return [...list]
+            .map((objective) => {
+                const progress = calculateObjectiveProgress(objective);
+                const endDate =
+                    objective?.cycle?.end_date || objective?.end_date || null;
+                const end = endDate ? new Date(endDate) : null;
+                const endTime = end && !Number.isNaN(end.getTime()) ? end.getTime() : Number.POSITIVE_INFINITY;
+                const completed = progress >= 99.99;
+                return {
+                    objective,
+                    progress,
+                    endTime,
+                    completed,
+                };
+            })
+            .sort((a, b) => {
+                if (a.completed !== b.completed) {
+                    return a.completed ? 1 : -1; // Ưu tiên OKR chưa hoàn thành
+                }
+                return a.endTime - b.endTime;
+            });
+    };
+
+    const prioritizedPersonal = useMemo(
+        () => prioritizeObjectives(myOKRs),
+        [myOKRs]
+    );
+    const prioritizedTeam = useMemo(
+        () => prioritizeObjectives(departmentOKRs),
+        [departmentOKRs]
+    );
+    const prioritizedCompany = useMemo(
+        () => prioritizeObjectives(companyOKRs),
+        [companyOKRs]
+    );
+
+    const primaryPersonalOKR = prioritizedPersonal[0]?.objective || null;
+    const primaryTeamOKR = prioritizedTeam[0]?.objective || null;
+    const primaryCompanyOKR = prioritizedCompany[0]?.objective || null;
+
+    const personalBarData = useMemo(() => {
+        if (!myOKRs || myOKRs.length === 0) return [];
+        return myOKRs.map((objective) => ({
+            label: objective.obj_title || "Không tên",
+            value: calculateObjectiveProgress(objective),
+        }));
+    }, [myOKRs]);
+
+    const getISOWeekNumber = (date) => {
+        const target = new Date(date.valueOf());
+        target.setHours(0, 0, 0, 0);
+        target.setDate(target.getDate() + 4 - (target.getDay() || 7)); // Thursday
+        const yearStart = new Date(target.getFullYear(), 0, 1);
+        return Math.ceil(((target - yearStart) / (1000 * 60 * 60 * 24) + 1) / 7);
+    };
+
+    const getTrendBucket = (rawDate) => {
+        if (!rawDate) return null;
+        const date = new Date(rawDate);
+        if (Number.isNaN(date.getTime())) return null;
+        date.setHours(0, 0, 0, 0);
+
+        if (teamTrendRange === "day") {
+            const key = date.toISOString().slice(0, 10);
+            const label = date.toLocaleDateString("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+            });
+            return { key, label, time: date.getTime() };
+        }
+
+        if (teamTrendRange === "week") {
+            const weekStart = new Date(date);
+            const diff = (weekStart.getDay() + 6) % 7; // Monday = 0
+            weekStart.setDate(weekStart.getDate() - diff);
+            weekStart.setHours(0, 0, 0, 0);
+            const weekNumber = getISOWeekNumber(weekStart);
+            const year = weekStart.getFullYear();
+            const key = `${year}-W${weekNumber}`;
+            const label = `Tuần ${weekNumber}/${year}`;
+            return { key, label, time: weekStart.getTime() };
+        }
+
+        const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+        const key = `${monthStart.getFullYear()}-${monthStart.getMonth()}`;
+        const label = monthStart.toLocaleDateString("vi-VN", {
+            month: "short",
+            year: "numeric",
+        });
+        return { key, label, time: monthStart.getTime() };
+    };
+
+    const teamTrendData = useMemo(() => {
+        if (!departmentOKRs || departmentOKRs.length === 0) return [];
+
+        const clampProgress = (value) =>
+            Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+        const buckets = new Map();
+
+        const addSample = (rawDate, rawProgress) => {
+            if (rawDate === null || rawDate === undefined) return;
+            const bucketInfo = getTrendBucket(rawDate);
+            if (!bucketInfo) return;
+            const progressValue = clampProgress(Number(rawProgress));
+            const bucket = buckets.get(bucketInfo.key) || {
+                sum: 0,
+                count: 0,
+                label: bucketInfo.label,
+                time: bucketInfo.time,
+            };
+            bucket.sum += progressValue;
+            bucket.count += 1;
+            bucket.label = bucketInfo.label;
+            bucket.time = bucketInfo.time;
+            buckets.set(bucketInfo.key, bucket);
+        };
+
+        departmentOKRs.forEach((objective) => {
+            const objectiveProgress = calculateObjectiveProgress(objective);
+            const baselineDate =
+                objective.updated_at ||
+                objective.completed_at ||
+                objective.created_at ||
+                objective?.cycle?.start_date ||
+                objective?.cycle?.end_date ||
+                null;
+            if (baselineDate) {
+                addSample(baselineDate, objectiveProgress);
+            }
+
+            (objective.key_results || []).forEach((kr) => {
+                const krBaseProgress =
+                    kr.progress_percent !== null && kr.progress_percent !== undefined
+                        ? parseFloat(kr.progress_percent)
+                        : (() => {
+                              const target = parseFloat(kr.target_value) || 0;
+                              const current = parseFloat(kr.current_value) || 0;
+                              return target > 0 ? (current / target) * 100 : 0;
+                          })();
+                if (kr.updated_at || kr.created_at) {
+                    addSample(kr.updated_at || kr.created_at, krBaseProgress);
+                }
+
+                if (Array.isArray(kr.check_ins)) {
+                    kr.check_ins.forEach((checkIn) => {
+                        const percent =
+                            checkIn?.check_in_type === "percentage"
+                                ? parseFloat(checkIn.progress_percent)
+                                : (() => {
+                                      const target =
+                                          parseFloat(kr.target_value) || 0;
+                                      const value =
+                                          parseFloat(checkIn.progress_value) || 0;
+                                      return target > 0 ? (value / target) * 100 : null;
+                                  })();
+                        if (!Number.isFinite(percent)) return;
+                        const checkDate =
+                            checkIn.checked_in_at ||
+                            checkIn.created_at ||
+                            checkIn.updated_at ||
+                            null;
+                        addSample(checkDate, percent);
+                    });
+                }
+            });
+        });
+
+        return Array.from(buckets.values())
+            .sort((a, b) => a.time - b.time)
+            .map((bucket) => ({
+                bucket: bucket.label,
+                avgProgress: bucket.count ? bucket.sum / bucket.count : 0,
+            }));
+    }, [departmentOKRs, teamTrendRange]);
+
+    const SummaryCard = ({
+        title,
+        subtitle,
+        highlight,
+        highlightLabel = "Tiến độ trung bình",
+        metrics = [],
+    }) => {
+        const accentPalette = [
+            {
+                bg: "bg-sky-50",
+                border: "border-sky-100",
+                text: "text-sky-700",
+            },
+            {
+                bg: "bg-emerald-50",
+                border: "border-emerald-100",
+                text: "text-emerald-700",
+            },
+            {
+                bg: "bg-violet-50",
+                border: "border-violet-100",
+                text: "text-violet-700",
+            },
+            {
+                bg: "bg-amber-50",
+                border: "border-amber-100",
+                text: "text-amber-700",
+            },
+        ];
+
+        const statusToneMap = {
+            emerald: {
+                bg: "bg-emerald-50",
+                border: "border-emerald-100",
+                text: "text-emerald-700",
+                badge: "bg-emerald-100 text-emerald-700",
+                dot: "bg-emerald-500",
+            },
+            blue: {
+                bg: "bg-blue-50",
+                border: "border-blue-100",
+                text: "text-blue-700",
+                badge: "bg-blue-100 text-blue-700",
+                dot: "bg-blue-500",
+            },
+            amber: {
+                bg: "bg-amber-50",
+                border: "border-amber-100",
+                text: "text-amber-700",
+                badge: "bg-amber-100 text-amber-700",
+                dot: "bg-amber-500",
+            },
+            rose: {
+                bg: "bg-rose-50",
+                border: "border-rose-100",
+                text: "text-rose-700",
+                badge: "bg-rose-100 text-rose-700",
+                dot: "bg-rose-500",
+            },
+            slate: {
+                bg: "bg-slate-50",
+                border: "border-slate-100",
+                text: "text-slate-700",
+                badge: "bg-slate-100 text-slate-700",
+                dot: "bg-slate-500",
+            },
+        };
+
+        return (
+            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        {subtitle}
+                    </p>
+                        <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                        {title}
+                    </h3>
+                </div>
+                {highlight !== undefined && (
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 px-6 py-4 text-white shadow">
+                            <span className="absolute inset-0 rounded-2xl border border-white/20" aria-hidden="true" />
+                            <div className="relative">
+                                <p className="text-xs font-medium uppercase tracking-wide text-white/80">
+                                    {highlightLabel}
+                                </p>
+                                <p className="mt-1 text-3xl font-bold">{highlight}</p>
+                            </div>
+                    </div>
+                )}
+            </div>
+
+                {metrics.length > 0 && (
+                    <div className="mt-6 space-y-4">
+                        {(() => {
+                            const statusMetric = metrics.find(
+                                (metric) => metric.type === "status"
+                            );
+                            if (!statusMetric) return null;
+                            const statusData = {
+                                inProgress: statusMetric.value?.inProgress ?? 0,
+                                upcoming: statusMetric.value?.upcoming ?? 0,
+                                completed: statusMetric.value?.completed ?? 0,
+                                overdue: statusMetric.value?.overdue ?? 0,
+                            };
+                            const statusDetails = [
+                                {
+                                    key: "inProgress",
+                                    label: "Đang tiến hành",
+                                    value: statusData.inProgress,
+                                    tone: "blue",
+                                },
+                                {
+                                    key: "upcoming",
+                                    label: "Sắp đến hạn",
+                                    value: statusData.upcoming,
+                                    tone: "amber",
+                                },
+                                {
+                                    key: "completed",
+                                    label: "Hoàn thành",
+                                    value: statusData.completed,
+                                    tone: "emerald",
+                                },
+                                {
+                                    key: "overdue",
+                                    label: "Quá hạn",
+                                    value: statusData.overdue,
+                                    tone: "rose",
+                                },
+                            ];
+                            return (
+                                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6">
+                                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                                                {statusMetric.label}
+                                            </p>
+                                            <p className="mt-1 text-xs text-slate-500">
+                                                Phân bổ số lượng OKR theo trạng thái.
+                                            </p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                                            {statusDetails.map((detail) => {
+                                                const tone =
+                                                    statusToneMap[detail.tone] ||
+                                                    statusToneMap.slate;
+                                                return (
+                                                    <div
+                                                        key={detail.key}
+                                                        className="rounded-2xl border border-white/60 bg-white px-4 py-3 text-center shadow-sm"
+                                                    >
+                                                        <span
+                                                            className={`inline-flex h-2.5 w-2.5 rounded-full ${tone.dot}`}
+                                                        />
+                                                        <p className={`mt-2 text-xs font-semibold uppercase tracking-wide ${tone.text}`}>
+                                                            {detail.label}
+                                                        </p>
+                                                        <p className="mt-1 text-2xl font-bold text-slate-900">
+                                                            {detail.value}
+                                                        </p>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {metrics
+                                .filter((metric) => metric.type !== "status")
+                                .map((metric, index) => {
+                                    const accent =
+                                        accentPalette[index % accentPalette.length];
+                                    const valueIsPrimitive =
+                                        typeof metric.value === "string" ||
+                                        typeof metric.value === "number";
+
+                                    return (
+                    <div
+                        key={metric.label}
+                                            className={`rounded-2xl border ${accent.border} ${accent.bg} p-4`}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <p
+                                                    className={`text-xs font-semibold uppercase tracking-wide ${accent.text}`}
+                                                >
+                                                    {metric.label}
+                                                </p>
+                                            </div>
+                                            <div className="mt-3 text-sm font-medium text-slate-700">
+                                                {metric.type === "total" ? (
+                                                    (() => {
+                                                        const total =
+                                                            metric.value?.total ?? 0;
+                                                        const completed =
+                                                            metric.value?.completed ?? 0;
+                                                        return (
+                                                            <div>
+                                                                <p className="text-3xl font-bold text-slate-900">
+                                                                    {total}
+                                                                </p>
+                                                                <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                                                                    Hoàn thành {completed}
+                                                                </p>
+                                                            </div>
+                                                        );
+                                                    })()
+                                                ) : valueIsPrimitive ? (
+                                                    <span className="text-base font-semibold text-slate-900">
+                            {metric.value}
+                                                    </span>
+                                                ) : (
+                                                    <div className="flex items-center justify-start">
+                                                        {metric.value}
+                    </div>
+                                                )}
+                                            </div>
+        </div>
+    );
+                                })}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const filteredItems = useMemo(
         () => {
@@ -385,42 +1070,185 @@ export default function Dashboard() {
         setCheckInHistory({ open: true, keyResult });
     };
 
-    // Tính toán dữ liệu cho pie chart
-    // Tính toán dữ liệu cho chart dựa trên filteredItems
-    useEffect(() => {
-        if (filteredItems.length > 0) {
-            const total = filteredItems.length;
-            
-            // Tính toán các trạng thái dựa trên progress của Key Results
-            const completed = filteredItems.filter(item => {
-                if (!item.key_results || item.key_results.length === 0) return false;
-                return item.key_results.every(kr => parseFloat(kr.progress_percent || 0) >= 100);
-            }).length;
-            
-            const inProgress = filteredItems.filter(item => {
-                if (!item.key_results || item.key_results.length === 0) return false;
-                const hasProgress = item.key_results.some(kr => parseFloat(kr.progress_percent || 0) > 0);
-                const notCompleted = item.key_results.some(kr => parseFloat(kr.progress_percent || 0) < 100);
-                return hasProgress && notCompleted;
-            }).length;
-            
-            const draft = filteredItems.filter(item => {
-                if (!item.key_results || item.key_results.length === 0) return true;
-                return item.key_results.every(kr => parseFloat(kr.progress_percent || 0) === 0);
-            }).length;
-            
-            const closed = Math.max(0, total - completed - inProgress - draft);
+    const roleName = currentUser?.role?.role_name
+        ? currentUser.role.role_name.toLowerCase()
+        : "";
+    const isManager = roleName === "manager";
+    const isAdmin = Boolean(currentUser?.is_admin || roleName === "admin");
+    const canSeeTeamInsights =
+        isManager || isAdmin || (departmentOKRs?.length || 0) > 0;
 
-            setPieChartData([
-                { label: "mục tiêu", value: inProgress, color: "#8b5cf6" },
-                { label: "đã hoàn thành", value: completed, color: "#ec4899" },
-                { label: "đã đóng", value: closed, color: "#06b6d4" },
-                { label: "thực tế", value: draft, color: "#f59e0b" }
-            ]);
-        } else {
-            setPieChartData([]);
-        }
-    }, [filteredItems]);
+    const personalMetrics = [
+        {
+            label: "OKR nổi bật",
+            value: primaryPersonalOKR?.obj_title || "Chưa có OKR nào",
+        },
+        {
+            label: "Thời gian",
+            value: primaryPersonalOKR
+                ? formatDateRange(
+                      getStartDate(primaryPersonalOKR),
+                      getEndDate(primaryPersonalOKR)
+                  )
+                : "--",
+        },
+        {
+            label: "Trạng thái",
+            value: {
+                inProgress: personalSummary.inProgress,
+                upcoming: personalSummary.upcoming,
+                completed: personalSummary.completed,
+                overdue: personalSummary.overdue,
+            },
+            type: "status",
+        },
+        {
+            label: "Tổng OKR",
+            value: {
+                total: personalSummary.total,
+                completed: personalSummary.completed,
+            },
+            type: "total",
+        },
+        {
+            label: "Sắp đến hạn",
+            value: `${personalSummary.upcoming}`,
+        },
+        {
+            label: "Quá hạn",
+            value: `${personalSummary.overdue}`,
+        },
+    ];
+
+    const teamMetrics = [
+        {
+            label: "Team nổi bật",
+            value:
+                primaryTeamOKR?.department?.d_name ||
+                primaryTeamOKR?.department_name ||
+                primaryTeamOKR?.obj_title ||
+                "Chưa có OKR phòng ban",
+        },
+        {
+            label: "Trách nhiệm",
+            value: primaryTeamOKR ? getOwnerName(primaryTeamOKR) : "--",
+        },
+        {
+            label: "Thời gian",
+            value: primaryTeamOKR
+                ? formatDateRange(
+                      getStartDate(primaryTeamOKR),
+                      getEndDate(primaryTeamOKR)
+                  )
+                : "--",
+        },
+        {
+            label: "Trạng thái tổng quan",
+            value: {
+                inProgress: teamSummary.inProgress,
+                upcoming: teamSummary.upcoming,
+                completed: teamSummary.completed,
+                overdue: teamSummary.overdue,
+            },
+            type: "status",
+        },
+        {
+            label: "Tổng OKR",
+            value: {
+                total: teamSummary.total,
+                completed: teamSummary.completed,
+            },
+            type: "total",
+        },
+        { label: "Sắp đến hạn", value: `${teamSummary.upcoming}` },
+        { label: "Quá hạn", value: `${teamSummary.overdue}` },
+    ];
+
+    const companyMetrics = [
+        {
+            label: "Chiến lược nổi bật",
+            value:
+                primaryCompanyOKR?.obj_title ||
+                "Chưa có OKR chiến lược nào được thiết lập",
+        },
+        {
+            label: "Thời gian",
+            value: primaryCompanyOKR
+                ? formatDateRange(
+                      getStartDate(primaryCompanyOKR),
+                      getEndDate(primaryCompanyOKR)
+                  )
+                : "--",
+        },
+        {
+            label: "Trạng thái tổng quan",
+            value: {
+                inProgress: companySummary.inProgress,
+                upcoming: companySummary.upcoming,
+                completed: companySummary.completed,
+                overdue: companySummary.overdue,
+            },
+            type: "status",
+        },
+        {
+            label: "Tổng OKR",
+            value: {
+                total: companySummary.total,
+                completed: companySummary.completed,
+            },
+            type: "total",
+        },
+        { label: "Sắp đến hạn", value: `${companySummary.upcoming}` },
+        { label: "Quá hạn", value: `${companySummary.overdue}` },
+    ];
+
+    const formatPercentValue = (value) =>
+        `${Number.isFinite(value) ? value.toFixed(1) : "0.0"}%`;
+
+    const personalTableRows = (myOKRs || []).map((objective) => {
+        const statusMeta = getObjectiveStatusMeta(objective);
+        const progress = calculateObjectiveProgress(objective);
+        return {
+            id: objective.objective_id,
+            title: objective.obj_title || "Không tên",
+            description: objective.obj_description || "—",
+                progress,
+            updatedAt: formatDate(objective.updated_at || objective.created_at),
+            status: statusMeta,
+            };
+        });
+
+    const teamTableRows = (departmentOKRs || []).map((objective) => {
+        const statusMeta = getObjectiveStatusMeta(objective);
+        const progress = calculateObjectiveProgress(objective);
+            return {
+            id: objective.objective_id,
+            title: objective.obj_title || "Không tên",
+            owner: getOwnerName(objective),
+                progress,
+            timeframe: formatDateRange(
+                getStartDate(objective),
+                getEndDate(objective)
+            ),
+            status: statusMeta,
+            };
+        });
+
+    const companyTableRows = (companyOKRs || []).map((objective) => {
+        const statusMeta = getObjectiveStatusMeta(objective);
+        const progress = calculateObjectiveProgress(objective);
+            return {
+            id: objective.objective_id,
+            title: objective.obj_title || "Không tên",
+            owner: getOwnerName(objective),
+                progress,
+            timeframe: formatDateRange(
+                getStartDate(objective),
+                getEndDate(objective)
+            ),
+            status: statusMeta,
+            };
+        });
 
     return (
         <div className="min-h-screen bg-white">
@@ -433,9 +1261,9 @@ export default function Dashboard() {
             {/* Main Content */}
             <div className="p-6 max-w-7xl mx-auto">
                 {/* Dashboard Title */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Dashboard OKR</h1>
-                    <p className="text-gray-600 mt-2">Theo dõi và quản lý các mục tiêu của bạn</p>
+                <div className="mb-6">
+                    <h2 className="text-2xl font-extrabold text-gray-900">Tổng quan OKR</h2>
+                    <p className="text-sm text-gray-600 mt-1">Theo dõi nhanh tiến độ mục tiêu theo vai trò của bạn</p>
                 </div>
 
                 {/* Tab Navigation */}
@@ -471,8 +1299,40 @@ export default function Dashboard() {
                         >
                             OKR Công ty ({companyOKRs.length})
                         </button>
-                    </div>
+                        </div>
                 </div>
+
+                {/* Summary Cards - đặt dưới tab */}
+                {activeTab === 'my' && (
+                    <div className="mb-6">
+                        <SummaryCard
+                            title="OKR cá nhân"
+                            subtitle="Ảnh hưởng trực tiếp của bạn"
+                            highlight={formatPercentValue(personalSummary.progressAvg)}
+                            metrics={personalMetrics}
+                        />
+                        </div>
+                )}
+                {activeTab === 'department' && (
+                    <div className="mb-6">
+                        <SummaryCard
+                            title="Hiệu suất đội nhóm"
+                            subtitle="Tiến độ OKR phòng ban"
+                            highlight={formatPercentValue(teamSummary.progressAvg)}
+                            metrics={teamMetrics}
+                        />
+                    </div>
+                )}
+                {activeTab === 'company' && (
+                    <div className="mb-6">
+                        <SummaryCard
+                            title="OKR toàn công ty"
+                            subtitle="Hướng đi chiến lược"
+                            highlight={formatPercentValue(companySummary.progressAvg)}
+                            metrics={companyMetrics}
+                        />
+                </div>
+                )}
 
                 {/* Filter Dropdown */}
                 {getCurrentFilters().showFilters && (
@@ -543,18 +1403,6 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* Stats Section based on Active Tab */}
-                <OKRStats 
-                    title={
-                        activeTab === 'my' ? 'My OKR' : 
-                        activeTab === 'department' ? 'OKR Phòng Ban' : 
-                        'OKR Công Ty'
-                    }
-                    items={filteredItems}
-                    onFilterClick={() => setCurrentFilters({...getCurrentFilters(), showFilters: !getCurrentFilters().showFilters})}
-                    showFilters={getCurrentFilters().showFilters}
-                />
-
                 {/* Error State */}
                 {error && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -577,13 +1425,61 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* Bar Chart Section */}
-                {pieChartData.length > 0 && !error && filteredItems.length > 0 && (
-                    <div className="mb-6">
-                        <OKRBarChart 
-                            okrData={pieChartData}
+                {/* Chart Section - khác nhau theo tab */}
+                {activeTab === 'my' && (
+                    <div className="mb-8">
+                        <BarChart
+                            data={personalBarData}
+                            title="Tiến độ OKR cá nhân"
+                            xAxisLabel="OKR"
+                            yAxisLabel="Phần trăm hoàn thành"
                         />
                     </div>
+                )}
+                {activeTab === 'department' && (
+                    <section className="mb-8">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900">
+                                    Xu hướng tiến độ OKR team
+                                </h3>
+                                <p className="text-sm text-slate-500">
+                                    Theo dõi tiến độ trung bình theo {teamTrendLabelMap[teamTrendRange]}.
+                                </p>
+                            </div>
+                            <div className="flex items-center rounded-full bg-slate-100 p-1 text-sm font-medium text-slate-600">
+                                {teamTrendOptions.map((option) => (
+                                    <button
+                                        key={option.value}
+                                        onClick={() => setTeamTrendRange(option.value)}
+                                        className={`rounded-full px-3 py-1.5 transition ${
+                                            teamTrendRange === option.value
+                                                ? "bg-white text-slate-900 shadow-sm"
+                                                : "text-slate-500 hover:text-slate-700"
+                                        }`}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                        <LineChart
+                            data={teamTrendData}
+                                label={`Xu hướng tiến độ (${teamTrendLabelMap[teamTrendRange]})`}
+                            color="#3b82f6"
+                                width={900}
+                                height={300}
+                                xAxisLabel={`Thời gian (${teamTrendLabelMap[teamTrendRange]})`}
+                                yAxisLabel="Phần trăm hoàn thành"
+                            />
+                            {teamTrendData.length === 0 && (
+                                <p className="mt-3 text-center text-sm text-slate-500">
+                                    Chưa có dữ liệu check-in cho khoảng thời gian này.
+                                </p>
+                            )}
+                    </div>
+                    </section>
                 )}
                 {filteredItems.length === 0 && !error && (
                     <div className="bg-white rounded-lg border border-gray-200 p-8 mb-6">
@@ -601,20 +1497,35 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* OKR Table */}
+                {/* Bảng - Cá nhân đã được gỡ bỏ theo yêu cầu để tránh trùng lặp */}
+
+                {/* Bảng - Phòng ban (đã gỡ bỏ theo yêu cầu) */}
+
+                {/* Chi tiết nâng cao */}
+                <section className="mb-10">
+                    <div className="mb-4 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-xl font-semibold text-slate-900">
+                                Danh sách OKR theo bộ lọc
+                            </h2>
+                            <p className="text-sm text-slate-500">
+                                Kiểm soát và thao tác trên các OKR hiện có: xem tiến độ, cập nhật và check-in.
+                            </p>
+                        </div>
+                    </div>
                 <OKRTable 
                     items={sortedItems}
                     departments={departments}
                     cyclesList={cyclesList}
                     loading={loading}
                     onViewOKR={(item) => {
-                        // Navigate to objective detail page or open modal
-                        console.log('View OKR:', item);
-                        // You can implement navigation here
+                            console.log("View OKR:", item);
                     }}
                     onViewCheckInHistory={openCheckInHistory}
                     currentUser={currentUser}
+                    viewMode={activeTab}
                 />
+                </section>
 
                 {/* Pagination */}
                 {totalPages > 1 && (
