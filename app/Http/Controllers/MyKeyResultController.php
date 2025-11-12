@@ -10,26 +10,23 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Carbon\Carbon;
 
 class MyKeyResultController extends Controller
 {
     /**
-     * Hiển thị danh sách Key Results của người dùng.
-     * - Thuộc Objective họ sở hữu
-     * - Hoặc do họ tạo (dù không phải owner)
+     * Hiển thị danh sách Key Results của người dùng 
      */
     public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
 
         $keyResults = KeyResult::with(['objective', 'cycle'])
+            ->active() 
             ->where(function ($query) use ($user) {
-                // Objective do họ sở hữu
                 $query->whereHas('objective', function ($q) use ($user) {
                     $q->where('user_id', $user->user_id);
-                })
-                // Hoặc KR do họ tạo
-                ->orWhere('user_id', $user->user_id);
+                })->orWhere('user_id', $user->user_id);
             })
             ->orderBy('created_at', 'desc')
             ->paginate(10);
@@ -54,12 +51,10 @@ class MyKeyResultController extends Controller
 
         $objective = Objective::with('cycle')->findOrFail($objectiveId);
 
-        // Chặn nếu chu kỳ đã đóng
         if ($objective->cycle && strtolower($objective->cycle->status) !== 'active') {
             return $this->errorResponse($request, 'Chu kỳ đã đóng. Không thể tạo Key Result.', 403);
         }
 
-        // QUYỀN TẠO: CHỈ owner của Objective
         if ($objective->user_id !== $user->user_id) {
             return $this->errorResponse($request, 'Bạn không có quyền tạo Key Result cho Objective này.', 403);
         }
@@ -84,6 +79,7 @@ class MyKeyResultController extends Controller
                 $progress = $target > 0 ? max(0, min(100, ($current / $target) * 100)) : 0;
 
                 return KeyResult::create([
+                    'kr_id' => (string) \Str::uuid(), // Nếu chưa có
                     'kr_title' => $validated['kr_title'],
                     'target_value' => $target,
                     'current_value' => $current,
@@ -94,7 +90,8 @@ class MyKeyResultController extends Controller
                     'objective_id' => $objective->objective_id,
                     'cycle_id' => $objective->cycle_id ?? null,
                     'department_id' => $objective->department_id ?? null,
-                    'user_id' => $user->user_id, // Người tạo KR
+                    'user_id' => $user->user_id,
+                    'archived_at' => null, // Mặc định chưa lưu trữ
                 ])->load('objective', 'cycle');
             });
 
@@ -104,7 +101,6 @@ class MyKeyResultController extends Controller
                 'objective_id' => $objectiveId,
                 'user_id' => $user->user_id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
 
             return $this->errorResponse($request, 'Tạo Key Result thất bại.', 500);
@@ -122,7 +118,10 @@ class MyKeyResultController extends Controller
             ->where('kr_id', $keyResultId)
             ->firstOrFail();
 
-        // Chặn nếu chu kỳ đã đóng
+        if ($keyResult->isArchived()) {
+            return response()->json(['success' => false, 'message' => 'Không thể chỉnh sửa Key Result đã lưu trữ.'], 403);
+        }
+
         if (
             ($objective->cycle && strtolower($objective->cycle->status) !== 'active') ||
             ($keyResult->cycle && strtolower($keyResult->cycle->status) !== 'active')
@@ -130,7 +129,6 @@ class MyKeyResultController extends Controller
             return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Key Result.'], 403);
         }
 
-        // QUYỀN SỬA: Owner Objective HOẶC người tạo KR
         if ($objective->user_id !== $user->user_id && $keyResult->user_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền chỉnh sửa Key Result này.'], 403);
         }
@@ -181,7 +179,7 @@ class MyKeyResultController extends Controller
     }
 
     /**
-     * Xóa Key Result.
+     * XÓA VĨNH VIỄN Key Result 
      */
     public function destroy(string $objectiveId, string $keyResultId): JsonResponse
     {
@@ -191,25 +189,23 @@ class MyKeyResultController extends Controller
             ->where('kr_id', $keyResultId)
             ->firstOrFail();
 
-        // Chặn nếu chu kỳ đã đóng
-        if (
-            ($objective->cycle && strtolower($objective->cycle->status) !== 'active') ||
-            ($keyResult->cycle && strtolower($keyResult->cycle->status) !== 'active')
-        ) {
-            return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể xóa Key Result.'], 403);
-        }
+        // if (
+        //     ($objective->cycle && strtolower($objective->cycle->status) !== 'active') ||
+        //     ($keyResult->cycle && strtolower($keyResult->cycle->status) !== 'active')
+        // ) {
+        //     return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể xóa Key Result.'], 403);
+        // }
 
-        // QUYỀN XÓA: Owner Objective HOẶC người tạo KR
         if ($objective->user_id !== $user->user_id && $keyResult->user_id !== $user->user_id) {
             return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Key Result này.'], 403);
         }
 
         try {
             DB::transaction(function () use ($keyResult) {
-                $keyResult->delete();
+                $keyResult->forceDelete(); 
             });
 
-            return response()->json(['success' => true, 'message' => 'Key Result đã được xóa thành công!']);
+            return response()->json(['success' => true, 'message' => 'Key Result đã được xóa vĩnh viễn!']);
         } catch (\Exception $e) {
             Log::error('Xóa Key Result thất bại', [
                 'kr_id' => $keyResultId,
@@ -218,6 +214,73 @@ class MyKeyResultController extends Controller
             ]);
 
             return response()->json(['success' => false, 'message' => 'Xóa thất bại.'], 500);
+        }
+    }
+
+    /**
+     * Lưu trữ Key Result
+     */
+    public function archive(Request $request, string $objectiveId, string $keyResultId): JsonResponse
+    {
+        $user = Auth::user();
+        $objective = Objective::findOrFail($objectiveId);
+        $keyResult = KeyResult::where('objective_id', $objectiveId)
+            ->where('kr_id', $keyResultId)
+            ->firstOrFail();
+
+        if ($keyResult->archived_at) {
+            return response()->json(['success' => false, 'message' => 'Key Result đã được lưu trữ.'], 400);
+        }
+
+        if ($objective->user_id !== $user->user_id && $keyResult->user_id !== $user->user_id) {
+            return response()->json(['success' => false, 'message' => 'Không có quyền.'], 403);
+        }
+
+        try {
+            $keyResult->update(['archived_at' => now()]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Lưu trữ thành công!',
+                'data' => $keyResult->load('objective', 'cycle')
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Lưu trữ KR lỗi', ['kr_id' => $keyResultId, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Lỗi hệ thống.'], 500);
+        }
+    }
+
+    /**
+     * Bỏ lưu trữ Key Result
+     */
+    public function unarchive(Request $request, string $objectiveId, string $keyResultId): JsonResponse
+    {
+        $user = Auth::user();
+        $keyResult = KeyResult::where('objective_id', $objectiveId)
+            ->where('kr_id', $keyResultId)
+            ->whereNotNull('archived_at')
+            ->firstOrFail();
+
+        $objective = Objective::findOrFail($objectiveId);
+
+        if ($objective->user_id !== $user->user_id && $keyResult->user_id !== $user->user_id) {
+            return response()->json(['success' => false, 'message' => 'Không có quyền.'], 403);
+        }
+
+        try {
+            $keyResult->update(['archived_at' => null]);
+
+            $fullObjective = Objective::with(['keyResults' => fn($q) => $q])
+                ->where('objective_id', $objectiveId)
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Bỏ lưu trữ thành công!',
+                'data' => $fullObjective 
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Bỏ lưu trữ KR lỗi', ['kr_id' => $keyResultId, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Lỗi hệ thống.'], 500);
         }
     }
 

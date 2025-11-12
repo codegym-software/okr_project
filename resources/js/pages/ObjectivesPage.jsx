@@ -277,6 +277,7 @@ export default function ObjectivesPage() {
             />
             <ObjectiveList
                 items={sortedItems}
+                setItems={setItems}
                 departments={departments}
                 cyclesList={cyclesList}
                 loading={loading}

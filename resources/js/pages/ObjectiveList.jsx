@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { canCheckInKeyResult } from "../utils/checkinPermissions";
 
 export default function ObjectiveList({
@@ -15,13 +15,11 @@ export default function ObjectiveList({
     links,
     cycleFilter,
     setCycleFilter,
-    myOKRFilter,
-    setMyOKRFilter,
     openCheckInModal,
     openCheckInHistory,
     currentUser,
     hideFilters = false,
-    setItems, // Bắt buộc có
+    setItems,
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -30,20 +28,52 @@ export default function ObjectiveList({
     const [loadingArchived, setLoadingArchived] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [currentCycleId, setCurrentCycleId] = useState(null);
+    const [archivingKR, setArchivingKR] = useState(null);
+    const [unarchivingKR, setUnarchivingKR] = useState(null);
+    const [deletingKR, setDeletingKR] = useState(null);
+    const [archiving, setArchiving] = useState(null);
+    const [unarchiving, setUnarchiving] = useState(null);
+    const [deleting, setDeleting] = useState(null);
+
+    // === MODAL XÁC NHẬN CHUNG ===
+    const [confirmModal, setConfirmModal] = useState({
+        show: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+        confirmText: "OK",
+        cancelText: "Hủy",
+    });
+
+    const openConfirm = (
+        title,
+        message,
+        onConfirm,
+        confirmText = "OK",
+        cancelText = "Hủy"
+    ) => {
+        setConfirmModal({
+            show: true,
+            title,
+            message,
+            onConfirm,
+            confirmText,
+            cancelText,
+        });
+    };
+
+    const closeConfirm = () => {
+        setConfirmModal((prev) => ({ ...prev, show: false }));
+    };
 
     useEffect(() => {
-        const fetchOKRs = async () => {
-            const res = await fetch("/my-objectives");
-            const json = await res.json();
-            if (json.success) {
-                setItems(json.data.data);
-                setCurrentCycleId(json.current_cycle_id);
-            }
-        };
-        fetchOKRs();
-    }, []);
+        if (toast) {
+            const timer = setTimeout(() => setToast(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [toast]);
 
-    // === LOAD OKR ĐÃ LƯU TRỮ KHI CHUYỂN TAB ===
+    // === TẢI OKR LƯU TRỮ ===
     useEffect(() => {
         if (showArchived) {
             const fetchArchived = async () => {
@@ -52,10 +82,11 @@ export default function ObjectiveList({
                     const token = document
                         .querySelector('meta[name="csrf-token"]')
                         ?.getAttribute("content");
-                    const params = new URLSearchParams({ archived: "1" });
-                    if (cycleFilter) {
-                        params.append("cycle_id", cycleFilter);
-                    }
+                    const params = new URLSearchParams({
+                        archived: "1",
+                        include_archived_kr: "1",
+                    });
+                    if (cycleFilter) params.append("cycle_id", cycleFilter);
 
                     const res = await fetch(`/my-objectives?${params}`, {
                         headers: {
@@ -66,14 +97,6 @@ export default function ObjectiveList({
                     const json = await res.json();
                     if (json.success) {
                         setArchivedItems(json.data.data || []);
-                        setArchivedCount(json.data.total || 0);
-
-                        // TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI NẾU CHƯA CÓ
-                        if (json.current_cycle_id && !cycleFilter) {
-                            setCycleFilter(json.current_cycle_id);
-                        }
-                    } else {
-                        throw new Error(json.message || "Lỗi tải OKR lưu trữ");
                     }
                 } catch (err) {
                     setToast({ type: "error", message: err.message });
@@ -86,35 +109,321 @@ export default function ObjectiveList({
             setArchivedItems([]);
             setArchivedCount(0);
         }
-    }, [showArchived, cycleFilter, setCycleFilter, setToast]);
+    }, [showArchived, cycleFilter]);
 
-    // === TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI KHI VÀO TRANG ===
+    // === TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI ===
     useEffect(() => {
-        if (items.length > 0 && !cycleFilter) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlCycleId = urlParams.get("cycle_id");
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlCycleId = urlParams.get("cycle_id");
 
-            if (urlCycleId) {
-                setCycleFilter(urlCycleId);
-                return;
-            }
-
-            // ƯU TIÊN: DÙNG current_cycle_id TỪ BACKEND (nếu có)
-            // → Bạn PHẢI truyền currentCycleId từ component cha
-            if (currentCycleId) {
-                setCycleFilter(currentCycleId);
-                return;
-            }
-
-            // Fallback: chỉ dùng items[0] nếu không có current_cycle_id
-            const firstItemCycleId = items[0]?.cycle_id;
-            if (firstItemCycleId) {
-                setCycleFilter(firstItemCycleId);
-            }
+        if (urlCycleId && !cycleFilter) {
+            setCycleFilter(urlCycleId);
+            return;
         }
-    }, [items, cycleFilter, setCycleFilter, currentCycleId]);
 
-    // === FORMAT HELPER ===
+        if (cycleFilter) return;
+
+        if (currentCycleId) {
+            setCycleFilter(currentCycleId);
+            return;
+        }
+
+        if (items.length > 0) {
+            const firstItemCycleId = items[0]?.cycle_id;
+            if (firstItemCycleId) setCycleFilter(firstItemCycleId);
+        }
+    }, [items, cycleFilter, currentCycleId]);
+
+    // === RELOAD CẢ 2 TAB TỪ SERVER (dùng chung) ===
+    const reloadBothTabs = useCallback(
+        async (token) => {
+            const baseParams = new URLSearchParams();
+            if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
+
+            // 1. Tab Hoạt động: chỉ KR chưa lưu trữ
+            const activeParams = new URLSearchParams(baseParams);
+            const activeRes = await fetch(`/my-objectives?${activeParams}`, {
+                headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+            });
+            const activeJson = await activeRes.json();
+            if (activeJson.success) {
+                setItems(activeJson.data.data || []);
+            }
+
+            // 2. Tab Lưu trữ: tất cả KR (nếu đang mở)
+            if (showArchived) {
+                const archivedParams = new URLSearchParams({
+                    archived: "1",
+                    include_archived_kr: "1",
+                });
+                if (cycleFilter) archivedParams.append("cycle_id", cycleFilter);
+                const archivedRes = await fetch(
+                    `/my-objectives?${archivedParams}`,
+                    {
+                        headers: {
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                        },
+                    }
+                );
+                const archivedJson = await archivedRes.json();
+                if (archivedJson.success) {
+                    setArchivedItems(archivedJson.data.data || []);
+                }
+            }
+        },
+        [cycleFilter, showArchived, setItems]
+    );
+
+    // === LƯU TRỮ OKR ===
+    const handleArchive = async (id) => {
+        openConfirm(
+            "Lưu trữ OKR",
+            "Bạn sẽ không thể chỉnh sửa OKR này nữa.",
+            async () => {
+                setArchiving(id);
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const res = await fetch(`/my-objectives/${id}/archive`, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRF-TOKEN": token,
+                            Accept: "application/json",
+                        },
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        await reloadBothTabs(token);
+                        setToast({ type: "success", message: json.message });
+                    } else {
+                        throw new Error(json.message);
+                    }
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setArchiving(null);
+                }
+            },
+            "Lưu trữ",
+            "Hủy"
+        );
+    };
+
+    // === BỎ LƯU TRỮ OKR ===
+    const handleUnarchive = async (id) => {
+        openConfirm(
+            "Bỏ lưu trữ OKR",
+            "OKR sẽ được khôi phục vào danh sách hoạt động.",
+            async () => {
+                setUnarchiving(id);
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const res = await fetch(`/my-objectives/${id}/unarchive`, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRF-TOKEN": token,
+                            Accept: "application/json",
+                        },
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        await reloadBothTabs(token);
+                        setToast({ type: "success", message: json.message });
+                    } else {
+                        throw new Error(json.message);
+                    }
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setUnarchiving(null);
+                }
+            }
+        );
+    };
+
+    // === XÓA VĨNH VIỄN OKR ===
+    const handleDelete = async (id) => {
+        openConfirm(
+            "XÓA VĨNH VIỄN",
+            "OKR sẽ bị xóa hoàn toàn, không thể khôi phục!",
+            async () => {
+                setDeleting(id);
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const res = await fetch(`/my-objectives/${id}`, {
+                        method: "DELETE",
+                        headers: {
+                            "X-CSRF-TOKEN": token,
+                            Accept: "application/json",
+                        },
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        await reloadBothTabs(token);
+                        setToast({ type: "success", message: json.message });
+                    } else {
+                        throw new Error(json.message);
+                    }
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setDeleting(null);
+                }
+            },
+            "Xóa vĩnh viễn",
+            "Hủy"
+        );
+    };
+
+    // === LƯU TRỮ KR ===
+    const handleArchiveKR = async (krId) => {
+        openConfirm(
+            "Lưu trữ Key Result",
+            "Key Result sẽ được chuyển vào tab Lưu trữ.",
+            async () => {
+                setArchivingKR(krId);
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const obj = items.find((o) =>
+                        o.key_results?.some((kr) => kr.kr_id === krId)
+                    );
+                    if (!obj) throw new Error("Không tìm thấy OKR cha.");
+
+                    const res = await fetch(
+                        `/my-key-results/${obj.objective_id}/${krId}/archive`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "X-CSRF-TOKEN": token,
+                                Accept: "application/json",
+                            },
+                        }
+                    );
+                    const json = await res.json();
+                    if (!json.success)
+                        throw new Error(json.message || "Lưu trữ thất bại");
+
+                    await reloadBothTabs(token);
+                    setToast({ type: "success", message: json.message });
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setArchivingKR(null);
+                }
+            }
+        );
+    };
+
+    // === BỎ LƯU TRỮ KR ===
+    const handleUnarchiveKR = async (krId) => {
+        openConfirm(
+            "Bỏ lưu trữ Key Result",
+            "Key Result sẽ quay lại danh sách hoạt động.",
+            async () => {
+                setUnarchivingKR(krId);
+                const obj = archivedItems.find((o) =>
+                    o.key_results?.some((kr) => kr.kr_id === krId)
+                );
+                if (!obj) {
+                    setToast({
+                        type: "error",
+                        message: "Không tìm thấy OKR cha.",
+                    });
+                    setUnarchivingKR(null);
+                    return;
+                }
+
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const res = await fetch(
+                        `/my-key-results/${obj.objective_id}/${krId}/unarchive`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "X-CSRF-TOKEN": token,
+                                Accept: "application/json",
+                            },
+                        }
+                    );
+                    const json = await res.json();
+                    if (!json.success)
+                        throw new Error(json.message || "Bỏ lưu trữ thất bại");
+
+                    await reloadBothTabs(token);
+                    setToast({ type: "success", message: json.message });
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setUnarchivingKR(null);
+                }
+            }
+        );
+    };
+
+    // === XÓA VĨNH VIỄN KR ===
+    const handleDeleteKR = async (krId) => {
+        openConfirm(
+            "XÓA VĨNH VIỄN",
+            "Key Result sẽ bị xóa hoàn toàn, không thể khôi phục!",
+            async () => {
+                setDeletingKR(krId);
+                const obj = archivedItems.find((o) =>
+                    o.key_results?.some((kr) => kr.kr_id === krId)
+                );
+                if (!obj) {
+                    setToast({
+                        type: "error",
+                        message: "Không tìm thấy OKR cha.",
+                    });
+                    setDeletingKR(null);
+                    return;
+                }
+
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    // SỬA URL ĐÚNG TẠI ĐÂY
+                    const res = await fetch(
+                        `/my-key-results/destroy/${obj.objective_id}/${krId}`,
+                        {
+                            method: "DELETE",
+                            headers: {
+                                "X-CSRF-TOKEN": token,
+                                Accept: "application/json",
+                            },
+                        }
+                    );
+                    const json = await res.json();
+
+                    if (json.success) {
+                        await reloadBothTabs(token);
+                        setToast({ type: "success", message: json.message });
+                    } else {
+                        throw new Error(json.message);
+                    }
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setDeletingKR(null);
+                }
+            },
+            "Xóa vĩnh viễn",
+            "Hủy"
+        );
+    };
+
+    // === HELPER FORMAT ===
     const formatPercent = (value) => {
         const n = Number(value);
         return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
@@ -163,29 +472,14 @@ export default function ObjectiveList({
 
     return (
         <div className="mx-auto w-full max-w-6xl">
-            {/* HEADER: CHỈ CÒN FILTER CHU KỲ + NÚT TẠO */}
             <div className="mb-4 flex w-full items-center justify-between">
                 <div className="flex items-center gap-4">
-                    {/* Dropdown chu kỳ */}
-                    <div className="relative w-64">
+                    <div className="relative w-40">
                         <button
                             onClick={() => setDropdownOpen((prev) => !prev)}
                             className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                         >
                             <span className="flex items-center gap-2">
-                                <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                    />
-                                </svg>
                                 {cyclesList.find(
                                     (c) =>
                                         String(c.cycle_id) ===
@@ -277,12 +571,37 @@ export default function ObjectiveList({
                     </div>
                 </div>
 
-                <button
-                    onClick={() => setCreatingObjective(true)}
-                    className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-                >
-                    + Thêm Objective
-                </button>
+                <div className="flex items-center gap-3">
+                    <div className="flex rounded-md border border-slate-300 overflow-hidden">
+                        <button
+                            onClick={() => setShowArchived(false)}
+                            className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                                !showArchived
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
+                        >
+                            Hoạt động
+                        </button>
+                        <button
+                            onClick={() => setShowArchived(true)}
+                            className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                                showArchived
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
+                        >
+                            Lưu trữ
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={() => setCreatingObjective(true)}
+                        className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                    >
+                        + Thêm Objective
+                    </button>
+                </div>
             </div>
 
             {/* BẢNG OKR */}
@@ -314,13 +633,14 @@ export default function ObjectiveList({
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Tiến độ (%)
                             </th>
-                            <th className="px-3 py-2 text-center w-[10%]">
+                            <th className="px-3 py-2 text-center w-[12%]">
                                 Hành động
                             </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {loading && (
+                        {/* Loading */}
+                        {!showArchived && loading && (
                             <tr>
                                 <td
                                     colSpan={9}
@@ -330,7 +650,9 @@ export default function ObjectiveList({
                                 </td>
                             </tr>
                         )}
-                        {!loading && items.length === 0 && (
+
+                        {/* Danh sách chính rỗng */}
+                        {!showArchived && !loading && items.length === 0 && (
                             <tr>
                                 <td
                                     colSpan={9}
@@ -340,7 +662,10 @@ export default function ObjectiveList({
                                 </td>
                             </tr>
                         )}
-                        {!loading &&
+
+                        {/* OKR Đang hoạt động */}
+                        {!showArchived &&
+                            !loading &&
                             items.map((obj, index) => (
                                 <React.Fragment key={obj.objective_id}>
                                     <tr
@@ -349,48 +674,59 @@ export default function ObjectiveList({
                                         }`}
                                     >
                                         <td className="px-3 py-3 border-r border-slate-200">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() =>
-                                                        setOpenObj((prev) => ({
-                                                            ...prev,
-                                                            [obj.objective_id]:
-                                                                !prev[
-                                                                    obj
-                                                                        .objective_id
-                                                                ],
-                                                        }))
-                                                    }
-                                                    className="rounded-md border border-slate-300 bg-white p-1 text-slate-700 hover:bg-slate-50 shadow-sm"
-                                                    title="Đóng/mở Key Results"
-                                                >
-                                                    <svg
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        viewBox="0 0 20 20"
-                                                        fill="currentColor"
-                                                        className={`h-4 w-4 transition-transform ${
-                                                            openObj[
-                                                                obj.objective_id
-                                                            ]
-                                                                ? "rotate-90"
-                                                                : ""
-                                                        }`}
-                                                    >
-                                                        <path
-                                                            fillRule="evenodd"
-                                                            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                                                            clipRule="evenodd"
-                                                        />
-                                                    </svg>
-                                                </button>
-                                                <span className="font-medium text-slate-900 flex-1">
-                                                    {obj.obj_title}
-                                                </span>
+                                            <div className="flex items-center justify-between w-full">
+                                                <div className="flex items-center gap-1">
+                                                    {obj.key_results &&
+                                                        obj.key_results.length >
+                                                            0 && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    setOpenObj(
+                                                                        (
+                                                                            prev
+                                                                        ) => ({
+                                                                            ...prev,
+                                                                            [obj.objective_id]:
+                                                                                !prev[
+                                                                                    obj
+                                                                                        .objective_id
+                                                                                ],
+                                                                        })
+                                                                    )
+                                                                }
+                                                                className="p-2 rounded-lg hover:bg-slate-100 transition-all duration-200 group"
+                                                                title="Đóng/mở Key Results"
+                                                            >
+                                                                <svg
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    viewBox="0 0 20 20"
+                                                                    fill="currentColor"
+                                                                    className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform duration-200 ${
+                                                                        openObj[
+                                                                            obj
+                                                                                .objective_id
+                                                                        ]
+                                                                            ? "rotate-90"
+                                                                            : ""
+                                                                    }`}
+                                                                >
+                                                                    <path
+                                                                        fillRule="evenodd"
+                                                                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                                                        clipRule="evenodd"
+                                                                    />
+                                                                </svg>
+                                                            </button>
+                                                        )}
+
+                                                    <span className="font-semibold text-slate-900 truncate">
+                                                        {obj.obj_title}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </td>
 
                                         <td className="px-3 py-3 text-center border-r border-slate-200"></td>
-
                                         <td className="px-3 py-3 text-center border-r border-slate-200">
                                             {cyclesList.find(
                                                 (c) =>
@@ -398,7 +734,6 @@ export default function ObjectiveList({
                                                     String(obj.cycle_id)
                                             )?.cycle_name || ""}
                                         </td>
-
                                         <td className="px-3 py-3 text-center border-r border-slate-200">
                                             <span
                                                 className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
@@ -418,7 +753,6 @@ export default function ObjectiveList({
                                                 {getStatusText(obj.status)}
                                             </span>
                                         </td>
-
                                         <td className="px-3 py-3 text-center border-r border-slate-200"></td>
                                         <td className="px-3 py-3 text-center border-r border-slate-200"></td>
                                         <td className="px-3 py-3 text-center border-r border-slate-200"></td>
@@ -429,9 +763,8 @@ export default function ObjectiveList({
                                                 )
                                             )}
                                         </td>
-
                                         <td className="px-3 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-2">
+                                            <div className="flex items-center justify-center gap-1">
                                                 <button
                                                     onClick={() =>
                                                         setEditingObjective({
@@ -441,11 +774,10 @@ export default function ObjectiveList({
                                                                 "team",
                                                         })
                                                     }
-                                                    className="rounded p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-                                                    title="Chỉnh sửa Objective"
+                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                                    title="Sửa Objective"
                                                 >
                                                     <svg
-                                                        xmlns="http://www.w3.org/2000/svg"
                                                         className="h-4 w-4"
                                                         fill="none"
                                                         viewBox="0 0 24 24"
@@ -463,16 +795,14 @@ export default function ObjectiveList({
                                                     onClick={() =>
                                                         setCreatingFor(obj)
                                                     }
-                                                    className="rounded p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-                                                    title="Thêm Key Result"
+                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                                    title="Thêm KR"
                                                 >
                                                     <svg
-                                                        width="16"
-                                                        height="16"
-                                                        viewBox="0 0 24 24"
+                                                        className="h-4 w-4"
                                                         fill="none"
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        className="w-4 h-4"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
                                                     >
                                                         <circle
                                                             cx="12"
@@ -491,20 +821,47 @@ export default function ObjectiveList({
                                                         />
                                                     </svg>
                                                 </button>
+                                                <button
+                                                    onClick={() =>
+                                                        handleArchive(
+                                                            obj.objective_id
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        archiving ===
+                                                        obj.objective_id
+                                                    }
+                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
+                                                    title="Lưu trữ OKR"
+                                                >
+                                                    <svg
+                                                        className="h-4 w-4"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                                        />
+                                                    </svg>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
 
-                                    {/* KEY RESULTS */}
+                                    {/* Key Results */}
                                     {openObj[obj.objective_id] &&
-                                        obj.key_results.map((kr) => (
+                                        obj.key_results?.map((kr) => (
                                             <tr key={kr.kr_id}>
                                                 <td className="px-8 py-3 border-r border-slate-200">
-                                                    <span className="font-medium text-slate-900 flex-1">
+                                                    <span className="font-medium text-slate-900">
                                                         {kr.kr_title}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {departments.find(
                                                         (d) =>
                                                             String(
@@ -515,7 +872,7 @@ export default function ObjectiveList({
                                                             )
                                                     )?.d_name || "-"}
                                                 </td>
-                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {cyclesList.find(
                                                         (c) =>
                                                             String(
@@ -524,7 +881,7 @@ export default function ObjectiveList({
                                                             String(kr.cycle_id)
                                                     )?.cycle_name || ""}
                                                 </td>
-                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     <span
                                                         className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
                                                             (
@@ -546,56 +903,29 @@ export default function ObjectiveList({
                                                         )}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {getUnitText(kr.unit)}
                                                 </td>
-                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.current_value ?? ""}
                                                 </td>
-                                                <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.target_value ?? ""}
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
-                                                    <div className="flex items-center justify-center gap-2">
-                                                        <span className="text-blue-600 font-medium">
-                                                            {formatPercent(kr.progress_percent)}
-                                                        </span>
-                                                        {/* Nút Check-in cho Key Result - chỉ hiển thị khi openCheckInModal được cung cấp */}
-                                                        {openCheckInModal && canCheckInKeyResult(currentUser, kr, obj) && (
-                                                            <button
-                                                                onClick={() => openCheckInModal({ ...kr, objective_id: obj.objective_id })}
-                                                                className="p-1 rounded hover:bg-blue-50 transition-colors"
-                                                                title="Check-in Key Result"
-                                                            >
-                                                                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                </svg>
-                                                            </button>
-                                                        )}
-                                                        {/* Nút Xem lịch sử Key Result */}
-                                                        {openCheckInHistory && (
-                                                            <button
-                                                                onClick={() => openCheckInHistory({ ...kr, objective_id: obj.objective_id })}
-                                                                className="p-1 rounded hover:bg-gray-50 transition-colors"
-                                                                title="Lịch sử check-in Key Result"
-                                                            >
-                                                                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                </svg>
-                                                            </button>
-                                                        )}
-                                                    </div>
+                                                    {formatPercent(
+                                                        kr.progress_percent
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
                                                     <button
                                                         onClick={() =>
                                                             setEditingKR(kr)
                                                         }
-                                                        className="rounded p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                                        title="Sửa Key Result"
+                                                        className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                                        title="Sửa KR"
                                                     >
                                                         <svg
-                                                            xmlns="http://www.w3.org/2000/svg"
                                                             className="h-4 w-4"
                                                             fill="none"
                                                             viewBox="0 0 24 24"
@@ -609,14 +939,646 @@ export default function ObjectiveList({
                                                             />
                                                         </svg>
                                                     </button>
+                                                    <button
+                                                        onClick={() =>
+                                                            handleArchiveKR(
+                                                                kr.kr_id
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            archivingKR ===
+                                                            kr.kr_id
+                                                        }
+                                                        className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 ml-1"
+                                                        title="Lưu trữ KR"
+                                                    >
+                                                        <svg
+                                                            className="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={2}
+                                                                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                                            />
+                                                        </svg>
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
                                 </React.Fragment>
                             ))}
+
+                        {/* OKR Lưu trữ */}
+                        {showArchived && loadingArchived && (
+                            <tr>
+                                <td
+                                    colSpan={9}
+                                    className="px-3 py-5 text-center text-slate-500"
+                                >
+                                    Đang tải...
+                                </td>
+                            </tr>
+                        )}
+
+                        {showArchived &&
+                            !loadingArchived &&
+                            archivedItems.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={9}
+                                        className="px-3 py-5 text-center text-slate-500"
+                                    >
+                                        Không có OKR nào Lưu trữ.
+                                    </td>
+                                </tr>
+                            )}
+
+                        {showArchived && !loadingArchived && (
+                            <>
+                                {/* Case 1: Objective bị lưu trữ toàn bộ */}
+                                {archivedItems
+                                    .filter((obj) => obj.archived_at !== null)
+                                    .map((obj, index) => (
+                                        <React.Fragment key={obj.objective_id}>
+                                            <tr
+                                                className={`bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200 ${
+                                                    index > 0 ? "mt-4" : ""
+                                                }`}
+                                            >
+                                                <td className="px-3 py-3 border-r border-slate-200">
+                                                    <div className="flex items-center">
+                                                        <div className="flex items-center gap-1">
+                                                            {obj.key_results?.some(
+                                                                (kr) =>
+                                                                    kr.archived_at
+                                                            ) && (
+                                                                <button
+                                                                    onClick={() =>
+                                                                        setOpenObj(
+                                                                            (
+                                                                                prev
+                                                                            ) => ({
+                                                                                ...prev,
+                                                                                [obj.objective_id]:
+                                                                                    !prev[
+                                                                                        obj
+                                                                                            .objective_id
+                                                                                    ],
+                                                                            })
+                                                                        )
+                                                                    }
+                                                                    className="flex-shrink-0 p-1 rounded-md hover:bg-gray-100 transition-all duration-200 group"
+                                                                    title="Đóng/mở Key Results đã lưu trữ"
+                                                                >
+                                                                    <svg
+                                                                        xmlns="http://www.w3.org/2000/svg"
+                                                                        viewBox="0 0 20 20"
+                                                                        fill="currentColor"
+                                                                        className={`w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-all duration-300 ${
+                                                                            openObj[
+                                                                                obj
+                                                                                    .objective_id
+                                                                            ] ??
+                                                                            false
+                                                                                ? "rotate-90"
+                                                                                : "rotate-0"
+                                                                        }`}
+                                                                    >
+                                                                        <path
+                                                                            fillRule="evenodd"
+                                                                            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                                                            clipRule="evenodd"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+
+                                                            <span className="font-semibold text-slate-900 truncate">
+                                                                {obj.obj_title}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                <td className="px-3 py-3 text-center border-r border-slate-200"></td>
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                    {cyclesList.find(
+                                                        (c) =>
+                                                            String(
+                                                                c.cycle_id
+                                                            ) ===
+                                                            String(obj.cycle_id)
+                                                    )?.cycle_name || ""}
+                                                </td>
+
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                    <span className="inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold bg-gray-100 text-gray-700">
+                                                        Lưu trữ
+                                                    </span>
+                                                </td>
+
+                                                <td className="px-3 py-3 text-center border-r border-slate-200"></td>
+                                                <td className="px-3 py-3 text-center border-r border-slate-200"></td>
+                                                <td className="px-3 py-3 text-center border-r border-slate-200"></td>
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                                    {formatPercent(
+                                                        calculateObjectiveProgress(
+                                                            obj.key_results
+                                                        )
+                                                    )}
+                                                </td>
+
+                                                <td className="px-3 py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <button
+                                                            onClick={() =>
+                                                                handleUnarchive(
+                                                                    obj.objective_id
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                unarchiving ===
+                                                                obj.objective_id
+                                                            }
+                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
+                                                            title="Bỏ lưu trữ"
+                                                        >
+                                                            <svg
+                                                                className="h-4 w-4"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={
+                                                                        2
+                                                                    }
+                                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                                                />
+                                                            </svg>
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() =>
+                                                                handleDelete(
+                                                                    obj.objective_id
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                deleting ===
+                                                                obj.objective_id
+                                                            }
+                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
+                                                            title="Xóa vĩnh viễn"
+                                                        >
+                                                            <svg
+                                                                className="h-4 w-4"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={
+                                                                        2
+                                                                    }
+                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                                />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+
+                                            {/* Hiển thị KR lưu trữ của Objective đã lưu trữ */}
+                                            {(openObj[obj.objective_id] ??
+                                                false) &&
+                                                obj.key_results
+                                                    ?.filter(
+                                                        (kr) => kr.archived_at
+                                                    )
+                                                    ?.map((kr) => (
+                                                        <tr
+                                                            key={kr.kr_id}
+                                                            className="bg-gray-50"
+                                                        >
+                                                            <td className="px-8 py-2 italic text-gray-600">
+                                                                {kr.kr_title}
+                                                            </td>
+                                                            <td
+                                                                colSpan={7}
+                                                            ></td>
+                                                            <td className="text-center py-2">
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            handleUnarchiveKR(
+                                                                                kr.kr_id
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            unarchivingKR ===
+                                                                            kr.kr_id
+                                                                        }
+                                                                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 transition-colors relative"
+                                                                        title="Bỏ lưu trữ Key Result"
+                                                                    >
+                                                                        {unarchivingKR ===
+                                                                        kr.kr_id ? (
+                                                                            <svg
+                                                                                className="h-4 w-4 animate-spin"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                            >
+                                                                                <circle
+                                                                                    cx="12"
+                                                                                    cy="12"
+                                                                                    r="10"
+                                                                                    stroke="currentColor"
+                                                                                    strokeWidth="4"
+                                                                                    className="opacity-25"
+                                                                                />
+                                                                                <path
+                                                                                    fill="currentColor"
+                                                                                    d="M4 12a8 8 0 018-8v8z"
+                                                                                    className="opacity-75"
+                                                                                />
+                                                                            </svg>
+                                                                        ) : (
+                                                                            <svg
+                                                                                className="h-4 w-4"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                                stroke="currentColor"
+                                                                            >
+                                                                                <path
+                                                                                    strokeLinecap="round"
+                                                                                    strokeLinejoin="round"
+                                                                                    strokeWidth={
+                                                                                        2
+                                                                                    }
+                                                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                                                                />
+                                                                            </svg>
+                                                                        )}
+                                                                    </button>
+
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            handleDeleteKR(
+                                                                                kr.kr_id
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            deletingKR ===
+                                                                            kr.kr_id
+                                                                        }
+                                                                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 transition-colors relative"
+                                                                        title="Xóa vĩnh viễn Key Result"
+                                                                    >
+                                                                        {deletingKR ===
+                                                                        kr.kr_id ? (
+                                                                            <svg
+                                                                                className="h-4 w-4 animate-spin"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                            >
+                                                                                <circle
+                                                                                    cx="12"
+                                                                                    cy="12"
+                                                                                    r="10"
+                                                                                    stroke="currentColor"
+                                                                                    strokeWidth="4"
+                                                                                    className="opacity-25"
+                                                                                />
+                                                                                <path
+                                                                                    fill="currentColor"
+                                                                                    d="M4 12a8 8 0 018-8v8z"
+                                                                                    className="opacity-75"
+                                                                                />
+                                                                            </svg>
+                                                                        ) : (
+                                                                            <svg
+                                                                                className="h-4 w-4"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                                stroke="currentColor"
+                                                                            >
+                                                                                <path
+                                                                                    strokeLinecap="round"
+                                                                                    strokeLinejoin="round"
+                                                                                    strokeWidth={
+                                                                                        2
+                                                                                    }
+                                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                                                />
+                                                                            </svg>
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                        </React.Fragment>
+                                    ))}
+
+                                {/* Case 2: Chỉ có KR lưu trữ (Objective KHÔNG lưu trữ) */}
+                                {archivedItems
+                                    .filter(
+                                        (obj) =>
+                                            obj.archived_at === null &&
+                                            obj.key_results?.some(
+                                                (kr) => kr.archived_at
+                                            )
+                                    )
+                                    .map((obj, index) => {
+                                        const archivedKRs =
+                                            obj.key_results.filter(
+                                                (kr) => kr.archived_at
+                                            );
+                                        const hasArchivedKRs =
+                                            archivedKRs.length > 0;
+
+                                        return (
+                                            <React.Fragment
+                                                key={`archived-kr-${obj.objective_id}`}
+                                            >
+                                                <tr
+                                                    className={`bg-gradient-to-r from-yellow-50 to-orange-50 border-t-2 border-yellow-300 ${
+                                                        index > 0 ? "mt-4" : ""
+                                                    }`}
+                                                >
+                                                    <td className="px-3 py-3 border-r border-slate-200">
+                                                        <div className="flex items-center justify-between w-full">
+                                                            <div className="flex items-center gap-1">
+                                                                {hasArchivedKRs && (
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            setOpenObj(
+                                                                                (
+                                                                                    prev
+                                                                                ) => ({
+                                                                                    ...prev,
+                                                                                    [obj.objective_id]:
+                                                                                        !(
+                                                                                            prev[
+                                                                                                obj
+                                                                                                    .objective_id
+                                                                                            ] ??
+                                                                                            false
+                                                                                        ),
+                                                                                })
+                                                                            )
+                                                                        }
+                                                                        className="flex-shrink-0 p-1 rounded-md hover:bg-orange-100 transition-all duration-200 group"
+                                                                        title="Đóng/mở Key Results đã lưu trữ"
+                                                                    >
+                                                                        <svg
+                                                                            xmlns="http://www.w3.org/2000/svg"
+                                                                            viewBox="0 0 20 20"
+                                                                            fill="currentColor"
+                                                                            className={`w-3.5 h-3.5 text-orange-500 group-hover:text-orange-700 transition-all duration-300 ${
+                                                                                openObj[
+                                                                                    obj
+                                                                                        .objective_id
+                                                                                ] ??
+                                                                                false
+                                                                                    ? "rotate-90"
+                                                                                    : "rotate-0"
+                                                                            }`}
+                                                                        >
+                                                                            <path
+                                                                                fillRule="evenodd"
+                                                                                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                                                                clipRule="evenodd"
+                                                                            />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
+
+                                                                <span className="font-semibold text-slate-900 truncate">
+                                                                    {
+                                                                        obj.obj_title
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td
+                                                        colSpan={8}
+                                                        className="text-center text-slate-400 py-3"
+                                                    >
+                                                        Objective đang hoạt động
+                                                        – {archivedKRs.length}{" "}
+                                                        Key Result đã lưu trữ
+                                                    </td>
+                                                </tr>
+
+                                                {openObj[obj.objective_id] &&
+                                                    archivedKRs.map((kr) => (
+                                                        <tr
+                                                            key={kr.kr_id}
+                                                            className="bg-gray-50"
+                                                        >
+                                                            <td className="px-8 py-2 italic text-gray-600">
+                                                                {kr.kr_title}{" "}
+                                                                <span className="text-orange-600 text-xs"></span>
+                                                            </td>
+                                                            <td
+                                                                colSpan={7}
+                                                            ></td>
+                                                            <td className="text-center py-2">
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            handleUnarchiveKR(
+                                                                                kr.kr_id
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            unarchivingKR ===
+                                                                            kr.kr_id
+                                                                        }
+                                                                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 transition-colors relative"
+                                                                        title="Bỏ lưu trữ Key Result"
+                                                                    >
+                                                                        {unarchivingKR ===
+                                                                        kr.kr_id ? (
+                                                                            <svg
+                                                                                className="h-4 w-4 animate-spin"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                            >
+                                                                                <circle
+                                                                                    cx="12"
+                                                                                    cy="12"
+                                                                                    r="10"
+                                                                                    stroke="currentColor"
+                                                                                    strokeWidth="4"
+                                                                                    className="opacity-25"
+                                                                                />
+                                                                                <path
+                                                                                    fill="currentColor"
+                                                                                    d="M4 12a8 8 0 018-8v8z"
+                                                                                    className="opacity-75"
+                                                                                />
+                                                                            </svg>
+                                                                        ) : (
+                                                                            <svg
+                                                                                className="h-4 w-4"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                                stroke="currentColor"
+                                                                            >
+                                                                                <path
+                                                                                    strokeLinecap="round"
+                                                                                    strokeLinejoin="round"
+                                                                                    strokeWidth={
+                                                                                        2
+                                                                                    }
+                                                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                                                                />
+                                                                            </svg>
+                                                                        )}
+                                                                    </button>
+
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            handleDeleteKR(
+                                                                                kr.kr_id
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            deletingKR ===
+                                                                            kr.kr_id
+                                                                        }
+                                                                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 transition-colors relative"
+                                                                        title="Xóa vĩnh viễn Key Result"
+                                                                    >
+                                                                        {deletingKR ===
+                                                                        kr.kr_id ? (
+                                                                            <svg
+                                                                                className="h-4 w-4 animate-spin"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                            >
+                                                                                <circle
+                                                                                    cx="12"
+                                                                                    cy="12"
+                                                                                    r="10"
+                                                                                    stroke="currentColor"
+                                                                                    strokeWidth="4"
+                                                                                    className="opacity-25"
+                                                                                />
+                                                                                <path
+                                                                                    fill="currentColor"
+                                                                                    d="M4 12a8 8 0 018-8v8z"
+                                                                                    className="opacity-75"
+                                                                                />
+                                                                            </svg>
+                                                                        ) : (
+                                                                            <svg
+                                                                                className="h-4 w-4"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                                stroke="currentColor"
+                                                                            >
+                                                                                <path
+                                                                                    strokeLinecap="round"
+                                                                                    strokeLinejoin="round"
+                                                                                    strokeWidth={
+                                                                                        2
+                                                                                    }
+                                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                                                />
+                                                                            </svg>
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                            </>
+                        )}
                     </tbody>
                 </table>
             </div>
+
+            {/* === MODAL XÁC NHẬN – ĐẶT CUỐI RETURN === */}
+            {confirmModal.show && (
+                <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 border border-slate-200 animate-in fade-in zoom-in duration-200">
+                        <h3 className="text-lg font-bold text-slate-900 mb-2">
+                            {confirmModal.title}
+                        </h3>
+                        <p className="text-sm text-slate-600 mb-5">
+                            {confirmModal.message}
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={closeConfirm}
+                                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+                            >
+                                {confirmModal.cancelText}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    confirmModal.onConfirm();
+                                    closeConfirm();
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
+                            >
+                                {confirmModal.confirmText}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {toast && (
+                <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+                    <div
+                        className={`flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-white font-medium text-sm transition-all ${
+                            toast.type === "success"
+                                ? "bg-emerald-600"
+                                : "bg-red-600"
+                        }`}
+                    >
+                        <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            {toast.type === "success" ? (
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                            ) : (
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                />
+                            )}
+                        </svg>
+                        <span>{toast.message}</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
