@@ -282,7 +282,6 @@ export default function KeyResultModal({
                                 <option value="number">Số lượng</option>
                                 <option value="percent">Phần trăm</option>
                                 <option value="completion">Hoàn thành</option>
-                                <option value="bai">Bài</option>
                             </select>
                         </div>
                     </div>
