@@ -33,7 +33,8 @@ class KeyResult extends Model
         'cycle_id',
         'progress_percent',
         'user_id',
-        'archived_at', 
+        'archived_at',
+        'assigned_to',
     ];
 
     /**
@@ -166,5 +167,20 @@ class KeyResult extends Model
     public function isArchived(): bool
     {
         return !is_null($this->archived_at);
+    }
+
+    public function assignee()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function assignedUser()
+    {
+        return $this->belongsTo(User::class, 'assigned_to', 'user_id');
     }
 }

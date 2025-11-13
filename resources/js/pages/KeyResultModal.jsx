@@ -282,7 +282,6 @@ export default function KeyResultModal({
                                 <option value="number">Số lượng</option>
                                 <option value="percent">Phần trăm</option>
                                 <option value="completion">Hoàn thành</option>
-                                <option value="bai">Bài</option>
                             </select>
                         </div>
                     </div>
@@ -323,7 +322,7 @@ export default function KeyResultModal({
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">
-                        {editingKR && (
+                        {/* {editingKR && (
                             <button
                                 type="button"
                                 onClick={handleDelete}
@@ -331,7 +330,7 @@ export default function KeyResultModal({
                             >
                                 Xóa
                             </button>
-                        )}
+                        )} */}
                         <div className="flex gap-2">
                             <button
                                 type="button"

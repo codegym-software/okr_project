@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { canCheckInKeyResult } from "../utils/checkinPermissions";
+import { CycleDropdown } from "../components/Dropdown";
+import Tabs from "../components/Tabs";
+import ConfirmationModal from "../components/ConfirmationModal";
+import ToastNotification from "../components/ToastNotification";
+import AssignKeyResultModal from "../components/AssignKeyResultModal";
 
 export default function ObjectiveList({
     items,
@@ -27,10 +32,16 @@ export default function ObjectiveList({
     const [archivedCount, setArchivedCount] = useState(0);
     const [loadingArchived, setLoadingArchived] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
-    const [currentCycleId, setCurrentCycleId] = useState(null);
     const [archivingKR, setArchivingKR] = useState(null);
     const [unarchivingKR, setUnarchivingKR] = useState(null);
     const [deletingKR, setDeletingKR] = useState(null);
+    const [assignModal, setAssignModal] = useState({
+        show: false,
+        kr: null,
+        objective: null,
+        email: "",
+        loading: false,
+    });
 
     const canCheckInKR = (kr, objective) => {
         return canCheckInKeyResult(currentUser, kr, objective);
@@ -45,6 +56,7 @@ export default function ObjectiveList({
         if (!openCheckInHistory) return;
         openCheckInHistory({ ...kr, objective_id: objective.objective_id });
     };
+
     const [archiving, setArchiving] = useState(null);
     const [unarchiving, setUnarchiving] = useState(null);
     const [deleting, setDeleting] = useState(null);
@@ -125,38 +137,59 @@ export default function ObjectiveList({
         }
     }, [showArchived, cycleFilter]);
 
-    // === TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI ===
+    // === HELPER: Tìm quý hiện tại ===
+    const getCurrentCycle = (cyclesList) => {
+        const now = new Date();
+        const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+        const currentYear = now.getFullYear();
+
+        return cyclesList.find((cycle) => {
+            const match = cycle.cycle_name.match(/Quý (\d+) năm (\d+)/);
+            if (!match) return false;
+            const quarter = parseInt(match[1]);
+            const year = parseInt(match[2]);
+            return quarter === currentQuarter && year === currentYear;
+        });
+    };
+
+    // === 1. FRESH TRẠNG THÁI: XÓA cycle_id KHI VÀO TRANG ===
     useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlCycleId = urlParams.get("cycle_id");
-
-        if (urlCycleId && !cycleFilter) {
-            setCycleFilter(urlCycleId);
-            return;
+        const url = new URL(window.location);
+        if (url.searchParams.has("cycle_id")) {
+            url.searchParams.delete("cycle_id");
+            window.history.replaceState({}, "", url);
         }
+        setCycleFilter(null); // Reset filter
+    }, []);
 
+    // === 2. TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI SAU KHI FRESH ===
+    useEffect(() => {
         if (cycleFilter) return;
 
-        if (currentCycleId) {
-            setCycleFilter(currentCycleId);
+        const currentCycle = getCurrentCycle(cyclesList);
+        if (currentCycle) {
+            setCycleFilter(currentCycle.cycle_id);
             return;
         }
 
-        if (items.length > 0) {
-            const firstItemCycleId = items[0]?.cycle_id;
-            if (firstItemCycleId) setCycleFilter(firstItemCycleId);
+        if (items.length > 0 && items[0]?.cycle_id) {
+            setCycleFilter(items[0].cycle_id);
         }
-    }, [items, cycleFilter, currentCycleId]);
+    }, [cycleFilter, cyclesList, items]);
 
-    // === RELOAD CẢ 2 TAB TỪ SERVER (dùng chung) ===
+    // === 3. CHỌN QUÝ: KHÔNG CẬP NHẬT URL ===
+    const handleCycleChange = (newCycleId) => {
+        setCycleFilter(newCycleId);
+    };
+
+    // === RELOAD CẢ 2 TAB TỪ SERVER ===
     const reloadBothTabs = useCallback(
         async (token) => {
             const baseParams = new URLSearchParams();
             if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
 
-            // 1. Tab Hoạt động: chỉ KR chưa lưu trữ
-            const activeParams = new URLSearchParams(baseParams);
-            const activeRes = await fetch(`/my-objectives?${activeParams}`, {
+            // Tab Hoạt động
+            const activeRes = await fetch(`/my-objectives?${baseParams}`, {
                 headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
             });
             const activeJson = await activeRes.json();
@@ -164,7 +197,7 @@ export default function ObjectiveList({
                 setItems(activeJson.data.data || []);
             }
 
-            // 2. Tab Lưu trữ: tất cả KR (nếu đang mở)
+            // Tab Lưu trữ
             if (showArchived) {
                 const archivedParams = new URLSearchParams({
                     archived: "1",
@@ -407,7 +440,6 @@ export default function ObjectiveList({
                     const token = document
                         .querySelector('meta[name="csrf-token"]')
                         ?.getAttribute("content");
-                    // SỬA URL ĐÚNG TẠI ĐÂY
                     const res = await fetch(
                         `/my-key-results/destroy/${obj.objective_id}/${krId}`,
                         {
@@ -435,6 +467,112 @@ export default function ObjectiveList({
             "Xóa vĩnh viễn",
             "Hủy"
         );
+    };
+
+    const openAssignModal = (kr, objective) => {
+        setAssignModal({
+            show: true,
+            kr,
+            objective,
+            email: "",
+            loading: false,
+        });
+    };
+
+    const closeAssignModal = () => {
+        setAssignModal((prev) => ({ ...prev, show: false }));
+    };
+
+    const handleAssignKR = async () => {
+        const { kr, objective, email } = assignModal;
+
+        // 1. Validate email
+        if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
+            setToast({ type: "error", message: "Vui lòng nhập email hợp lệ." });
+            return;
+        }
+
+        // 2. Bật loading
+        setAssignModal((prev) => ({ ...prev, loading: true }));
+
+        try {
+            // 3. Lấy CSRF token
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
+
+            if (!token) {
+                throw new Error("Không tìm thấy CSRF token");
+            }
+
+            // 4. Gửi request
+            const res = await fetch(`/my-key-results/${kr.kr_id}/assign`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": token,
+                    Accept: "application/json",
+                },
+                body: JSON.stringify({ email }),
+            });
+
+            // 5. Parse JSON (có thể lỗi nếu server trả HTML)
+            let json;
+            try {
+                json = await res.json();
+            } catch (parseErr) {
+                throw new Error("Phản hồi từ server không hợp lệ");
+            }
+
+            // 6. Kiểm tra HTTP status + success
+            if (!res.ok) {
+                throw new Error(
+                    json.message || `Lỗi ${res.status}: Giao việc thất bại`
+                );
+            }
+
+            if (!json.success) {
+                console.log("Assign KR success:", {
+                    kr_id: kr.kr_id,
+                    email,
+                    assignee: json.assignee,
+                });
+                throw new Error(json.message || "Giao việc thất bại");
+            }
+
+            // 7. Cập nhật KR với assignee từ API
+            if (json.assignee) {
+                setKeyResults((prev) =>
+                    prev.map((item) =>
+                        item.kr_id === kr.kr_id
+                            ? { ...item, assignee: json.assignee }
+                            : item
+                    )
+                );
+            }
+
+            // 8. (Tùy chọn) Reload các tab khác nếu cần đồng bộ realtime
+            if (typeof reloadBothTabs === "function") {
+                await reloadBothTabs(token);
+            }
+
+            // 9. Thành công
+            setToast({
+                type: "success",
+                message: json.message || "Giao việc thành công!",
+            });
+            closeAssignModal();
+        } catch (err) {
+            // 10. Xử lý lỗi
+            console.error("Assign KR error:", err);
+            setToast({
+                type: "error",
+                message: err.message || "Đã có lỗi xảy ra",
+            });
+        } finally {
+            // 11. Tắt loading
+            setAssignModal((prev) => ({ ...prev, loading: false }));
+        }
     };
 
     // === HELPER FORMAT ===
@@ -469,153 +607,24 @@ export default function ObjectiveList({
         }
     };
 
-    const calculateObjectiveProgress = (keyResults) => {
-        if (!keyResults || keyResults.length === 0) return 0;
-        const validKRs = keyResults.filter(
-            (kr) => kr.target_value && Number(kr.target_value) > 0
-        );
-        if (validKRs.length === 0) return 0;
-        const totalProgress = validKRs.reduce((sum, kr) => {
-            const current = Number(kr.current_value) || 0;
-            const target = Number(kr.target_value) || 0;
-            const progress = target > 0 ? (current / target) * 100 : 0;
-            return sum + Math.min(progress, 100);
-        }, 0);
-        return totalProgress / validKRs.length;
-    };
-
     return (
         <div className="mx-auto w-full max-w-6xl">
             <div className="mb-4 flex w-full items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <div className="relative w-40">
-                        <button
-                            onClick={() => setDropdownOpen((prev) => !prev)}
-                            className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                        >
-                            <span className="flex items-center gap-2">
-                                {cyclesList.find(
-                                    (c) =>
-                                        String(c.cycle_id) ===
-                                        String(cycleFilter)
-                                )?.cycle_name || "Chọn chu kỳ"}
-                            </span>
-                            <svg
-                                className={`w-4 h-4 transition-transform ${
-                                    dropdownOpen ? "rotate-180" : ""
-                                }`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M19 9l-7 7-7-7"
-                                />
-                            </svg>
-                        </button>
-
-                        {dropdownOpen && (
-                            <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
-                                {cyclesList.map((cycle) => {
-                                    const match =
-                                        cycle.cycle_name.match(
-                                            /Quý (\d+) năm (\d+)/
-                                        );
-                                    const quarter = match
-                                        ? parseInt(match[1])
-                                        : null;
-                                    const year = match
-                                        ? parseInt(match[2])
-                                        : null;
-                                    const now = new Date();
-                                    const currentQuarter = Math.ceil(
-                                        (now.getMonth() + 1) / 3
-                                    );
-                                    const currentYear = now.getFullYear();
-                                    const isCurrent =
-                                        quarter === currentQuarter &&
-                                        year === currentYear;
-
-                                    return (
-                                        <label
-                                            key={cycle.cycle_id}
-                                            className={`flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
-                                                String(cycleFilter) ===
-                                                String(cycle.cycle_id)
-                                                    ? "bg-blue-50 border-l-4 border-l-blue-500"
-                                                    : isCurrent
-                                                    ? "bg-blue-50 border-l-4 border-l-blue-500"
-                                                    : ""
-                                            }`}
-                                        >
-                                            <input
-                                                type="radio"
-                                                name="cycle"
-                                                value={cycle.cycle_id}
-                                                checked={
-                                                    String(cycleFilter) ===
-                                                    String(cycle.cycle_id)
-                                                }
-                                                onChange={(e) => {
-                                                    setCycleFilter(
-                                                        e.target.value
-                                                    );
-                                                    setDropdownOpen(false);
-                                                }}
-                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <div className="flex-1">
-                                                <p className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                                                    {cycle.cycle_name}
-                                                    {isCurrent && (
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                            Hiện tại
-                                                        </span>
-                                                    )}
-                                                </p>
-                                            </div>
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
+                    <CycleDropdown
+                        cyclesList={cyclesList}
+                        cycleFilter={cycleFilter}
+                        handleCycleChange={setCycleFilter}
+                        dropdownOpen={dropdownOpen}
+                        setDropdownOpen={setDropdownOpen}
+                    />
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="flex rounded-md border border-slate-300 overflow-hidden">
-                        <button
-                            onClick={() => setShowArchived(false)}
-                            className={`px-4 py-2 text-sm font-semibold transition-colors ${
-                                !showArchived
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
-                        >
-                            Hoạt động
-                        </button>
-                        <button
-                            onClick={() => setShowArchived(true)}
-                            className={`px-4 py-2 text-sm font-semibold transition-colors ${
-                                showArchived
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
-                        >
-                            Lưu trữ
-                        </button>
-                    </div>
-
-                    <button
-                        onClick={() => setCreatingObjective(true)}
-                        className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-                    >
-                        + Thêm Objective
-                    </button>
-                </div>
+                <Tabs
+                    showArchived={showArchived}
+                    setShowArchived={setShowArchived}
+                    setCreatingObjective={setCreatingObjective}
+                />
             </div>
 
             {/* BẢNG OKR */}
@@ -627,7 +636,7 @@ export default function ObjectiveList({
                                 Tiêu đề
                             </th>
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
-                                Phòng ban
+                                Người thực hiện
                             </th>
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
                                 Trạng thái
@@ -654,7 +663,7 @@ export default function ObjectiveList({
                         {!showArchived && loading && (
                             <tr>
                                 <td
-                                    colSpan={7}
+                                    colSpan={8}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -666,7 +675,7 @@ export default function ObjectiveList({
                         {!showArchived && !loading && items.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={7}
+                                    colSpan={8}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Bạn chưa tạo OKR nào.
@@ -684,7 +693,10 @@ export default function ObjectiveList({
                                             index > 0 ? "mt-4" : ""
                                         }`}
                                     >
-                                        <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
+                                        <td
+                                            colSpan={7}
+                                            className="px-3 py-3 border-r border-slate-200"
+                                        >
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-1">
                                                     {obj.key_results &&
@@ -835,15 +847,35 @@ export default function ObjectiveList({
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {departments.find(
-                                                        (d) =>
-                                                            String(
-                                                                d.department_id
-                                                            ) ===
-                                                            String(
-                                                                obj.department_id
-                                                            )
-                                                    )?.d_name || "-"}
+                                                    {kr.assign_to ? (
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <svg
+                                                                className="w-4 h-4 text-slate-500"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={
+                                                                        2
+                                                                    }
+                                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                                                />
+                                                            </svg>
+                                                            <span className="text-sm text-slate-700">
+                                                                {
+                                                                    kr.assignee
+                                                                        .name
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-400 text-xs">
+                                                            Chưa giao
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     <span
@@ -876,66 +908,13 @@ export default function ObjectiveList({
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.target_value ?? ""}
                                                 </td>
-                                                <td className="px-3 py-3 text-center">
+                                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {formatPercent(
                                                         kr.progress_percent
                                                     )}
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-1">
-                                                        {openCheckInModal &&
-                                                            canCheckInKR(kr, obj) && (
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleOpenCheckIn(
-                                                                            kr,
-                                                                            obj
-                                                                        )
-                                                                    }
-                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                                                                    title="Check-in Key Result"
-                                                                >
-                                                                    <svg
-                                                                        className="h-4 w-4"
-                                                                        fill="none"
-                                                                        viewBox="0 0 24 24"
-                                                                        stroke="currentColor"
-                                                                    >
-                                                                        <path
-                                                                            strokeLinecap="round"
-                                                                            strokeLinejoin="round"
-                                                                            strokeWidth={2}
-                                                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                                        />
-                                                                    </svg>
-                                                                </button>
-                                                            )}
-                                                        {openCheckInHistory && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleOpenCheckInHistory(
-                                                                        kr,
-                                                                        obj
-                                                                    )
-                                                                }
-                                                                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                                                                title="Lịch sử Check-in"
-                                                            >
-                                                                <svg
-                                                                    className="h-4 w-4"
-                                                                    fill="none"
-                                                                    viewBox="0 0 24 24"
-                                                                    stroke="currentColor"
-                                                                >
-                                                                    <path
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        strokeWidth={2}
-                                                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                                    />
-                                                                </svg>
-                                                            </button>
-                                                        )}
                                                         <button
                                                             onClick={() =>
                                                                 setEditingKR(kr)
@@ -952,11 +931,196 @@ export default function ObjectiveList({
                                                                 <path
                                                                     strokeLinecap="round"
                                                                     strokeLinejoin="round"
-                                                                    strokeWidth={2}
+                                                                    strokeWidth={
+                                                                        2
+                                                                    }
                                                                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                                                                 />
                                                             </svg>
                                                         </button>
+                                                        {/* Menu 3 chấm dọc – ĐÃ SỬA Z-INDEX */}
+                                                        {(openCheckInModal &&
+                                                            canCheckInKR(
+                                                                kr,
+                                                                obj
+                                                            )) ||
+                                                        openCheckInHistory ? (
+                                                            <div className="relative z-[100]">
+                                                                {" "}
+                                                                {/* z-10 thay vì z-1 */}
+                                                                <button
+                                                                    onClick={(
+                                                                        e
+                                                                    ) => {
+                                                                        e.stopPropagation();
+                                                                        setOpenObj(
+                                                                            (
+                                                                                prev
+                                                                            ) => ({
+                                                                                ...prev,
+                                                                                [`menu_${kr.kr_id}`]:
+                                                                                    !prev[
+                                                                                        `menu_${kr.kr_id}`
+                                                                                    ],
+                                                                            })
+                                                                        );
+                                                                    }}
+                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                                                                    title="Tùy chọn Check-in"
+                                                                >
+                                                                    <svg
+                                                                        className="h-4 w-4"
+                                                                        fill="none"
+                                                                        viewBox="0 0 24 24"
+                                                                        stroke="currentColor"
+                                                                    >
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={
+                                                                                2
+                                                                            }
+                                                                            d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                                {/* Dropdown Menu – z-index cao hơn */}
+                                                                {openObj[
+                                                                    `menu_${kr.kr_id}`
+                                                                ] && (
+                                                                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                                                                        {/* Giao việc */}
+                                                                        <button
+                                                                            onClick={(
+                                                                                e
+                                                                            ) => {
+                                                                                e.stopPropagation();
+                                                                                openAssignModal(
+                                                                                    kr,
+                                                                                    obj
+                                                                                );
+                                                                                setOpenObj(
+                                                                                    (
+                                                                                        prev
+                                                                                    ) => ({
+                                                                                        ...prev,
+                                                                                        [`menu_${kr.kr_id}`]: false,
+                                                                                    })
+                                                                                );
+                                                                            }}
+                                                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                        >
+                                                                            <svg
+                                                                                className="h-4 w-4"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                                stroke="currentColor"
+                                                                            >
+                                                                                <path
+                                                                                    strokeLinecap="round"
+                                                                                    strokeLinejoin="round"
+                                                                                    strokeWidth={
+                                                                                        2
+                                                                                    }
+                                                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                                                                />
+                                                                            </svg>
+                                                                            Giao
+                                                                            việc
+                                                                        </button>
+                                                                        {/* Check-in */}
+                                                                        {openCheckInModal &&
+                                                                            canCheckInKR(
+                                                                                kr,
+                                                                                obj
+                                                                            ) && (
+                                                                                <button
+                                                                                    onClick={(
+                                                                                        e
+                                                                                    ) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleOpenCheckIn(
+                                                                                            kr,
+                                                                                            obj
+                                                                                        );
+                                                                                        setOpenObj(
+                                                                                            (
+                                                                                                prev
+                                                                                            ) => ({
+                                                                                                ...prev,
+                                                                                                [`menu_${kr.kr_id}`]: false,
+                                                                                            })
+                                                                                        );
+                                                                                    }}
+                                                                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                                >
+                                                                                    <svg
+                                                                                        className="h-4 w-4"
+                                                                                        fill="none"
+                                                                                        viewBox="0 0 24 24"
+                                                                                        stroke="currentColor"
+                                                                                    >
+                                                                                        <path
+                                                                                            strokeLinecap="round"
+                                                                                            strokeLinejoin="round"
+                                                                                            strokeWidth={
+                                                                                                2
+                                                                                            }
+                                                                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                                        />
+                                                                                    </svg>
+                                                                                    Check-in
+                                                                                    Key
+                                                                                    Result
+                                                                                </button>
+                                                                            )}
+
+                                                                        {/* Lịch sử */}
+                                                                        {openCheckInHistory && (
+                                                                            <button
+                                                                                onClick={(
+                                                                                    e
+                                                                                ) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleOpenCheckInHistory(
+                                                                                        kr,
+                                                                                        obj
+                                                                                    );
+                                                                                    setOpenObj(
+                                                                                        (
+                                                                                            prev
+                                                                                        ) => ({
+                                                                                            ...prev,
+                                                                                            [`menu_${kr.kr_id}`]: false,
+                                                                                        })
+                                                                                    );
+                                                                                }}
+                                                                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                            >
+                                                                                <svg
+                                                                                    className="h-4 w-4"
+                                                                                    fill="none"
+                                                                                    viewBox="0 0 24 24"
+                                                                                    stroke="currentColor"
+                                                                                >
+                                                                                    <path
+                                                                                        strokeLinecap="round"
+                                                                                        strokeLinejoin="round"
+                                                                                        strokeWidth={
+                                                                                            2
+                                                                                        }
+                                                                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                                    />
+                                                                                </svg>
+                                                                                Lịch
+                                                                                sử
+                                                                                Check-in
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : null}
                                                         <button
                                                             onClick={() =>
                                                                 handleArchiveKR(
@@ -968,7 +1132,7 @@ export default function ObjectiveList({
                                                                 kr.kr_id
                                                             }
                                                             className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
-                                                            title="Lưu trữ KR"
+                                                            title="Lưu trữ Key Result"
                                                         >
                                                             <svg
                                                                 className="h-4 w-4"
@@ -979,7 +1143,9 @@ export default function ObjectiveList({
                                                                 <path
                                                                     strokeLinecap="round"
                                                                     strokeLinejoin="round"
-                                                                    strokeWidth={2}
+                                                                    strokeWidth={
+                                                                        2
+                                                                    }
                                                                     d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
                                                                 />
                                                             </svg>
@@ -1028,7 +1194,10 @@ export default function ObjectiveList({
                                                     index > 0 ? "mt-4" : ""
                                                 }`}
                                             >
-                                                <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
+                                                <td
+                                                    colSpan={7}
+                                                    className="px-3 py-3 border-r border-slate-200"
+                                                >
                                                     <div className="flex items-center">
                                                         <div className="flex items-center gap-1">
                                                             {obj.key_results?.some(
@@ -1305,7 +1474,10 @@ export default function ObjectiveList({
                                                         index > 0 ? "mt-4" : ""
                                                     }`}
                                                 >
-                                                    <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
+                                                    <td
+                                                        colSpan={7}
+                                                        className="px-3 py-3 border-r border-slate-200"
+                                                    >
                                                         <div className="flex items-center justify-between w-full">
                                                             <div className="flex items-center gap-1">
                                                                 {hasArchivedKRs && (
@@ -1361,13 +1533,11 @@ export default function ObjectiveList({
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td
-                                                        className="text-center text-slate-400 py-3 bg-gradient-to-r from-yellow-50 to-orange-50"
-                                                    >
+                                                    {/* <td className="text-center text-slate-400 py-3 bg-gradient-to-r from-yellow-50 to-orange-50">
                                                         Objective đang hoạt động
                                                         – {archivedKRs.length}{" "}
                                                         Key Result đã lưu trữ
-                                                    </td>
+                                                    </td> */}
                                                 </tr>
 
                                                 {openObj[obj.objective_id] &&
@@ -1503,71 +1673,28 @@ export default function ObjectiveList({
                 </table>
             </div>
 
-            {/* === MODAL XÁC NHẬN – ĐẶT CUỐI RETURN === */}
-            {confirmModal.show && (
-                <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 border border-slate-200 animate-in fade-in zoom-in duration-200">
-                        <h3 className="text-lg font-bold text-slate-900 mb-2">
-                            {confirmModal.title}
-                        </h3>
-                        <p className="text-sm text-slate-600 mb-5">
-                            {confirmModal.message}
-                        </p>
-                        <div className="flex gap-3 justify-end">
-                            <button
-                                onClick={closeConfirm}
-                                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
-                            >
-                                {confirmModal.cancelText}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    confirmModal.onConfirm();
-                                    closeConfirm();
-                                }}
-                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
-                            >
-                                {confirmModal.confirmText}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {toast && (
-                <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-                    <div
-                        className={`flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-white font-medium text-sm transition-all ${
-                            toast.type === "success"
-                                ? "bg-emerald-600"
-                                : "bg-red-600"
-                        }`}
-                    >
-                        <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            {toast.type === "success" ? (
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                            ) : (
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                                />
-                            )}
-                        </svg>
-                        <span>{toast.message}</span>
-                    </div>
-                </div>
-            )}
+            {/* === MODAL XÁC NHẬN === */}
+            <ConfirmationModal
+                confirmModal={confirmModal}
+                closeConfirm={closeConfirm}
+            />
+
+            {/* === TOAST === */}
+            <ToastNotification toast={toast} />
+
+            {/* === MODAL GIAO VIỆC === */}
+            <AssignKeyResultModal
+                show={assignModal.show}
+                kr={assignModal.kr}
+                objective={assignModal.objective}
+                email={assignModal.email}
+                setEmail={(email) =>
+                    setAssignModal((prev) => ({ ...prev, email }))
+                }
+                loading={assignModal.loading}
+                onConfirm={handleAssignKR}
+                onClose={closeAssignModal}
+            />
         </div>
     );
 }
