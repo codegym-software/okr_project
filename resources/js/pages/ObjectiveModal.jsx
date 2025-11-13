@@ -743,7 +743,7 @@ export default function ObjectiveModal({
                             </button> */}
                         </div>
                     )}
-                    {editingObjective && (
+                    {/* {editingObjective && (
                         <div className="mt-4">
                             <h3 className="text-sm font-semibold text-slate-700">
                                 Liên kết với Key Result cấp cao hơn
@@ -850,9 +850,9 @@ export default function ObjectiveModal({
                                 </>
                             )}
                         </div>
-                    )}
+                    )} */}
                     <div className="flex justify-end gap-2 pt-2">
-                        {editingObjective && (
+                        {/* {editingObjective && (
                             <button
                                 type="button"
                                 onClick={handleDeleteObjective}
@@ -860,7 +860,7 @@ export default function ObjectiveModal({
                             >
                                 Xóa
                             </button>
-                        )}
+                        )} */}
                         <div className="flex gap-2">
                             <button
                                 type="button"
