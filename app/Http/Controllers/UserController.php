@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use App\Models\Role;
-use App\Models\Department;
 
 class UserController extends Controller
 {
@@ -22,13 +21,13 @@ class UserController extends Controller
     {
         try {
             $level = $request->query('level');
-            
+
             if (!$level) {
                 return response()->json(['success' => false, 'message' => 'Thiếu tham số level'], 400);
             }
-            
+
             $roles = Role::where('level', $level)->get(['role_id', 'role_name', 'description', 'level']);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $roles
@@ -46,7 +45,7 @@ class UserController extends Controller
     {
         try {
             $roles = Role::all(['role_id', 'role_name', 'description', 'level']);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $roles
@@ -135,6 +134,7 @@ class UserController extends Controller
             'role' => 'nullable|string|in:admin,manager,member,Admin,Manager,Member',
             'department_id' => 'nullable|exists:departments,department_id',
             'level' => 'nullable|string|in:company,unit,team,person',
+            'status' => 'nullable|in:active,inactive',
         ]);
 
         $user = User::findOrFail($id);
@@ -181,7 +181,10 @@ class UserController extends Controller
         if ($request->filled('department_id')) {
             $user->department_id = $request->department_id;
         }
-        
+        if ($request->filled('status')) {
+            $user->status = $request->status;
+        }
+
         // Cập nhật cấp độ nếu có - tìm role phù hợp với level và role_name hiện tại
         if ($request->filled('level')) {
             $user->load('role');
@@ -190,14 +193,14 @@ class UserController extends Controller
                 $matchingRole = Role::where('level', $request->level)
                                    ->where('role_name', $user->role->role_name)
                                    ->first();
-                
+
                 if ($matchingRole) {
                     // Chỉ thay đổi role_id để trỏ đến role phù hợp
                     $user->role_id = $matchingRole->role_id;
                 }
             }
         }
-        
+
         $user->save();
 
         // Clear cache when user is updated

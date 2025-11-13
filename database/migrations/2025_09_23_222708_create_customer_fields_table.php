@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('customer_fields', function (Blueprint $table) {
             $table->id('field_id');
-            $table->string('cf_name')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
-            $table->string('type')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('cf_name');
+            $table->string('type');
             $table->integer('entity_id');
             $table->foreignId('user_id')->constrained('users','user_id')->cascadeOnDelete();
             $table->timestamps();

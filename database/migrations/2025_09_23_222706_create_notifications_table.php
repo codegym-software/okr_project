@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('notifications', function (Blueprint $table) {
             $table->id('notification_id');
-            $table->string('message')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
-            $table->string('type')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('message');
+            $table->string('type')->nullable();
             $table->boolean('is_read')->default(false);
             $table->foreignId('user_id')->constrained('users','user_id')->cascadeOnDelete();
             $table->foreignId('cycle_id')->constrained('cycles','cycle_id')->cascadeOnDelete();

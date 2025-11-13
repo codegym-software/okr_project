@@ -73,5 +73,31 @@ class Objective extends Model
     {
         return $this->hasMany(OkrAssignment::class, 'objective_id', 'objective_id');
     }
+
+    /**
+     * Append key_results to array/JSON
+     */
+    protected $appends = [];
+
+    /**
+     * Override toArray to ensure key_results is always present
+     */
+    public function toArray()
+    {
+        $array = parent::toArray();
+        
+        // Ensure key_results exists (Laravel camelCase -> snake_case conversion)
+        if (isset($array['key_results'])) {
+            // Already has key_results, good
+        } elseif ($this->relationLoaded('keyResults')) {
+            // Has keyResults relationship loaded, convert to key_results
+            $array['key_results'] = $this->keyResults->toArray();
+        } else {
+            // No relationship loaded, set empty array
+            $array['key_results'] = [];
+        }
+        
+        return $array;
+    }
 }
 

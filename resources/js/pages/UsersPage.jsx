@@ -8,7 +8,6 @@ export default function UsersPage() {
     const [users, setUsers] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [roles, setRoles] = useState([]);
-    const [rolesByLevel, setRolesByLevel] = useState({});
     const [loading, setLoading] = useState(true);
     const [q, setQ] = useState("");
     const [role, setRole] = useState("");
@@ -17,32 +16,12 @@ export default function UsersPage() {
     const [level, setLevel] = useState("");
     const [toast, setToast] = useState({ type: "success", message: "" });
     const showToast = (type, message) => setToast({ type, message });
-    const [editingRole, setEditingRole] = useState({});
     const [editingDept, setEditingDept] = useState({});
-    const [editingLevel, setEditingLevel] = useState({});
     const [pendingChanges, setPendingChanges] = useState({});
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [teamId, setTeamId] = useState("");
-
-    // Function để load roles theo level
-    const loadRolesByLevel = async (level) => {
-        if (rolesByLevel[level]) return rolesByLevel[level]; // Đã cache
-
-        try {
-            const res = await fetch(`/roles-by-level?level=${level}`, {
-                headers: { Accept: "application/json" },
-            });
-            const data = await res.json();
-            if (data.success) {
-                setRolesByLevel((prev) => ({ ...prev, [level]: data.data }));
-                return data.data;
-            }
-        } catch (e) {
-            console.error("Error loading roles by level:", e);
-        }
-        return [];
-    };
+    const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
     // Function để lưu tất cả thay đổi
     const saveAllChanges = async () => {
@@ -54,9 +33,12 @@ export default function UsersPage() {
                 try {
                     const requests = [];
 
-                    // Gửi thay đổi thông tin user (role, department, level)
+                    // Gửi thay đổi thông tin user (chỉ department, không bao gồm role và level)
                     const userChanges = { ...changes };
                     delete userChanges.status; // Tách status ra riêng
+                    delete userChanges.role_id; // Không cho phép thay đổi role
+                    delete userChanges.role_name; // Không cho phép thay đổi role
+                    delete userChanges.level; // Không cho phép thay đổi level
 
                     if (Object.keys(userChanges).length > 0) {
                         requests.push(
@@ -170,6 +152,14 @@ export default function UsersPage() {
         setTeamId("");
     };
 
+    // Handler khi thay đổi cấp độ - reset các bộ lọc liên quan
+    const handleLevelChange = (newLevel) => {
+        setLevel(newLevel);
+        // Reset departmentId và teamId khi thay đổi cấp độ
+        setDepartmentId("");
+        setTeamId("");
+    };
+
     // Kiểm tra có filter nào đang active không
     const hasActiveFilters =
         (q && q.trim()) || level || role || departmentId || status || teamId;
@@ -215,25 +205,12 @@ export default function UsersPage() {
                         Quản lý người dùng
                     </h1>
                     <div className="flex items-center gap-2">
-                        {/* <button
+                        <button
                             onClick={() => setShowInviteModal(true)}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm flex items-center gap-2"
                         >
-                            <svg
-                                className="h-4 w-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                                />
-                            </svg>
                             Mời người dùng
-                        </button> */}
+                        </button>
                         <button
                             onClick={() => setShowConfirmModal(true)}
                             disabled={Object.keys(pendingChanges).length === 0}
@@ -248,99 +225,56 @@ export default function UsersPage() {
                     </div>
                 </div>
                 <div className="mt-4 flex flex-col gap-3">
-                    {/* Thanh tìm kiếm - 1 dòng riêng */}
-                    <input
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                        placeholder="Tìm kiếm theo tên hoặc email..."
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-
-                    {/* Filter */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Select
-                            value={level}
-                            onChange={setLevel}
-                            placeholder="Cấp độ"
-                            options={[
-                                { value: "", label: "Cấp độ" },
-                                { value: "unit", label: "Phòng ban" },
-                                { value: "team", label: "Nhóm" },
-                            ]}
-                            className="min-w-[100px]"
+                    {/* Thanh tìm kiếm và Bộ lọc */}
+                    <div className="flex items-center gap-3">
+                        <input
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            placeholder="Tìm kiếm theo tên hoặc email..."
+                            className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        <Select
-                            value={role}
-                            onChange={setRole}
-                            placeholder="Vai trò"
-                            options={[
-                                { value: "", label: "Vai trò" },
-                                { value: "manager", label: "Quản lý" },
-                                { value: "member", label: "Thành viên" },
-                            ]}
-                            className="min-w-[100px]"
-                        />
-                        <Select
-                            value={departmentId}
-                            onChange={setDepartmentId}
-                            placeholder="Phòng ban"
-                            options={[
-                                { value: "", label: "Phòng ban" },
-                                ...departments
-                                    .filter(
-                                        (d) =>
-                                            d.parent_department_id === null &&
-                                            d.type === "phòng ban"
-                                    )
-                                    .map((d) => ({
-                                        value: String(d.department_id),
-                                        label: d.d_name,
-                                    })),
-                            ]}
-                            className="min-w-[100px]"
-                        />
-                        <Select
-                            value={teamId}
-                            onChange={setTeamId}
-                            placeholder="Đội nhóm"
-                            options={[
-                                { value: "", label: "Đội nhóm" },
-                                ...departments
-                                    .filter(
-                                        (d) =>
-                                            d.type === "đội nhóm" &&
-                                            (!departmentId ||
-                                                d.parent_department_id ===
-                                                    (departmentId
-                                                        ? parseInt(departmentId)
-                                                        : null))
-                                    )
-                                    .map((d) => ({
-                                        value: String(d.department_id),
-                                        label: d.d_name,
-                                    })),
-                            ]}
-                            className="min-w-[100px]"
-                        />
-                        <Select
-                            value={status}
-                            onChange={setStatus}
-                            placeholder="Trạng thái"
-                            options={[
-                                { value: "", label: "Trạng thái" },
-                                { value: "active", label: "Kích hoạt" },
-                                { value: "inactive", label: "Vô hiệu" },
-                            ]}
-                            className="min-w-[100px]"
-                        />
-                        {hasActiveFilters && (
+                        
+                        {/* Filter Button với Dropdown */}
+                        <div className="relative">
                             <button
-                                onClick={resetAllFilters}
-                                className="px-3 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-colors duration-200 shrink-0"
-                                title="Xóa tất cả bộ lọc"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowFilterDropdown(!showFilterDropdown);
+                                }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                                    hasActiveFilters
+                                        ? "bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100"
+                                        : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+                                }`}
                             >
                                 <svg
-                                    className="h-4 w-4 inline mr-1"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-5 w-5"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                >
+                                    <path
+                                        fillRule="evenodd"
+                                        d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z"
+                                        clipRule="evenodd"
+                                    />
+                                </svg>
+                                <span>Bộ lọc</span>
+                                {hasActiveFilters && (
+                                    <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold leading-none text-white bg-blue-600 rounded-full">
+                                        {[
+                                            level,
+                                            role,
+                                            departmentId,
+                                            teamId,
+                                            status,
+                                        ].filter(Boolean).length}
+                                    </span>
+                                )}
+                                <svg
+                                    className={`h-4 w-4 transition-transform ${
+                                        showFilterDropdown ? "rotate-180" : ""
+                                    }`}
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -349,12 +283,155 @@ export default function UsersPage() {
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
                                         strokeWidth={2}
-                                        d="M6 18L18 6M6 6l12 12"
+                                        d="M19 9l-7 7-7-7"
                                     />
                                 </svg>
-                                Xóa bộ lọc
                             </button>
-                        )}
+
+                            {/* Dropdown Menu */}
+                            {showFilterDropdown && (
+                                <>
+                                    <div
+                                        className="fixed inset-0 z-10"
+                                        onClick={() => setShowFilterDropdown(false)}
+                                    />
+                                    <div 
+                                        className="absolute right-0 mt-2 w-80 rounded-xl border border-slate-200 bg-white shadow-lg z-20"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="p-4">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h3 className="text-sm font-semibold text-slate-900">
+                                                    Bộ lọc
+                                                </h3>
+                                                {hasActiveFilters && (
+                                                    <button
+                                                        onClick={() => {
+                                                            resetAllFilters();
+                                                            setShowFilterDropdown(false);
+                                                        }}
+                                                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                    >
+                                                        Xóa tất cả
+                                                    </button>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="space-y-4">
+                                                {/* Cấp độ */}
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                                                        Cấp độ
+                                                    </label>
+                                                    <Select
+                                                        value={level}
+                                                        onChange={handleLevelChange}
+                                                        placeholder="Chọn cấp độ"
+                                                        options={[
+                                                            { value: "", label: "Tất cả" },
+                                                            { value: "unit", label: "Phòng ban" },
+                                                            { value: "team", label: "Nhóm" },
+                                                        ]}
+                                                    />
+                                                </div>
+
+                                                {/* Phòng ban - chỉ hiển thị khi level = "unit" */}
+                                                {level === "unit" && (
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                                                            Phòng ban
+                                                        </label>
+                                                        <Select
+                                                            value={departmentId}
+                                                            onChange={setDepartmentId}
+                                                            placeholder="Chọn phòng ban"
+                                                            options={[
+                                                                { value: "", label: "Tất cả" },
+                                                                ...departments
+                                                                    .filter(
+                                                                        (d) =>
+                                                                            d.parent_department_id === null &&
+                                                                            d.type === "phòng ban"
+                                                                    )
+                                                                    .map((d) => ({
+                                                                        value: String(d.department_id),
+                                                                        label: d.d_name,
+                                                                    })),
+                                                            ]}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Đội nhóm - chỉ hiển thị khi level = "team" */}
+                                                {level === "team" && (
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                                                            Đội nhóm
+                                                        </label>
+                                                        <Select
+                                                            value={teamId}
+                                                            onChange={setTeamId}
+                                                            placeholder="Chọn đội nhóm"
+                                                            options={[
+                                                                { value: "", label: "Tất cả" },
+                                                                ...departments
+                                                                    .filter(
+                                                                        (d) =>
+                                                                            d.type === "đội nhóm" &&
+                                                                            (!departmentId ||
+                                                                                d.parent_department_id ===
+                                                                                    (departmentId
+                                                                                        ? parseInt(departmentId)
+                                                                                        : null))
+                                                                    )
+                                                                    .map((d) => ({
+                                                                        value: String(d.department_id),
+                                                                        label: d.d_name,
+                                                                    })),
+                                                            ]}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Vai trò */}
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                                                        Vai trò
+                                                    </label>
+                                                    <Select
+                                                        value={role}
+                                                        onChange={setRole}
+                                                        placeholder="Chọn vai trò"
+                                                        options={[
+                                                            { value: "", label: "Tất cả" },
+                                                            { value: "manager", label: "Quản lý" },
+                                                            { value: "member", label: "Thành viên" },
+                                                        ]}
+                                                    />
+                                                </div>
+
+                                                {/* Trạng thái */}
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                                                        Trạng thái
+                                                    </label>
+                                                    <Select
+                                                        value={status}
+                                                        onChange={setStatus}
+                                                        placeholder="Chọn trạng thái"
+                                                        options={[
+                                                            { value: "", label: "Tất cả" },
+                                                            { value: "active", label: "Kích hoạt" },
+                                                            { value: "inactive", label: "Vô hiệu" },
+                                                        ]}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -390,38 +467,6 @@ export default function UsersPage() {
                                     const isAdmin =
                                         rname === "admin" ||
                                         u.email === "okr.admin@company.com";
-                                    const onChangeRole = (val) => {
-                                        // Chỉ cập nhật giao diện, không gọi API
-                                        const selectedRole = roles.find(
-                                            (r) => r.role_id == val
-                                        );
-                                        setPendingChanges((prev) => ({
-                                            ...prev,
-                                            [u.user_id]: {
-                                                ...prev[u.user_id],
-                                                role_id: val,
-                                                role_name:
-                                                    selectedRole?.role_name,
-                                                level: selectedRole?.level, // Cập nhật level theo role được chọn
-                                            },
-                                        }));
-                                        setUsers((prev) =>
-                                            prev.map((x) =>
-                                                x.user_id === u.user_id
-                                                    ? {
-                                                          ...x,
-                                                          role: {
-                                                              ...(x.role || {}),
-                                                              role_id: val,
-                                                              role_name:
-                                                                  selectedRole?.role_name,
-                                                              level: selectedRole?.level, // Cập nhật level theo role được chọn
-                                                          },
-                                                      }
-                                                    : x
-                                            )
-                                        );
-                                    };
                                     const onChangeDept = (val) => {
                                         // Chỉ cập nhật giao diện, không gọi API
                                         const depObj = departments.find(
@@ -450,74 +495,6 @@ export default function UsersPage() {
                                                     : x
                                             )
                                         );
-                                    };
-                                    const onChangeLevel = (val) => {
-                                        // Chỉ cập nhật giao diện, không gọi API
-                                        // Tìm role phù hợp với level mới và role_name hiện tại
-                                        const currentRoleName =
-                                            u.role?.role_name;
-                                        const matchingRole = roles.find(
-                                            (r) =>
-                                                r.level === val &&
-                                                r.role_name === currentRoleName
-                                        );
-
-                                        if (matchingRole) {
-                                            setPendingChanges((prev) => ({
-                                                ...prev,
-                                                [u.user_id]: {
-                                                    ...prev[u.user_id],
-                                                    level: val,
-                                                    role_id:
-                                                        matchingRole.role_id,
-                                                    role_name:
-                                                        matchingRole.role_name,
-                                                },
-                                            }));
-
-                                            setUsers((prev) =>
-                                                prev.map((x) =>
-                                                    x.user_id === u.user_id
-                                                        ? {
-                                                              ...x,
-                                                              role: {
-                                                                  ...(x.role ||
-                                                                      {}),
-                                                                  level: val,
-                                                                  role_id:
-                                                                      matchingRole.role_id,
-                                                                  role_name:
-                                                                      matchingRole.role_name,
-                                                              },
-                                                          }
-                                                        : x
-                                                )
-                                            );
-                                        } else {
-                                            // Nếu không tìm thấy role phù hợp, chỉ cập nhật level
-                                            setPendingChanges((prev) => ({
-                                                ...prev,
-                                                [u.user_id]: {
-                                                    ...prev[u.user_id],
-                                                    level: val,
-                                                },
-                                            }));
-
-                                            setUsers((prev) =>
-                                                prev.map((x) =>
-                                                    x.user_id === u.user_id
-                                                        ? {
-                                                              ...x,
-                                                              role: {
-                                                                  ...(x.role ||
-                                                                      {}),
-                                                                  level: val,
-                                                              },
-                                                          }
-                                                        : x
-                                                )
-                                            );
-                                        }
                                     };
                                     const toggleStatus = () => {
                                         // Chỉ cập nhật giao diện, không gọi API
@@ -549,16 +526,9 @@ export default function UsersPage() {
                                             user={u}
                                             departments={departments}
                                             roles={roles}
-                                            editingRole={editingRole}
                                             editingDept={editingDept}
-                                            editingLevel={editingLevel}
-                                            setEditingRole={setEditingRole}
                                             setEditingDept={setEditingDept}
-                                            setEditingLevel={setEditingLevel}
-                                            onChangeRole={onChangeRole}
                                             onChangeDept={onChangeDept}
-                                            onChangeLevel={onChangeLevel}
-                                            loadRolesByLevel={loadRolesByLevel}
                                             toggleStatus={toggleStatus}
                                             pendingChanges={pendingChanges}
                                             setPendingChanges={
@@ -603,28 +573,6 @@ export default function UsersPage() {
                                                 {user?.full_name || user?.email}
                                             </div>
                                             <div className="ml-4 space-y-1">
-                                                {changes.role_id && (
-                                                    <div className="text-gray-600">
-                                                        • Vai trò:{" "}
-                                                        {(() => {
-                                                            const role =
-                                                                roles.find(
-                                                                    (r) =>
-                                                                        r.role_id ==
-                                                                        changes.role_id
-                                                                );
-                                                            return role
-                                                                ? role.role_name ===
-                                                                  "manager"
-                                                                    ? "Quản lý"
-                                                                    : role.role_name ===
-                                                                      "member"
-                                                                    ? "Thành viên"
-                                                                    : role.role_name
-                                                                : changes.role_id;
-                                                        })()}
-                                                    </div>
-                                                )}
                                                 {changes.department_id && (
                                                     <div className="text-gray-600">
                                                         • Phòng ban:{" "}
@@ -634,18 +582,6 @@ export default function UsersPage() {
                                                                 changes.department_id
                                                         )?.d_name ||
                                                             changes.department_id}
-                                                    </div>
-                                                )}
-                                                {changes.level && (
-                                                    <div className="text-gray-600">
-                                                        • Cấp độ:{" "}
-                                                        {changes.level ===
-                                                        "unit"
-                                                            ? "Phòng ban"
-                                                            : changes.level ===
-                                                              "team"
-                                                            ? "Nhóm"
-                                                            : changes.level}
                                                     </div>
                                                 )}
                                                 {changes.status && (

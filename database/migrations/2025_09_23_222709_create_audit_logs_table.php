@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id('log_id');
-            $table->string('action')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
-            $table->string('entity')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('action');
+            $table->string('entity');
             $table->foreignId('user_id')->constrained('users','user_id')->cascadeOnDelete();
             $table->integer('entity_id')->nullable();
             $table->timestamps();

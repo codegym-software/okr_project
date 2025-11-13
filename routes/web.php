@@ -11,10 +11,12 @@ use App\Http\Controllers\MyObjectiveController;
 use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\CheckInController;
+use App\Http\Controllers\OkrAssignmentController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
-use App\Http\Controllers\OkrAssignmentController;
+
 
 Route::get('/', function () {
     return view('app');
@@ -80,9 +82,17 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::delete('/cycles/{cycle}',[CycleController::class,'destroy'])->middleware('auth','admin')->name('cycles.destroy');
     Route::get('/cycles/create',[CycleController::class,'create'])->middleware('auth','admin')->name('cycles.create');
     Route::post('/cycles/create',[CycleController::class,'store'])->middleware('auth','admin')->name('cycles.store.create');
+    Route::post('/cycles/{cycle}/close',[CycleController::class,'close'])->middleware('auth','admin')->name('cycles.close');
 
     //Routes cho Department
     Route::resource('departments', DepartmentController::class);
+    Route::post('/departments/{department}/assign-users', [DepartmentController::class, 'storeAssignUsers'])->name('departments.assign.users.store');
+
+    //Routes cho Report - chỉ Manager
+    Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('reports.index');
+    Route::get('/api/reports/my-team', [App\Http\Controllers\ReportController::class, 'getMyTeamReport'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.my-team');
+    Route::get('/api/reports/cycles', [App\Http\Controllers\ReportController::class, 'getCycles'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.cycles');
+    Route::get('/api/reports/progress-trend', [App\Http\Controllers\ReportController::class, 'getTeamProgressTrend'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.progress-trend');
 
     // Routes cho Profile - trả về React app
     Route::get('/profile', function () {
@@ -100,7 +110,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
 
             // Routes cho User Management (chỉ Admin)
             Route::middleware(['auth', 'admin'])->group(function () {
-                Route::get('/users', [UserController::class, 'index'])->name('users.index');
                 Route::get('/users/{id}/detail', [UserController::class, 'show'])->name('users.show');
                 Route::get('/roles', [UserController::class, 'getAllRoles'])->name('roles.all');
                 Route::get('/roles-by-level', [UserController::class, 'getRolesByLevel'])->name('roles.by.level');
@@ -112,39 +121,45 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
                 Route::post('/admin/invite-user', [AdminController::class, 'inviteUser'])->name('admin.invite-user');
                 Route::get('/admin/invitations', [AdminController::class, 'getInvitations'])->name('admin.invitations');
             });
+                // Route::get('/users', [UserController::class, 'index'])->name('users.index');
+            Route::get('/users', [UserController::class, 'index'])
+                ->name('users.index')
+                ->middleware(\App\Http\Middleware\RestrictToAdminOrUnitManager::class);
 
-    // Objectives Routes
-    Route::resource('objectives', ObjectiveController::class);
-    // Route::get('/dashboard', [ObjectiveController::class, 'dashboard'])->name('dashboard');
+    // Route::get('/users2', [UserController::class, 'index2']);
 
-    // Key Results Routes
-    Route::get('/objectives/{objective}/key-results', 
-    [KeyResultController::class, 'index'])
-    ->name('key_results.index');
+    // // Objectives Routes
+    // Route::resource('objectives', ObjectiveController::class);
+    // // Route::get('/dashboard', [ObjectiveController::class, 'dashboard'])->name('dashboard');
 
-    Route::get('/objectives/{objective}/key-results/{key_result}', 
-    [KeyResultController::class, 'show'])
-    ->whereNumber('key_result')
-    ->name('key_results.show');
+    // // Key Results Routes
+    // Route::get('/objectives/{objective}/key-results', 
+    // [KeyResultController::class, 'index'])
+    // ->name('key_results.index');
 
-    // Form tạo mới Key Result
-    Route::get('/objectives/{objective}/key-results/create',
-        [KeyResultController::class, 'create']
-    )->name('key_results.create');
+    // Route::get('/objectives/{objective}/key-results/{key_result}', 
+    // [KeyResultController::class, 'show'])
+    // ->whereNumber('key_result')
+    // ->name('key_results.show');
 
-    // Lưu Key Result
-    Route::post('/objectives/{objective}/key-results',
-        [KeyResultController::class, 'store']
-    )->name('key_results.store');
+    // // Form tạo mới Key Result
+    // Route::get('/objectives/{objective}/key-results/create',
+    //     [KeyResultController::class, 'create']
+    // )->name('key_results.create');
 
-    // Cập nhật Key Result
-    Route::put('/objectives/{objective}/key-results/{kr}',
-        [KeyResultController::class, 'update']
-    )->name('key_results.update');
+    // // Lưu Key Result
+    // Route::post('/objectives/{objective}/key-results',
+    //     [KeyResultController::class, 'store']
+    // )->name('key_results.store');
 
-    Route::delete('/objectives/{objective}/key-results/{kr}',
-        [KeyResultController::class, 'destroy']
-    )->name('key_results.destroy');
+    // // Cập nhật Key Result
+    // Route::put('/objectives/{objective}/key-results/{kr}',
+    //     [KeyResultController::class, 'update']
+    // )->name('key_results.update');
+
+    // Route::delete('/objectives/{objective}/key-results/{kr}',
+    //     [KeyResultController::class, 'destroy']
+    // )->name('key_results.destroy');
 
     Route::prefix('my-objectives')->group(function () {
         Route::get('/', [MyObjectiveController::class, 'index'])
@@ -174,6 +189,18 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
             ->middleware('auth')
             ->name('my-objectives.getAllowedLevelsApi');
+        Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
+            ->middleware('auth')
+            ->name('my-objectives.user-levels');
+        Route::post('/{id}/archive', [MyObjectiveController::class, 'archive'])
+            ->middleware('auth')
+            ->name('my-objectives.archive');
+        Route::post('/{id}/unarchive', [MyObjectiveController::class, 'unarchive'])
+            ->middleware('auth')
+            ->name('my-objectives.unarchive');
+        Route::delete('/{id}', [MyObjectiveController::class, 'destroy'])  
+            ->middleware('auth')
+            ->name('my-objectives.destroy');
     });
 
     Route::prefix('my-key-results')->group(function () {
@@ -189,8 +216,49 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         })->middleware('auth')->name('my-key-results.edit');
         Route::put('/update/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'update'])->middleware('auth')->name('my-key-results.update');
         Route::delete('/destroy/{objectiveId}/{keyResultId}', [MyKeyResultController::class, 'destroy'])->middleware('auth')->name('my-key-results.destroy');
+        Route::post('/{objectiveId}/{keyResultId}/archive', [MyKeyResultController::class, 'archive'])
+            ->name('my-key-results.archive');
+        Route::post('/{objectiveId}/{keyResultId}/unarchive', [MyKeyResultController::class, 'unarchive'])
+            ->name('my-key-results.unarchive');
+            Route::post('/{keyResultId}/assign', [MyKeyResultController::class, 'assign'])
+            ->name('my-key-results.assign');
+        Route::delete('/{id}', [MyKeyResultController::class, 'destroy'])  
+            ->middleware('auth')
+            ->name('my-key-result.destroy');
     });
 
+    // Check-in Routes
+    Route::prefix('check-in')->middleware('auth')->group(function () {
+        Route::get('/{objectiveId}/{krId}', [CheckInController::class, 'create'])->name('check-in.create');
+        Route::post('/{objectiveId}/{krId}', [CheckInController::class, 'store'])->name('check-in.store');
+        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'history'])->name('check-in.history');
+        Route::delete('/{objectiveId}/{krId}/{checkInId}', [CheckInController::class, 'destroy'])->name('check-in.destroy');
+    });
+
+    // API Check-in Routes (for JSON responses)
+    Route::prefix('api/check-in')->middleware('auth')->group(function () {
+        Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->name('api.check-in.history');
+    });
+
+    // Reports API (Admin only)
+    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOnly::class])->group(function () {
+        Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
+            ->name('api.reports.company-overview');
+        Route::get('/okr-company', [\App\Http\Controllers\ReportController::class, 'companyOkrReport'])
+            ->name('api.reports.okr-company');
+        Route::get('/okr-company/export.csv', [\App\Http\Controllers\ReportController::class, 'exportCompanyOkrCsv'])
+            ->name('api.reports.okr-company.export.csv');
+    });
+
+    // Frontend page route for Reports (SPA)
+    Route::get('/reports/company-overview', function() { return view('app'); })
+        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->name('reports.company-overview');
+    Route::get('/reports/okr-company', function() { return view('app'); })
+        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->name('reports.okr-company');
+
+    // OKR Assignments
     Route::prefix('my-links')->group(function () {
         Route::get('/', [LinkController::class, 'index'])->middleware('auth')->name('my-links.index');
         Route::get('/available-targets', [LinkController::class, 'getAvailableTargets'])->middleware('auth')->name('my-links.available-targets');

@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('check_in', function (Blueprint $table) {
             $table->id('checkin_id');
             $table->double('completion_rate')->default(0);
-            $table->text('note')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->text('note')->nullable();
             $table->foreignId('user_id')->constrained('users','user_id')->cascadeOnDelete();
             $table->foreignId('objective_id')->constrained('objectives','objective_id')->cascadeOnDelete();
             $table->timestamps();

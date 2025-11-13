@@ -13,6 +13,7 @@ use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
 use Aws\Exception\AwsException;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use App\Rules\StrongPassword;
 
 class AuthController extends Controller
 {
@@ -33,17 +34,64 @@ class AuthController extends Controller
 
     public function showChangePasswordForm()
     {
-        return view('auth.change-password');
+        return view('app');
     }
 
     // Xử lý đổi mật khẩu
     public function changePassword(Request $request)
     {
-        // Validate input
+        // Kiểm tra nếu người dùng đăng nhập bằng OAuth (Google, Facebook, etc.)
+        $user = Auth::user();
+        if ($user && $user->google_id) {
+            Log::info('OAuth user attempted to change password', [
+                'user_id' => $user->user_id,
+                'email' => $user->email,
+                'google_id' => $user->google_id
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn đang đăng nhập bằng Google. Để đổi mật khẩu, vui lòng truy cập tài khoản Google của bạn.',
+                    'oauth_user' => true,
+                    'provider' => 'Google'
+                ], 400);
+            }
+            
+            return back()->withErrors(['error' => 'Bạn đang đăng nhập bằng Google. Để đổi mật khẩu, vui lòng truy cập tài khoản Google của bạn.'])->withInput();
+        }
+
+        // Validate input với rules mạnh mẽ hơn
         $validator = Validator::make($request->all(), [
-            'old_password' => 'required|string|min:8', // Điều chỉnh theo policy của Cognito User Pool
-            'new_password' => 'required|string|min:8|confirmed',
-            'new_password_confirmation' => 'required|string|same:new_password',
+            'old_password' => [
+                'required',
+                'string',
+                'min:8',
+                function ($attribute, $value, $fail) {
+                    // Kiểm tra mật khẩu hiện tại không được để trống hoặc chỉ có khoảng trắng
+                    if (empty(trim($value))) {
+                        $fail('Mật khẩu hiện tại không được để trống.');
+                    }
+                },
+            ],
+            'new_password' => [
+                'required',
+                'string',
+                'confirmed',
+                'different:old_password', // Mật khẩu mới phải khác mật khẩu cũ
+                new StrongPassword(), // Sử dụng custom validation rule
+            ],
+            'new_password_confirmation' => [
+                'required',
+                'string',
+            ],
+        ], [
+            'old_password.required' => 'Mật khẩu hiện tại là bắt buộc.',
+            'old_password.min' => 'Mật khẩu hiện tại phải có ít nhất 8 ký tự.',
+            'new_password.required' => 'Mật khẩu mới là bắt buộc.',
+            'new_password.confirmed' => 'Xác nhận mật khẩu mới không khớp.',
+            'new_password.different' => 'Mật khẩu mới phải khác mật khẩu hiện tại.',
+            'new_password_confirmation.required' => 'Xác nhận mật khẩu mới là bắt buộc.',
         ]);
 
         if ($validator->fails()) {
@@ -51,7 +99,39 @@ class AuthController extends Controller
                 'errors' => $validator->errors()->toArray(),
                 'user_id' => Auth::id()
             ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Dữ liệu không hợp lệ',
+                    'errors' => $validator->errors()->toArray()
+                ], 422);
+            }
+            
             return back()->withErrors($validator)->withInput();
+        }
+
+        // Lấy access token từ session
+        $accessToken = Session::get('cognito_access_token');
+        Log::info('Retrieved access token from session', [
+            'has_access_token' => !empty($accessToken),
+            'user_id' => Auth::id()
+        ]);
+
+        if (!$accessToken) {
+            Log::error('No access token found in session', [
+                'user_id' => Auth::id(),
+                'session_keys' => array_keys(Session::all())
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn cần đăng nhập để đổi mật khẩu.'
+                ], 401);
+            }
+            
+            return redirect()->route('login')->with('error', 'Bạn cần đăng nhập để đổi mật khẩu.');
         }
 
         // Lấy access token từ session
@@ -69,21 +149,81 @@ class AuthController extends Controller
             return redirect()->route('login')->with('error', 'Bạn cần đăng nhập để đổi mật khẩu.');
         }
 
+        // Verify access token trước
         try {
-            // Bước 1: Verify access token hợp lệ trước khi đổi mật khẩu
-            Log::info('Verifying access token with getUser API', [
+            Log::info('Verifying access token with Cognito getUser API', [
                 'user_id' => Auth::id(),
                 'access_token_length' => strlen($accessToken)
             ]);
-            $this->cognitoClient->getUser([
+            
+            $userInfo = $this->cognitoClient->getUser([
                 'AccessToken' => $accessToken,
             ]);
+            
             Log::info('Access token verified successfully', ['user_id' => Auth::id()]);
+            
+        } catch (AwsException $e) {
+            $errorCode = $e->getAwsErrorCode();
+            Log::error("Access token verification failed", [
+                'error_code' => $errorCode,
+                'error_message' => $e->getAwsErrorMessage(),
+                'user_id' => Auth::id()
+            ]);
 
-            // Bước 2: Gọi changePassword nếu token OK
+            if ($errorCode === 'InvalidAccessTokenException') {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+                        'redirect' => '/login'
+                    ], 401);
+                }
+                return redirect()->route('login')->with('error', 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
+            } else {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Có lỗi xảy ra khi xác thực. Vui lòng thử lại sau.',
+                        'error_code' => $errorCode,
+                        'error_details' => $e->getAwsErrorMessage()
+                    ], 500);
+                }
+                return back()->withErrors(['error' => 'Có lỗi xảy ra khi xác thực. Vui lòng thử lại sau.'])->withInput();
+            }
+        }
+
+        // Lấy username từ user info để verify mật khẩu hiện tại
+        $username = null;
+        foreach ($userInfo['UserAttributes'] as $attribute) {
+            if ($attribute['Name'] === 'email') {
+                $username = $attribute['Value'];
+                break;
+            }
+        }
+
+        if (!$username) {
+            Log::error('Could not find username from user info', [
+                'user_id' => Auth::id(),
+                'user_attributes' => $userInfo['UserAttributes']
+            ]);
+            return back()->withErrors(['error' => 'Không thể lấy thông tin người dùng. Vui lòng thử lại sau.'])->withInput();
+        }
+
+        // Skip password verification for now - let Cognito changePassword handle it
+        // This is because USER_PASSWORD_AUTH might not be enabled in the User Pool
+        Log::info('Skipping current password verification - will let changePassword API handle it', [
+            'user_id' => Auth::id(),
+            'username' => $username
+        ]);
+
+        // Bây giờ thực hiện đổi mật khẩu
+        try {
             Log::info('Calling Cognito changePassword API', [
                 'user_id' => Auth::id(),
-                'access_token_length' => strlen($accessToken)
+                'access_token_length' => strlen($accessToken),
+                'username' => $username,
+                'old_password_length' => strlen($request->old_password),
+                'new_password_length' => strlen($request->new_password)
             ]);
             $result = $this->cognitoClient->changePassword([
                 'AccessToken' => $accessToken,
@@ -124,7 +264,11 @@ class AuthController extends Controller
             Log::error("Change password failed", [
                 'error_code' => $errorCode,
                 'error_message' => $errorMessage,
-                'user_id' => Auth::id()
+                'user_id' => Auth::id(),
+                'username' => $username,
+                'old_password_length' => strlen($request->old_password),
+                'new_password_length' => strlen($request->new_password),
+                'access_token_length' => strlen($accessToken)
             ]);
 
             $translatedMessage = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
@@ -146,11 +290,21 @@ class AuthController extends Controller
             } elseif (
                 strpos($errorMessage, 'Incorrect password') !== false ||
                 strpos($errorMessage, 'InvalidPassword') !== false ||
-                strpos($errorMessage, 'Incorrect username or password') !== false || // Thêm để bắt case phổ biến
-                ($errorCode === 'NotAuthorizedException') // Sử dụng error code để detect mật khẩu cũ sai
+                strpos($errorMessage, 'Incorrect username or password') !== false ||
+                strpos($errorMessage, 'Invalid user credentials') !== false ||
+                ($errorCode === 'NotAuthorizedException') ||
+                ($errorCode === 'InvalidPasswordException') ||
+                ($errorCode === 'InvalidUserPoolConfigurationException')
             ) {
-                $translatedMessage = 'Mật khẩu cũ không đúng.'; // Dịch và thông báo cụ thể
+                $translatedMessage = 'Mật khẩu hiện tại không đúng.'; // Dịch và thông báo cụ thể
             } elseif ($errorCode === 'InvalidAccessTokenException') {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.',
+                        'redirect' => '/login'
+                    ], 401);
+                }
                 return redirect()->route('login')->with('error', 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
             } elseif ($errorCode === 'LimitExceededException') {
                 $translatedMessage = 'Quá nhiều lần thử. Vui lòng thử lại sau.';
@@ -159,8 +313,27 @@ class AuthController extends Controller
                     'error_code' => $errorCode,
                     'error_message' => $errorMessage
                 ]);
+                
+                // Cung cấp thông tin chi tiết hơn cho unhandled errors
+                $translatedMessage = "Có lỗi xảy ra khi xác thực. Vui lòng thử lại sau. (Lỗi: {$errorCode})";
             }
 
+            if ($request->expectsJson()) {
+                // Check if it's a password-related error
+                if (strpos($translatedMessage, 'Mật khẩu hiện tại không đúng') !== false) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $translatedMessage,
+                        'errors' => ['old_password' => [$translatedMessage]]
+                    ], 422);
+                }
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => $translatedMessage
+                ], 400);
+            }
+            
             return back()->withErrors(['error' => $translatedMessage]);
         }
     }

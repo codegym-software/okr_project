@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Toast } from '../components/ui';
+import { UserAvatar } from '../components/UserAvatar';
 
 export default function ProfileSettings({ user, activeTab }){
     const [toast, setToast] = useState({ type: 'success', message: '' });
@@ -29,7 +30,7 @@ export default function ProfileSettings({ user, activeTab }){
                 } else {
                     window.location.href = '/dashboard';
                 }
-            }, 1500);
+            }, 800);
         } else {
             const err = await res.json().catch(()=>({ message: 'Cập nhật thất bại' }));
             showToast('error', err.message || 'Cập nhật thất bại');
@@ -39,6 +40,7 @@ export default function ProfileSettings({ user, activeTab }){
     const [oldPwd, setOldPwd] = useState('');
     const [newPwd, setNewPwd] = useState('');
     const [confirmPwd, setConfirmPwd] = useState('');
+    const [showPasswords, setShowPasswords] = useState(false);
 
     const submitPassword = async (e) => {
         e.preventDefault();
@@ -48,26 +50,65 @@ export default function ProfileSettings({ user, activeTab }){
         form.append('old_password', oldPwd);
         form.append('new_password', newPwd);
         form.append('new_password_confirmation', confirmPwd);
-        const res = await fetch('/change-password', { method: 'POST', body: form, headers: { 'Accept': 'application/json' } });
-        if (res.ok) {
+        
+        try {
+            const res = await fetch('/change-password', { 
+                method: 'POST', 
+                body: form, 
+                headers: { 
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                } 
+            });
+            
             const data = await res.json().catch(()=>({}));
-            showToast('success', (data && data.message) || 'Đổi mật khẩu thành công!');
-            // Đảm bảo đăng xuất hoàn toàn trước khi redirect
-            setTimeout(()=> { 
-                // Xóa tất cả session storage và local storage
-                sessionStorage.clear();
-                localStorage.clear();
-                // Redirect về landing page
-                window.location.href = '/landingpage';
-            }, 1500);
-        } else {
-            const err = await res.json().catch(()=>({ message: 'Đổi mật khẩu thất bại' }));
-            showToast('error', err.message || 'Đổi mật khẩu thất bại');
+            
+            if (res.ok && data.success) {
+                showToast('success', data.message || 'Đổi mật khẩu thành công!');
+                // Đảm bảo đăng xuất hoàn toàn trước khi redirect
+                setTimeout(()=> { 
+                    // Xóa tất cả session storage và local storage
+                    sessionStorage.clear();
+                    localStorage.clear();
+                    // Redirect về landing page
+                    window.location.href = data.redirect || '/landingpage';
+                }, 1500);
+            } else {
+                // Xử lý validation errors
+                if (data.errors) {
+                    // Thu thập tất cả error messages
+                    let allErrors = [];
+                    Object.keys(data.errors).forEach(field => {
+                        if (Array.isArray(data.errors[field])) {
+                            allErrors.push(...data.errors[field]);
+                        } else {
+                            allErrors.push(data.errors[field]);
+                        }
+                    });
+                    
+                    // Hiển thị từng lỗi riêng biệt với số thứ tự
+                    if (allErrors.length === 1) {
+                        showToast('error', allErrors[0]);
+                    } else {
+                        // Hiển thị nhiều lỗi dưới dạng danh sách
+                        const errorList = allErrors.map((error, index) => `${index + 1}. ${error}`).join('\n');
+                        showToast('error', `Có ${allErrors.length} lỗi cần sửa:\n${errorList}`);
+                    }
+                } else {
+                    // Kiểm tra nếu là OAuth user
+                    if (data.oauth_user) {
+                        showToast('error', data.message || 'Bạn đang đăng nhập bằng Google. Để đổi mật khẩu, vui lòng truy cập tài khoản Google của bạn.');
+                    } else {
+                        showToast('error', data.message || 'Đổi mật khẩu thất bại');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error changing password:', error);
+            showToast('error', 'Có lỗi xảy ra khi đổi mật khẩu');
         }
     };
 
-    const avatar = user?.avatar || '/images/default.png';
-    const email = user?.email || '';
 
     return (
         <div className="mx-auto w-full max-w-4xl">
@@ -82,15 +123,11 @@ export default function ProfileSettings({ user, activeTab }){
                         <div className="grid gap-6 md:grid-cols-3">
                             <div className="md:col-span-1">
                                 <div className="flex flex-col items-center rounded-2xl border border-slate-200 p-6">
-                                    <img src={avatar} className="h-24 w-24 rounded-full object-cover ring-4 ring-blue-100" alt="avatar" />
-                                    <div className="mt-3 text-center">
-                                        <div className="text-base font-semibold text-slate-900">{user?.name || 'Chưa cập nhật'}</div>
-                                        <div className="text-sm text-slate-500">{email}</div>
-                                    </div>
+                                    <UserAvatar user={user} size="md" showInfo={true} />
                                 </div>
                             </div>
-                            <div className="md:col-span-2">
-                                <form onSubmit={submitProfile} className="space-y-5">
+                            <div className="md:col-span-2 flex items-start">
+                                <form onSubmit={submitProfile} className="space-y-5 w-full pt-6">
                                     <div>
                                         <label className="mb-1 block text-sm font-medium text-slate-700">Họ và tên</label>
                                         <div className="relative">
@@ -128,27 +165,85 @@ export default function ProfileSettings({ user, activeTab }){
                         <p className="text-white/80">Bảo vệ tài khoản của bạn với mật khẩu mạnh</p>
                     </div>
                     <div className="p-6">
+                        {/* Thông báo cho OAuth users */}
+                        {user?.google_id && (
+                            <div className="mb-6 rounded-xl bg-blue-50 border border-blue-200 p-4">
+                                <div className="flex items-start">
+                                    <svg className="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                    </svg>
+                                    <div className="text-sm text-blue-700">
+                                        <p className="font-medium mb-1">Thông tin quan trọng:</p>
+                                        <p>Bạn đang đăng nhập bằng Google. Để đổi mật khẩu, vui lòng truy cập <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer" className="underline font-medium">tài khoản Google</a> của bạn.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
                         <form onSubmit={submitPassword} className="grid gap-6">
                             <div>
                                 <label className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu hiện tại</label>
-                                <input type="password" value={oldPwd} onChange={(e)=>setOldPwd(e.target.value)} className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" required />
+                                <input 
+                                    type={showPasswords ? "text" : "password"} 
+                                    value={oldPwd} 
+                                    onChange={(e)=>setOldPwd(e.target.value)} 
+                                    className={`w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none ${user?.google_id ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                    disabled={!!user?.google_id}
+                                    required 
+                                />
                             </div>
                             <div className="grid gap-6 md:grid-cols-2">
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu mới</label>
-                                    <input type="password" value={newPwd} onChange={(e)=>setNewPwd(e.target.value)} className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" required />
+                                    <input 
+                                        type={showPasswords ? "text" : "password"} 
+                                        value={newPwd} 
+                                        onChange={(e)=>setNewPwd(e.target.value)} 
+                                        className={`w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none ${user?.google_id ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                        disabled={!!user?.google_id}
+                                        required 
+                                    />
                                 </div>
                                 <div>
                                     <label className="mb-1 block text-sm font-medium text-slate-700">Xác nhận mật khẩu</label>
-                                    <input type="password" value={confirmPwd} onChange={(e)=>setConfirmPwd(e.target.value)} className="w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none" required />
+                                    <input 
+                                        type={showPasswords ? "text" : "password"} 
+                                        value={confirmPwd} 
+                                        onChange={(e)=>setConfirmPwd(e.target.value)} 
+                                        className={`w-full rounded-3xl border border-slate-300 px-5 py-4 text-base outline-none ${user?.google_id ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                        disabled={!!user?.google_id}
+                                        required 
+                                    />
                                 </div>
                             </div>
+                            
+                            {/* Show password checkbox */}
+                            <div className="flex items-center gap-3">
+                                <input 
+                                    type="checkbox" 
+                                    id="showPasswords" 
+                                    checked={showPasswords}
+                                    onChange={(e) => setShowPasswords(e.target.checked)}
+                                    className={`h-4 w-4 rounded border-slate-300 text-fuchsia-600 focus:ring-fuchsia-500 ${user?.google_id ? 'cursor-not-allowed opacity-50' : ''}`}
+                                    disabled={!!user?.google_id}
+                                />
+                                <label htmlFor="showPasswords" className={`text-sm font-medium text-slate-700 ${user?.google_id ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                                    Hiển thị mật khẩu
+                                </label>
+                            </div>
+                            
                             <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
                                 <ul className="list-disc space-y-1 pl-5 text-xs text-slate-500 md:text-sm">
                                     <li>Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</li>
                                     <li>Không nên dùng mật khẩu đã sử dụng trước đó.</li>
                                 </ul>
-                                <button type="submit" className="rounded-2xl bg-gradient-to-r from-fuchsia-600 to-purple-600 px-7 py-3 text-sm font-semibold text-white shadow hover:opacity-95">Cập nhật</button>
+                                <button 
+                                    type="submit" 
+                                    className={`rounded-2xl bg-gradient-to-r from-fuchsia-600 to-purple-600 px-7 py-3 text-sm font-semibold text-white shadow hover:opacity-95 ${user?.google_id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={!!user?.google_id}
+                                >
+                                    {user?.google_id ? 'Không khả dụng cho tài khoản Google' : 'Cập nhật'}
+                                </button>
                             </div>
                         </form>
                     </div>

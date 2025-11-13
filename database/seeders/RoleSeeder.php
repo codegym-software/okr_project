@@ -18,41 +18,31 @@ class RoleSeeder extends Seeder
                 'role_name' => 'admin',
                 'description' => 'Quản trị viên hệ thống',
                 'level' => 'company',
+                'allowed_levels' => json_encode(['company', 'unit', 'team', 'person']),
             ],
             [
-                'role_name' => 'master',
+                'role_name' => 'manager',
                 'description' => 'Quản lý cấp đơn vị',
                 'level' => 'unit',
+                'allowed_levels' => json_encode(['unit', 'team', 'person']),
             ],
             [
-                'role_name' => 'master',
-                'description' => 'Quản lý cấp nhóm',
+                'role_name' => 'manager',
+                'description' => 'Quản lý cấp đội nhóm',
                 'level' => 'team',
-            ],
-            [
-                'role_name' => 'facilitator',
-                'description' => 'Điều phối viên cấp đơn vị',
-                'level' => 'unit',
-            ],
-            [
-                'role_name' => 'facilitator',
-                'description' => 'Điều phối viên cấp nhóm',
-                'level' => 'team',
+                'allowed_levels' => json_encode(['team', 'person']),
             ],
             [
                 'role_name' => 'member',
                 'description' => 'Thành viên cấp đơn vị',
                 'level' => 'unit',
+                'allowed_levels' => json_encode(['person']),
             ],
             [
                 'role_name' => 'member',
                 'description' => 'Thành viên cấp nhóm',
                 'level' => 'team',
-            ],
-            [
-                'role_name' => 'member',
-                'description' => 'Thành viên cá nhân',
-                'level' => 'person',
+                'allowed_levels' => json_encode(['person']),
             ],
         ];
 

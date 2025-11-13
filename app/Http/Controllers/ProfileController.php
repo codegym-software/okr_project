@@ -18,21 +18,34 @@ class ProfileController extends Controller
             ], 401);
         }
         
-        // Load thêm thông tin role và department
-        $user->load(['role', 'department']);
+        // Load relationships nếu chưa có
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+        if (!$user->relationLoaded('department')) {
+            $user->load('department');
+        }
         
         return response()->json([
             'success' => true,
             'user' => [
-                'id' => $user->id,
                 'user_id' => $user->user_id,
+                'id' => $user->user_id, // Alias for compatibility
                 'name' => $user->full_name,
+                'full_name' => $user->full_name,
                 'email' => $user->email,
                 'avatar' => $user->avatar_url,
                 'status' => $user->status,
-                'role' => $user->role,
-                'department' => $user->department,
                 'department_id' => $user->department_id,
+                'role_id' => $user->role_id,
+                'role' => $user->role ? [
+                    'role_id' => $user->role->role_id,
+                    'role_name' => $user->role->role_name
+                ] : null,
+                'department' => $user->department ? [
+                    'department_id' => $user->department->department_id,
+                    'd_name' => $user->department->d_name
+                ] : null,
             ]
         ]);
     }
@@ -67,11 +80,13 @@ class ProfileController extends Controller
             'success' => true,
             'message' => 'Cập nhật hồ sơ thành công!',
             'user' => [
-                'id' => $user->id,
+                'id' => $user->user_id,
                 'name' => $user->full_name,
                 'email' => $user->email,
                 'avatar' => $user->avatar_url,
                 'status' => $user->status,
+                'role' => $user->role ? $user->role->role_name : null,
+                'department' => $user->department ? $user->department->d_name : null,
             ],
             'redirect' => '/dashboard'
         ]);

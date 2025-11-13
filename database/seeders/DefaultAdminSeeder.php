@@ -15,23 +15,16 @@ class DefaultAdminSeeder extends Seeder
      */
     public function run(): void
     {
-        // Tạo role Admin nếu chưa có
-        $adminRole = Role::firstOrCreate(
-            ['role_name' => 'Admin'],
-            ['description' => 'Quản trị viên hệ thống']
-        );
+        // Lấy role admin (role_id = 1)
+        $adminRole = Role::find(1);
+        if (!$adminRole) {
+            throw new \Exception('Role admin (role_id = 1) không tồn tại. Hãy chạy RoleSeeder trước.');
+        }
 
-        // Tạo role Member nếu chưa có
-        $memberRole = Role::firstOrCreate(
-            ['role_name' => 'Member'],
-            ['description' => 'Thành viên']
-        );
-
-        // Tạo role Manager nếu chưa có
-        $managerRole = Role::firstOrCreate(
-            ['role_name' => 'Manager'],
-            ['description' => 'Quản lý phòng ban/dự án']
-        );
+        // Lấy role member (role_id = 4 hoặc 5)
+        $memberRole = Role::where('role_name', 'member')
+                         ->where('level', 'unit')
+                         ->first();
 
         // Chỉ tạo admin với email okr.admin@company.com
         $adminUser = User::firstOrCreate(
@@ -39,9 +32,10 @@ class DefaultAdminSeeder extends Seeder
             [
                 'full_name' => 'System Administrator',
                 'email' => 'okr.admin@company.com',
-                'job_title' => 'System Admin',
                 'role_id' => $adminRole->role_id,
                 'sub' => 'admin-' . time(), // Unique sub for admin
+                'status' => 'active',
+                'is_invited' => false,
             ]
         );
 
@@ -51,9 +45,10 @@ class DefaultAdminSeeder extends Seeder
             [
                 'full_name' => 'Nguyễn Đình Tuấn Anh',
                 'email' => 'anh249205@gmail.com',
-                'job_title' => 'Trader',
                 'role_id' => $memberRole->role_id,
                 'sub' => 'member-' . time(), // Unique sub for member
+                'status' => 'active',
+                'is_invited' => false,
             ]
         );
 
@@ -71,19 +66,19 @@ class DefaultAdminSeeder extends Seeder
 
         $this->command->info("✅ Tài khoản admin:");
         $this->command->info("   Email: okr.admin@company.com");
-        $this->command->info("   Role: Admin");
+        $this->command->info("   Role: admin (company level)");
         $this->command->info("   User ID: {$adminUser->user_id}");
         $this->command->info("   ⚠️  Cần tạo user trong AWS Cognito với email này");
         $this->command->info("   📝 Password phải có: uppercase, lowercase, số, ký tự đặc biệt");
 
         $this->command->info("✅ Member:");
         $this->command->info("   Email: anh249205@gmail.com");
-        $this->command->info("   Role: Member");
+        $this->command->info("   Role: member (person level)");
         $this->command->info("   User ID: {$memberUser->user_id}");
 
         $this->command->info("✅ Quyền hạn:");
         $this->command->info("   - Admin: Truy cập Users, có thể chỉ định vai trò cho mọi người");
-        $this->command->info("   - Manager: Tạo OKR cấp công ty/phòng ban, không truy cập Users");
+        $this->command->info("   - Master: Tạo OKR cấp công ty/phòng ban, không truy cập Users");
         $this->command->info("   - Member: Chỉ tạo OKR cá nhân");
     }
 }

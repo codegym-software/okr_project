@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('ai_recommendations', function (Blueprint $table) {
             $table->id('rec_id');
-            $table->string('suggestion')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('suggestion')->nullable();
             $table->decimal('score', 5, 2)->default(0);
             $table->foreignId('user_id')->constrained('users','user_id')->cascadeOnDelete();
             $table->foreignId('objective_id')->constrained('objectives','objective_id')->cascadeOnDelete();

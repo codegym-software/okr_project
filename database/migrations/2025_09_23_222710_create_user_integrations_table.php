@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('user_integrations', function (Blueprint $table) {
             $table->id('user_integration_id');
-            $table->string('config')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('config')->nullable();
             $table->foreignId('user_id')->constrained('users','user_id')->cascadeOnDelete();
             $table->foreignId('integration_id')->constrained('integrations','integration_id')->cascadeOnDelete();
             $table->timestamps();

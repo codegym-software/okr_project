@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Carbon\Carbon;
 
 class Cycle extends Model
 {
@@ -10,6 +11,11 @@ class Cycle extends Model
 
     // Nếu khóa chính không phải là `id`
     protected $primaryKey = 'cycle_id'; // Thay 'cycle_id' bằng tên cột khóa chính thực tế
+
+    protected $casts = [
+        'start_date' => 'datetime',
+        'end_date' => 'datetime',
+    ];
 
     public function objectives()
     {

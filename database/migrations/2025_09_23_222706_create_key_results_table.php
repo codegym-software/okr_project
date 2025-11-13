@@ -10,11 +10,11 @@ return new class extends Migration
     {
         Schema::create('key_results', function (Blueprint $table) {
             $table->id('kr_id');
-            $table->string('kr_title')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('kr_title');
             $table->double('target_value')->default(0);
             $table->double('current_value')->default(0);
-            $table->string('unit')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
-            $table->string('status')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('unit')->nullable();
+            $table->string('status')->nullable();
             $table->integer('weight')->default(0);
             $table->decimal('progress_percent', 5, 2)->default(0);
             $table->foreignId('objective_id')->constrained('objectives','objective_id')->cascadeOnDelete();

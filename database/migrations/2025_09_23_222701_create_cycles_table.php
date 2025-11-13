@@ -10,11 +10,11 @@ return new class extends Migration
     {
         Schema::create('cycles', function (Blueprint $table) {
             $table->id('cycle_id');
-            $table->string('cycle_name')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('cycle_name')->nullable();
             $table->dateTime('start_date')->nullable();
             $table->dateTime('end_date')->nullable();
-            $table->string('status')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
-            $table->text('description')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('status')->nullable();
+            $table->text('description')->nullable();
             $table->timestamps();
         });
     }

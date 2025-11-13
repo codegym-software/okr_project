@@ -218,7 +218,6 @@
 
         <div class="footer">
             <p>Email này được gửi tự động từ hệ thống {{ $appName }}</p>
-            <p>Nếu bạn không mong muốn nhận email này, vui lòng liên hệ Admin</p>
         </div>
     </div>
 </body>

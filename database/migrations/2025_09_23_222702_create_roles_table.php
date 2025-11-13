@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('roles', function (Blueprint $table) {
             $table->id('role_id');
-            $table->string('role_name')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
-            $table->string('description')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('role_name');
+            $table->string('description')->nullable();
             $table->timestamps();
         });
     }

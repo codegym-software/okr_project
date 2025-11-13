@@ -3,19 +3,20 @@
 namespace App\Http\Controllers;
 use App\Models\Cycle;
 use App\Models\Objective;
+use App\Models\KeyResult;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class CycleController extends Controller
 {
-    //
     public function index(Request $request) {
         $cycles = Cycle::orderByDesc('start_date')->get();
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $cycles]);
         }
         return view('app');
-        // return response()->json(['data' => Cycle::all()]);
     }
 
     public function create() {
@@ -89,5 +90,50 @@ class CycleController extends Controller
             return response()->json(['success' => true, 'message' => 'Xóa chu kỳ thành công!']);
         }
         return redirect()->route('cycles.index')->with('success', 'Xóa chu kỳ thành công!');
+    }
+
+    /**
+     * Đóng chu kỳ: yêu cầu admin, chỉ khi đã hết hạn (trừ khi force=1),
+     * khóa cập nhật bằng cách set closed_at và (tùy chọn) chuyển status inactive.
+     */
+    public function close(Request $request, Cycle $cycle)
+    {
+        // Nếu đã inactive coi như đã đóng
+        if ($cycle->status !== 'active') {
+            return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng trước đó.'], 422);
+        }
+
+        $now = Carbon::now();
+        $force = (bool) $request->boolean('force');
+        if (!$force && $cycle->end_date && $now->lt(Carbon::parse($cycle->end_date))) {
+            return response()->json(['success' => false, 'message' => 'Chưa đến ngày kết thúc chu kỳ.'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Tính và lưu tiến độ cuối cùng cho các Objective
+            $objectives = Objective::with('keyResults')
+                ->where('cycle_id', $cycle->cycle_id)
+                ->get();
+
+            foreach ($objectives as $obj) {
+                $avg = $obj->keyResults->count() ? $obj->keyResults->avg(function (KeyResult $kr) {
+                    $p = $kr->progress_percent; // accessor
+                    return is_numeric($p) ? (float) $p : 0.0;
+                }) : 0;
+                $obj->progress_percent = round($avg ?? 0, 2);
+                $obj->save();
+            }
+
+            // Đánh dấu chu kỳ đã đóng bằng status inactive; end_date là ngày đóng
+            $cycle->status = 'inactive';
+            $cycle->save();
+
+            DB::commit();
+            return response()->json(['success' => true, 'message' => 'Đã đóng chu kỳ.', 'data' => $cycle->fresh()]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Đóng chu kỳ thất bại: '.$e->getMessage()], 500);
+        }
     }
 }

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('packages', function (Blueprint $table) {
             $table->id('packages_id');
-            $table->string('packages_name')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('packages_name');
             $table->decimal('price', 10, 2)->default(0);
             $table->boolean('is_extension')->default(false);
             $table->timestamps();

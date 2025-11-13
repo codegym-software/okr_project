@@ -1,6 +1,6 @@
-FROM php:8.2-fpm
+FROM php:8.2-cli
 
-# Cài đặt các tiện ích cần thiết
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -8,26 +8,35 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     zip \
-    unzip
+    unzip \
+    libzip-dev \
+    libsqlite3-dev \
+    && docker-php-ext-install pdo_mysql pdo_sqlite mbstring exif pcntl bcmath gd zip
 
-# Cài đặt PHP extensions
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
-
-# Cài đặt Composer
+# Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Thiết lập thư mục làm việc
-WORKDIR /var/www/html
+# Set working directory
+WORKDIR /var/www
 
-# Copy mã nguồn Laravel
-COPY . /var/www/html
+# Copy composer files first
+COPY composer.json composer.lock ./
 
-# Cài đặt dependencies của Laravel
-RUN composer install --optimize-autoloader --no-dev
+# Install dependencies
+RUN composer install --no-dev --optimize-autoloader
 
-# Phân quyền
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage
+# Copy application files
+COPY . .
 
-# Chạy PHP-FPM
-CMD ["php-fpm"]
+# Set permissions
+RUN chmod -R 755 /var/www/storage \
+    && chmod -R 755 /var/www/bootstrap/cache
+
+# Wait for MySQL to be ready
+RUN echo "#!/bin/bash\nwhile ! mysqladmin ping -h mysql -u root -ppassword --silent; do sleep 1; done\necho 'MySQL is ready!'" > /wait-for-mysql.sh && chmod +x /wait-for-mysql.sh
+
+# Expose port
+EXPOSE 8000
+
+# Start Laravel development server
+CMD ["/wait-for-mysql.sh", "&&", "php", "artisan", "migrate:fresh", "--seed", "&&", "php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]

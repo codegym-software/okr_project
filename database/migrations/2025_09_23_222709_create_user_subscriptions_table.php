@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('packages_id')->constrained('packages','packages_id')->cascadeOnDelete();
             $table->dateTime('start_date')->nullable();
             $table->dateTime('end_date')->nullable();
-            $table->string('status')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('status')->nullable();
             $table->timestamps();
         });
     }

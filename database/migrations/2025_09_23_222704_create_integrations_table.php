@@ -10,9 +10,9 @@ return new class extends Migration
     {
         Schema::create('integrations', function (Blueprint $table) {
             $table->id('integration_id');
-            $table->string('integration_name')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
-            $table->string('description')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
-            $table->string('status')->nullable()->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->string('integration_name');
+            $table->string('description')->nullable();
+            $table->string('status')->nullable();
             $table->timestamps();
         });
     }

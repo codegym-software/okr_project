@@ -14,9 +14,44 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
+use Carbon\Carbon;
 
 class MyObjectiveController extends Controller
 {
+    public function archive(Request $request, $id): JsonResponse
+    {
+        $user = Auth::user();
+        $objective = Objective::findOrFail($id);
+
+        if ($objective->user_id !== $user->user_id) {
+            return response()->json(['success' => false, 'message' => 'Bạn chỉ được lưu trữ OKR của mình.'], 403);
+        }
+
+        if ($objective->archived_at) {
+            return response()->json(['success' => false, 'message' => 'OKR đã được lưu trữ.'], 422);
+        }
+
+        $objective->archived_at = now();
+        $objective->save();
+
+        return response()->json(['success' => true, 'message' => 'OKR đã được lưu trữ.']);
+    }
+
+    public function unarchive(Request $request, $id): JsonResponse
+    {
+        $user = Auth::user();
+        $objective = Objective::findOrFail($id);
+
+        if ($objective->user_id !== $user->user_id && !$user->isAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Không có quyền.'], 403);
+        }
+
+        $objective->archived_at = null;
+        $objective->save();
+
+        return response()->json(['success' => true, 'message' => 'Đã bỏ lưu trữ OKR.']);
+    }
+
     /**
      * Hiển thị danh sách Objective của người dùng (chủ sở hữu hoặc được gán).
      */
@@ -27,41 +62,85 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        $objectives = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            ->where(function ($query) use ($user, $request) {
-                // Nếu có filter My OKR, chỉ hiển thị OKR của user hiện tại
-                if ($request->has('my_okr') && $request->my_okr == '1') {
-                    $query->where('user_id', $user->user_id);
-                } else {
-                    // Logic cũ: hiển thị OKR của user và được gán
-                    $query->where('user_id', $user->user_id)
-                          ->orWhereHas('assignments', function ($query) use ($user) {
-                              $query->where('user_id', $user->user_id);
-                          });
-                    
-                    // Nếu user là admin, thấy tất cả objectives
-                    if ($user->role->role_name === 'admin') {
-                        $query->orWhereRaw('1=1'); // Điều kiện luôn đúng để thấy tất cả
-                    }
-                    // Nếu user là manager, thêm điều kiện để thấy tất cả objectives trong department của họ
-                    elseif ($user->role->role_name === 'manager' && $user->department_id) {
-                        $query->orWhere('department_id', $user->department_id);
-                    }
-                }
-            });
+        $currentCycleId = null;
+        $currentCycleName = null;
 
-        // Thêm filter theo cycle_id nếu có
-        if ($request->has('cycle_id') && $request->cycle_id) {
-            $objectives->where('cycle_id', $request->cycle_id);
+        if (!$request->filled('cycle_id')) {
+            $now = Carbon::now('Asia/Ho_Chi_Minh');
+            $year = $now->year;
+            $quarter = ceil($now->month / 3);
+            $cycleNameDisplay = "Quý {$quarter} năm {$year}";
+
+            $currentCycle = Cycle::where('start_date', '<=', $now)
+                ->where('end_date', '>=', $now)
+                ->first();
+
+            if (!$currentCycle) {
+                $possibleNames = [$cycleNameDisplay, "Q{$quarter} {$year}", "Q{$quarter} - {$year}"];
+                $currentCycle = Cycle::whereIn('cycle_name', $possibleNames)->first();
+            }
+
+            if ($currentCycle) {
+                $currentCycleId = $currentCycle->cycle_id;
+                $currentCycleName = $currentCycle->cycle_name;
+                $request->merge(['cycle_id' => $currentCycleId]);
+            } else {
+                $currentCycleName = $cycleNameDisplay;
+            }
+        } else {
+            $currentCycle = Cycle::find($request->cycle_id);
+            if ($currentCycle) $currentCycleName = $currentCycle->cycle_name;
         }
 
-        $objectives = $objectives->paginate(10);
+        $query = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+            // ->with('assignedUser')
+            ->where('user_id', $user->user_id);
+
+        if ($request->has('archived') && $request->archived == '1') {
+            $query->whereNotNull('archived_at')
+                ->orWhereHas('keyResults', function ($q) {
+                    $q->whereNotNull('archived_at');
+                });
+        } else {
+            $query->whereNull('archived_at');
+        }
+
+
+        if ($request->filled('cycle_id')) {
+            $query->where('cycle_id', $request->cycle_id);
+        }
+
+        if ($request->boolean('include_archived_kr')) {
+            $query->with(['keyResults' => function ($q) {
+    $q->with('assignedUser');}]);
+        } else {
+            $query->with(['keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at')]);
+        }
+
+        $objectives = $query->paginate(10);
 
         if ($request->expectsJson()) {
-            return response()->json(['success' => true, 'data' => $objectives]);
+            return response()->json([
+                'success' => true,
+                'data' => $objectives,
+                'current_cycle_id' => $currentCycleId,
+                'current_cycle_name' => $currentCycleName,
+            ]);
         }
 
-        return view('app');
+        $cycles = Cycle::all();
+        return view('app', compact('objectives', 'cycles', 'currentCycleId'));
+    }
+
+    public function archivedKeyResults(Request $request)
+    {
+        $user = Auth::user();
+        $archivedKRs = KeyResult::with('objective')
+            ->whereHas('objective', fn($q) => $q->where('user_id', $user->user_id))
+            ->whereNotNull('archived_at')
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $archivedKRs]);
     }
 
     /**
@@ -75,7 +154,7 @@ class MyObjectiveController extends Controller
     }
 
     /**
-     * Lưu Objective mới (hỗ trợ tạo kèm Key Results).
+     * Lưu Objective mới 
      */
     public function store(Request $request): JsonResponse|RedirectResponse
     {
@@ -97,33 +176,81 @@ class MyObjectiveController extends Controller
             'key_results.*.kr_title' => 'required|string|max:255',
             'key_results.*.target_value' => 'required|numeric|min:0',
             'key_results.*.current_value' => 'nullable|numeric|min:0',
-            'key_results.*.unit' => 'required|in:number,percent,completion',
+            'key_results.*.unit' => 'required|in:number,percent,completion,bai,num,bài',
             'key_results.*.status' => 'required|in:draft,active,completed',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
 
-        $allowedLevels = $this->getAllowedLevels($user->role->role_name);
+        // Đảm bảo user có role, nếu không có thì gán role mặc định
+        if (!$user->role) {
+            $defaultRole = \App\Models\Role::where('role_name', 'member')->first();
+            if ($defaultRole) {
+                $user->role_id = $defaultRole->role_id;
+                $user->save();
+            }
+        }
+
+        $roleName = $user->role ? $user->role->role_name : 'member';
+        $allowedLevels = $this->getAllowedLevels($roleName);
         if (!in_array($validated['level'], $allowedLevels)) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền tạo Objective ở cấp độ này.'], 403)
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền tạo Objective ở cấp độ này.']);
         }
 
-        // Chỉ yêu cầu department_id cho cấp độ unit và team, không yêu cầu cho person
-        if (in_array($validated['level'], ['unit', 'team']) && empty($validated['department_id'])) {
+        // Chỉ yêu cầu department_id cho cấp độ unit, không yêu cầu cho person và company
+        if ($validated['level'] === 'unit' && empty($validated['department_id'])) {
             return $request->expectsJson()
-                ? response()->json(['success' => false, 'message' => 'Phải chọn phòng ban cho cấp độ unit và team.'], 422)
-                : redirect()->back()->withErrors(['error' => 'Phải chọn phòng ban cho cấp độ unit và team.']);
+                ? response()->json(['success' => false, 'message' => 'Phải chọn phòng ban cho cấp độ phòng ban (unit).'], 422)
+                : redirect()->back()->withErrors(['error' => 'Phải chọn phòng ban cho cấp độ phòng ban (unit).']);
         }
 
-        // Kiểm tra quyền truy cập department
-        if ($validated['level'] !== 'company' && !empty($validated['department_id'])) {
-            $department = Department::find($validated['department_id']);
-            if (!$department || !$this->userCanAccessDepartment($user, $department)) {
-                return $request->expectsJson()
-                    ? response()->json(['success' => false, 'message' => 'Bạn không có quyền truy cập phòng ban này.'], 403)
-                    : redirect()->back()->withErrors(['error' => 'Bạn không có quyền truy cập phòng ban này.']);
+        $isAdmin = $user->role && strtolower($user->role->role_name) === 'admin';
+
+    // Chặn tạo OKR nếu chu kỳ đã đóng (status != active)
+    $cycle = Cycle::find($validated['cycle_id']);
+    if ($cycle && strtolower((string)$cycle->status) !== 'active') {
+            return $request->expectsJson()
+        ? response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể tạo Objective mới.'], 403)
+        : redirect()->back()->withErrors(['error' => 'Chu kỳ đã đóng. Không thể tạo Objective mới.']);
+        }
+        
+        // Cho phép tất cả user tạo Objective cá nhân (person)
+        if ($validated['level'] === 'person') {
+            // Tất cả user đều có thể tạo Objective cá nhân
+            // Không cần kiểm tra thêm
+        } else {
+            // Kiểm tra quyền cho các level khác
+            // if ($isAdmin && $validated['level'] !== 'company') {
+            //     return $request->expectsJson()
+            //         ? response()->json(['success' => false, 'message' => 'Admin chỉ được tạo OKR cấp công ty.'], 403)
+            //         : redirect()->back()->withErrors(['error' => 'Admin chỉ được tạo OKR cấp công ty.']);
+            // }
+            
+            // Manager và Member: kiểm tra quyền
+            if (!$isAdmin) {
+                if ($user->isManager() && !in_array($validated['level'], ['unit', 'person'])) {
+                    return $request->expectsJson()
+                        ? response()->json(['success' => false, 'message' => 'Manager chỉ được tạo OKR cấp phòng ban hoặc cá nhân.'], 403)
+                        : redirect()->back()->withErrors(['error' => 'Manager chỉ được tạo OKR cấp phòng ban hoặc cá nhân.']);
+                }
+
+                // Member chỉ tạo person (cá nhân)
+                if ($user->isMember() && $validated['level'] !== 'person') {
+                    return $request->expectsJson()
+                        ? response()->json(['success' => false, 'message' => 'Member chỉ được tạo OKR cấp cá nhân.'], 403)
+                        : redirect()->back()->withErrors(['error' => 'Member chỉ được tạo OKR cấp cá nhân.']);
+                }
+
+                // Kiểm tra quyền truy cập department cho level unit
+                if ($validated['level'] === 'unit' && !empty($validated['department_id'])) {
+                    if (!$user->department_id || (int)$validated['department_id'] !== (int)$user->department_id) {
+                        return $request->expectsJson()
+                            ? response()->json(['success' => false, 'message' => 'Bạn chỉ được tạo Objective cho phòng ban của mình.'], 403)
+                            : redirect()->back()->withErrors(['error' => 'Bạn chỉ được tạo Objective cho phòng ban của mình.']);
+                    }
+                }
             }
         }
 
@@ -153,7 +280,9 @@ class MyObjectiveController extends Controller
                             'status' => $krData['status'],
                             'progress_percent' => $progress,
                             'objective_id' => $objective->objective_id,
-                            'cycle_id' => $objective->cycle_id,
+                            'cycle_id' => $objective->cycle_id ?? null, 
+                            'department_id' => $objective->department_id ?? null,
+                            'user_id' => $user->user_id, 
                         ]);
                     }
                 }
@@ -198,8 +327,10 @@ class MyObjectiveController extends Controller
 
         $objective = Objective::findOrFail($id);
 
-        // Chỉ chủ sở hữu được cập nhật
-        if ($objective->user_id !== $user->user_id) {
+        $isAdmin = $user->role && strtolower($user->role->role_name) === 'admin';
+        
+        // Kiểm tra ownership: chỉ owner hoặc admin mới được sửa (nhưng admin có giới hạn)
+        if (!$isAdmin && $objective->user_id !== $user->user_id) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => 'Bạn không có quyền cập nhật Objective này.'], 403)
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền cập nhật Objective này.']);
@@ -216,6 +347,14 @@ class MyObjectiveController extends Controller
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
 
+    // Chặn sửa nếu chu kỳ đã đóng (status != active)
+    $cycle = Cycle::find($validated['cycle_id']);
+    if ($cycle && strtolower((string)$cycle->status) !== 'active') {
+            return $request->expectsJson()
+        ? response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.'], 403)
+        : redirect()->back()->withErrors(['error' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.']);
+        }
+
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
         if (!in_array($validated['level'], $allowedLevels)) {
             return $request->expectsJson()
@@ -223,13 +362,37 @@ class MyObjectiveController extends Controller
                 : redirect()->back()->withErrors(['error' => 'Bạn không có quyền cập nhật Objective sang cấp độ này.']);
         }
 
-        // Kiểm tra quyền truy cập department
-        if ($validated['level'] !== 'company' && !empty($validated['department_id'])) {
-            $department = Department::find($validated['department_id']);
-            if (!$department || !$this->userCanAccessDepartment($user, $department)) {
+        // Admin CHỈ được cập nhật OKR cấp công ty (company)
+        // if ($isAdmin && $validated['level'] !== 'company') {
+        //     return $request->expectsJson()
+        //         ? response()->json(['success' => false, 'message' => 'Admin chỉ được cập nhật OKR cấp công ty.'], 403)
+        //         : redirect()->back()->withErrors(['error' => 'Admin chỉ được cập nhật OKR cấp công ty.']);
+        // }
+        
+        // Manager và Member: kiểm tra quyền
+        if (!$isAdmin) {
+            // Manager chỉ sửa unit (phòng ban) hoặc person (cá nhân)
+            if ($user->isManager() && !in_array($validated['level'], ['unit', 'person'])) {
                 return $request->expectsJson()
-                    ? response()->json(['success' => false, 'message' => 'Bạn không có quyền truy cập phòng ban này.'], 403)
-                    : redirect()->back()->withErrors(['error' => 'Bạn không có quyền truy cập phòng ban này.']);
+                    ? response()->json(['success' => false, 'message' => 'Manager chỉ được sửa OKR cấp phòng ban hoặc cá nhân.'], 403)
+                    : redirect()->back()->withErrors(['error' => 'Manager chỉ được sửa OKR cấp phòng ban hoặc cá nhân.']);
+            }
+
+            // Member chỉ sửa person (cá nhân)
+            if ($user->isMember() && $validated['level'] !== 'person') {
+                return $request->expectsJson()
+                    ? response()->json(['success' => false, 'message' => 'Member chỉ được sửa OKR cấp cá nhân.'], 403)
+                    : redirect()->back()->withErrors(['error' => 'Member chỉ được sửa OKR cấp cá nhân.']);
+            }
+
+            // Kiểm tra quyền truy cập department cho level unit
+            if ($validated['level'] === 'unit' && !empty($validated['department_id'])) {
+                // Manager/Member chỉ được sửa cho phòng ban của mình
+                if (!$user->department_id || (int)$validated['department_id'] !== (int)$user->department_id) {
+                    return $request->expectsJson()
+                        ? response()->json(['success' => false, 'message' => 'Bạn chỉ được sửa Objective cho phòng ban của mình.'], 403)
+                        : redirect()->back()->withErrors(['error' => 'Bạn chỉ được sửa Objective cho phòng ban của mình.']);
+                }
             }
         }
 
@@ -243,6 +406,10 @@ class MyObjectiveController extends Controller
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['department_id'] ?? null,
                 ]);
+
+                // Cập nhật department_id cho tất cả Key Results của Objective
+                KeyResult::where('objective_id', $objective->objective_id)
+                    ->update(['department_id' => $validated['department_id'] ?? null]);
 
                 // Cập nhật assignments
                 if (isset($validated['assignments'])) {
@@ -285,10 +452,33 @@ class MyObjectiveController extends Controller
 
         $objective = Objective::findOrFail($id);
 
-        // Chỉ chủ sở hữu được xóa
-        if ($objective->user_id !== $user->user_id) {
-            return response()->json(['success' => false, 'message' => 'Bạn không có quyền xóa Objective này.'], 403);
+        $isAdmin = $user->role && strtolower($user->role->role_name) === 'admin';
+        
+        // Kiểm tra ownership: chỉ owner được xóa (trừ admin)
+        if (!$isAdmin && $objective->user_id !== $user->user_id) {
+            return response()->json(['success' => false, 'message' => 'Bạn chỉ được xóa Objective do bạn tạo.'], 403);
         }
+        
+        // Admin CHỈ được xóa OKR cấp công ty (company)
+        // if ($isAdmin && $objective->level !== 'company') {
+        //     return response()->json(['success' => false, 'message' => 'Admin chỉ được xóa OKR cấp công ty.'], 403);
+        // }
+        
+        // Manager chỉ được xóa OKR cấp unit hoặc person
+        if ($user->isManager() && !in_array($objective->level, ['unit', 'person'])) {
+            return response()->json(['success' => false, 'message' => 'Manager chỉ được xóa OKR cấp phòng ban hoặc cá nhân.'], 403);
+        }
+        
+        // Member chỉ được xóa OKR cấp person
+        if ($user->isMember() && $objective->level !== 'person') {
+            return response()->json(['success' => false, 'message' => 'Member chỉ được xóa OKR cấp cá nhân.'], 403);
+        }
+
+        // Chặn xóa nếu chu kỳ đã đóng (status != active)
+        // $objective->load('cycle');
+        // if ($objective->cycle && strtolower((string)$objective->cycle->status) !== 'active') {
+        //     return response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể xóa Objective.'], 403);
+        // }
 
         try {
             DB::transaction(function () use ($objective) {
@@ -314,11 +504,11 @@ class MyObjectiveController extends Controller
         }
 
         $objective = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
-            ->findOrFail($id);
+            ->where('user_id', $user->user_id) 
+            ->find($id);
 
-        if ($objective->user_id !== $user->user_id && 
-            !OkrAssignment::where('objective_id', $id)->where('user_id', $user->user_id)->exists()) {
-            return response()->json(['success' => false, 'message' => 'Bạn không có quyền xem Objective này.'], 403);
+        if (!$objective) {
+            return response()->json(['success' => false, 'message' => 'Không tìm thấy hoặc bạn không có quyền xem.'], 404);
         }
 
         return response()->json(['success' => true, 'data' => $objective]);
@@ -363,13 +553,16 @@ class MyObjectiveController extends Controller
 
     /**
      * Lấy danh sách cấp độ Objective được phép dựa trên vai trò.
+     * - Admin: chỉ tạo OKR cấp công ty (company)
+     * - Manager: tạo OKR cấp phòng ban (unit) và cá nhân (person)
+     * - Member: chỉ tạo OKR cấp cá nhân (person)
      */
     private function getAllowedLevels(string $roleName): array
     {
         return match ($roleName) {
-            'admin' => ['company', 'unit', 'team', 'person'],
-            'manager' => ['unit', 'team', 'person'],
-            'member' => ['person'],
+            'admin' => ['company', 'person'],  
+            'manager' => ['unit', 'person'],  
+            'member' => ['person'],  
             default => ['person'],
         };
     }
@@ -401,9 +594,8 @@ class MyObjectiveController extends Controller
             return true;
         }
         if ($objective->level !== 'company' && $objective->department_id) {
-            // Chỉ gán user trong cùng department cho Objective không phải company
             return $assignedUser->department_id === $objective->department_id;
         }
-        return true; // Cho phép gán bất kỳ user nào cho Objective cấp company
+        return true;
     }
 }

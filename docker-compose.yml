@@ -1,47 +1,38 @@
-version: "3.8"
+version: '3.8'
 
 services:
-    app:
-        build:
-            context: .
-            dockerfile: Dockerfile
-        image: laravel-app
-        container_name: laravel_app
-        ports:
-            - "8000:8000"
-        volumes:
-            - .:/var/www/html
-        depends_on:
-            - db
-        networks:
-            - app-network
-        environment:
-            - APP_ENV=local
-            - DB_HOST=${DB_HOST}
-            - DB_PORT=${DB_PORT}
-            - DB_DATABASE=${DB_DATABASE}
-            - DB_USERNAME=${DB_USERNAME}
-            - DB_PASSWORD=${DB_PASSWORD}
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www
+      - ./storage:/var/www/storage
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=okr_project
+      - DB_USERNAME=okr_user
+      - DB_PASSWORD=okr_password
+      - CACHE_STORE=file
+      - SESSION_DRIVER=file
+    depends_on:
+      - mysql
 
-    db:
-        image: mysql:8.0
-        container_name: mysql_db
-        ports:
-            - "3307:3306"
-        environment:
-            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-            MYSQL_DATABASE: ${DB_DATABASE}
-            MYSQL_USER: ${DB_USERNAME}
-            MYSQL_PASSWORD: ${DB_PASSWORD}
-        volumes:
-            - db-data:/var/lib/mysql
-        networks:
-            - app-network
-        # command: --skip-grant-tables
-
-networks:
-    app-network:
-        driver: bridge
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: okr_project
+      MYSQL_USER: okr_user
+      MYSQL_PASSWORD: okr_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
 
 volumes:
-    db-data:
+  mysql_data:

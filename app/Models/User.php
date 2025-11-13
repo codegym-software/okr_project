@@ -70,12 +70,29 @@ class User extends Authenticatable
         return $this->role && $this->role->isAdmin();
     }
 
+
     /**
      * Kiểm tra xem user có phải Manager không
      */
     public function isManager()
     {
         return $this->role && $this->role->isManager();
+    }
+
+    /**
+     * Kiểm tra xem user có phải Unit Manager không
+     */
+    public function isDeptManager()
+    {
+        return $this->role && $this->role->isDeptManager();
+    }
+
+    /**
+     * Kiểm tra xem user có phải Team Manager không
+     */
+    public function isTeamManager()
+    {
+        return $this->role && $this->role->isTeamManager();
     }
 
     /**

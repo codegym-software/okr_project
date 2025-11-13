@@ -1,33 +1,21 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Badge, Modal, Toast } from "../components/ui";
 import DateInputComponent from "../components/DateInput";
 import { useAuth } from "../hooks/useAuth";
 import { AdminOnly } from "../components/AdminOnly";
 
-// Component riêng cho Key Result Item để tối ưu hóa
-const KeyResultItem = React.memo(({ kr, getStatusText }) => (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-        <div className="text-sm font-semibold text-slate-900">
-            {kr.kr_title}
-        </div>
-        <div className="text-xs text-slate-500">
-            {getStatusText(kr.status)}
-        </div>
-    </div>
-));
-
 function NewCycleModal({ open, onClose, onCreated }) {
     const [name, setName] = useState("");
     const [start, setStart] = useState("");
     const [end, setEnd] = useState("");
-    const [status, setStatus] = useState("");
+    const [status, setStatus] = useState("active");
     const [desc, setDesc] = useState("");
     const [toast, setToast] = useState({ type: "success", message: "" });
     const resetForm = () => {
         setName("");
         setStart("");
         setEnd("");
-        setStatus("");
+        setStatus("active");
         setDesc("");
         setToast({ type: "success", message: "" });
     };
@@ -137,9 +125,8 @@ function NewCycleModal({ open, onClose, onCreated }) {
                             onChange={(e) => setStatus(e.target.value)}
                             className="w-full rounded-2xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                            <option value="">-- chọn trạng thái --</option>
-                            <option value="active">Đang hoạt động</option>
-                            <option value="inactive">Không hoạt động</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
                         </select>
                     </div>
                     <div>
@@ -183,20 +170,19 @@ export default function CyclesPanel() {
     const [openObj, setOpenObj] = useState({});
     const [editOpen, setEditOpen] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
-    const [openCreateObjective, setOpenCreateObjective] = useState(false);
-    const [openCreateKRForObjId, setOpenCreateKRForObjId] = useState(null);
+    // Xác nhận hành động qua modal thay vì window.confirm
+    const [confirm, setConfirm] = useState({
+        open: false,
+        title: "",
+        message: "",
+        confirmText: "Xác nhận",
+        cancelText: "Hủy",
+        onConfirm: null,
+    });
+    const [confirmLoading, setConfirmLoading] = useState(false);
     
     // Sử dụng custom hook để lấy thông tin authentication
     const { isAdmin } = useAuth();
-
-    // Tối ưu hóa toggle function
-    const toggleObjective = useCallback((objectiveId) => {
-        setOpenObj((prev) => {
-            const newState = { ...prev };
-            newState[objectiveId] = !prev[objectiveId];
-            return newState;
-        });
-    }, []);
 
     const toInputDate = (v) => {
         if (!v) return "";
@@ -219,80 +205,13 @@ export default function CyclesPanel() {
         const yyyy = d.getFullYear();
         return `${dd}/${mm}/${yyyy}`;
     };
-
-    const getStatusText = useCallback((status) => {
-        switch (status?.toLowerCase()) {
-            case 'active':
-                return 'Đang hoạt động';
-            case 'inactive':
-                return 'Không hoạt động';
-            case 'draft':
-                return 'Bản nháp';
-            case 'completed':
-                return 'Hoàn thành';
-            default:
-                return status || '';
-        }
-    }, []);
-
-    const getLevelText = useCallback((level) => {
-        switch (level?.toLowerCase()) {
-            case 'company':
-                return 'Công ty';
-            case 'department':
-                return 'Phòng ban';
-            case 'unit':
-                return 'Đơn vị';
-            case 'team':
-                return 'Nhóm';
-            case 'person':
-                return 'Cá nhân';
-            default:
-                return level || '';
-        }
-    }, []);
-
-    // Tạo màu sắc cho Objective dựa trên level
-    const getObjectiveColor = useCallback((level) => {
-        switch (level?.toLowerCase()) {
-            case 'company':
-                return {
-                    bg: 'bg-purple-100',
-                    text: 'text-purple-700',
-                    border: 'border-purple-200'
-                };
-            case 'department':
-                return {
-                    bg: 'bg-blue-100',
-                    text: 'text-blue-700',
-                    border: 'border-blue-200'
-                };
-            case 'unit':
-                return {
-                    bg: 'bg-green-100',
-                    text: 'text-green-700',
-                    border: 'border-green-200'
-                };
-            case 'team':
-                return {
-                    bg: 'bg-yellow-100',
-                    text: 'text-yellow-700',
-                    border: 'border-yellow-200'
-                };
-            case 'person':
-                return {
-                    bg: 'bg-pink-100',
-                    text: 'text-pink-700',
-                    border: 'border-pink-200'
-                };
-            default:
-                return {
-                    bg: 'bg-gray-100',
-                    text: 'text-gray-700',
-                    border: 'border-gray-200'
-                };
-        }
-    }, []);
+    const isEnded = (v) => {
+        if (!v) return false;
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return false;
+        const now = new Date();
+        return d.getTime() <= now.getTime();
+    };
 
     const sortByStartDesc = (arr = []) =>
         [...arr].sort(
@@ -300,6 +219,74 @@ export default function CyclesPanel() {
                 new Date(b.start_date || b.startDate) -
                 new Date(a.start_date || a.startDate)
         );
+
+    const isActive = (c) => String(c?.status).toLowerCase() === "active";
+    const isClosed = (c) => !isActive(c);
+    const formatRange = (c) => `${formatDMY(c.start_date)} - ${formatDMY(c.end_date)}`;
+
+    // Helpers: mở/đóng modal xác nhận
+    const openConfirm = (cfg = {}) => {
+        setConfirm({
+            open: true,
+            title: cfg.title || "Xác nhận",
+            message: cfg.message || "",
+            confirmText: cfg.confirmText || "Xác nhận",
+            cancelText: cfg.cancelText || "Hủy",
+            onConfirm: cfg.onConfirm || null,
+        });
+    };
+    const closeConfirm = () => setConfirm((p) => ({ ...p, open: false }));
+
+    // API helpers
+    const postCloseCycle = async (id) => {
+        const token = document
+            .querySelector('meta[name="csrf-token"]')
+            .getAttribute('content');
+        const res = await fetch(`/cycles/${id}/close`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+        });
+        const json = await res.json().catch(() => ({ success: res.ok }));
+        if (!res.ok || json.success === false)
+            throw new Error(json.message || 'Đóng chu kỳ thất bại');
+        return json;
+    };
+    const deleteCycleById = async (id) => {
+        const token = document
+            .querySelector('meta[name="csrf-token"]')
+            .getAttribute('content');
+        const res = await fetch(`/cycles/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+        });
+        const json = await res.json().catch(() => ({ success: res.ok }));
+        if (!res.ok || json.success === false)
+            throw new Error(json.message || 'Xóa chu kỳ thất bại');
+        return json;
+    };
+
+    // Mở modal xác nhận cho nút "Đóng chu kỳ" ở danh sách
+    function closeCycle(cy) {
+        const id = cy?.cycle_id || cy?.id;
+        openConfirm({
+            title: 'Đóng chu kỳ',
+            message:
+                'Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?',
+            confirmText: 'Đóng chu kỳ',
+            onConfirm: async () => {
+                const json = await postCloseCycle(id);
+                const cyNew = json.data || {};
+                setCycles((prev) =>
+                    prev.map((c) =>
+                        String(c.cycle_id || c.id) === String(id)
+                            ? { ...c, ...cyNew }
+                            : c
+                    )
+                );
+                setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
+            },
+        });
+    }
 
     useEffect(() => {
         (async () => {
@@ -361,18 +348,93 @@ export default function CyclesPanel() {
     }
 
     return (
-        <div className="px-4 py-6">
+        <div className="px-4 py-6 m-auto max-w-6xl  ">
             <Toast
                 type={toast.type}
                 message={toast.message}
                 onClose={() => setToast({ type: "success", message: "" })}
             />
-            <div className="mx-auto mb-3 flex w-full max-w-4xl items-center justify-between">
+            {/* Global Confirm Modal */}
+            {confirm.open && (
+                <Modal
+                    open={true}
+                    onClose={confirmLoading ? () => {} : () => closeConfirm()}
+                    title={confirm.title || "Xác nhận"}
+                >
+                    <div className="space-y-4">
+                        {confirm.message && (
+                            <p className="text-sm text-slate-600">{confirm.message}</p>
+                        )}
+                        <div className="flex justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={confirmLoading}
+                                onClick={() => closeConfirm()}
+                                className="rounded-md border border-slate-300 px-4 py-2 text-xs"
+                            >
+                                {confirm.cancelText || "Hủy"}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={confirmLoading}
+                                onClick={async () => {
+                                    try {
+                                        setConfirmLoading(true);
+                                        if (typeof confirm.onConfirm === 'function') {
+                                            await confirm.onConfirm();
+                                        }
+                                    } finally {
+                                        setConfirmLoading(false);
+                                        closeConfirm();
+                                    }
+                                }}
+                                className="rounded-md bg-rose-600 px-5 py-2 text-xs font-semibold text-white hover:bg-rose-700"
+                            >
+                                {confirm.confirmText || "Xác nhận"}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
+            <div className="mx-auto mb-3 flex w-full items-center justify-between">
                 <h2 className="text-2xl font-extrabold text-slate-900">
                     {isDetail ? "Chi tiết chu kỳ" : "Danh sách chu kỳ"}
                 </h2>
                 {isDetail ? (
                     <div className="flex items-center gap-2">
+                        <AdminOnly permission="canManageCycles">
+                            <>
+                                {detail?.cycle?.status === 'active' && (
+                                    <button
+                                        onClick={() => setEditOpen(true)}
+                                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                                    >
+                                        Sửa
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => {
+                                        const id = detail?.cycle?.cycle_id || detail?.cycle_id;
+                                        openConfirm({
+                                            title: 'Xóa chu kỳ',
+                                            message: 'Xóa chu kỳ này? Hành động không thể hoàn tác.',
+                                            confirmText: 'Xóa',
+                                            onConfirm: async () => {
+                                                const json = await deleteCycleById(id);
+                                                setCycles((prev) =>
+                                                    prev.filter((c) => String(c.cycle_id || c.id) !== String(id))
+                                                );
+                                                setToast({ type: 'success', message: json.message || 'Đã xóa chu kỳ' });
+                                                goBack();
+                                            },
+                                        });
+                                    }}
+                                    className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                                >
+                                    Xóa
+                                </button>
+                            </>
+                        </AdminOnly>
                         <button
                             onClick={goBack}
                             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -625,12 +687,13 @@ export default function CyclesPanel() {
                                 </label>
                                 <select
                                     name="status"
-                                    defaultValue={detail.cycle?.status || ""}
+                                    defaultValue={
+                                        detail.cycle?.status || "active"
+                                    }
                                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 >
-                                    <option value="">-- chọn trạng thái --</option>
-                                    <option value="active">Đang hoạt động</option>
-                                    <option value="inactive">Không hoạt động</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
                                 </select>
                             </div>
                             <div>
@@ -671,76 +734,6 @@ export default function CyclesPanel() {
                         <h2 className="text-xl font-extrabold text-slate-900">
                             {detail.cycle?.cycle_name}
                         </h2>
-                        <AdminOnly permission="canManageCycles">
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setEditOpen(true)}
-                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                                    title="Sửa chu kỳ"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                </button>
-                                <button
-                                    onClick={async () => {
-                                        const ok = window.confirm(
-                                            "Xóa chu kỳ này? Hành động không thể hoàn tác."
-                                        );
-                                        if (!ok) return;
-                                        try {
-                                            const token = document
-                                                .querySelector(
-                                                    'meta[name="csrf-token"]'
-                                                )
-                                                .getAttribute("content");
-                                            const id =
-                                                detail?.cycle?.cycle_id ||
-                                                detail?.cycle_id;
-                                            const res = await fetch(`/cycles/${id}`, {
-                                                method: "DELETE",
-                                                headers: {
-                                                    "X-CSRF-TOKEN": token,
-                                                    Accept: "application/json",
-                                                },
-                                            });
-                                            const json = await res
-                                                .json()
-                                                .catch(() => ({ success: res.ok }));
-                                            if (!res.ok || json.success === false)
-                                                throw new Error(
-                                                    json.message ||
-                                                        "Xóa chu kỳ thất bại"
-                                                );
-                                            setCycles((prev) =>
-                                                prev.filter(
-                                                    (c) =>
-                                                        String(c.cycle_id || c.id) !==
-                                                        String(id)
-                                                )
-                                            );
-                                            setToast({
-                                                type: "success",
-                                                message: "Đã xóa chu kỳ",
-                                            });
-                                            goBack();
-                                        } catch (e) {
-                                            setToast({
-                                                type: "error",
-                                                message:
-                                                    e.message || "Xóa chu kỳ thất bại",
-                                            });
-                                        }
-                                    }}
-                                    className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                    title="Xóa chu kỳ"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </AdminOnly>
                     </div>
                     <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
                         <div>
@@ -772,87 +765,56 @@ export default function CyclesPanel() {
                                 Trạng thái:
                             </div>
                             <div className="text-sm text-slate-800">
-                                {getStatusText(detail.cycle?.status)}
+                                {detail.cycle?.status === "active"
+                                    ? "Active"
+                                    : "Inactive"}
                             </div>
                         </div>
                     </div>
-                    <AdminOnly permission="canManageCycles">
-                        <div className="px-6 pb-4">
-                            <button
-                                onClick={() => setOpenCreateObjective(true)}
-                                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-                            >
-                                Thêm Objective
-                            </button>
-                        </div>
-                    </AdminOnly>
                     {(detail.objectives || []).map((obj) => (
                         <div
                             key={obj.objective_id}
                             className="border-t border-slate-200 px-6 py-4"
                         >
                             <div className="flex items-center justify-between">
-                                {/* Button actions ở đầu */}
-                                <AdminOnly permission="canManageCycles">
-                                    <div className="flex items-center gap-2 mr-4">
-                                        {/* Tạm ẩn nút Thêm KR */}
-                                        {/* <button
-                                            onClick={() =>
-                                                setOpenCreateKRForObjId(
-                                                    obj.objective_id
-                                                )
-                                            }
-                                            className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
-                                        >
-                                            Thêm KR
-                                        </button> */}
-                                    </div>
-                                </AdminOnly>
-                                
-                                {/* Objective content */}
                                 <button
-                                    onClick={() => toggleObjective(obj.objective_id)}
-                                    className="flex items-center gap-3 text-left flex-1"
+                                    onClick={() =>
+                                        setOpenObj((prev) => ({
+                                            ...prev,
+                                            [obj.objective_id]:
+                                                !prev[obj.objective_id],
+                                        }))
+                                    }
+                                    className="flex items-center gap-3 text-left"
                                 >
-                                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full font-bold ${getObjectiveColor(obj.level).bg} ${getObjectiveColor(obj.level).text}`}>
+                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold">
                                         {(obj.obj_title || "T")[0]}
                                     </span>
-                                    <div className="flex-1">
+                                    <div>
                                         <div className="font-semibold text-slate-900">
                                             {obj.obj_title ||
                                                 obj.objective_name}
                                         </div>
                                         <div className="text-xs text-slate-500">
-                                            {getLevelText(obj.level)}
+                                            {obj.level || ""}
                                         </div>
-                                    </div>
-                                    <div className="ml-2">
-                                        <svg
-                                            className={`h-5 w-5 text-slate-400 transition-transform duration-200 ${
-                                                openObj[obj.objective_id] === true ? 'rotate-180' : ''
-                                            }`}
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M19 9l-7 7-7-7"
-                                            />
-                                        </svg>
                                     </div>
                                 </button>
                             </div>
-                            {openObj[obj.objective_id] === true && (
+                            {openObj[obj.objective_id] !== false && (
                                 <div className="mt-3 space-y-3">
                                     {(krs[obj.objective_id] || []).map((kr) => (
-                                        <KeyResultItem
+                                        <div
                                             key={kr.kr_id || kr.id}
-                                            kr={kr}
-                                            getStatusText={getStatusText}
-                                        />
+                                            className="rounded-xl border border-slate-200 bg-white px-4 py-3"
+                                        >
+                                            <div className="text-sm font-semibold text-slate-900">
+                                                {kr.kr_title}
+                                            </div>
+                                            <div className="text-xs text-slate-500">
+                                                {kr.status || "in progress"}
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             )}
@@ -862,141 +824,81 @@ export default function CyclesPanel() {
             )}
             {!isDetail && (
                 <>
-                    <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                        {loading && (
-                            <div className="px-4 py-6 text-center text-slate-500">
-                                Đang tải...
-                            </div>
-                        )}
-                        {!loading && (
-                            <div className="divide-y divide-slate-100">
-                                {cycles.map((c) => {
-                                    const id = c.cycle_id || c.id;
-                                    const active = c.status === "active";
-                                    return (
-                                        <div key={id} className="px-4 py-3">
-                                            <button
-                                                onClick={() => goDetail(id)}
-                                                className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-left hover:bg-slate-100"
-                                            >
-                                                <div className="font-semibold text-slate-900">
-                                                    {c.cycle_name}
+                    {loading ? (
+                        <div className="mx-auto w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 shadow-sm">
+                            Đang tải...
+                        </div>
+                    ) : (
+                        <div className=" grid w-full  gap-6 md:grid-cols-3">
+                            {/* Left: Active cycles (span 2) */}
+                            <div className="md:col-span-2">
+                                <div className="mb-3 text-sm font-semibold text-slate-700">Chu kỳ đang hoạt động</div>
+                                <div className="space-y-3">
+                                    {sortByStartDesc(cycles.filter(isActive)).map((c) => {
+                                        const id = c.cycle_id || c.id;
+                                        const canClose = isEnded(c.end_date);
+                                        return (
+                                            <div key={id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+                                                    <div className="font-semibold text-slate-900">{c.cycle_name}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge color="emerald">Đang hoạt động</Badge>
+                                                        <button onClick={() => goDetail(id)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Xem chi tiết</button>
+                                                        <AdminOnly permission="canManageCycles">
+                                                            {canClose && (
+                                                                <button onClick={() => closeCycle(c)} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Đóng chu kỳ</button>
+                                                            )}
+                                                        </AdminOnly>
+                                                    </div>
                                                 </div>
-                                                {active ? (
-                                                    <Badge color="emerald">
-                                                        Active
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge color="red">
-                                                        Inactive
-                                                    </Badge>
-                                                )}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                                <div className="px-4 py-3 text-sm text-slate-600">{formatRange(c)}</div>
+                                            </div>
+                                        );
+                                    })}
+                                    {sortByStartDesc(cycles.filter(isActive)).length === 0 && (
+                                        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-500">Chưa có chu kỳ hoạt động</div>
+                                    )}
+                                </div>
                             </div>
-                        )}
-                    </div>
+                            {/* Right: Closed cycles */}
+                            <div>
+                                <div className="mb-3 text-sm font-semibold text-slate-700">Chu kỳ đã đóng</div>
+                                <div className="space-y-3">
+                                    {sortByStartDesc(cycles.filter(isClosed)).map((c) => {
+                                        const id = c.cycle_id || c.id;
+                                        return (
+                                            <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="font-semibold text-slate-900">{c.cycle_name}</div>
+                                                    <Badge color="red">Đã đóng</Badge>
+                                                </div>
+                                                <div className="mt-1 text-xs text-slate-600">{formatRange(c)}</div>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <button onClick={() => goDetail(id)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Xem chi tiết</button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {sortByStartDesc(cycles.filter(isClosed)).length === 0 && (
+                                        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-500">Chưa có chu kỳ đã đóng</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <NewCycleModal
                         open={open}
                         onClose={() => setOpen(false)}
                         onCreated={(cy) => {
                             setCycles((prev) => sortByStartDesc([cy, ...prev]));
-                            setToast({
-                                type: "success",
-                                message: "Tạo chu kỳ thành công",
-                            });
+                            setToast({ type: 'success', message: 'Tạo chu kỳ thành công' });
                         }}
                     />
                 </>
             )}
 
-            {/* Modal tạo Objective mới trong chu kỳ hiện tại */}
-            {isDetail && openCreateObjective && (
-                <Modal
-                    open={true}
-                    onClose={() => setOpenCreateObjective(false)}
-                    title="Tạo Objective mới"
-                >
-                    <div className="max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400 rounded-lg">
-                        <ObjectiveCreateForm
-                            cycleId={
-                                detail?.cycle?.cycle_id || detail?.cycle_id
-                            }
-                            onCreated={(objective) => {
-                                setToast({
-                                    type: "success",
-                                    message: "Tạo Objective thành công",
-                                });
-                                const objId =
-                                    objective?.objective_id || objective?.id;
-                                const krList =
-                                    objective?.keyResults ||
-                                    objective?.key_results ||
-                                    [];
-                                // Cập nhật danh sách KR map để hiển thị ngay
-                                if (objId) {
-                                    setKrs((prev) => ({
-                                        ...prev,
-                                        [objId]: krList,
-                                    }));
-                                }
-                                // Thêm objective vào danh sách hiện tại, giữ nguyên KR trong card
-                                setDetail((prev) => ({
-                                    ...prev,
-                                    objectives: [
-                                        ...(prev?.objectives || []),
-                                        { ...objective },
-                                    ],
-                                }));
-                                setOpenCreateObjective(false);
-                            }}
-                            onError={(msg) =>
-                                setToast({
-                                    type: "error",
-                                    message: msg || "Tạo Objective thất bại",
-                                })
-                            }
-                        />
-                    </div>
-                </Modal>
-            )}
 
-            {/* Modal tạo KR cho một Objective */}
-            {isDetail && openCreateKRForObjId && (
-                <Modal
-                    open={true}
-                    onClose={() => setOpenCreateKRForObjId(null)}
-                    title="Tạo Key Result"
-                >
-                    <div className="max-h-[70vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400 rounded-lg">
-                        <KeyResultCreateForm
-                            objectiveId={openCreateKRForObjId}
-                            onCreated={(kr) => {
-                                setToast({
-                                    type: "success",
-                                    message: "Tạo Key Result thành công",
-                                });
-                                setKrs((prev) => ({
-                                    ...prev,
-                                    [openCreateKRForObjId]: [
-                                        kr,
-                                        ...(prev[openCreateKRForObjId] || []),
-                                    ],
-                                }));
-                                setOpenCreateKRForObjId(null);
-                            }}
-                            onError={(msg) =>
-                                setToast({
-                                    type: "error",
-                                    message: msg || "Tạo Key Result thất bại",
-                                })
-                            }
-                        />
-                    </div>
-                </Modal>
-            )}
         </div>
     );
 }
@@ -1004,20 +906,53 @@ export default function CyclesPanel() {
 function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
     const [objTitle, setObjTitle] = useState("");
     const [description, setDescription] = useState("");
-    const [status, setStatus] = useState("");
-    const [level, setLevel] = useState("company");
+    const [status, setStatus] = useState("draft");
+    const [level, setLevel] = useState("");
     const [departmentId, setDepartmentId] = useState("");
     const [departments, setDepartments] = useState([]);
+    const [userLevels, setUserLevels] = useState([]);
     const [keyResults, setKeyResults] = useState([
         {
             kr_title: "",
             target_value: "",
             current_value: "",
-            unit: "",
-            status: "",
+            unit: "number",
+            status: "draft",
         },
     ]);
     const [submitting, setSubmitting] = useState(false);
+
+    // Load user levels
+    useEffect(() => {
+        (async () => {
+            try {
+                const token = document
+                    .querySelector('meta[name="csrf-token"]')
+                    ?.getAttribute("content");
+                
+                const res = await fetch('/my-objectives/user-levels', {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    setUserLevels(data.allowed_levels);
+                    // Set default level to first available level
+                    if (data.allowed_levels.length > 0) {
+                        setLevel(data.allowed_levels[0]);
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading user levels:", err);
+                // Fallback to default levels
+                setUserLevels(['Nhóm', 'Cá nhân']);
+                setLevel('Nhóm');
+            }
+        })();
+    }, []);
 
     // Try to load departments for dropdown; gracefully degrade to text input
     useEffect(() => {
@@ -1041,25 +976,6 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
 
     const submit = async (e) => {
         e.preventDefault();
-        
-        // Validation phía frontend
-        if (!status) {
-            alert("Vui lòng chọn trạng thái cho Objective");
-            return;
-        }
-        
-        for (let i = 0; i < keyResults.length; i++) {
-            const kr = keyResults[i];
-            if (!kr.status) {
-                alert(`Vui lòng chọn trạng thái cho Key Result ${i + 1}`);
-                return;
-            }
-            if (!kr.unit) {
-                alert(`Vui lòng chọn đơn vị cho Key Result ${i + 1}`);
-                return;
-            }
-        }
-        
         try {
             setSubmitting(true);
             const token = document
@@ -1068,20 +984,20 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
             const payload = {
                 obj_title: objTitle.trim(),
                 description: description.trim() || null,
-                status: status || "draft", // Fallback nếu vẫn rỗng
+                status,
                 progress_percent: 0,
                 level,
                 cycle_id: cycleId,
                 parent_key_result_id: null,
-                ...(level !== "company"
+                ...(level !== "Công ty"
                     ? { department_id: departmentId || undefined }
                     : {}),
                 key_results: keyResults.map((kr) => ({
                     kr_title: kr.kr_title.trim(),
                     target_value: Number(kr.target_value || 0),
                     current_value: Number(kr.current_value || 0),
-                    unit: kr.unit || "number", // Fallback nếu vẫn rỗng
-                    status: kr.status || "draft", // Fallback nếu vẫn rỗng
+                    unit: String(kr.unit || "number"),
+                    status: kr.status || "draft",
                 })),
             };
             const res = await fetch("/my-objectives/store", {
@@ -1116,8 +1032,8 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                 kr_title: "",
                 target_value: "",
                 current_value: "",
-                unit: "",
-                status: "",
+                unit: "number",
+                status: "draft",
             },
         ]);
     const removeKR = (i) =>
@@ -1136,17 +1052,22 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                     required
                 />
             </div>
-            {/* Cấp mặc định: Công ty (không cho chọn). Hiển thị input giống chiều rộng tiêu đề */}
             <div>
                 <label className="mb-1 block text-sm font-semibold text-slate-700">
                     Cấp
                 </label>
-                <input
-                    value="Công ty"
-                    disabled
-                    className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-2 text-slate-600"
-                />
-                <input type="hidden" name="level" value={level} />
+                <select
+                    value={level}
+                    onChange={(e) => setLevel(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                >
+                    {userLevels.map((levelOption) => (
+                        <option key={levelOption} value={levelOption}>
+                            {levelOption}
+                        </option>
+                    ))}
+                </select>
             </div>
             <div>
                 <label className="mb-1 block text-sm font-semibold text-slate-700">
@@ -1157,22 +1078,6 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                     onChange={(e) => setDescription(e.target.value)}
                     className="h-20 w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
                 />
-            </div>
-            <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700">
-                    Trạng thái
-                </label>
-                <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                >
-                    <option value="">-- chọn trạng thái --</option>
-                    <option value="draft">Bản nháp</option>
-                    <option value="active">Đang thực hiện</option>
-                    <option value="completed">Hoàn thành</option>
-                </select>
             </div>
             <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-800">
@@ -1200,28 +1105,8 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                                     required
                                 />
                             </div>
-                            {/* Row 2: Status and Unit */}
+                            {/* Rows 2-3: 2x2 layout for Unit/Target and Current/Status */}
                             <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Trạng thái
-                                    </label>
-                                    <select
-                                        value={kr.status}
-                                        onChange={(e) =>
-                                            updateKR(idx, {
-                                                status: e.target.value,
-                                            })
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                        required
-                                    >
-                                        <option value="">-- chọn trạng thái --</option>
-                                        <option value="draft">Bản nháp</option>
-                                        <option value="active">Đang thực hiện</option>
-                                        <option value="completed">Hoàn thành</option>
-                                    </select>
-                                </div>
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
                                         Đơn vị
@@ -1240,11 +1125,9 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                                         <option value="number">Số lượng</option>
                                         <option value="percent">Phần trăm</option>
                                         <option value="completion">Hoàn thành</option>
+                                        <option value="bai">Bài</option>
                                     </select>
                                 </div>
-                            </div>
-                            {/* Row 3: Target and Current */}
-                            <div className="mt-3 grid gap-3 md:grid-cols-2">
                                 <div>
                                     <label className="mb-1 block text-xs font-semibold text-slate-600">
                                         Mục tiêu
@@ -1276,6 +1159,28 @@ function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                         required
                                     />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                        Trạng thái
+                                    </label>
+                                    <select
+                                        value={kr.status}
+                                        onChange={(e) =>
+                                            updateKR(idx, {
+                                                status: e.target.value,
+                                            })
+                                        }
+                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                    >
+                                        <option value="draft">Bản nháp</option>
+                                        <option value="active">
+                                            Đang thực hiện
+                                        </option>
+                                        <option value="completed">
+                                            Hoàn thành
+                                        </option>
+                                    </select>
                                 </div>
                             </div>
                             <div className="mt-3 flex justify-end">

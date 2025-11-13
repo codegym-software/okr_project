@@ -11,7 +11,7 @@ class Department extends Model
     protected $primaryKey = 'department_id';
 
     public function users() {
-        return $this->belongsTo(User::class, 'department_id', 'department_id');
+        return $this->hasMany(User::class, 'department_id', 'department_id');
     }
 
     public function parentDepartment() {

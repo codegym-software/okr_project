@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('comments', function (Blueprint $table) {
             $table->id('comment_id');
-            $table->text('content')->charset('utf8mb4')->collation('utf8mb4_unicode_ci');
+            $table->text('content');
             $table->foreignId('kr_id')->constrained('key_results','kr_id')->cascadeOnDelete();
             $table->foreignId('user_id')->constrained('users','user_id')->cascadeOnDelete();
             $table->timestamps();

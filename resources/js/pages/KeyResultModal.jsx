@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Modal } from "../components/ui";
 
 export default function KeyResultModal({
@@ -11,83 +11,157 @@ export default function KeyResultModal({
     setItems,
     setToast,
 }) {
-    const saveKr = async (kr) => {
+    const [form, setForm] = useState({
+        kr_title: "",
+        target_value: 0,
+        current_value: 0,
+        unit: "",
+        status: "",
+        cycle_id: "", // Sẽ được gán tự động
+        department_id: "",
+    });
+
+    // Lấy cycle_id từ Objective (tạo mới hoặc sửa)
+    useEffect(() => {
+        const objectiveCycleId = editingKR?.cycle_id || creatingFor?.cycle_id;
+        if (objectiveCycleId) {
+            setForm((prev) => ({ ...prev, cycle_id: objectiveCycleId }));
+        }
+    }, [editingKR, creatingFor]);
+
+    // Reset form khi mở tạo mới
+    useEffect(() => {
+        if (creatingFor) {
+            setForm({
+                kr_title: "",
+                target_value: 0,
+                current_value: 0,
+                unit: "",
+                status: "",
+                cycle_id: creatingFor.cycle_id || "",
+                department_id: creatingFor.department_id || "",
+            });
+        }
+    }, [creatingFor]);
+
+    // Cập nhật form khi editingKR thay đổi
+    useEffect(() => {
+        if (editingKR) {
+            setForm({
+                kr_title: editingKR.kr_title || "",
+                target_value: Number(editingKR.target_value) || 0,
+                current_value: Number(editingKR.current_value) || 0,
+                unit: editingKR.unit || "",
+                status: editingKR.status || "",
+                cycle_id: editingKR.cycle_id || "",
+                department_id: editingKR.department_id || "",
+            });
+        }
+    }, [editingKR]);
+
+    const handleChange = (field, value) => {
+        setForm((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        const payload = {
+            ...form,
+            target_value: Number(form.target_value),
+            current_value: Number(form.current_value),
+            cycle_id: form.cycle_id, // Luôn lấy từ Objective
+            department_id: form.department_id || null,
+        };
+
         try {
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 .getAttribute("content");
-            const computed =
-                Number(kr.target_value) > 0
-                    ? (Number(kr.current_value) / Number(kr.target_value)) * 100
-                    : 0;
-            const payload = {
-                ...kr,
-                cycle_id: kr.cycle_id,
-                progress_percent: Number.isFinite(computed)
-                    ? Number(computed.toFixed(2))
-                    : 0,
-            };
-            const res = await fetch(
-                `/my-key-results/update/${kr.objective_id}/${kr.kr_id}`,
-                {
-                    method: "PUT",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRF-TOKEN": token,
-                        Accept: "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                }
-            );
-            const json = await res.json().catch(() => ({
-                success: false,
-                message: "Cập nhật thất bại",
-            }));
-            if (!res.ok || json.success === false)
-                throw new Error(json.message || "Cập nhật thất bại");
-            const serverKR = json.data || {};
-            const enriched = { ...kr, ...serverKR };
-            setItems((prev) =>
-                prev.map((o) =>
-                    o.objective_id === kr.objective_id
+
+            let url, method;
+            if (editingKR) {
+                url = `/my-key-results/update/${editingKR.objective_id}/${editingKR.kr_id}`;
+                method = "PUT";
+            } else {
+                url = `/my-key-results/store`;
+                method = "POST";
+                payload.objective_id = creatingFor.objective_id;
+            }
+
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": token,
+                    Accept: "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const json = await res.json();
+            if (!res.ok || json.success === false) {
+                throw new Error(json.message || "Thao tác thất bại");
+            }
+
+            const savedKR = json.data;
+
+            setItems((prev) => {
+                const updated = prev.map((o) =>
+                    o.objective_id ===
+                    (editingKR?.objective_id || creatingFor.objective_id)
                         ? {
                               ...o,
-                              key_results: (o.key_results || []).map((x) =>
-                                  x.kr_id === kr.kr_id ? enriched : x
-                              ),
+                              key_results: editingKR
+                                  ? (o.key_results || []).map((kr) =>
+                                        kr.kr_id === editingKR.kr_id
+                                            ? savedKR
+                                            : kr
+                                    )
+                                  : [...(o.key_results || []), savedKR],
                           }
                         : o
-                )
-            );
-            setEditingKR(null);
+                );
+                try {
+                    localStorage.setItem(
+                        "my_objectives",
+                        JSON.stringify(updated)
+                    );
+                } catch {}
+                return updated;
+            });
+
             setToast({
                 type: "success",
-                message: "Cập nhật Key Result thành công",
+                message: editingKR
+                    ? "Cập nhật Key Result thành công"
+                    : "Tạo Key Result thành công",
             });
-        } catch (e) {
+
+            editingKR ? setEditingKR(null) : setCreatingFor(null);
+        } catch (err) {
             setToast({
                 type: "error",
-                message: e.message || "Cập nhật thất bại",
+                message: err.message || "Thao tác thất bại",
             });
         }
     };
 
-    const handleDeleteKR = async (kr) => {
-        // Xác nhận trước khi xóa
+    const handleDelete = async () => {
         const confirmed = window.confirm(
-            `Bạn có chắc chắn muốn xóa Key Result "${kr.kr_title}"?\n\nHành động này không thể hoàn tác.`
+            `Bạn có chắc chắn muốn xóa Key Result "${
+                form.kr_title || "này"
+            }"?\n\nHành động này không thể hoàn tác.`
         );
-        
-        if (!confirmed) {
-            return;
-        }
+        if (!confirmed) return;
 
         try {
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 .getAttribute("content");
+
             const res = await fetch(
-                `/my-key-results/destroy/${kr.objective_id}/${kr.kr_id}`,
+                `/my-key-results/destroy/${editingKR.objective_id}/${editingKR.kr_id}`,
                 {
                     method: "DELETE",
                     headers: {
@@ -96,77 +170,94 @@ export default function KeyResultModal({
                     },
                 }
             );
+
             const json = await res.json().catch(() => ({ success: res.ok }));
-            if (!res.ok || json.success === false)
-                throw new Error(json.message || "Xóa Key Result thất bại");
-            setItems((prev) =>
-                prev.map((o) =>
-                    o.objective_id === kr.objective_id
+            if (!res.ok || json.success === false) {
+                throw new Error(json.message || "Xóa thất bại");
+            }
+
+            setItems((prev) => {
+                const updated = prev.map((o) =>
+                    o.objective_id === editingKR.objective_id
                         ? {
                               ...o,
                               key_results: (o.key_results || []).filter(
-                                  (x) => x.kr_id !== kr.kr_id
+                                  (kr) => kr.kr_id !== editingKR.kr_id
                               ),
                           }
                         : o
-                )
-            );
+                );
+                try {
+                    localStorage.setItem(
+                        "my_objectives",
+                        JSON.stringify(updated)
+                    );
+                } catch {}
+                return updated;
+            });
+
+            setToast({
+                type: "success",
+                message: "Đã xóa Key Result thành công",
+            });
             setEditingKR(null);
-            setToast({ type: "success", message: "Đã xóa Key Result thành công" });
         } catch (err) {
             setToast({
                 type: "error",
-                message: err.message || "Xóa Key Result thất bại",
+                message: err.message || "Xóa thất bại",
             });
         }
     };
 
+    // Tìm tên chu kỳ để hiển thị (readonly)
+    const currentCycle = cyclesList.find(
+        (c) => String(c.cycle_id) === String(form.cycle_id)
+    );
+
     return (
         <Modal
-            open={editingKR || creatingFor}
+            open={!!editingKR || !!creatingFor}
             onClose={() =>
                 editingKR ? setEditingKR(null) : setCreatingFor(null)
             }
             title={editingKR ? "Sửa Key Result" : "Thêm Key Result"}
         >
-            {editingKR ? (
-                <form
-                    onSubmit={async (e) => {
-                        e.preventDefault();
-                        const form = e.target;
-                        const updated = {
-                            ...editingKR,
-                            kr_title: form.kr_title.value,
-                            target_value: Number(form.target_value.value),
-                            current_value: Number(form.current_value.value),
-                            unit: form.unit.value,
-                            status: form.status.value,
-                            cycle_id: editingKR.cycle_id, // Giữ nguyên cycle_id từ KR hiện tại
-                        };
-                        await saveKr(updated);
-                    }}
-                    className="space-y-3"
-                >
+            <div className="max-h-[80vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400">
+                <form onSubmit={handleSubmit} className="space-y-3">
                     <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-600">
                             Tiêu đề
                         </label>
                         <input
-                            defaultValue={editingKR.kr_title}
-                            name="kr_title"
+                            value={form.kr_title}
+                            onChange={(e) =>
+                                handleChange("kr_title", e.target.value)
+                            }
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             required
                         />
                     </div>
-                    {/* Trạng thái và đơn vị - 1 hàng */}
+
+                    {/* Hiển thị Chu kỳ (chỉ đọc) */}
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">
+                            Chu kỳ
+                        </label>
+                        <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                            {currentCycle?.cycle_name || "—"}
+                        </div>
+                    </div>
+
                     <div className="grid gap-3 md:grid-cols-2">
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Trạng thái
                             </label>
                             <select
-                                defaultValue={editingKR.status || ""}
-                                name="status"
+                                value={form.status}
+                                onChange={(e) =>
+                                    handleChange("status", e.target.value)
+                                }
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             >
                                 <option value="">-- chọn trạng thái --</option>
@@ -180,8 +271,10 @@ export default function KeyResultModal({
                                 Đơn vị
                             </label>
                             <select
-                                defaultValue={editingKR.unit}
-                                name="unit"
+                                value={form.unit}
+                                onChange={(e) =>
+                                    handleChange("unit", e.target.value)
+                                }
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 required
                             >
@@ -192,17 +285,19 @@ export default function KeyResultModal({
                             </select>
                         </div>
                     </div>
-                    
-                    {/* Mục tiêu và Thực tế - 1 hàng */}
+
                     <div className="grid gap-3 md:grid-cols-2">
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Mục tiêu
                             </label>
                             <input
-                                defaultValue={editingKR.target_value}
-                                name="target_value"
+                                value={form.target_value}
+                                onChange={(e) =>
+                                    handleChange("target_value", e.target.value)
+                                }
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                                 required
                             />
@@ -212,25 +307,38 @@ export default function KeyResultModal({
                                 Thực tế
                             </label>
                             <input
-                                defaultValue={editingKR.current_value}
-                                name="current_value"
+                                value={form.current_value}
+                                onChange={(e) =>
+                                    handleChange(
+                                        "current_value",
+                                        e.target.value
+                                    )
+                                }
                                 type="number"
+                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             />
                         </div>
                     </div>
+
                     <div className="flex justify-end gap-2 pt-2">
-                        <button
-                            type="button"
-                            onClick={() => handleDeleteKR(editingKR)}
-                            className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-xs text-rose-700"
-                        >
-                            Xóa
-                        </button>
+                        {/* {editingKR && (
+                            <button
+                                type="button"
+                                onClick={handleDelete}
+                                className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-xs text-rose-700"
+                            >
+                                Xóa
+                            </button>
+                        )} */}
                         <div className="flex gap-2">
                             <button
                                 type="button"
-                                onClick={() => setEditingKR(null)}
+                                onClick={() =>
+                                    editingKR
+                                        ? setEditingKR(null)
+                                        : setCreatingFor(null)
+                                }
                                 className="rounded-md border border-slate-300 px-4 py-2 text-xs"
                             >
                                 Hủy
@@ -239,158 +347,12 @@ export default function KeyResultModal({
                                 type="submit"
                                 className="rounded-md bg-blue-600 px-5 py-2 text-xs font-semibold text-white"
                             >
-                                Lưu
+                                {editingKR ? "Lưu" : "Tạo"}
                             </button>
                         </div>
                     </div>
                 </form>
-            ) : (
-                <form
-                    onSubmit={async (e) => {
-                        e.preventDefault();
-                        try {
-                            const token = document
-                                .querySelector('meta[name="csrf-token"]')
-                                .getAttribute("content");
-                            const body = {
-                                kr_title: e.target.kr_title.value,
-                                target_value: Number(
-                                    e.target.target_value.value || 0
-                                ),
-                                current_value: Number(
-                                    e.target.current_value.value || 0
-                                ),
-                                unit: e.target.unit.value || "",
-                                status: e.target.status.value || "",
-                                cycle_id: creatingFor.cycle_id,
-                            };
-                            const res = await fetch(`/my-key-results/store`, {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                    "X-CSRF-TOKEN": token,
-                                    Accept: "application/json",
-                                },
-                                body: JSON.stringify({
-                                    ...body,
-                                    objective_id: creatingFor.objective_id,
-                                }),
-                            });
-                            const json = await res.json();
-                            if (!res.ok || json.success === false)
-                                throw new Error(json.message || "Tạo thất bại");
-                            const newKR = json.data;
-                            setItems((prev) =>
-                                prev.map((o) =>
-                                    o.objective_id === creatingFor.objective_id
-                                        ? {
-                                              ...o,
-                                              key_results: [
-                                                  ...(o.key_results || []),
-                                                  newKR,
-                                              ],
-                                          }
-                                        : o
-                                )
-                            );
-                            setCreatingFor(null);
-                            setToast({
-                                type: "success",
-                                message: "Tạo Key Result thành công",
-                            });
-                        } catch (err) {
-                            setToast({
-                                type: "error",
-                                message: err.message || "Tạo thất bại",
-                            });
-                        }
-                    }}
-                    className="space-y-3"
-                >
-                    <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-600">
-                            Tiêu đề
-                        </label>
-                        <input
-                            name="kr_title"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            required
-                        />
-                    </div>
-                    {/* Trạng thái và đơn vị - 1 hàng */}
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Trạng thái
-                            </label>
-                            <select
-                                name="status"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">-- chọn trạng thái --</option>
-                                <option value="draft">Bản nháp</option>
-                                <option value="active">Đang thực hiện</option>
-                                <option value="completed">Hoàn thành</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Đơn vị
-                            </label>
-                            <select
-                                name="unit"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            >
-                                <option value="">-- chọn đơn vị --</option>
-                                <option value="number">Số lượng</option>
-                                <option value="percent">Phần trăm</option>
-                                <option value="completion">Hoàn thành</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    {/* Mục tiêu và Thực tế - 1 hàng */}
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Mục tiêu
-                            </label>
-                            <input
-                                name="target_value"
-                                type="number"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Thực tế
-                            </label>
-                            <input
-                                name="current_value"
-                                type="number"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end gap-2 pt-2">
-                        <button
-                            type="button"
-                            onClick={() => setCreatingFor(null)}
-                            className="rounded-md border border-slate-300 px-4 py-2 text-xs"
-                        >
-                            Hủy
-                        </button>
-                        <button
-                            type="submit"
-                            className="rounded-md bg-blue-600 px-5 py-2 text-xs font-semibold text-white"
-                        >
-                            Tạo
-                        </button>
-                    </div>
-                </form>
-            )}
+            </div>
         </Modal>
     );
 }
