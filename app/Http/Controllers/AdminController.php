@@ -45,10 +45,58 @@ class AdminController extends Controller
             ]);
 
             if ($validator->fails()) {
+                $errors = $validator->errors();
+                $errorMessages = [];
+                
+                // Tạo thông báo lỗi rõ ràng hơn
+                if ($errors->has('email')) {
+                    // Kiểm tra rule nào fail bằng cách xem failed rules
+                    $failedRules = $validator->failed();
+                    $emailError = $errors->first('email');
+                    
+                    // Kiểm tra xem rule 'unique' có fail không
+                    if (isset($failedRules['email']['Unique'])) {
+                        $errorMessages['email'] = ['Email này đã được sử dụng trong hệ thống. Vui lòng sử dụng email khác.'];
+                    }
+                    // Kiểm tra xem rule 'email' (format) có fail không
+                    elseif (isset($failedRules['email']['Email'])) {
+                        $errorMessages['email'] = ['Email không đúng định dạng. Vui lòng kiểm tra lại.'];
+                    }
+                    // Kiểm tra required
+                    elseif (isset($failedRules['email']['Required'])) {
+                        $errorMessages['email'] = ['Email là bắt buộc.'];
+                    }
+                    // Fallback: dùng message mặc định
+                    else {
+                        $errorMessages['email'] = [$emailError];
+                    }
+                }
+                
+                if ($errors->has('full_name')) {
+                    $errorMessages['full_name'] = ['Họ và tên là bắt buộc và không được vượt quá 255 ký tự.'];
+                }
+                
+                if ($errors->has('role_name')) {
+                    $errorMessages['role_name'] = ['Vai trò không hợp lệ. Vui lòng chọn Thành viên hoặc Quản lý.'];
+                }
+                
+                if ($errors->has('level')) {
+                    $errorMessages['level'] = ['Cấp độ không hợp lệ. Vui lòng chọn Đơn vị hoặc Nhóm.'];
+                }
+                
+                if ($errors->has('department_id')) {
+                    $errorMessages['department_id'] = ['Phòng ban/Đội nhóm không tồn tại. Vui lòng chọn lại.'];
+                }
+                
+                // Nếu không có error messages tùy chỉnh, dùng mặc định
+                if (empty($errorMessages)) {
+                    $errorMessages = $errors->toArray();
+                }
+                
                 return response()->json([
                     'success' => false,
-                    'message' => 'Dữ liệu không hợp lệ',
-                    'errors' => $validator->errors()
+                    'message' => 'Vui lòng kiểm tra lại thông tin đã nhập',
+                    'errors' => $errorMessages
                 ], 422);
             }
 
@@ -64,7 +112,7 @@ class AdminController extends Controller
                         ->where('level', $request->level)
                         ->first();
             if (!$role) {
-                throw new \Exception('Role không tồn tại với level này');
+                throw new \Exception('Vai trò "' . $request->role_name . '" không tồn tại với cấp độ "' . $request->level . '". Vui lòng kiểm tra lại.');
             }
 
             // 4. Lưu vào database với is_invited = true
@@ -80,40 +128,87 @@ class AdminController extends Controller
             ]);
 
             // 5. Gửi email mời
-            $this->sendInvitationEmail($user, $cognitoResult['TemporaryPassword']);
+            try {
+                $this->sendInvitationEmail($user, $cognitoResult['TemporaryPassword']);
+            } catch (\Exception $emailError) {
+                // Nếu gửi email thất bại, log nhưng không fail toàn bộ quá trình
+                // Vì user đã được tạo thành công trong Cognito và database
+                Log::error('Failed to send invitation email but user was created', [
+                    'email' => $user->email,
+                    'error' => $emailError->getMessage(),
+                    'user_id' => $user->user_id
+                ]);
+                
+                // Vẫn trả về success nhưng với thông báo cảnh báo
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Tài khoản đã được tạo thành công nhưng không thể gửi email mời. Vui lòng liên hệ quản trị viên để gửi lại email.',
+                    'warning' => true
+                ]);
+            }
 
             Log::info('User invited successfully', [
                 'email' => $request->email,
                 'role' => $request->role_name,
+                'level' => $request->level,
                 'cognito_user_id' => $cognitoResult['User']['Username']
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Email mời đã được gửi thành công đến ' . $request->email
+                'message' => 'Email mời đã được gửi thành công đến ' . $request->email . '. Người dùng sẽ nhận được mật khẩu tạm thời qua email.'
             ]);
 
         } catch (AwsException $e) {
+            $errorCode = $e->getAwsErrorCode();
+            $errorMessage = $e->getAwsErrorMessage();
+            
             Log::error('Cognito error when inviting user', [
-                'error_code' => $e->getAwsErrorCode(),
-                'error_message' => $e->getAwsErrorMessage(),
+                'error_code' => $errorCode,
+                'error_message' => $errorMessage,
                 'email' => $request->email ?? 'unknown'
             ]);
 
+            // Xử lý các lỗi Cognito cụ thể
+            $userFriendlyMessage = 'Có lỗi xảy ra khi tạo tài khoản trong hệ thống';
+            
+            if ($errorCode === 'UsernameExistsException') {
+                $userFriendlyMessage = 'Email này đã tồn tại trong hệ thống xác thực. Vui lòng sử dụng email khác.';
+            } elseif ($errorCode === 'InvalidParameterException') {
+                $userFriendlyMessage = 'Thông tin người dùng không hợp lệ. Vui lòng kiểm tra lại email và tên.';
+            } elseif ($errorCode === 'LimitExceededException') {
+                $userFriendlyMessage = 'Đã vượt quá giới hạn tạo tài khoản. Vui lòng thử lại sau vài phút.';
+            } elseif (str_contains($errorMessage, 'email')) {
+                $userFriendlyMessage = 'Email không hợp lệ hoặc đã được sử dụng. Vui lòng kiểm tra lại.';
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra khi tạo tài khoản trong hệ thống'
+                'message' => $userFriendlyMessage
             ], 500);
 
         } catch (\Exception $e) {
             Log::error('Error inviting user', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
                 'email' => $request->email ?? 'unknown'
             ]);
 
+            // Xử lý các lỗi cụ thể
+            $errorMessage = $e->getMessage();
+            $userFriendlyMessage = 'Có lỗi xảy ra khi mời người dùng. Vui lòng thử lại sau.';
+            
+            if (str_contains($errorMessage, 'Role không tồn tại')) {
+                $userFriendlyMessage = $errorMessage;
+            } elseif (str_contains($errorMessage, 'email') || str_contains($errorMessage, 'Email')) {
+                $userFriendlyMessage = 'Có lỗi xảy ra khi xử lý email. Vui lòng kiểm tra lại thông tin email.';
+            } elseif (str_contains($errorMessage, 'Mail') || str_contains($errorMessage, 'mail')) {
+                $userFriendlyMessage = 'Không thể gửi email mời. Tài khoản đã được tạo nhưng email chưa được gửi. Vui lòng liên hệ quản trị viên.';
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+                'message' => $userFriendlyMessage
             ], 500);
         }
     }
