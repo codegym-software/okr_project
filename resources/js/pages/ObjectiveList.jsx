@@ -697,10 +697,7 @@ export default function ObjectiveList({
                                                                 />
                                                             </svg>
                                                             <span className="text-sm text-slate-700">
-                                                                {
-                                                                    kr.assignee
-                                                                        .name
-                                                                }
+                                                                {kr.assigned_to}
                                                             </span>
                                                         </div>
                                                     ) : (

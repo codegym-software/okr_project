@@ -411,7 +411,7 @@ class MyKeyResultController extends Controller
             'message' => "Đã giao KR cho {$assignee->name}",
             'data' => [
                 'kr_id' => $keyResult->kr_id,
-                'assigned_to' => $assignee->only(['user_id', 'name', 'email', 'avatar'])
+                'assigned_to' => $assignee->only(['user_id', 'fullName', 'email', 'avatar'])
             ]
         ]);
     }
