@@ -679,7 +679,7 @@ export default function ObjectiveList({
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.assign_to ? (
+                                                    {kr.assigned_to ? (
                                                         <div className="flex items-center justify-center gap-1">
                                                             <svg
                                                                 className="w-4 h-4 text-slate-500"
