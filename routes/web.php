@@ -227,6 +227,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('my-key-result.destroy');
     });
 
+    // Company OKR Routes
+    Route::get('/company-okrs', [App\Http\Controllers\CompanyOkrController::class, 'index'])
+        ->name('company.okrs');
+    Route::get('/company-okrs/{id}', [App\Http\Controllers\CompanyOkrController::class, 'show'])
+        ->name('company.okrs.show');
+
     // Check-in Routes
     Route::prefix('check-in')->middleware('auth')->group(function () {
         Route::get('/{objectiveId}/{krId}', [CheckInController::class, 'create'])->name('check-in.create');
