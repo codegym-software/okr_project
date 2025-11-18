@@ -371,11 +371,15 @@ class MyKeyResultController extends Controller
     /**
      * Giao Key Result cho người dùng thực hiện
      */
-    public function assign(Request $request, string $keyResultId): JsonResponse
+    public function assign(Request $request, string $objectiveId, string $keyResultId): JsonResponse
     {
         $user = Auth::user();
-        $keyResult = KeyResult::findOrFail($keyResultId);
-        $objective = $keyResult->objective;
+        $keyResult = KeyResult::where('objective_id', $objectiveId)
+            ->where('kr_id', $keyResultId)
+            ->whereNotNull('assigned_to')
+            ->firstOrFail();
+
+        $objective = Objective::findOrFail($objectiveId);
 
         // Chỉ owner OKR hoặc admin mới được giao
         if ($objective->user_id !== $user->user_id && !$user->isAdmin()) {
@@ -407,7 +411,7 @@ class MyKeyResultController extends Controller
             'message' => "Đã giao KR cho {$assignee->name}",
             'data' => [
                 'kr_id' => $keyResult->kr_id,
-                'assigned_to' => $assignee->only(['user_id', 'name', 'email', 'avatar'])
+                'assigned_to' => $assignee->only(['user_id', 'fullName', 'email', 'avatar'])
             ]
         ]);
     }

@@ -11,7 +11,7 @@ import ProfilePage from "./pages/ProfilePage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import CompanyOverviewReport from "./pages/CompanyOverviewReport";
 import { GradientText } from "./components/ui";
-//import CompanyOkrList from "./pages/CompanyOkrList";
+import CompanyOkrList from "./pages/CompanyOkrList";
 
 function NavBar({ activeTab, onChangeTab }) {
     const go = (tab) => {
