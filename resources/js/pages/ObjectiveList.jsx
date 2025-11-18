@@ -5,6 +5,7 @@ import Tabs from "../components/Tabs";
 import ConfirmationModal from "../components/ConfirmationModal";
 import ToastNotification from "../components/ToastNotification";
 import AssignKeyResultModal from "../components/AssignKeyResultModal";
+import ObjectiveArchive from "./ObjectiveArchive";
 
 export default function ObjectiveList({
     items,
@@ -258,76 +259,6 @@ export default function ObjectiveList({
         );
     };
 
-    // === BỎ LƯU TRỮ OKR ===
-    const handleUnarchive = async (id) => {
-        openConfirm(
-            "Bỏ lưu trữ OKR",
-            "OKR sẽ được khôi phục vào danh sách hoạt động.",
-            async () => {
-                setUnarchiving(id);
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(`/my-objectives/${id}/unarchive`, {
-                        method: "POST",
-                        headers: {
-                            "X-CSRF-TOKEN": token,
-                            Accept: "application/json",
-                        },
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        await reloadBothTabs(token);
-                        setToast({ type: "success", message: json.message });
-                    } else {
-                        throw new Error(json.message);
-                    }
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setUnarchiving(null);
-                }
-            }
-        );
-    };
-
-    // === XÓA VĨNH VIỄN OKR ===
-    const handleDelete = async (id) => {
-        openConfirm(
-            "XÓA VĨNH VIỄN",
-            "OKR sẽ bị xóa hoàn toàn, không thể khôi phục!",
-            async () => {
-                setDeleting(id);
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(`/my-objectives/${id}`, {
-                        method: "DELETE",
-                        headers: {
-                            "X-CSRF-TOKEN": token,
-                            Accept: "application/json",
-                        },
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        await reloadBothTabs(token);
-                        setToast({ type: "success", message: json.message });
-                    } else {
-                        throw new Error(json.message);
-                    }
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setDeleting(null);
-                }
-            },
-            "Xóa vĩnh viễn",
-            "Hủy"
-        );
-    };
-
     // === LƯU TRỮ KR ===
     const handleArchiveKR = async (krId) => {
         openConfirm(
@@ -369,106 +300,6 @@ export default function ObjectiveList({
         );
     };
 
-    // === BỎ LƯU TRỮ KR ===
-    const handleUnarchiveKR = async (krId) => {
-        openConfirm(
-            "Bỏ lưu trữ Key Result",
-            "Key Result sẽ quay lại danh sách hoạt động.",
-            async () => {
-                setUnarchivingKR(krId);
-                const obj = archivedItems.find((o) =>
-                    o.key_results?.some((kr) => kr.kr_id === krId)
-                );
-                if (!obj) {
-                    setToast({
-                        type: "error",
-                        message: "Không tìm thấy OKR cha.",
-                    });
-                    setUnarchivingKR(null);
-                    return;
-                }
-
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(
-                        `/my-key-results/${obj.objective_id}/${krId}/unarchive`,
-                        {
-                            method: "POST",
-                            headers: {
-                                "X-CSRF-TOKEN": token,
-                                Accept: "application/json",
-                            },
-                        }
-                    );
-                    const json = await res.json();
-                    if (!json.success)
-                        throw new Error(json.message || "Bỏ lưu trữ thất bại");
-
-                    await reloadBothTabs(token);
-                    setToast({ type: "success", message: json.message });
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setUnarchivingKR(null);
-                }
-            }
-        );
-    };
-
-    // === XÓA VĨNH VIỄN KR ===
-    const handleDeleteKR = async (krId) => {
-        openConfirm(
-            "XÓA VĨNH VIỄN",
-            "Key Result sẽ bị xóa hoàn toàn, không thể khôi phục!",
-            async () => {
-                setDeletingKR(krId);
-                const obj = archivedItems.find((o) =>
-                    o.key_results?.some((kr) => kr.kr_id === krId)
-                );
-                if (!obj) {
-                    setToast({
-                        type: "error",
-                        message: "Không tìm thấy OKR cha.",
-                    });
-                    setDeletingKR(null);
-                    return;
-                }
-
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(
-                        `/my-key-results/destroy/${obj.objective_id}/${krId}`,
-                        {
-                            method: "DELETE",
-                            headers: {
-                                "X-CSRF-TOKEN": token,
-                                Accept: "application/json",
-                            },
-                        }
-                    );
-                    const json = await res.json();
-
-                    if (json.success) {
-                        await reloadBothTabs(token);
-                        setToast({ type: "success", message: json.message });
-                    } else {
-                        throw new Error(json.message);
-                    }
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setDeletingKR(null);
-                }
-            },
-            "Xóa vĩnh viễn",
-            "Hủy"
-        );
-    };
-
     const openAssignModal = (kr, objective) => {
         setAssignModal({
             show: true,
@@ -506,15 +337,18 @@ export default function ObjectiveList({
             }
 
             // 4. Gửi request
-            const res = await fetch(`/my-key-results/${kr.kr_id}/assign`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": token,
-                    Accept: "application/json",
-                },
-                body: JSON.stringify({ email }),
-            });
+            const res = await fetch(
+                `/my-key-results/${objective.objective_id}/${kr.kr_id}/assign`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": token,
+                        Accept: "application/json",
+                    },
+                    body: JSON.stringify({ email }),
+                }
+            );
 
             // 5. Parse JSON (có thể lỗi nếu server trả HTML)
             let json;
@@ -532,31 +366,29 @@ export default function ObjectiveList({
             }
 
             if (!json.success) {
-                console.log("Assign KR success:", {
-                    kr_id: kr.kr_id,
-                    email,
-                    assignee: json.assignee,
-                });
                 throw new Error(json.message || "Giao việc thất bại");
             }
 
-            // 7. Cập nhật KR với assignee từ API
-            if (json.assignee) {
-                setKeyResults((prev) =>
-                    prev.map((item) =>
-                        item.kr_id === kr.kr_id
-                            ? { ...item, assignee: json.assignee }
-                            : item
-                    )
+            // Cập nhật giao diện ngay lập tức
+            if (json.data?.assigned_to) {
+                const assignee = json.data.assigned_to;
+
+                setItems((prevItems) =>
+                    prevItems.map((obj) => ({
+                        ...obj,
+                        key_results: obj.key_results.map((kr) =>
+                            kr.kr_id === assignModal.kr.kr_id
+                                ? {
+                                      ...kr,
+                                      assigned_to: assignee.user_id,
+                                      assignee: assignee,
+                                  }
+                                : kr
+                        ),
+                    }))
                 );
             }
 
-            // 8. (Tùy chọn) Reload các tab khác nếu cần đồng bộ realtime
-            if (typeof reloadBothTabs === "function") {
-                await reloadBothTabs(token);
-            }
-
-            // 9. Thành công
             setToast({
                 type: "success",
                 message: json.message || "Giao việc thành công!",
@@ -847,7 +679,7 @@ export default function ObjectiveList({
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.assign_to ? (
+                                                    {kr.assigned_to ? (
                                                         <div className="flex items-center justify-center gap-1">
                                                             <svg
                                                                 className="w-4 h-4 text-slate-500"
@@ -865,10 +697,7 @@ export default function ObjectiveList({
                                                                 />
                                                             </svg>
                                                             <span className="text-sm text-slate-700">
-                                                                {
-                                                                    kr.assignee
-                                                                        .name
-                                                                }
+                                                                {kr.assigned_to}
                                                             </span>
                                                         </div>
                                                     ) : (
@@ -1158,517 +987,16 @@ export default function ObjectiveList({
                             ))}
 
                         {/* OKR Lưu trữ */}
-                        {showArchived && loadingArchived && (
-                            <tr>
-                                <td
-                                    colSpan={7}
-                                    className="px-3 py-5 text-center text-slate-500"
-                                >
-                                    Đang tải...
-                                </td>
-                            </tr>
-                        )}
-
-                        {showArchived &&
-                            !loadingArchived &&
-                            archivedItems.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={7}
-                                        className="px-3 py-5 text-center text-slate-500"
-                                    >
-                                        Không có OKR nào Lưu trữ.
-                                    </td>
-                                </tr>
-                            )}
-
-                        {showArchived && !loadingArchived && (
-                            <>
-                                {/* Case 1: Objective bị lưu trữ toàn bộ */}
-                                {archivedItems
-                                    .filter((obj) => obj.archived_at !== null)
-                                    .map((obj, index) => (
-                                        <React.Fragment key={obj.objective_id}>
-                                            <tr
-                                                className={`bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200 ${
-                                                    index > 0 ? "mt-4" : ""
-                                                }`}
-                                            >
-                                                <td
-                                                    colSpan={7}
-                                                    className="px-3 py-3 border-r border-slate-200"
-                                                >
-                                                    <div className="flex items-center">
-                                                        <div className="flex items-center gap-1">
-                                                            {obj.key_results?.some(
-                                                                (kr) =>
-                                                                    kr.archived_at
-                                                            ) && (
-                                                                <button
-                                                                    onClick={() =>
-                                                                        setOpenObj(
-                                                                            (
-                                                                                prev
-                                                                            ) => ({
-                                                                                ...prev,
-                                                                                [obj.objective_id]:
-                                                                                    !prev[
-                                                                                        obj
-                                                                                            .objective_id
-                                                                                    ],
-                                                                            })
-                                                                        )
-                                                                    }
-                                                                    className="flex-shrink-0 p-1 rounded-md hover:bg-gray-100 transition-all duration-200 group"
-                                                                    title="Đóng/mở Key Results đã lưu trữ"
-                                                                >
-                                                                    <svg
-                                                                        xmlns="http://www.w3.org/2000/svg"
-                                                                        viewBox="0 0 20 20"
-                                                                        fill="currentColor"
-                                                                        className={`w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-all duration-300 ${
-                                                                            openObj[
-                                                                                obj
-                                                                                    .objective_id
-                                                                            ] ??
-                                                                            false
-                                                                                ? "rotate-90"
-                                                                                : "rotate-0"
-                                                                        }`}
-                                                                    >
-                                                                        <path
-                                                                            fillRule="evenodd"
-                                                                            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                                                                            clipRule="evenodd"
-                                                                        />
-                                                                    </svg>
-                                                                </button>
-                                                            )}
-
-                                                            <span className="font-semibold text-slate-900 truncate">
-                                                                {obj.obj_title}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-3 py-3 text-center bg-gradient-to-r from-blue-50 to-indigo-50">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <button
-                                                            onClick={() =>
-                                                                handleUnarchive(
-                                                                    obj.objective_id
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                unarchiving ===
-                                                                obj.objective_id
-                                                            }
-                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
-                                                            title="Bỏ lưu trữ"
-                                                        >
-                                                            <svg
-                                                                className="h-4 w-4"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={
-                                                                        2
-                                                                    }
-                                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                                                />
-                                                            </svg>
-                                                        </button>
-
-                                                        <button
-                                                            onClick={() =>
-                                                                handleDelete(
-                                                                    obj.objective_id
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                deleting ===
-                                                                obj.objective_id
-                                                            }
-                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
-                                                            title="Xóa vĩnh viễn"
-                                                        >
-                                                            <svg
-                                                                className="h-4 w-4"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={
-                                                                        2
-                                                                    }
-                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-
-                                            {/* Hiển thị KR lưu trữ của Objective đã lưu trữ */}
-                                            {(openObj[obj.objective_id] ??
-                                                false) &&
-                                                obj.key_results
-                                                    ?.filter(
-                                                        (kr) => kr.archived_at
-                                                    )
-                                                    ?.map((kr) => (
-                                                        <tr
-                                                            key={kr.kr_id}
-                                                            className="bg-gray-50"
-                                                        >
-                                                            <td className="px-8 py-2 italic text-gray-600">
-                                                                {kr.kr_title}
-                                                            </td>
-                                                            <td
-                                                                colSpan={6}
-                                                            ></td>
-                                                            <td className="text-center py-2">
-                                                                <div className="flex items-center justify-center gap-2">
-                                                                    <button
-                                                                        onClick={() =>
-                                                                            handleUnarchiveKR(
-                                                                                kr.kr_id
-                                                                            )
-                                                                        }
-                                                                        disabled={
-                                                                            unarchivingKR ===
-                                                                            kr.kr_id
-                                                                        }
-                                                                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 transition-colors relative"
-                                                                        title="Bỏ lưu trữ Key Result"
-                                                                    >
-                                                                        {unarchivingKR ===
-                                                                        kr.kr_id ? (
-                                                                            <svg
-                                                                                className="h-4 w-4 animate-spin"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                            >
-                                                                                <circle
-                                                                                    cx="12"
-                                                                                    cy="12"
-                                                                                    r="10"
-                                                                                    stroke="currentColor"
-                                                                                    strokeWidth="4"
-                                                                                    className="opacity-25"
-                                                                                />
-                                                                                <path
-                                                                                    fill="currentColor"
-                                                                                    d="M4 12a8 8 0 018-8v8z"
-                                                                                    className="opacity-75"
-                                                                                />
-                                                                            </svg>
-                                                                        ) : (
-                                                                            <svg
-                                                                                className="h-4 w-4"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                                stroke="currentColor"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    strokeWidth={
-                                                                                        2
-                                                                                    }
-                                                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                                                                />
-                                                                            </svg>
-                                                                        )}
-                                                                    </button>
-
-                                                                    <button
-                                                                        onClick={() =>
-                                                                            handleDeleteKR(
-                                                                                kr.kr_id
-                                                                            )
-                                                                        }
-                                                                        disabled={
-                                                                            deletingKR ===
-                                                                            kr.kr_id
-                                                                        }
-                                                                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 transition-colors relative"
-                                                                        title="Xóa vĩnh viễn Key Result"
-                                                                    >
-                                                                        {deletingKR ===
-                                                                        kr.kr_id ? (
-                                                                            <svg
-                                                                                className="h-4 w-4 animate-spin"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                            >
-                                                                                <circle
-                                                                                    cx="12"
-                                                                                    cy="12"
-                                                                                    r="10"
-                                                                                    stroke="currentColor"
-                                                                                    strokeWidth="4"
-                                                                                    className="opacity-25"
-                                                                                />
-                                                                                <path
-                                                                                    fill="currentColor"
-                                                                                    d="M4 12a8 8 0 018-8v8z"
-                                                                                    className="opacity-75"
-                                                                                />
-                                                                            </svg>
-                                                                        ) : (
-                                                                            <svg
-                                                                                className="h-4 w-4"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                                stroke="currentColor"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    strokeWidth={
-                                                                                        2
-                                                                                    }
-                                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                                                />
-                                                                            </svg>
-                                                                        )}
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                        </React.Fragment>
-                                    ))}
-
-                                {/* Case 2: Chỉ có KR lưu trữ (Objective KHÔNG lưu trữ) */}
-                                {archivedItems
-                                    .filter(
-                                        (obj) =>
-                                            obj.archived_at === null &&
-                                            obj.key_results?.some(
-                                                (kr) => kr.archived_at
-                                            )
-                                    )
-                                    .map((obj, index) => {
-                                        const archivedKRs =
-                                            obj.key_results.filter(
-                                                (kr) => kr.archived_at
-                                            );
-                                        const hasArchivedKRs =
-                                            archivedKRs.length > 0;
-
-                                        return (
-                                            <React.Fragment
-                                                key={`archived-kr-${obj.objective_id}`}
-                                            >
-                                                <tr
-                                                    className={`bg-gradient-to-r from-yellow-50 to-orange-50 border-t-2 border-yellow-300 ${
-                                                        index > 0 ? "mt-4" : ""
-                                                    }`}
-                                                >
-                                                    <td
-                                                        colSpan={7}
-                                                        className="px-3 py-3 border-r border-slate-200"
-                                                    >
-                                                        <div className="flex items-center justify-between w-full">
-                                                            <div className="flex items-center gap-1">
-                                                                {hasArchivedKRs && (
-                                                                    <button
-                                                                        onClick={() =>
-                                                                            setOpenObj(
-                                                                                (
-                                                                                    prev
-                                                                                ) => ({
-                                                                                    ...prev,
-                                                                                    [obj.objective_id]:
-                                                                                        !(
-                                                                                            prev[
-                                                                                                obj
-                                                                                                    .objective_id
-                                                                                            ] ??
-                                                                                            false
-                                                                                        ),
-                                                                                })
-                                                                            )
-                                                                        }
-                                                                        className="flex-shrink-0 p-1 rounded-md hover:bg-orange-100 transition-all duration-200 group"
-                                                                        title="Đóng/mở Key Results đã lưu trữ"
-                                                                    >
-                                                                        <svg
-                                                                            xmlns="http://www.w3.org/2000/svg"
-                                                                            viewBox="0 0 20 20"
-                                                                            fill="currentColor"
-                                                                            className={`w-3.5 h-3.5 text-orange-500 group-hover:text-orange-700 transition-all duration-300 ${
-                                                                                openObj[
-                                                                                    obj
-                                                                                        .objective_id
-                                                                                ] ??
-                                                                                false
-                                                                                    ? "rotate-90"
-                                                                                    : "rotate-0"
-                                                                            }`}
-                                                                        >
-                                                                            <path
-                                                                                fillRule="evenodd"
-                                                                                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                                                                                clipRule="evenodd"
-                                                                            />
-                                                                        </svg>
-                                                                    </button>
-                                                                )}
-
-                                                                <span className="font-semibold text-slate-900 truncate">
-                                                                    {
-                                                                        obj.obj_title
-                                                                    }
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    {/* <td className="text-center text-slate-400 py-3 bg-gradient-to-r from-yellow-50 to-orange-50">
-                                                        Objective đang hoạt động
-                                                        – {archivedKRs.length}{" "}
-                                                        Key Result đã lưu trữ
-                                                    </td> */}
-                                                </tr>
-
-                                                {openObj[obj.objective_id] &&
-                                                    archivedKRs.map((kr) => (
-                                                        <tr
-                                                            key={kr.kr_id}
-                                                            className="bg-gray-50"
-                                                        >
-                                                            <td className="px-8 py-2 italic text-gray-600">
-                                                                {kr.kr_title}{" "}
-                                                                <span className="text-orange-600 text-xs"></span>
-                                                            </td>
-                                                            <td
-                                                                colSpan={6}
-                                                            ></td>
-                                                            <td className="text-center py-2">
-                                                                <div className="flex items-center justify-center gap-2">
-                                                                    <button
-                                                                        onClick={() =>
-                                                                            handleUnarchiveKR(
-                                                                                kr.kr_id
-                                                                            )
-                                                                        }
-                                                                        disabled={
-                                                                            unarchivingKR ===
-                                                                            kr.kr_id
-                                                                        }
-                                                                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 transition-colors relative"
-                                                                        title="Bỏ lưu trữ Key Result"
-                                                                    >
-                                                                        {unarchivingKR ===
-                                                                        kr.kr_id ? (
-                                                                            <svg
-                                                                                className="h-4 w-4 animate-spin"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                            >
-                                                                                <circle
-                                                                                    cx="12"
-                                                                                    cy="12"
-                                                                                    r="10"
-                                                                                    stroke="currentColor"
-                                                                                    strokeWidth="4"
-                                                                                    className="opacity-25"
-                                                                                />
-                                                                                <path
-                                                                                    fill="currentColor"
-                                                                                    d="M4 12a8 8 0 018-8v8z"
-                                                                                    className="opacity-75"
-                                                                                />
-                                                                            </svg>
-                                                                        ) : (
-                                                                            <svg
-                                                                                className="h-4 w-4"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                                stroke="currentColor"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    strokeWidth={
-                                                                                        2
-                                                                                    }
-                                                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                                                                />
-                                                                            </svg>
-                                                                        )}
-                                                                    </button>
-
-                                                                    <button
-                                                                        onClick={() =>
-                                                                            handleDeleteKR(
-                                                                                kr.kr_id
-                                                                            )
-                                                                        }
-                                                                        disabled={
-                                                                            deletingKR ===
-                                                                            kr.kr_id
-                                                                        }
-                                                                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 transition-colors relative"
-                                                                        title="Xóa vĩnh viễn Key Result"
-                                                                    >
-                                                                        {deletingKR ===
-                                                                        kr.kr_id ? (
-                                                                            <svg
-                                                                                className="h-4 w-4 animate-spin"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                            >
-                                                                                <circle
-                                                                                    cx="12"
-                                                                                    cy="12"
-                                                                                    r="10"
-                                                                                    stroke="currentColor"
-                                                                                    strokeWidth="4"
-                                                                                    className="opacity-25"
-                                                                                />
-                                                                                <path
-                                                                                    fill="currentColor"
-                                                                                    d="M4 12a8 8 0 018-8v8z"
-                                                                                    className="opacity-75"
-                                                                                />
-                                                                            </svg>
-                                                                        ) : (
-                                                                            <svg
-                                                                                className="h-4 w-4"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                                stroke="currentColor"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    strokeWidth={
-                                                                                        2
-                                                                                    }
-                                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                                                />
-                                                                            </svg>
-                                                                        )}
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                            </React.Fragment>
-                                        );
-                                    })}
-                            </>
-                        )}
+                        {showArchived ? (
+                            <ObjectiveArchive
+                                archivedItems={archivedItems}
+                                openObj={openObj}
+                                setOpenObj={setOpenObj}
+                                loadingArchived={loadingArchived}
+                                showArchived={showArchived}
+                                reloadBothTabs={reloadBothTabs}
+                            />
+                        ) : null}
                     </tbody>
                 </table>
             </div>
