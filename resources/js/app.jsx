@@ -11,6 +11,7 @@ import ProfilePage from "./pages/ProfilePage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import CompanyOverviewReport from "./pages/CompanyOverviewReport";
 import { GradientText } from "./components/ui";
+import CompanyOkrList from "./pages/CompanyOkrList";
 
 function NavBar({ activeTab, onChangeTab }) {
     const go = (tab) => {
@@ -355,6 +356,7 @@ export default function App() {
         p.startsWith("/departments") ||
         p.startsWith("/reports") ||
         p.startsWith("/my-objectives") ||
+        p.startsWith("/company-okrs") ||
         p.startsWith("/profile") ||
         p.startsWith("/change-password") ||
         p.startsWith("/reports");
@@ -366,6 +368,8 @@ export default function App() {
         else if (p.startsWith("/cycles")) content = <CyclesPanel />;
         else if (p.startsWith("/departments")) content = <DepartmentsPanel />;
         else if (p.startsWith("/my-objectives")) content = <ObjectivesPage />;
+        else if (p.startsWith("/company-okrs"))
+            content = <CompanyOkrList currentUser={user} />;
         else if (p.startsWith("/profile")) content = <ProfilePage />;
         else if (p.startsWith("/change-password"))
             content = <ChangePasswordPage />;

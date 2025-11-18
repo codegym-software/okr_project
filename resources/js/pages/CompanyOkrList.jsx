@@ -4,13 +4,40 @@ import { CycleDropdown } from "../components/Dropdown";
 import Tabs from "../components/Tabs";
 import ToastNotification from "../components/ToastNotification";
 
-export default function CompanyOkrList({ cyclesList, currentUser }) {
+export default function CompanyOkrList({
+    cyclesList: initialCycles = [],
+    currentUser,
+}) {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
     const [cycleFilter, setCycleFilter] = useState(null);
     const [openObj, setOpenObj] = useState({});
     const [overallProgress, setOverallProgress] = useState(0);
+    const [cyclesList, setCyclesList] = useState(initialCycles);
+
+    useEffect(() => {
+        setCyclesList(initialCycles);
+    }, [initialCycles]);
+
+    useEffect(() => {
+        if (initialCycles?.length) {
+            return;
+        }
+        (async () => {
+            try {
+                const res = await fetch("/cycles", {
+                    headers: { Accept: "application/json" },
+                });
+                const json = await res.json();
+                if (Array.isArray(json.data)) {
+                    setCyclesList(json.data);
+                }
+            } catch (error) {
+                console.error("Failed to load cycles", error);
+            }
+        })();
+    }, [initialCycles]);
 
     // Tải OKR toàn công ty
     const fetchCompanyOkrs = useCallback(async () => {
@@ -133,69 +160,60 @@ export default function CompanyOkrList({ cyclesList, currentUser }) {
     return (
         <div className="mx-auto w-full max-w-6xl">
             {/* Header */}
-            <div className="mb-6">
-                <h1 className="text-3xl font-bold text-slate-900">
-                    OKR Toàn Công Ty
-                </h1>
-                <div className="mt-2 flex items-center gap-6">
-                    <CycleDropdown
-                        cyclesList={cyclesList}
-                        cycleFilter={cycleFilter}
-                        handleCycleChange={setCycleFilter}
-                    />
-                    <div className="text-2xl font-bold text-indigo-600">
-                        {formatPercent(overallProgress)}
-                    </div>
-                </div>
-            </div>
+            {/* ... (Giữ nguyên phần Header) ... */}
 
             {/* Tabs giả (chỉ để giữ layout giống) */}
             <div className="mb-4">
                 <Tabs showArchived={false} setShowArchived={() => {}} />
             </div>
 
-            {/* Bảng OKR - giống hệt ObjectiveList */}
+            {/* Bảng OKR - Cập nhật để khớp ObjectiveList */}
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full divide-y divide-slate-200">
+                    {/* === BẮT ĐẦU CHỈNH SỬA THEAD === */}
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
+                            {/* 1. Tiêu đề (30%) */}
                             <th className="px-3 py-2 text-left w-[30%] border-r border-slate-200">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
-                                Cấp độ
-                            </th>
+                            {/* (ĐÃ XÓA CỘT CẤP ĐỘ) */}
+                            {/* 2. Người thực hiện (12%) */}
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
                                 Người thực hiện
                             </th>
+                            {/* 3. Trạng thái (12%) */}
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
                                 Trạng thái
                             </th>
+                            {/* 4. Đơn vị (10%) */}
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Đơn vị
                             </th>
+                            {/* 5. Thực tế (10%) */}
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Thực tế
                             </th>
+                            {/* 6. Mục tiêu (10%) */}
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Mục tiêu
                             </th>
+                            {/* 7. Tiến độ (%) (10%) */}
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Tiến độ (%)
                             </th>
+                            {/* 8. Hành động (12%) - CỘT MỚI */}
+                            <th className="px-3 py-2 text-center w-[12%]">
+                                Hành động
+                            </th>
                         </tr>
                     </thead>
+                    {/* === KẾT THÚC CHỈNH SỬA THEAD === */}
+
                     <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr>
-                                <td
-                                    colSpan={8}
-                                    className="px-3 py-5 text-center text-slate-500"
-                                >
-                                    Đang tải OKR toàn công ty...
-                                </td>
-                            </tr>
-                        ) : items.length === 0 ? (
+                        {/* ... (Giữ nguyên phần loading/empty state) ... */}
+
+                        {items.length === 0 ? (
                             <tr>
                                 <td
                                     colSpan={8}
@@ -207,12 +225,17 @@ export default function CompanyOkrList({ cyclesList, currentUser }) {
                         ) : (
                             items.map((obj, index) => (
                                 <React.Fragment key={obj.objective_id}>
-                                    {/* Objective Row */}
+                                    {/* === BẮT ĐẦU CHỈNH SỬA OBJECTIVE ROW === */}
                                     <tr
                                         className={`bg-gradient-to-r from-indigo-50 to-purple-50 border-t-2 border-indigo-200`}
                                     >
-                                        <td colSpan={8} className="px-3 py-3">
-                                            <div className="flex items-center justify-between">
+                                        <td
+                                            colSpan={7}
+                                            className="px-3 py-3 border-r border-slate-200"
+                                        >
+                                            {" "}
+                                            {/* colSpan=7 */}
+                                            <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-2">
                                                     {obj.key_results?.length >
                                                         0 && (
@@ -262,36 +285,32 @@ export default function CompanyOkrList({ cyclesList, currentUser }) {
                                                 </div>
                                             </div>
                                         </td>
+                                        {/* Cột Hành động (cột thứ 8) */}
+                                        <td className="px-3 py-3 text-center bg-gradient-to-r from-indigo-50 to-purple-50">
+                                            {/* Nội dung hành động (trống) */}
+                                        </td>
                                     </tr>
+                                    {/* === KẾT THÚC CHỈNH SỬA OBJECTIVE ROW === */}
 
-                                    {/* Key Results */}
+                                    {/* === BẮT ĐẦU CHỈNH SỬA KEY RESULTS ROW === */}
                                     {openObj[obj.objective_id] &&
                                         obj.key_results?.map((kr) => (
                                             <tr key={kr.kr_id}>
+                                                {/* 1. Tiêu đề (30%) */}
                                                 <td className="px-8 py-3 border-r border-slate-200">
                                                     <span className="font-medium text-slate-800">
                                                         {kr.kr_title}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    <span
-                                                        className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${getLevelBadge(
-                                                            obj.level
-                                                        )}`}
-                                                    >
-                                                        {obj.level === "company"
-                                                            ? "Công ty"
-                                                            : obj.level ===
-                                                              "unit"
-                                                            ? "Phòng ban"
-                                                            : obj.level}
-                                                    </span>
-                                                </td>
+                                                {/* (ĐÃ XÓA CỘT CẤP ĐỘ ỨNG VỚI CỘT THỨ 2 BAN ĐẦU) */}
+
+                                                {/* 2. Người thực hiện (12%) - CỘT MỚI (CHUYỂN VỊ TRÍ) */}
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.assignee?.fullName ||
                                                         kr.assigned_to ||
                                                         "Chưa giao"}
                                                 </td>
+                                                {/* 3. Trạng thái (12%) - CỘT MỚI (CHUYỂN VỊ TRÍ) */}
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     <span
                                                         className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
@@ -309,22 +328,31 @@ export default function CompanyOkrList({ cyclesList, currentUser }) {
                                                         )}
                                                     </span>
                                                 </td>
+                                                {/* 4. Đơn vị (10%) - CỘT MỚI (CHUYỂN VỊ TRÍ) */}
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {getUnitText(kr.unit)}
                                                 </td>
+                                                {/* 5. Thực tế (10%) - CỘT MỚI (CHUYỂN VỊ TRÍ) */}
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.current_value ?? 0}
                                                 </td>
+                                                {/* 6. Mục tiêu (10%) - CỘT MỚI (CHUYỂN VỊ TRÍ) */}
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.target_value}
                                                 </td>
+                                                {/* 7. Tiến độ (%) (10%) - CỘT MỚI (CHUYỂN VỊ TRÍ) */}
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {formatPercent(
                                                         kr.progress_percent
                                                     )}
                                                 </td>
+                                                {/* 8. Hành động (12%) - CỘT MỚI (THÊM VÀO CUỐI) */}
+                                                <td className="px-3 py-3 text-center">
+                                                    {/* Placeholder cho Hành động */}
+                                                </td>
                                             </tr>
                                         ))}
+                                    {/* === KẾT THÚC CHỈNH SỬA KEY RESULTS ROW === */}
                                 </React.Fragment>
                             ))
                         )}
