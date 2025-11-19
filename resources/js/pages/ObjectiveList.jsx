@@ -19,6 +19,7 @@ export default function ObjectiveList({
     setEditingKR,
     setCreatingObjective,
     links,
+    childLinks = [],
     linksLoading = false,
     cycleFilter,
     setCycleFilter,
@@ -75,6 +76,63 @@ export default function ObjectiveList({
         }
         return { byObjective, byKr };
     }, [links]);
+
+    // Chuyển đổi childLinks thành virtual Key Results để hiển thị như KRs con
+    const itemsWithLinkedChildren = useMemo(() => {
+        if (!Array.isArray(childLinks) || childLinks.length === 0) {
+            return items;
+        }
+
+        return items.map((obj) => {
+            // Tìm các childLinks trỏ tới Objective này
+            const linkedChildren = childLinks.filter((link) => {
+                const targetObjectiveId = link.targetObjective?.objective_id || link.target_objective_id;
+                const targetKrId = link.targetKr?.kr_id || link.target_kr_id;
+                
+                // Nếu link trỏ tới Objective này (không phải KR)
+                if (targetObjectiveId === obj.objective_id && !targetKrId) {
+                    return true;
+                }
+                return false;
+            });
+
+            if (linkedChildren.length === 0) {
+                return obj;
+            }
+
+            // Chuyển đổi childLinks thành virtual Key Results
+            const virtualKRs = linkedChildren.map((link) => {
+                const sourceObjective = link.sourceObjective || link.source_objective;
+                const sourceKr = link.sourceKr || link.source_kr;
+                
+                // Tạo virtual KR từ link
+                return {
+                    kr_id: `linked_${link.link_id}`, // ID giả để phân biệt
+                    kr_title: sourceKr 
+                        ? `${sourceObjective?.obj_title || 'Objective'} › ${sourceKr.kr_title || 'Key Result'}`
+                        : sourceObjective?.obj_title || 'Linked Objective',
+                    target_value: sourceKr?.target_value || 0,
+                    current_value: sourceKr?.current_value || 0,
+                    unit: sourceKr?.unit || 'number',
+                    status: sourceKr?.status || sourceObjective?.status || 'active',
+                    weight: sourceKr?.weight || 0,
+                    progress_percent: sourceKr?.progress_percent || 0,
+                    assigned_to: sourceKr?.assigned_to || sourceObjective?.user_id || null,
+                    isLinked: true, // Flag để phân biệt với KR thật
+                    link: link, // Lưu link để có thể hủy liên kết
+                };
+            });
+
+            // Thêm virtual KRs vào key_results của Objective
+            return {
+                ...obj,
+                key_results: [
+                    ...(obj.key_results || []),
+                    ...virtualKRs,
+                ],
+            };
+        });
+    }, [items, childLinks]);
 
     const handleViewLink = useCallback((link) => {
         if (!link) return;
@@ -718,7 +776,7 @@ export default function ObjectiveList({
                         {/* OKR Đang hoạt động */}
                         {!showArchived &&
                             !loading &&
-                            items.map((obj, index) => (
+                            itemsWithLinkedChildren.map((obj, index) => (
                                 <React.Fragment key={obj.objective_id}>
                                     <tr
                                         className={`bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200 ${
@@ -900,14 +958,23 @@ export default function ObjectiveList({
 
                                     {/* Key Results */}
                                     {openObj[obj.objective_id] &&
-                                        obj.key_results?.map((kr) => (
-                                            <tr key={kr.kr_id}>
+                                        obj.key_results?.map((kr) => {
+                                            const isLinkedKR = kr.isLinked;
+                                            return (
+                                            <tr key={kr.kr_id} className={isLinkedKR ? "bg-indigo-50/50" : ""}>
                                                 <td className="px-8 py-3 border-r border-slate-200">
                                                     <div className="flex flex-col gap-1">
-                                                        <span className="font-medium text-slate-900">
-                                                            {kr.kr_title}
-                                                        </span>
-                                                        {renderLinkBadge(linkLookup.byKr[kr.kr_id])}
+                                                        <div className="flex items-center gap-2">
+                                                            {isLinkedKR && (
+                                                                <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                                                                    Liên kết
+                                                                </span>
+                                                            )}
+                                                            <span className={`font-medium ${isLinkedKR ? 'text-indigo-900' : 'text-slate-900'}`}>
+                                                                {kr.kr_title}
+                                                            </span>
+                                                        </div>
+                                                        {!isLinkedKR && renderLinkBadge(linkLookup.byKr[kr.kr_id])}
                                                     </div>
                                                 </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
@@ -976,24 +1043,21 @@ export default function ObjectiveList({
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-1">
-                                                        {onOpenLinkModal && (
+                                                        {isLinkedKR ? (
+                                                            // Virtual KR - chỉ hiển thị nút hủy liên kết
                                                             <button
-                                                                onClick={() =>
-                                                                    onOpenLinkModal({
-                                                                        sourceType: "kr",
-                                                                        source: {
-                                                                            ...kr,
-                                                                            objective_id:
-                                                                                obj.objective_id,
-                                                                            objective_level:
-                                                                                obj.level,
-                                                                            obj_title:
-                                                                                obj.obj_title,
-                                                                        },
-                                                                    })
-                                                                }
-                                                                className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
-                                                                title="Liên kết OKR cấp cao"
+                                                                onClick={() => {
+                                                                    if (window.confirm(`Bạn có chắc chắn muốn hủy liên kết với "${kr.kr_title}"?`)) {
+                                                                        const keepOwnership = window.confirm(
+                                                                            "OKR này đang sở hữu OKR con. Giữ quyền sở hữu cho OKR cấp cao?"
+                                                                        );
+                                                                        if (onCancelLink && kr.link) {
+                                                                            onCancelLink(kr.link.link_id, "", keepOwnership);
+                                                                        }
+                                                                    }
+                                                                }}
+                                                                className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                                                                title="Hủy liên kết"
                                                             >
                                                                 <svg
                                                                     className="h-4 w-4"
@@ -1004,77 +1068,56 @@ export default function ObjectiveList({
                                                                     <path
                                                                         strokeLinecap="round"
                                                                         strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            2
-                                                                        }
-                                                                        d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
+                                                                        strokeWidth={2}
+                                                                        d="M6 18L18 6M6 6l12 12"
                                                                     />
                                                                 </svg>
                                                             </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() =>
-                                                                setEditingKR(kr)
-                                                            }
-                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                                                            title="Sửa KR"
-                                                        >
-                                                            <svg
-                                                                className="h-4 w-4"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={
-                                                                        2
-                                                                    }
-                                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                        {/* Menu 3 chấm dọc – ĐÃ SỬA Z-INDEX */}
-                                                        {(openCheckInModal &&
-                                                            canCheckInKR(
-                                                                kr,
-                                                                obj
-                                                            )) ||
-                                                        openCheckInHistory ||
-                                                        onOpenLinkModal ? (
-                                                            <div 
-                                                                className="relative z-[1000]"
-                                                                ref={(el) => {
-                                                                    menuRefs.current[`menu_${kr.kr_id}`] = el;
-                                                                }}
-                                                            >
-                                                                <button
-                                                                    onClick={(
-                                                                        e
-                                                                    ) => {
-                                                                        e.stopPropagation();
-                                                                        const menuKey = `menu_${kr.kr_id}`;
-                                                                        const isCurrentlyOpen = openObj[menuKey];
-                                                                        
-                                                                        // Đóng tất cả menu trước
-                                                                        setOpenObj((prev) => {
-                                                                            const newState = { ...prev };
-                                                                            // Đóng tất cả menu khác
-                                                                            Object.keys(newState).forEach((key) => {
-                                                                                if (key.startsWith("menu_")) {
-                                                                                    newState[key] = false;
+                                                        ) : (
+                                                            // KR thật - hiển thị các nút bình thường
+                                                            <>
+                                                                {onOpenLinkModal && (
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            onOpenLinkModal({
+                                                                                sourceType: "kr",
+                                                                                source: {
+                                                                                    ...kr,
+                                                                                    objective_id:
+                                                                                        obj.objective_id,
+                                                                                    objective_level:
+                                                                                        obj.level,
+                                                                                    obj_title:
+                                                                                        obj.obj_title,
+                                                                                },
+                                                                            })
+                                                                        }
+                                                                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                                                                        title="Liên kết OKR cấp cao"
+                                                                    >
+                                                                        <svg
+                                                                            className="h-4 w-4"
+                                                                            fill="none"
+                                                                            viewBox="0 0 24 24"
+                                                                            stroke="currentColor"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth={
+                                                                                    2
                                                                                 }
-                                                                            });
-                                                                            // Mở menu hiện tại nếu nó đang đóng
-                                                                            if (!isCurrentlyOpen) {
-                                                                                newState[menuKey] = true;
-                                                                            }
-                                                                            return newState;
-                                                                        });
-                                                                    }}
-                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded transition-colors"
-                                                                    title="Tùy chọn Check-in"
+                                                                                d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
+                                                                            />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    onClick={() =>
+                                                                        setEditingKR(kr)
+                                                                    }
+                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                                                    title="Sửa KR"
                                                                 >
                                                                     <svg
                                                                         className="h-4 w-4"
@@ -1088,71 +1131,50 @@ export default function ObjectiveList({
                                                                             strokeWidth={
                                                                                 2
                                                                             }
-                                                                            d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                                                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                                                                         />
                                                                     </svg>
                                                                 </button>
-                                                                {/* Dropdown Menu – z-index cao hơn */}
-                                                                {openObj[
-                                                                    `menu_${kr.kr_id}`
-                                                                ] && (
-                                                                    <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
-                                                                        {onOpenLinkModal && (
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    onOpenLinkModal({
-                                                                                        sourceType: "kr",
-                                                                                        source: {
-                                                                                            ...kr,
-                                                                                            objective_id: obj.objective_id,
-                                                                                            objective_level: obj.level,
-                                                                                            obj_title: obj.obj_title,
-                                                                                        },
-                                                                                    });
-                                                                                    setOpenObj((prev) => ({
-                                                                                        ...prev,
-                                                                                        [`menu_${kr.kr_id}`]: false,
-                                                                                    }));
-                                                                                }}
-                                                                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 transition-colors"
-                                                                            >
-                                                                                <svg
-                                                                                    className="h-4 w-4"
-                                                                                    fill="none"
-                                                                                    viewBox="0 0 24 24"
-                                                                                    stroke="currentColor"
-                                                                                >
-                                                                                    <path
-                                                                                        strokeLinecap="round"
-                                                                                        strokeLinejoin="round"
-                                                                                        strokeWidth={2}
-                                                                                        d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
-                                                                                    />
-                                                                                </svg>
-                                                                                Liên kết OKR cấp cao
-                                                                            </button>
-                                                                        )}
-                                                                        {/* Giao việc */}
+                                                                {/* Menu 3 chấm dọc – ĐÃ SỬA Z-INDEX */}
+                                                                {(openCheckInModal &&
+                                                                    canCheckInKR(
+                                                                        kr,
+                                                                        obj
+                                                                    )) ||
+                                                                openCheckInHistory ||
+                                                                onOpenLinkModal ? (
+                                                                    <div 
+                                                                        className="relative z-[1000]"
+                                                                        ref={(el) => {
+                                                                            menuRefs.current[`menu_${kr.kr_id}`] = el;
+                                                                        }}
+                                                                    >
                                                                         <button
                                                                             onClick={(
                                                                                 e
                                                                             ) => {
                                                                                 e.stopPropagation();
-                                                                                openAssignModal(
-                                                                                    kr,
-                                                                                    obj
-                                                                                );
-                                                                                setOpenObj(
-                                                                                    (
-                                                                                        prev
-                                                                                    ) => ({
-                                                                                        ...prev,
-                                                                                        [`menu_${kr.kr_id}`]: false,
-                                                                                    })
-                                                                                );
+                                                                                const menuKey = `menu_${kr.kr_id}`;
+                                                                                const isCurrentlyOpen = openObj[menuKey];
+                                                                                
+                                                                                // Đóng tất cả menu trước
+                                                                                setOpenObj((prev) => {
+                                                                                    const newState = { ...prev };
+                                                                                    // Đóng tất cả menu khác
+                                                                                    Object.keys(newState).forEach((key) => {
+                                                                                        if (key.startsWith("menu_")) {
+                                                                                            newState[key] = false;
+                                                                                        }
+                                                                                    });
+                                                                                    // Mở menu hiện tại nếu nó đang đóng
+                                                                                    if (!isCurrentlyOpen) {
+                                                                                        newState[menuKey] = true;
+                                                                                    }
+                                                                                    return newState;
+                                                                                });
                                                                             }}
-                                                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                                                                            title="Tùy chọn Check-in"
                                                                         >
                                                                             <svg
                                                                                 className="h-4 w-4"
@@ -1166,24 +1188,58 @@ export default function ObjectiveList({
                                                                                     strokeWidth={
                                                                                         2
                                                                                     }
-                                                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                                                                    d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
                                                                                 />
                                                                             </svg>
-                                                                            Giao
-                                                                            việc
                                                                         </button>
-                                                                        {/* Check-in */}
-                                                                        {openCheckInModal &&
-                                                                            canCheckInKR(
-                                                                                kr,
-                                                                                obj
-                                                                            ) && (
+                                                                        {/* Dropdown Menu – z-index cao hơn */}
+                                                                        {openObj[
+                                                                            `menu_${kr.kr_id}`
+                                                                        ] && (
+                                                                            <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
+                                                                                {onOpenLinkModal && (
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            onOpenLinkModal({
+                                                                                                sourceType: "kr",
+                                                                                                source: {
+                                                                                                    ...kr,
+                                                                                                    objective_id: obj.objective_id,
+                                                                                                    objective_level: obj.level,
+                                                                                                    obj_title: obj.obj_title,
+                                                                                                },
+                                                                                            });
+                                                                                            setOpenObj((prev) => ({
+                                                                                                ...prev,
+                                                                                                [`menu_${kr.kr_id}`]: false,
+                                                                                            }));
+                                                                                        }}
+                                                                                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 transition-colors"
+                                                                                    >
+                                                                                        <svg
+                                                                                            className="h-4 w-4"
+                                                                                            fill="none"
+                                                                                            viewBox="0 0 24 24"
+                                                                                            stroke="currentColor"
+                                                                                        >
+                                                                                            <path
+                                                                                                strokeLinecap="round"
+                                                                                                strokeLinejoin="round"
+                                                                                                strokeWidth={2}
+                                                                                                d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
+                                                                                            />
+                                                                                        </svg>
+                                                                                        Liên kết OKR cấp cao
+                                                                                    </button>
+                                                                                )}
+                                                                                {/* Giao việc */}
                                                                                 <button
                                                                                     onClick={(
                                                                                         e
                                                                                     ) => {
                                                                                         e.stopPropagation();
-                                                                                        handleOpenCheckIn(
+                                                                                        openAssignModal(
                                                                                             kr,
                                                                                             obj
                                                                                         );
@@ -1210,94 +1266,141 @@ export default function ObjectiveList({
                                                                                             strokeWidth={
                                                                                                 2
                                                                                             }
-                                                                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                                                                                         />
                                                                                     </svg>
-                                                                                    Check-in
-                                                                                    Key
-                                                                                    Result
+                                                                                    Giao
+                                                                                    việc
                                                                                 </button>
-                                                                            )}
-
-                                                                        {/* Lịch sử */}
-                                                                        {openCheckInHistory && (
-                                                                            <button
-                                                                                onClick={(
-                                                                                    e
-                                                                                ) => {
-                                                                                    e.stopPropagation();
-                                                                                    handleOpenCheckInHistory(
+                                                                                {/* Check-in */}
+                                                                                {openCheckInModal &&
+                                                                                    canCheckInKR(
                                                                                         kr,
                                                                                         obj
-                                                                                    );
-                                                                                    setOpenObj(
-                                                                                        (
-                                                                                            prev
-                                                                                        ) => ({
-                                                                                            ...prev,
-                                                                                            [`menu_${kr.kr_id}`]: false,
-                                                                                        })
-                                                                                    );
-                                                                                }}
-                                                                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                                                                            >
-                                                                                <svg
-                                                                                    className="h-4 w-4"
-                                                                                    fill="none"
-                                                                                    viewBox="0 0 24 24"
-                                                                                    stroke="currentColor"
-                                                                                >
-                                                                                    <path
-                                                                                        strokeLinecap="round"
-                                                                                        strokeLinejoin="round"
-                                                                                        strokeWidth={
-                                                                                            2
-                                                                                        }
-                                                                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                                                    />
-                                                                                </svg>
-                                                                                Lịch
-                                                                                sử
-                                                                                Check-in
-                                                                            </button>
+                                                                                    ) && (
+                                                                                        <button
+                                                                                            onClick={(
+                                                                                                e
+                                                                                            ) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleOpenCheckIn(
+                                                                                                    kr,
+                                                                                                    obj
+                                                                                                );
+                                                                                                setOpenObj(
+                                                                                                    (
+                                                                                                        prev
+                                                                                                    ) => ({
+                                                                                                        ...prev,
+                                                                                                        [`menu_${kr.kr_id}`]: false,
+                                                                                                    })
+                                                                                                );
+                                                                                            }}
+                                                                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                                        >
+                                                                                            <svg
+                                                                                                className="h-4 w-4"
+                                                                                                fill="none"
+                                                                                                viewBox="0 0 24 24"
+                                                                                                stroke="currentColor"
+                                                                                            >
+                                                                                                <path
+                                                                                                    strokeLinecap="round"
+                                                                                                    strokeLinejoin="round"
+                                                                                                    strokeWidth={
+                                                                                                        2
+                                                                                                    }
+                                                                                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                                                />
+                                                                                            </svg>
+                                                                                            Check-in
+                                                                                            Key
+                                                                                            Result
+                                                                                        </button>
+                                                                                    )}
+
+                                                                                {/* Lịch sử */}
+                                                                                {openCheckInHistory && (
+                                                                                    <button
+                                                                                        onClick={(
+                                                                                            e
+                                                                                        ) => {
+                                                                                            e.stopPropagation();
+                                                                                            handleOpenCheckInHistory(
+                                                                                                kr,
+                                                                                                obj
+                                                                                            );
+                                                                                            setOpenObj(
+                                                                                                (
+                                                                                                    prev
+                                                                                                ) => ({
+                                                                                                    ...prev,
+                                                                                                    [`menu_${kr.kr_id}`]: false,
+                                                                                                })
+                                                                                            );
+                                                                                        }}
+                                                                                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                                                    >
+                                                                                        <svg
+                                                                                            className="h-4 w-4"
+                                                                                            fill="none"
+                                                                                            viewBox="0 0 24 24"
+                                                                                            stroke="currentColor"
+                                                                                        >
+                                                                                            <path
+                                                                                                strokeLinecap="round"
+                                                                                                strokeLinejoin="round"
+                                                                                                strokeWidth={
+                                                                                                    2
+                                                                                                }
+                                                                                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                                            />
+                                                                                        </svg>
+                                                                                        Lịch
+                                                                                        sử
+                                                                                        Check-in
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
                                                                         )}
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                        ) : null}
-                                                        <button
-                                                            onClick={() =>
-                                                                handleArchiveKR(
-                                                                    kr.kr_id
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                archivingKR ===
-                                                                kr.kr_id
-                                                            }
-                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
-                                                            title="Lưu trữ Key Result"
-                                                        >
-                                                            <svg
-                                                                className="h-4 w-4"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={
-                                                                        2
+                                                                ) : null}
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleArchiveKR(
+                                                                            kr.kr_id
+                                                                        )
                                                                     }
-                                                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                                                                />
-                                                            </svg>
-                                                        </button>
+                                                                    disabled={
+                                                                        archivingKR ===
+                                                                        kr.kr_id
+                                                                    }
+                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
+                                                                    title="Lưu trữ Key Result"
+                                                                >
+                                                                    <svg
+                                                                        className="h-4 w-4"
+                                                                        fill="none"
+                                                                        viewBox="0 0 24 24"
+                                                                        stroke="currentColor"
+                                                                    >
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={
+                                                                                2
+                                                                            }
+                                                                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                            );
+                                        })}
                                 </React.Fragment>
                             ))}
 

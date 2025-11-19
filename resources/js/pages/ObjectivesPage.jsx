@@ -469,6 +469,7 @@ export default function ObjectivesPage() {
                 setEditingKR={setEditingKR}
                 setCreatingObjective={setCreatingObjective}
                 links={links}
+                childLinks={childLinks}
                 linksLoading={linksLoading}
                 openCheckInModal={openCheckInModal}
                 openCheckInHistory={openCheckInHistory}
