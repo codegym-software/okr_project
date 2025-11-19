@@ -134,17 +134,6 @@ export default function ObjectiveList({
         });
     }, [items, childLinks]);
 
-    const handleViewLink = useCallback((link) => {
-        if (!link) return;
-        const targetObjective = link.targetObjective?.obj_title || "Objective cấp cao";
-        const targetKr = link.targetKr?.kr_title ? ` › ${link.targetKr.kr_title}` : "";
-        const status =
-            link.status === "approved"
-                ? "Đã liên kết"
-                : `Trạng thái: ${(link.status || "").toUpperCase()}`;
-        window.alert(`${status}\n${targetObjective}${targetKr}`);
-    }, []);
-
     const handleCancelFromSource = useCallback(
         (link) => {
             if (!link || !onCancelLink) return;
@@ -184,26 +173,15 @@ export default function ObjectiveList({
             const theme = themes[status] || "bg-slate-100 text-slate-600";
 
             const buildActionButtons = () => (
-                <>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewLink(link);
-                        }}
-                        className="text-emerald-900 underline decoration-dotted underline-offset-2"
-                    >
-                        Xem
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleCancelFromSource(link);
-                        }}
-                        className="text-emerald-900 underline decoration-dotted underline-offset-2"
-                    >
-                        Hủy
-                    </button>
-                </>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleCancelFromSource(link);
+                    }}
+                    className="text-emerald-900 underline decoration-dotted underline-offset-2"
+                >
+                    Hủy
+                </button>
             );
 
             if (status === "pending") {
@@ -250,7 +228,7 @@ export default function ObjectiveList({
 
             return null;
         },
-        [handleCancelFromSource, handleViewLink]
+        [handleCancelFromSource]
     );
 
     const canCheckInKR = (kr, objective) => {

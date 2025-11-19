@@ -96,7 +96,10 @@ class LinkController extends Controller
             ]);
         }
 
-        $query = Objective::with(['keyResults' => fn($q) => $q->active()])
+        $query = Objective::with([
+                'keyResults' => fn($q) => $q->active(),
+                'user'
+            ])
             ->whereNull('archived_at')
             ->whereIn('level', $higherLevels)
             ->where(function ($q) use ($user) {
