@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './ui';
+import CheckInProgressChart from './CheckInProgressChart';
 
 export default function CheckInModal({ 
     open, 
@@ -18,15 +19,9 @@ export default function CheckInModal({
         status: keyResult?.status
     });
 
-    // Null check for keyResult
-    if (!keyResult) {
-        console.error('❌ CheckInModal: keyResult is null or undefined');
-        return null;
-    }
-
     const [formData, setFormData] = useState({
-        progress_value: parseFloat(keyResult.current_value) || 0,
-        progress_percent: parseFloat(keyResult.progress_percent) || 0,
+        progress_value: 0,
+        progress_percent: 0,
         check_in_type: 'quantity',
         notes: ''
     });
@@ -35,6 +30,70 @@ export default function CheckInModal({
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [checkIns, setCheckIns] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+
+    // Load checkin history function
+    // Chỉ phụ thuộc vào kr_id thay vì toàn bộ keyResult object để tránh re-render không cần thiết
+    const krId = keyResult?.kr_id;
+    const loadCheckInHistory = React.useCallback(async () => {
+        if (!objectiveId || !krId) {
+            return;
+        }
+
+        setLoadingHistory(true);
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            
+            const response = await fetch(`/api/check-in/${objectiveId}/${krId}/history`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                const checkInsData = data.data?.check_ins || data.check_ins || [];
+                const parsedCheckIns = checkInsData.map(checkIn => ({
+                    ...checkIn,
+                    progress_percent: parseFloat(checkIn.progress_percent),
+                    progress_value: Math.round(parseFloat(checkIn.progress_value)),
+                    is_completed: Boolean(checkIn.is_completed)
+                }));
+                setCheckIns(parsedCheckIns);
+            }
+        } catch (err) {
+            console.error('Error loading checkin history:', err);
+            // Không hiển thị error vì đây là tính năng phụ
+        } finally {
+            setLoadingHistory(false);
+        }
+    }, [objectiveId, krId]);
+
+    // Cập nhật formData khi keyResult thay đổi
+    useEffect(() => {
+        if (keyResult) {
+            setFormData({
+                progress_value: parseFloat(keyResult.current_value) || 0,
+                progress_percent: parseFloat(keyResult.progress_percent) || 0,
+                check_in_type: 'quantity',
+                notes: ''
+            });
+            setError(''); // Reset error khi keyResult thay đổi
+        }
+    }, [keyResult]);
+
+    // Load checkin history khi modal mở
+    useEffect(() => {
+        if (open && keyResult && objectiveId) {
+            loadCheckInHistory();
+        }
+    }, [open, keyResult, objectiveId, loadCheckInHistory]);
 
     // Debug: Log formData changes
     useEffect(() => {
@@ -78,6 +137,24 @@ export default function CheckInModal({
             }
         }
     }, [formData.progress_value, keyResult?.target_value]);
+
+    // Null check for keyResult - hiển thị message thay vì return null
+    // Phải đặt sau tất cả hooks để tuân thủ Rules of Hooks
+    if (!keyResult) {
+        return (
+            <Modal open={open} onClose={onClose} title="Cập nhật tiến độ Key Result">
+                <div className="text-center py-8">
+                    <p className="text-red-600">Không tìm thấy thông tin Key Result. Vui lòng thử lại.</p>
+                    <button
+                        onClick={onClose}
+                        className="mt-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                    >
+                        Đóng
+                    </button>
+                </div>
+            </Modal>
+        );
+    }
 
     const handleInputChange = (field, value) => {
         console.log('🔧 handleInputChange called:', { field, value, type: typeof value });
@@ -163,6 +240,10 @@ export default function CheckInModal({
         try {
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             
+            if (!token) {
+                throw new Error('Không tìm thấy CSRF token. Vui lòng tải lại trang.');
+            }
+            
             const response = await fetch(`/check-in/${objectiveId}/${keyResult.kr_id}`, {
                 method: 'POST',
                 headers: {
@@ -171,13 +252,27 @@ export default function CheckInModal({
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify(formData)
+            }).catch((fetchError) => {
+                // Bắt lỗi network
+                console.error('Fetch error:', fetchError);
+                throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.');
             });
 
-            const data = await response.json();
+            // Kiểm tra response có ok không trước khi parse JSON
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                console.error('JSON parse error:', parseError);
+                throw new Error(`Lỗi phản hồi từ server: ${response.status} ${response.statusText}`);
+            }
 
             if (!response.ok || !data.success) {
-                throw new Error(data.message || 'Cập nhật tiến độ thất bại');
+                throw new Error(data.message || `Cập nhật tiến độ thất bại (${response.status})`);
             }
+
+            // Reload checkin history để cập nhật chart
+            await loadCheckInHistory();
 
             // Gọi callback để cập nhật UI
             if (onSuccess) {
@@ -186,7 +281,9 @@ export default function CheckInModal({
 
             onClose();
         } catch (err) {
-            setError(err.message || 'Có lỗi xảy ra khi cập nhật tiến độ');
+            console.error('Check-in error:', err);
+            const errorMessage = err.message || 'Có lỗi xảy ra khi cập nhật tiến độ';
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -277,6 +374,18 @@ export default function CheckInModal({
                         </div>
                     </div>
                 </div>
+
+                {/* Biểu đồ tiến độ Check-in */}
+                {!loadingHistory && checkIns && checkIns.length > 0 && keyResult && (
+                    <div className="w-full overflow-x-auto">
+                        <CheckInProgressChart
+                            checkIns={checkIns}
+                            width={700}
+                            height={280}
+                            keyResult={keyResult}
+                        />
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
