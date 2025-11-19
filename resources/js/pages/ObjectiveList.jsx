@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { canCheckInKeyResult } from "../utils/checkinPermissions";
 import { CycleDropdown } from "../components/Dropdown";
 import Tabs from "../components/Tabs";
@@ -99,6 +99,48 @@ export default function ObjectiveList({
             return () => clearTimeout(timer);
         }
     }, [toast]);
+
+    // === XỬ LÝ CLICK OUTSIDE ĐỂ ĐÓNG MENU ===
+    const menuRefs = useRef({});
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            // Kiểm tra xem click có nằm trong bất kỳ menu nào không
+            let clickedInsideMenu = false;
+            
+            Object.values(menuRefs.current).forEach((ref) => {
+                if (ref && ref.contains(event.target)) {
+                    clickedInsideMenu = true;
+                }
+            });
+
+            // Nếu click ra ngoài tất cả menu, đóng tất cả menu
+            if (!clickedInsideMenu) {
+                setOpenObj((prev) => {
+                    const newState = { ...prev };
+                    // Đóng tất cả menu (các key bắt đầu bằng "menu_")
+                    Object.keys(newState).forEach((key) => {
+                        if (key.startsWith("menu_")) {
+                            newState[key] = false;
+                        }
+                    });
+                    return newState;
+                });
+            }
+        };
+
+        // Chỉ lắng nghe khi có menu đang mở
+        const hasOpenMenu = Object.keys(openObj).some(
+            (key) => key.startsWith("menu_") && openObj[key]
+        );
+
+        if (hasOpenMenu) {
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => {
+                document.removeEventListener("mousedown", handleClickOutside);
+            };
+        }
+    }, [openObj, setOpenObj]);
 
     // === TẢI OKR LƯU TRỮ ===
     useEffect(() => {
@@ -774,25 +816,35 @@ export default function ObjectiveList({
                                                                 obj
                                                             )) ||
                                                         openCheckInHistory ? (
-                                                            <div className="relative z-[100]">
-                                                                {" "}
-                                                                {/* z-10 thay vì z-1 */}
+                                                            <div 
+                                                                className="relative z-[1000]"
+                                                                ref={(el) => {
+                                                                    menuRefs.current[`menu_${kr.kr_id}`] = el;
+                                                                }}
+                                                            >
                                                                 <button
                                                                     onClick={(
                                                                         e
                                                                     ) => {
                                                                         e.stopPropagation();
-                                                                        setOpenObj(
-                                                                            (
-                                                                                prev
-                                                                            ) => ({
-                                                                                ...prev,
-                                                                                [`menu_${kr.kr_id}`]:
-                                                                                    !prev[
-                                                                                        `menu_${kr.kr_id}`
-                                                                                    ],
-                                                                            })
-                                                                        );
+                                                                        const menuKey = `menu_${kr.kr_id}`;
+                                                                        const isCurrentlyOpen = openObj[menuKey];
+                                                                        
+                                                                        // Đóng tất cả menu trước
+                                                                        setOpenObj((prev) => {
+                                                                            const newState = { ...prev };
+                                                                            // Đóng tất cả menu khác
+                                                                            Object.keys(newState).forEach((key) => {
+                                                                                if (key.startsWith("menu_")) {
+                                                                                    newState[key] = false;
+                                                                                }
+                                                                            });
+                                                                            // Mở menu hiện tại nếu nó đang đóng
+                                                                            if (!isCurrentlyOpen) {
+                                                                                newState[menuKey] = true;
+                                                                            }
+                                                                            return newState;
+                                                                        });
                                                                     }}
                                                                     className="p-1 text-slate-600 hover:bg-slate-100 rounded transition-colors"
                                                                     title="Tùy chọn Check-in"
@@ -817,7 +869,7 @@ export default function ObjectiveList({
                                                                 {openObj[
                                                                     `menu_${kr.kr_id}`
                                                                 ] && (
-                                                                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                                                                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
                                                                         {/* Giao việc */}
                                                                         <button
                                                                             onClick={(

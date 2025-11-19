@@ -183,8 +183,8 @@ function DashboardSidebar({ open, user }) {
                         }
                     />
                 )}
-                {/* Báo cáo - chỉ hiển thị cho Admin */}
-                {isAdmin && (
+                {/* Báo cáo - hiển thị cho Admin, CEO, Manager */}
+                {canSeeReports && (
                     <SidebarItem
                         collapsed={collapsed}
                         href="/reports"
