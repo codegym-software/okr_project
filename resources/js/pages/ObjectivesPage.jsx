@@ -329,15 +329,54 @@ export default function ObjectivesPage() {
         setLinkModal({ open: false, source: null, sourceType: "objective" });
     };
 
+    const syncLinkCollections = useCallback(
+        (link) => {
+            if (!link) return;
+            const normalized = normalizeLinkData(link);
+            const userId = currentUser?.user_id;
+
+            if (!userId) {
+                setLinks((prev) => [normalized, ...prev.filter((item) => item.link_id !== normalized.link_id)]);
+                return;
+            }
+
+            const isRequester = normalized.requested_by === userId;
+            const isTargetOwner = normalized.target_owner_id === userId;
+            const status = (normalized.status || "").toLowerCase();
+
+            setLinks((prev) => {
+                const filtered = prev.filter((item) => item.link_id !== normalized.link_id);
+                if (isRequester && status !== "cancelled") {
+                    return [normalized, ...filtered];
+                }
+                return filtered;
+            });
+
+            setIncomingLinks((prev) => {
+                const filtered = prev.filter((item) => item.link_id !== normalized.link_id);
+                if (isTargetOwner && (status === "pending" || status === "needs_changes")) {
+                    return [normalized, ...filtered];
+                }
+                return filtered;
+            });
+
+            setChildLinks((prev) => {
+                const filtered = prev.filter((item) => item.link_id !== normalized.link_id);
+                if (isTargetOwner && status === "approved") {
+                    return [normalized, ...filtered];
+                }
+                return filtered;
+            });
+        },
+        [currentUser]
+    );
+
     const handleLinkRequestSuccess = (link) => {
-        if (link?.link_id) {
-            setLinks((prev) => [link, ...prev.filter((item) => item.link_id !== link.link_id)]);
-        }
+        syncLinkCollections(link);
         setToast({
             type: "success",
             message: "Đã gửi yêu cầu liên kết. Chờ phê duyệt.",
         });
-        refreshLinks();
     };
 
     const performLinkAction = useCallback(
@@ -361,7 +400,8 @@ export default function ObjectivesPage() {
                 if (!res.ok || json.success === false) {
                     throw new Error(json.message || "Không thể cập nhật trạng thái liên kết");
                 }
-                await refreshLinks();
+                const updatedLink = normalizeLinkData(json.data);
+                syncLinkCollections(updatedLink);
                 setToast({
                     type: "success",
                     message: json.message || fallbackMessage,
@@ -376,7 +416,7 @@ export default function ObjectivesPage() {
                 throw err;
             }
         },
-        [refreshLinks]
+        [refreshLinks, syncLinkCollections]
     );
 
     const handleCancelLink = (linkId, reason = "", keepOwnership = true) =>

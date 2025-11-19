@@ -93,75 +93,7 @@ export default function ObjectiveList({
         [onCancelLink]
     );
 
-    const renderLinkBadge = useCallback(
-        (link) => {
-            if (!link) return null;
-            const status = (link.status || "").toLowerCase();
-            const targetLabel = `${link.targetObjective?.obj_title || "Objective cấp cao"}${
-                link.targetKr?.kr_title ? ` › ${link.targetKr.kr_title}` : ""
-            }`;
-
-            if (status === "pending" || status === "needs_changes") {
-                return (
-                    <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
-                        <span>
-                            {status === "needs_changes"
-                                ? `Cần chỉnh sửa để liên kết với: ${targetLabel}`
-                                : `Đang chờ duyệt liên kết với: ${targetLabel}`}
-                        </span>
-                        <button
-                            onClick={() => handleCancelFromSource(link)}
-                            className="text-amber-900 underline decoration-dotted underline-offset-2"
-                        >
-                            Hủy yêu cầu
-                        </button>
-                    </div>
-                );
-            }
-
-            if (status === "approved") {
-                return (
-                    <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-                        <span>Đã liên kết với: {targetLabel}</span>
-                        <button
-                            onClick={() => handleViewLink(link)}
-                            className="text-emerald-900 underline decoration-dotted underline-offset-2"
-                        >
-                            Xem
-                        </button>
-                        <button
-                            onClick={() => handleCancelFromSource(link)}
-                            className="text-emerald-900 underline decoration-dotted underline-offset-2"
-                        >
-                            Hủy
-                        </button>
-                    </div>
-                );
-            }
-
-            if (status === "rejected") {
-                return (
-                    <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">
-                        <span>
-                            Bị từ chối bởi OKR: {targetLabel}
-                            {link.decision_note ? ` • Lý do: ${link.decision_note}` : ""}
-                        </span>
-                    </div>
-                );
-            }
-
-            if (status === "cancelled") {
-                return (
-                    <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
-                        <span>Yêu cầu đã bị hủy</span>
-                    </div>
-                );
-            }
-
-            return null;
-        },
-        [handleCancelFromSource, handleViewLink]
-    );
+    const renderLinkBadge = useCallback(() => null, []);
 
     const canCheckInKR = (kr, objective) => {
         return canCheckInKeyResult(currentUser, kr, objective);

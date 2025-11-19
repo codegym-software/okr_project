@@ -148,6 +148,14 @@ function NotificationBell() {
         }
     };
 
+    const formatTypeLabel = (type) => {
+        if (!type) return "THÔNG BÁO";
+        const map = {
+            okr_link: "OKR LINK",
+        };
+        return map[type] || type.replace(/_/g, " ").toUpperCase();
+    };
+
     return (
         <Dropdown
             position="right"
@@ -206,18 +214,29 @@ function NotificationBell() {
                                 className={`w-full text-left px-4 py-3 text-sm transition ${
                                     item.is_read
                                         ? "bg-white hover:bg-slate-50"
-                                        : "bg-indigo-50/70 hover:bg-indigo-100"
+                                        : "bg-indigo-50/80 hover:bg-indigo-100"
                                 }`}
                             >
-                                <p className="font-medium text-slate-800">
-                                    {item.message}
-                                </p>
-                                <p className="text-[11px] uppercase tracking-wide text-slate-400 mt-1">
-                                    {item.type || "Hệ thống"}
-                                </p>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    {formatTimestamp(item.created_at)}
-                                </p>
+                                <div className="flex items-start gap-3">
+                                    <span
+                                        className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                                            item.is_read ? "bg-slate-300" : "bg-indigo-500"
+                                        }`}
+                                    />
+                                    <div className="flex-1">
+                                        <p className="font-semibold text-slate-900 whitespace-pre-line leading-snug">
+                                            {item.message}
+                                        </p>
+                                        <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                                            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
+                                                {formatTypeLabel(item.type)}
+                                            </span>
+                                            <span className="tabular-nums">
+                                                {formatTimestamp(item.created_at)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
                             </button>
                         ))}
                 </div>

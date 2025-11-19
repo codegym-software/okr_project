@@ -168,18 +168,12 @@ class LinkController extends Controller
         });
 
         $actorName = $this->getUserDisplayName($user);
-        $ownerNote = $validated['note']
-            ?? sprintf(
-                "%s muốn liên kết OKR của họ với '%s'",
-                $actorName ?? 'Một người dùng',
-                $this->getTargetTitle($targetEntity)
-            );
-
         $this->notifyTargetOwner(
             $link,
-            'Yêu cầu liên kết mới',
-            $ownerNote,
-            $actorName
+            'đề nghị liên kết OKR',
+            $validated['note'] ?? null,
+            $actorName,
+            $validated['note'] ? 'Thông điệp' : null
         );
 
         return response()->json([
@@ -223,9 +217,10 @@ class LinkController extends Controller
 
         $this->notifyRequester(
             $link,
-            'Yêu cầu liên kết đã được chấp thuận',
+            'đã chấp thuận liên kết',
             $validated['note'] ?? null,
-            $this->getUserDisplayName($user)
+            $this->getUserDisplayName($user),
+            $validated['note'] ? 'Ghi chú từ người duyệt' : null
         );
 
         return response()->json(['success' => true, 'message' => 'Đã chấp thuận yêu cầu.', 'data' => $link]);
@@ -263,9 +258,10 @@ class LinkController extends Controller
 
         $this->notifyRequester(
             $link,
-            'Yêu cầu liên kết bị từ chối',
+            'đã từ chối liên kết',
             $validated['note'],
-            $this->getUserDisplayName($user)
+            $this->getUserDisplayName($user),
+            'Lý do'
         );
 
         return response()->json(['success' => true, 'message' => 'Đã từ chối yêu cầu.', 'data' => $link]);
@@ -303,9 +299,10 @@ class LinkController extends Controller
 
         $this->notifyRequester(
             $link,
-            'Yêu cầu chỉnh sửa liên kết',
+            'yêu cầu chỉnh sửa trước khi liên kết',
             $validated['note'],
-            $this->getUserDisplayName($user)
+            $this->getUserDisplayName($user),
+            'Yêu cầu'
         );
 
         return response()->json(['success' => true, 'message' => 'Đã yêu cầu chỉnh sửa.', 'data' => $link]);
@@ -333,7 +330,8 @@ class LinkController extends Controller
             'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $link = DB::transaction(function () use ($link, $user, $validated, $keepOwnership) {
+        $eventAction = null;
+        $link = DB::transaction(function () use ($link, $user, $validated, $keepOwnership, &$eventAction) {
             $link->update([
                 'status' => OkrLink::STATUS_CANCELLED,
                 'decision_note' => $validated['reason'] ?? null,
@@ -352,12 +350,16 @@ class LinkController extends Controller
             return $link->load($this->defaultRelations());
         });
 
-        $this->notifyCounterPart(
-            $link,
-            $eventAction,
-            $validated['reason'] ?? null,
-            $this->getUserDisplayName($user)
-        );
+        if ($eventAction) {
+            $this->notifyCounterPart(
+                $link,
+                $eventAction,
+                $validated['reason'] ?? null,
+                $this->getUserDisplayName($user),
+                $validated['reason'] ? 'Lý do' : null,
+                $user->user_id
+            );
+        }
 
         return response()->json(['success' => true, 'message' => $message, 'data' => $link]);
     }
@@ -486,7 +488,13 @@ class LinkController extends Controller
         ]);
     }
 
-    private function notifyTargetOwner(OkrLink $link, string $message, ?string $note = null, ?string $actorName = null): void
+    private function notifyTargetOwner(
+        OkrLink $link,
+        string $message,
+        ?string $note = null,
+        ?string $actorName = null,
+        ?string $noteLabel = null
+    ): void
     {
         if (!$link->target_owner_id) {
             return;
@@ -494,7 +502,13 @@ class LinkController extends Controller
 
         try {
             Notification::create([
-                'message' => $this->buildNotificationMessage($message, $note, $actorName),
+                'message' => $this->buildNotificationMessage(
+                    $message,
+                    $note,
+                    $actorName,
+                    $this->getLinkSummary($link),
+                    $noteLabel
+                ),
                 'type' => 'okr_link',
                 'user_id' => $link->target_owner_id,
                 'cycle_id' => $link->targetObjective?->cycle_id ?? $link->targetKr?->objective?->cycle_id,
@@ -504,7 +518,13 @@ class LinkController extends Controller
         }
     }
 
-    private function notifyRequester(OkrLink $link, string $message, ?string $note = null, ?string $actorName = null): void
+    private function notifyRequester(
+        OkrLink $link,
+        string $message,
+        ?string $note = null,
+        ?string $actorName = null,
+        ?string $noteLabel = null
+    ): void
     {
         if (!$link->requested_by) {
             return;
@@ -512,7 +532,13 @@ class LinkController extends Controller
 
         try {
             Notification::create([
-                'message' => $this->buildNotificationMessage($message, $note, $actorName),
+                'message' => $this->buildNotificationMessage(
+                    $message,
+                    $note,
+                    $actorName,
+                    $this->getLinkSummary($link),
+                    $noteLabel
+                ),
                 'type' => 'okr_link',
                 'user_id' => $link->requested_by,
                 'cycle_id' => $link->sourceObjective?->cycle_id ?? $link->sourceKr?->objective?->cycle_id,
@@ -522,32 +548,52 @@ class LinkController extends Controller
         }
     }
 
-    private function notifyCounterPart(OkrLink $link, string $action, ?string $note = null, ?string $actorName = null): void
+    private function notifyCounterPart(
+        OkrLink $link,
+        string $action,
+        ?string $note = null,
+        ?string $actorName = null,
+        ?string $noteLabel = null,
+        ?int $actorId = null
+    ): void
     {
         $message = match ($action) {
-            'unlinked' => 'Liên kết OKR đã bị hủy',
-            'cancelled' => 'Yêu cầu liên kết đã bị hủy',
-            default => 'Cập nhật yêu cầu liên kết',
+            'unlinked' => 'đã hủy liên kết OKR',
+            'cancelled' => 'đã hủy yêu cầu liên kết',
+            default => 'cập nhật yêu cầu liên kết',
         };
 
-        $this->notifyTargetOwner($link, $message, $note, $actorName);
-        $this->notifyRequester($link, $message, $note, $actorName);
+        if (!$actorId || $link->target_owner_id !== $actorId) {
+            $this->notifyTargetOwner($link, $message, $note, $actorName, $noteLabel);
+        }
+
+        if (!$actorId || $link->requested_by !== $actorId) {
+            $this->notifyRequester($link, $message, $note, $actorName, $noteLabel);
+        }
     }
 
-    private function buildNotificationMessage(string $message, ?string $note = null, ?string $actorName = null): string
+    private function buildNotificationMessage(
+        string $message,
+        ?string $note = null,
+        ?string $actorName = null,
+        ?string $summary = null,
+        ?string $noteLabel = null
+    ): string
     {
-        $parts = [];
-        if ($actorName) {
-            $parts[] = $actorName;
+        $lines = [];
+        $headerParts = array_filter([$actorName, $message], fn ($value) => $value !== null && $value !== '');
+        $lines[] = implode(' • ', $headerParts);
+
+        if ($summary) {
+            $lines[] = $summary;
         }
-        $parts[] = $message;
-        $text = implode(' • ', array_filter($parts));
 
         if ($note) {
-            $text .= ': ' . $note;
+            $label = $noteLabel ?? 'Ghi chú';
+            $lines[] = ($label ? $label . ': ' : '') . $note;
         }
 
-        return $text;
+        return implode("\n", array_filter($lines, fn ($value) => $value !== null && $value !== ''));
     }
 
     private function getUserDisplayName(?object $user): ?string
@@ -560,6 +606,33 @@ class LinkController extends Controller
             ?? $user->name
             ?? $user->email
             ?? null;
+    }
+
+    private function getLinkSummary(OkrLink $link): string
+    {
+        $link->loadMissing([
+            'sourceObjective',
+            'sourceKr.objective',
+            'targetObjective',
+            'targetKr.objective',
+        ]);
+
+        $sourceLabel = $this->formatEndpointLabel($link->sourceObjective, $link->sourceKr);
+        $targetLabel = $this->formatEndpointLabel($link->targetObjective, $link->targetKr);
+
+        return sprintf('%s → %s', $sourceLabel, $targetLabel);
+    }
+
+    private function formatEndpointLabel(?Objective $objective = null, ?KeyResult $kr = null): string
+    {
+        $objectiveTitle = $objective?->obj_title ?? $kr?->objective?->obj_title ?? null;
+        $krTitle = $kr?->kr_title ?? null;
+
+        if ($objectiveTitle && $krTitle) {
+            return $objectiveTitle . ' › ' . $krTitle;
+        }
+
+        return $objectiveTitle ?? $krTitle ?? 'OKR';
     }
 
     private function assignOwnership(OkrLink $link): void
