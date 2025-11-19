@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Dashboard from "./components/Dashboard";
 import UsersPage from "./pages/UsersPage";
-// import ReportPage from "./pages/ReportPage";
+import ReportPage from "./pages/ReportPage";
 import CyclesPanel from "./pages/CyclesPanel";
 import DepartmentsPanel from "./pages/DepartmentsPanel";
 import ObjectivesPage from "./pages/ObjectivesPage";
@@ -373,9 +373,10 @@ export default function App() {
         else if (p.startsWith("/profile")) content = <ProfilePage />;
         else if (p.startsWith("/change-password"))
             content = <ChangePasswordPage />;
-        // else if (p.startsWith("/reports")) content = <ReportPage />;
+        else if (p.startsWith("/reports/company-overview"))
+            content = <CompanyOverviewReport />;
+        else if (p.startsWith("/reports")) content = <ReportPage />;
         else if (p.startsWith("/dashboard")) content = <Dashboard />;
-        else if (p.startsWith("/reports")) content = <CompanyOverviewReport />;
         return <DashboardLayout user={user}>{content}</DashboardLayout>;
     }
 
