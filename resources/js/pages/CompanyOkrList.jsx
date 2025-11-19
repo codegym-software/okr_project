@@ -12,6 +12,7 @@ export default function CompanyOkrList() {
     const [openObj, setOpenObj] = useState({});
     const [overallProgress, setOverallProgress] = useState(0);
     const [cyclesList, setCyclesList] = useState([]);
+    const [dropdownOpen, setDropdownOpen] = useState(false); // Thêm để điều khiển dropdown
 
     // Fetch danh sách cycles khi mount
     useEffect(() => {
@@ -58,7 +59,7 @@ export default function CompanyOkrList() {
 
     // Fetch OKR công ty
     const fetchCompanyOkrs = useCallback(async () => {
-        if (!cycleFilter) return; // Chưa có cycle thì không fetch
+        if (!cycleFilter) return;
 
         setLoading(true);
         try {
@@ -109,7 +110,7 @@ export default function CompanyOkrList() {
         fetchCompanyOkrs();
     }, [fetchCompanyOkrs]);
 
-    // Helper functions (giữ nguyên)
+    // Helper functions
     const formatPercent = (value) => {
         const n = Number(value);
         return Number.isFinite(n) ? `${n.toFixed(1)}%` : "0%";
@@ -144,14 +145,31 @@ export default function CompanyOkrList() {
         }
     };
 
+    // Lấy tên quý hiện tại để hiển thị đẹp hơn trên dropdown (nếu CycleDropdown hỗ trợ placeholder)
+    const currentCycleName =
+        cyclesList.find((c) => c.cycle_id === cycleFilter)?.cycle_name ||
+        "Chọn quý";
+
     return (
         <div className="mx-auto w-full max-w-6xl">
-            {/* Tabs giả để giữ layout */}
-            <div className="mb-4">
+            {/* Header với Dropdown chọn quý - giống hệt ObjectiveList */}
+            <div className="mb-6 flex w-full items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <CycleDropdown
+                        cyclesList={cyclesList}
+                        cycleFilter={cycleFilter}
+                        handleCycleChange={setCycleFilter}
+                        dropdownOpen={dropdownOpen}
+                        setDropdownOpen={setDropdownOpen}
+                        placeholder={currentCycleName} // Tùy chọn, nếu CycleDropdown có hỗ trợ
+                    />
+                </div>
+
+                {/* Giữ nguyên Tabs giả để layout không bị lệch */}
                 <Tabs showArchived={false} setShowArchived={() => {}} />
             </div>
 
-            {/* Bảng OKR */}
+            {/* Bảng OKR - giữ nguyên hoàn toàn */}
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
@@ -171,7 +189,7 @@ export default function CompanyOkrList() {
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Thực tế
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
+                            <th className="px-3 py Trang chủ-2 text-center border-r border-slate-200 w-[10%]">
                                 Mục tiêu
                             </th>
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
