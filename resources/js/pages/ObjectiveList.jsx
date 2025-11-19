@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { canCheckInKeyResult } from "../utils/checkinPermissions";
 import { CycleDropdown } from "../components/Dropdown";
 import Tabs from "../components/Tabs";
@@ -19,6 +19,7 @@ export default function ObjectiveList({
     setEditingKR,
     setCreatingObjective,
     links,
+    linksLoading = false,
     cycleFilter,
     setCycleFilter,
     openCheckInModal,
@@ -26,6 +27,8 @@ export default function ObjectiveList({
     currentUser,
     hideFilters = false,
     setItems,
+    onOpenLinkModal,
+    onCancelLink,
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -43,6 +46,122 @@ export default function ObjectiveList({
         email: "",
         loading: false,
     });
+
+    const linkLookup = useMemo(() => {
+        const byObjective = {};
+        const byKr = {};
+        if (Array.isArray(links)) {
+            links.forEach((link) => {
+                if (link?.source_objective_id && !link?.source_kr_id) {
+                    byObjective[link.source_objective_id] = link;
+                }
+                if (link?.source_kr_id) {
+                    byKr[link.source_kr_id] = link;
+                }
+            });
+        }
+        return { byObjective, byKr };
+    }, [links]);
+
+    const handleViewLink = useCallback((link) => {
+        if (!link) return;
+        const targetObjective = link.targetObjective?.obj_title || "Objective cấp cao";
+        const targetKr = link.targetKr?.kr_title ? ` › ${link.targetKr.kr_title}` : "";
+        const status =
+            link.status === "approved"
+                ? "Đã liên kết"
+                : `Trạng thái: ${(link.status || "").toUpperCase()}`;
+        window.alert(`${status}\n${targetObjective}${targetKr}`);
+    }, []);
+
+    const handleCancelFromSource = useCallback(
+        (link) => {
+            if (!link || !onCancelLink) return;
+            if (!window.confirm("Bạn có chắc chắn muốn hủy yêu cầu/liên kết này?")) {
+                return;
+            }
+            const isApproved = (link.status || "").toLowerCase() === "approved";
+            if (isApproved) {
+                const keepOwnership = window.confirm(
+                    "OKR này đang sở hữu OKR con. Chọn OK để giữ quyền sở hữu cho OKR cấp cao."
+                );
+                onCancelLink(link.link_id, "", keepOwnership);
+            } else {
+                onCancelLink(link.link_id);
+            }
+        },
+        [onCancelLink]
+    );
+
+    const renderLinkBadge = useCallback(
+        (link) => {
+            if (!link) return null;
+            const status = (link.status || "").toLowerCase();
+            const targetLabel = `${link.targetObjective?.obj_title || "Objective cấp cao"}${
+                link.targetKr?.kr_title ? ` › ${link.targetKr.kr_title}` : ""
+            }`;
+
+            if (status === "pending" || status === "needs_changes") {
+                return (
+                    <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                        <span>
+                            {status === "needs_changes"
+                                ? `Cần chỉnh sửa để liên kết với: ${targetLabel}`
+                                : `Đang chờ duyệt liên kết với: ${targetLabel}`}
+                        </span>
+                        <button
+                            onClick={() => handleCancelFromSource(link)}
+                            className="text-amber-900 underline decoration-dotted underline-offset-2"
+                        >
+                            Hủy yêu cầu
+                        </button>
+                    </div>
+                );
+            }
+
+            if (status === "approved") {
+                return (
+                    <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                        <span>Đã liên kết với: {targetLabel}</span>
+                        <button
+                            onClick={() => handleViewLink(link)}
+                            className="text-emerald-900 underline decoration-dotted underline-offset-2"
+                        >
+                            Xem
+                        </button>
+                        <button
+                            onClick={() => handleCancelFromSource(link)}
+                            className="text-emerald-900 underline decoration-dotted underline-offset-2"
+                        >
+                            Hủy
+                        </button>
+                    </div>
+                );
+            }
+
+            if (status === "rejected") {
+                return (
+                    <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">
+                        <span>
+                            Bị từ chối bởi OKR: {targetLabel}
+                            {link.decision_note ? ` • Lý do: ${link.decision_note}` : ""}
+                        </span>
+                    </div>
+                );
+            }
+
+            if (status === "cancelled") {
+                return (
+                    <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                        <span>Yêu cầu đã bị hủy</span>
+                    </div>
+                );
+            }
+
+            return null;
+        },
+        [handleCancelFromSource, handleViewLink]
+    );
 
     const canCheckInKR = (kr, objective) => {
         return canCheckInKeyResult(currentUser, kr, objective);
@@ -501,6 +620,13 @@ export default function ObjectiveList({
                 />
             </div>
 
+            {linksLoading && (
+                <div className="mb-3 flex items-center gap-2 text-xs text-indigo-600">
+                    <span className="h-2 w-2 animate-ping rounded-full bg-indigo-500"></span>
+                    <span>Đang cập nhật trạng thái liên kết...</span>
+                </div>
+            )}
+
             {/* BẢNG OKR */}
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full divide-y divide-slate-200">
@@ -620,10 +746,39 @@ export default function ObjectiveList({
                                                         {obj.obj_title}
                                                     </span>
                                                 </div>
+                                                {renderLinkBadge(
+                                                    linkLookup.byObjective[obj.objective_id]
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-3 py-3 text-center bg-gradient-to-r from-blue-50 to-indigo-50">
                                             <div className="flex items-center justify-center gap-1">
+                                                    {onOpenLinkModal && (
+                                                        <button
+                                                            onClick={() =>
+                                                                onOpenLinkModal({
+                                                                    sourceType: "objective",
+                                                                    source: obj,
+                                                                })
+                                                            }
+                                                            className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                                                            title="Liên kết với OKR cấp cao"
+                                                        >
+                                                            <svg
+                                                                className="h-4 w-4"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={2}
+                                                                    d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
+                                                                />
+                                                            </svg>
+                                                        </button>
+                                                    )}
                                                 <button
                                                     onClick={() =>
                                                         setEditingObjective({
@@ -716,9 +871,12 @@ export default function ObjectiveList({
                                         obj.key_results?.map((kr) => (
                                             <tr key={kr.kr_id}>
                                                 <td className="px-8 py-3 border-r border-slate-200">
-                                                    <span className="font-medium text-slate-900">
-                                                        {kr.kr_title}
-                                                    </span>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="font-medium text-slate-900">
+                                                            {kr.kr_title}
+                                                        </span>
+                                                        {renderLinkBadge(linkLookup.byKr[kr.kr_id])}
+                                                    </div>
                                                 </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.assigned_to ? (
@@ -786,6 +944,42 @@ export default function ObjectiveList({
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-1">
+                                                        {onOpenLinkModal && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    onOpenLinkModal({
+                                                                        sourceType: "kr",
+                                                                        source: {
+                                                                            ...kr,
+                                                                            objective_id:
+                                                                                obj.objective_id,
+                                                                            objective_level:
+                                                                                obj.level,
+                                                                            obj_title:
+                                                                                obj.obj_title,
+                                                                        },
+                                                                    })
+                                                                }
+                                                                className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                                                                title="Liên kết OKR cấp cao"
+                                                            >
+                                                                <svg
+                                                                    className="h-4 w-4"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={
+                                                                            2
+                                                                        }
+                                                                        d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
+                                                                    />
+                                                                </svg>
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() =>
                                                                 setEditingKR(kr)
@@ -815,7 +1009,8 @@ export default function ObjectiveList({
                                                                 kr,
                                                                 obj
                                                             )) ||
-                                                        openCheckInHistory ? (
+                                                        openCheckInHistory ||
+                                                        onOpenLinkModal ? (
                                                             <div 
                                                                 className="relative z-[1000]"
                                                                 ref={(el) => {
@@ -869,7 +1064,43 @@ export default function ObjectiveList({
                                                                 {openObj[
                                                                     `menu_${kr.kr_id}`
                                                                 ] && (
-                                                                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
+                                                                    <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
+                                                                        {onOpenLinkModal && (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    onOpenLinkModal({
+                                                                                        sourceType: "kr",
+                                                                                        source: {
+                                                                                            ...kr,
+                                                                                            objective_id: obj.objective_id,
+                                                                                            objective_level: obj.level,
+                                                                                            obj_title: obj.obj_title,
+                                                                                        },
+                                                                                    });
+                                                                                    setOpenObj((prev) => ({
+                                                                                        ...prev,
+                                                                                        [`menu_${kr.kr_id}`]: false,
+                                                                                    }));
+                                                                                }}
+                                                                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 transition-colors"
+                                                                            >
+                                                                                <svg
+                                                                                    className="h-4 w-4"
+                                                                                    fill="none"
+                                                                                    viewBox="0 0 24 24"
+                                                                                    stroke="currentColor"
+                                                                                >
+                                                                                    <path
+                                                                                        strokeLinecap="round"
+                                                                                        strokeLinejoin="round"
+                                                                                        strokeWidth={2}
+                                                                                        d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
+                                                                                    />
+                                                                                </svg>
+                                                                                Liên kết OKR cấp cao
+                                                                            </button>
+                                                                        )}
                                                                         {/* Giao việc */}
                                                                         <button
                                                                             onClick={(

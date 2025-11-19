@@ -2,98 +2,574 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\OkrLink;
-use App\Models\Objective;
+use App\Models\AuditLog;
 use App\Models\KeyResult;
+use App\Models\Notification;
+use App\Models\Objective;
+use App\Models\OkrAssignment;
+use App\Models\OkrLink;
+use App\Models\OkrLinkEvent;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class LinkController extends Controller
 {
+    private const LEVEL_ORDER = [
+        'person' => 1,
+        'team' => 2,
+        'unit' => 3,
+        'company' => 4,
+    ];
+
     /**
-     * Lấy danh sách liên kết của user.
+     * Lấy thông tin các liên kết liên quan tới user hiện tại.
      */
     public function index(): JsonResponse
     {
         $user = Auth::user();
-        $links = OkrLink::with(['sourceObjective', 'sourceKr', 'targetObjective', 'targetKr'])
-            ->whereHas('sourceObjective', function ($query) use ($user) {
-                $query->where('user_id', $user->user_id);
-            })
-            ->orWhereHas('sourceKr.objective', function ($query) use ($user) {
-                $query->where('user_id', $user->user_id);
-            })
+
+        $outgoing = OkrLink::with($this->defaultRelations())
+            ->ownedBy($user->user_id)
+            ->orderByDesc('created_at')
             ->get();
 
-        return response()->json(['success' => true, 'data' => $links]);
+        $incoming = OkrLink::with($this->defaultRelations())
+            ->targetedTo($user->user_id)
+            ->whereIn('status', [OkrLink::STATUS_PENDING, OkrLink::STATUS_NEEDS_CHANGES])
+            ->orderBy('status')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $children = OkrLink::with($this->defaultRelations())
+            ->targetedTo($user->user_id)
+            ->status(OkrLink::STATUS_APPROVED)
+            ->orderByDesc('ownership_transferred_at')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'outgoing' => $outgoing,
+                'incoming' => $incoming,
+                'children' => $children,
+            ],
+        ]);
     }
 
     /**
-     * Lấy danh sách Key Results có thể làm target (cấp cao hơn, bao gồm từ các user khác).
+     * Danh sách OKR cấp cao có thể liên kết.
      */
     public function getAvailableTargets(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'source_level' => 'required|in:person,team,unit,company',
+            'source_type' => ['required', Rule::in(['objective', 'kr'])],
+            'source_id' => ['required'],
+            'source_level' => ['required', Rule::in(array_keys(self::LEVEL_ORDER))],
+            'level' => ['nullable', Rule::in(array_keys(self::LEVEL_ORDER))],
+            'status' => ['nullable', 'string'],
+            'keyword' => ['nullable', 'string'],
         ]);
 
-        $levels = ['person' => 1, 'team' => 2, 'unit' => 3, 'company' => 4];
-        $sourceLevel = $levels[$validated['source_level']];
+        $user = Auth::user();
+        $sourceLevelRank = self::LEVEL_ORDER[$validated['source_level']];
+        $levelFilter = $validated['level'] ?? null;
+        $perPage = (int) $request->integer('per_page', 10);
 
-        $higherLevels = array_filter($levels, fn($val) => $val > $sourceLevel);
-        $objectives = Objective::with('keyResults')
-            ->whereIn('level', array_keys($higherLevels))
-            ->get();
+        $higherLevels = array_keys(array_filter(self::LEVEL_ORDER, function ($rank, $level) use ($sourceLevelRank, $levelFilter) {
+            if ($levelFilter) {
+                return $level === $levelFilter && self::LEVEL_ORDER[$level] > $sourceLevelRank;
+            }
+            return $rank > $sourceLevelRank;
+        }, ARRAY_FILTER_USE_BOTH));
 
-        $available = $objectives->flatMap(function ($obj) {
-            $krItems = $obj->keyResults->map(function ($kr) use ($obj) {
-                return [
-                    'id' => $kr->kr_id,
-                    'type' => 'kr',
-                    'title' => $kr->kr_title,
-                    'level' => $obj->level,
-                    'objective_title' => $obj->obj_title,
-                    'objective_id' => $obj->objective_id
-                ];
+        if (empty($higherLevels)) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'items' => [],
+                    'meta' => ['total' => 0],
+                ],
+            ]);
+        }
+
+        $query = Objective::with(['keyResults' => fn($q) => $q->active()])
+            ->whereNull('archived_at')
+            ->whereIn('level', $higherLevels)
+            ->where(function ($q) use ($user) {
+                $q->whereNull('department_id')
+                    ->orWhere('department_id', $user->department_id)
+                    ->orWhere('user_id', $user->user_id);
             });
-            return [...$krItems];
-        });
 
-        return response()->json(['success' => true, 'data' => $available]);
+        if ($validated['status'] ?? null) {
+            $query->where('status', $validated['status']);
+        }
+
+        if ($validated['keyword'] ?? null) {
+            $keyword = '%' . trim($validated['keyword']) . '%';
+            $query->where(function ($q) use ($keyword) {
+                $q->where('obj_title', 'like', $keyword)
+                    ->orWhereHas('keyResults', function ($krQuery) use ($keyword) {
+                        $krQuery->where('kr_title', 'like', $keyword);
+                    });
+            });
+        }
+
+        $objectives = $query->orderBy('level')->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'items' => $objectives->items(),
+                'meta' => [
+                    'current_page' => $objectives->currentPage(),
+                    'per_page' => $objectives->perPage(),
+                    'last_page' => $objectives->lastPage(),
+                    'total' => $objectives->total(),
+                ],
+            ],
+        ]);
     }
 
     /**
-     * Tạo liên kết mới (Objective cấp thấp liên kết với Key Result cấp cao hơn).
+     * Gửi yêu cầu liên kết.
      */
     public function store(Request $request): JsonResponse
     {
         $user = Auth::user();
         $validated = $request->validate([
-            'source_objective_id' => 'required|exists:objectives,objective_id',
-            'target_kr_id' => 'required|exists:key_results,kr_id',
-            'description' => 'nullable|string|max:255',
+            'source_type' => ['required', Rule::in(['objective', 'kr'])],
+            'source_id' => ['required'],
+            'target_type' => ['required', Rule::in(['objective', 'kr'])],
+            'target_id' => ['required'],
+            'description' => ['nullable', 'string', 'max:255'],
+            'note' => ['nullable', 'string', 'max:255'],
         ]);
 
-        // Kiểm tra quyền cho source (luôn là objective)
-        $source = Objective::findOrFail($validated['source_objective_id']);
-        if ($source->user_id !== $user->user_id) {
-            return response()->json(['success' => false, 'message' => 'Bạn không có quyền liên kết source này.'], 403);
+        $sourceEntity = $this->findEntity($validated['source_type'], $validated['source_id']);
+        $targetEntity = $this->findEntity($validated['target_type'], $validated['target_id']);
+
+        $this->ensureSourceOwnership($sourceEntity, $user->user_id);
+        $this->ensureLinkingLevel($sourceEntity, $targetEntity);
+        $this->ensureTargetIsActive($targetEntity);
+        $this->preventDuplicate($sourceEntity, $targetEntity);
+
+        $link = DB::transaction(function () use ($validated, $user, $sourceEntity, $targetEntity) {
+            $payload = $this->buildLinkPayload($validated, $user->user_id, $sourceEntity, $targetEntity);
+            $link = OkrLink::create($payload);
+
+            $this->recordEvent($link, 'requested', $user->user_id, $validated['note'] ?? null);
+            $this->logAudit($user->user_id, 'request_link', $link->link_id);
+            $this->notifyTargetOwner($link, 'Yêu cầu liên kết mới', sprintf(
+                "%s muốn liên kết OKR của họ với '%s'",
+                $user->full_name ?? 'Một người dùng',
+                $this->getTargetTitle($targetEntity)
+            ));
+
+            return $link->load($this->defaultRelations());
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã gửi yêu cầu liên kết. Chờ phê duyệt.',
+            'data' => $link,
+        ], 201);
+    }
+
+    /**
+     * Chủ OKR cấp cao chấp thuận yêu cầu.
+     */
+    public function approve(Request $request, OkrLink $link): JsonResponse
+    {
+        $user = Auth::user();
+        $this->ensureTargetOwner($link, $user->user_id);
+
+        if (!$link->isPending()) {
+            return response()->json(['success' => false, 'message' => 'Chỉ xử lý yêu cầu đang chờ.'], 422);
         }
-        $sourceLevel = $source->level;
 
-        // Kiểm tra target (luôn là KR) có level cao hơn
-        $target = KeyResult::findOrFail($validated['target_kr_id']);
-        $targetLevel = $target->objective->level;
+        $validated = $request->validate([
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
 
-        $levels = ['person' => 1, 'team' => 2, 'unit' => 3, 'company' => 4];
-        if ($levels[$targetLevel] <= $levels[$sourceLevel]) {
-            return response()->json(['success' => false, 'message' => 'Key Result đích phải có cấp độ cao hơn Objective nguồn.'], 422);
+        $link = DB::transaction(function () use ($link, $user, $validated) {
+            $link->update([
+                'status' => OkrLink::STATUS_APPROVED,
+                'approved_by' => $user->user_id,
+                'decision_note' => $validated['note'] ?? null,
+                'ownership_transferred_at' => now(),
+                'is_active' => true,
+            ]);
+
+            $this->assignOwnership($link);
+            $this->recordEvent($link, 'approved', $user->user_id, $validated['note'] ?? null);
+            $this->logAudit($user->user_id, 'approved_link', $link->link_id);
+            $this->notifyRequester($link, 'Yêu cầu liên kết đã được chấp thuận');
+
+            return $link->load($this->defaultRelations());
+        });
+
+        return response()->json(['success' => true, 'message' => 'Đã chấp thuận yêu cầu.', 'data' => $link]);
+    }
+
+    /**
+     * Chủ OKR cấp cao từ chối.
+     */
+    public function reject(Request $request, OkrLink $link): JsonResponse
+    {
+        $user = Auth::user();
+        $this->ensureTargetOwner($link, $user->user_id);
+
+        if (!$link->isPending()) {
+            return response()->json(['success' => false, 'message' => 'Chỉ xử lý yêu cầu đang chờ.'], 422);
         }
 
-        $link = OkrLink::create($validated);
+        $validated = $request->validate([
+            'note' => ['required', 'string', 'max:255'],
+        ]);
 
-        return response()->json(['success' => true, 'message' => 'Liên kết thành công', 'data' => $link]);
+        $link = DB::transaction(function () use ($link, $user, $validated) {
+            $link->update([
+                'status' => OkrLink::STATUS_REJECTED,
+                'decision_note' => $validated['note'],
+                'approved_by' => $user->user_id,
+                'is_active' => false,
+            ]);
+
+            $this->recordEvent($link, 'rejected', $user->user_id, $validated['note']);
+            $this->logAudit($user->user_id, 'rejected_link', $link->link_id);
+            $this->notifyRequester($link, 'Yêu cầu liên kết bị từ chối', $validated['note']);
+
+            return $link->load($this->defaultRelations());
+        });
+
+        return response()->json(['success' => true, 'message' => 'Đã từ chối yêu cầu.', 'data' => $link]);
+    }
+
+    /**
+     * Chủ OKR cấp cao yêu cầu chỉnh sửa trước khi duyệt.
+     */
+    public function requestChanges(Request $request, OkrLink $link): JsonResponse
+    {
+        $user = Auth::user();
+        $this->ensureTargetOwner($link, $user->user_id);
+
+        if (!$link->isPending()) {
+            return response()->json(['success' => false, 'message' => 'Chỉ xử lý yêu cầu đang chờ.'], 422);
+        }
+
+        $validated = $request->validate([
+            'note' => ['required', 'string', 'max:255'],
+        ]);
+
+        $link = DB::transaction(function () use ($link, $user, $validated) {
+            $link->update([
+                'status' => OkrLink::STATUS_NEEDS_CHANGES,
+                'decision_note' => $validated['note'],
+                'approved_by' => $user->user_id,
+                'is_active' => false,
+            ]);
+
+            $this->recordEvent($link, 'needs_changes', $user->user_id, $validated['note']);
+            $this->logAudit($user->user_id, 'requested_link_changes', $link->link_id);
+            $this->notifyRequester($link, 'Yêu cầu chỉnh sửa liên kết', $validated['note']);
+
+            return $link->load($this->defaultRelations());
+        });
+
+        return response()->json(['success' => true, 'message' => 'Đã yêu cầu chỉnh sửa.', 'data' => $link]);
+    }
+
+    /**
+     * Hủy yêu cầu hoặc hủy liên kết (sau khi đã duyệt).
+     */
+    public function cancel(Request $request, OkrLink $link): JsonResponse
+    {
+        $user = Auth::user();
+        $keepOwnership = $request->boolean('keep_ownership', true);
+
+        if ($link->isPending()) {
+            $this->ensureSourceOwnershipEntity($link, $user->user_id);
+            $message = 'Đã hủy yêu cầu liên kết.';
+        } elseif ($link->isApproved()) {
+            $this->ensureCanModifyApproved($link, $user->user_id);
+            $message = 'Đã hủy liên kết.';
+        } else {
+            return response()->json(['success' => false, 'message' => 'Không thể hủy ở trạng thái hiện tại.'], 422);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $link = DB::transaction(function () use ($link, $user, $validated, $keepOwnership) {
+            $link->update([
+                'status' => OkrLink::STATUS_CANCELLED,
+                'decision_note' => $validated['reason'] ?? null,
+                'revoked_at' => now(),
+                'is_active' => false,
+            ]);
+
+            if ($link->isApproved()) {
+                $this->revokeOwnership($link, $keepOwnership === true);
+            }
+
+            $eventAction = $link->isApproved() ? 'unlinked' : 'cancelled';
+            $this->recordEvent($link, $eventAction, $user->user_id, $validated['reason'] ?? null);
+            $this->logAudit($user->user_id, $eventAction, $link->link_id);
+            $this->notifyCounterPart($link, $eventAction, $validated['reason'] ?? null);
+
+            return $link->load($this->defaultRelations());
+        });
+
+        return response()->json(['success' => true, 'message' => $message, 'data' => $link]);
+    }
+
+    /**
+     * Helper: danh sách quan hệ mặc định.
+     */
+    private function defaultRelations(): array
+    {
+        return [
+            'sourceObjective',
+            'sourceKr',
+            'targetObjective',
+            'targetKr',
+            'requester',
+            'targetOwner',
+            'approver',
+            'events.actor',
+        ];
+    }
+
+    private function findEntity(string $type, $id)
+    {
+        return $type === 'objective'
+            ? Objective::with('keyResults')->findOrFail($id)
+            : KeyResult::with('objective')->findOrFail($id);
+    }
+
+    private function ensureSourceOwnership($entity, int $userId): void
+    {
+        $ownerId = $entity instanceof Objective
+            ? $entity->user_id
+            : ($entity->objective->user_id ?? null);
+
+        if ($ownerId !== $userId) {
+            abort(response()->json(['success' => false, 'message' => 'Bạn không có quyền thực hiện thao tác này.'], 403));
+        }
+    }
+
+    private function ensureLinkingLevel($source, $target): void
+    {
+        $sourceLevel = $source instanceof Objective ? $source->level : ($source->objective->level ?? null);
+        $targetLevel = $target instanceof Objective ? $target->level : ($target->objective->level ?? null);
+
+        if (!$sourceLevel || !$targetLevel) {
+            abort(response()->json(['success' => false, 'message' => 'Không xác định được cấp độ OKR.'], 422));
+        }
+
+        if ((self::LEVEL_ORDER[$targetLevel] ?? 0) <= (self::LEVEL_ORDER[$sourceLevel] ?? 0)) {
+            abort(response()->json(['success' => false, 'message' => 'OKR đích phải có cấp độ cao hơn.'], 422));
+        }
+    }
+
+    private function ensureTargetIsActive($target): void
+    {
+        if ($target instanceof Objective) {
+            if ($target->archived_at) {
+                abort(response()->json(['success' => false, 'message' => 'Objective đích đã bị lưu trữ.'], 422));
+            }
+        } elseif ($target instanceof KeyResult) {
+            if ($target->archived_at) {
+                abort(response()->json(['success' => false, 'message' => 'Key Result đích đã bị lưu trữ.'], 422));
+            }
+        }
+    }
+
+    private function preventDuplicate($source, $target): void
+    {
+        $query = OkrLink::query()
+            ->where('source_type', $source instanceof Objective ? 'objective' : 'kr')
+            ->where('target_type', $target instanceof Objective ? 'objective' : 'kr')
+            ->where('status', '!=', OkrLink::STATUS_CANCELLED);
+
+        if ($source instanceof Objective) {
+            $query->where('source_objective_id', $source->objective_id);
+        } else {
+            $query->where('source_kr_id', $source->kr_id);
+        }
+
+        if ($target instanceof Objective) {
+            $query->where('target_objective_id', $target->objective_id);
+        } else {
+            $query->where('target_kr_id', $target->kr_id);
+        }
+
+        if ($query->exists()) {
+            abort(response()->json(['success' => false, 'message' => 'Liên kết này đã tồn tại.'], 422));
+        }
+    }
+
+    private function buildLinkPayload(array $validated, int $userId, $source, $target): array
+    {
+        $targetObjective = $target instanceof Objective ? $target : $target->objective;
+
+        return [
+            'source_type' => $validated['source_type'],
+            'target_type' => $validated['target_type'],
+            'source_objective_id' => $source instanceof Objective ? $source->objective_id : $source->objective_id,
+            'source_kr_id' => $source instanceof KeyResult ? $source->kr_id : null,
+            'target_objective_id' => $targetObjective?->objective_id,
+            'target_kr_id' => $target instanceof KeyResult ? $target->kr_id : null,
+            'description' => $validated['description'] ?? null,
+            'status' => OkrLink::STATUS_PENDING,
+            'requested_by' => $userId,
+            'target_owner_id' => $targetObjective?->user_id,
+            'request_note' => $validated['note'] ?? null,
+        ];
+    }
+
+    private function recordEvent(OkrLink $link, string $action, int $actorId, ?string $note = null): void
+    {
+        OkrLinkEvent::create([
+            'link_id' => $link->link_id,
+            'action' => $action,
+            'actor_id' => $actorId,
+            'note' => $note,
+        ]);
+    }
+
+    private function logAudit(int $userId, string $action, int $entityId): void
+    {
+        AuditLog::create([
+            'action' => $action,
+            'entity' => 'okr_link',
+            'entity_id' => $entityId,
+            'user_id' => $userId,
+        ]);
+    }
+
+    private function notifyTargetOwner(OkrLink $link, string $message, ?string $note = null): void
+    {
+        if (!$link->target_owner_id) {
+            return;
+        }
+
+        try {
+            Notification::create([
+                'message' => $note ? $message . ': ' . $note : $message,
+                'type' => 'okr_link',
+                'user_id' => $link->target_owner_id,
+                'cycle_id' => $link->targetObjective?->cycle_id ?? $link->targetKr?->objective?->cycle_id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Không thể tạo notification', ['error' => $e->getMessage()]);
+        }
+    }
+
+    private function notifyRequester(OkrLink $link, string $message, ?string $note = null): void
+    {
+        if (!$link->requested_by) {
+            return;
+        }
+
+        try {
+            Notification::create([
+                'message' => $note ? $message . ': ' . $note : $message,
+                'type' => 'okr_link',
+                'user_id' => $link->requested_by,
+                'cycle_id' => $link->sourceObjective?->cycle_id ?? $link->sourceKr?->objective?->cycle_id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Không thể tạo notification', ['error' => $e->getMessage()]);
+        }
+    }
+
+    private function notifyCounterPart(OkrLink $link, string $action, ?string $note = null): void
+    {
+        $message = match ($action) {
+            'unlinked' => 'Liên kết OKR đã bị hủy',
+            'cancelled' => 'Yêu cầu liên kết đã bị hủy',
+            default => 'Cập nhật yêu cầu liên kết',
+        };
+
+        $this->notifyTargetOwner($link, $message, $note);
+        $this->notifyRequester($link, $message, $note);
+    }
+
+    private function assignOwnership(OkrLink $link): void
+    {
+        $targetUserId = $link->target_owner_id;
+        if (!$targetUserId) {
+            return;
+        }
+
+        $roleId = $link->targetOwner?->role_id;
+
+        OkrAssignment::firstOrCreate(
+            [
+                'user_id' => $targetUserId,
+                'objective_id' => $link->source_objective_id,
+                'kr_id' => $link->source_kr_id,
+            ],
+            [
+                'role_id' => $roleId,
+            ]
+        );
+    }
+
+    private function revokeOwnership(OkrLink $link, bool $keepOwnership): void
+    {
+        if ($keepOwnership) {
+            return;
+        }
+
+        OkrAssignment::where('user_id', $link->target_owner_id)
+            ->where('objective_id', $link->source_objective_id)
+            ->where('kr_id', $link->source_kr_id)
+            ->delete();
+    }
+
+    private function ensureTargetOwner(OkrLink $link, int $userId): void
+    {
+        if ($link->target_owner_id !== $userId) {
+            abort(response()->json(['success' => false, 'message' => 'Bạn không có quyền phê duyệt yêu cầu này.'], 403));
+        }
+    }
+
+    private function ensureSourceOwnershipEntity(OkrLink $link, int $userId): void
+    {
+        $ownerId = $link->sourceObjective?->user_id ?? $link->sourceKr?->objective?->user_id;
+        if ($ownerId !== $userId) {
+            abort(response()->json(['success' => false, 'message' => 'Bạn không phải chủ của OKR nguồn.'], 403));
+        }
+    }
+
+    private function ensureCanModifyApproved(OkrLink $link, int $userId): void
+    {
+        $owners = [
+            $link->target_owner_id,
+            $link->sourceObjective?->user_id,
+            $link->sourceKr?->objective?->user_id,
+        ];
+
+        if (!in_array($userId, array_filter($owners), true)) {
+            abort(response()->json(['success' => false, 'message' => 'Bạn không có quyền hủy liên kết này.'], 403));
+        }
+    }
+
+    private function getTargetTitle($target): string
+    {
+        if ($target instanceof Objective) {
+            return $target->obj_title ?? 'Objective';
+        }
+
+        $objectiveTitle = $target->objective->obj_title ?? '';
+        return trim(($objectiveTitle ? $objectiveTitle . ' > ' : '') . ($target->kr_title ?? 'Key Result'));
     }
 }

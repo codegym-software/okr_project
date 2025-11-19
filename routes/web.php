@@ -269,6 +269,10 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/', [LinkController::class, 'index'])->middleware('auth')->name('my-links.index');
         Route::get('/available-targets', [LinkController::class, 'getAvailableTargets'])->middleware('auth')->name('my-links.available-targets');
         Route::post('/store', [LinkController::class, 'store'])->middleware('auth')->name('my-links.store');
+        Route::post('/{link}/approve', [LinkController::class, 'approve'])->middleware('auth')->name('my-links.approve');
+        Route::post('/{link}/reject', [LinkController::class, 'reject'])->middleware('auth')->name('my-links.reject');
+        Route::post('/{link}/request-changes', [LinkController::class, 'requestChanges'])->middleware('auth')->name('my-links.request-changes');
+        Route::post('/{link}/cancel', [LinkController::class, 'cancel'])->middleware('auth')->name('my-links.cancel');
     });
 
     Route::get('/okr-assignments/assignable-users-roles', [OkrAssignmentController::class, 'getAssignableUsersAndRoles'])->name('okr-assignments.assignable');

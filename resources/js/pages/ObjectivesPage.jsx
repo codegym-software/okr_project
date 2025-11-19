@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ObjectiveList from "./ObjectiveList.jsx";
 import ObjectiveModal from "./ObjectiveModal.jsx";
 import KeyResultModal from "./KeyResultModal.jsx";
@@ -6,12 +6,22 @@ import ToastComponent from "./ToastComponent.jsx";
 import CheckInModal from "../components/CheckInModal";
 import CheckInHistory from "../components/CheckInHistory";
 import ErrorBoundary from "../components/ErrorBoundary";
+import LinkOkrModal from "../components/LinkOkrModal.jsx";
+import LinkRequestsPanel from "../components/LinkRequestsPanel";
 
 export default function ObjectivesPage() {
     const [items, setItems] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [cyclesList, setCyclesList] = useState([]);
     const [links, setLinks] = useState([]);
+    const [incomingLinks, setIncomingLinks] = useState([]);
+    const [childLinks, setChildLinks] = useState([]);
+    const [linkModal, setLinkModal] = useState({
+        open: false,
+        source: null,
+        sourceType: "objective",
+    });
+    const [linksLoading, setLinksLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState({ type: "success", message: "" });
     const [editingKR, setEditingKR] = useState(null);
@@ -45,7 +55,7 @@ export default function ObjectivesPage() {
             if (cycle) url += `&cycle_id=${cycle}`;
             if (myOKR) url += `&my_okr=true`;
 
-            const [resObj, resDept, resCycles, resUser] = await Promise.all([
+            const [resObj, resDept, resCycles, resUser, resLinks] = await Promise.all([
                 fetch(url, {
                     headers: {
                         Accept: "application/json",
@@ -57,6 +67,12 @@ export default function ObjectivesPage() {
                 }),
                 fetch("/cycles", { headers: { Accept: "application/json" } }),
                 fetch("/api/profile", {
+                    headers: {
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                }),
+                fetch("/my-links", {
                     headers: {
                         Accept: "application/json",
                         "X-CSRF-TOKEN": token,
@@ -135,8 +151,20 @@ export default function ObjectivesPage() {
                 setCyclesList([]);
             }
 
-            // Set links to empty array (endpoint not implemented yet)
-            setLinks([]);
+            const linksJson = await resLinks.json().catch((err) => {
+                console.error("Error parsing links:", err);
+                return { data: { outgoing: [], incoming: [], children: [] } };
+            });
+            if (resLinks.ok && linksJson.success !== false) {
+                setLinks(linksJson.data?.outgoing || []);
+                setIncomingLinks(linksJson.data?.incoming || []);
+                setChildLinks(linksJson.data?.children || []);
+            } else {
+                console.warn("Không thể tải dữ liệu liên kết");
+                setLinks([]);
+                setIncomingLinks([]);
+                setChildLinks([]);
+            }
 
             // Parse user data (optional, không ảnh hưởng objectives)
             if (resUser && resUser.ok) {
@@ -163,6 +191,25 @@ export default function ObjectivesPage() {
             setLoading(false);
         }
     };
+
+    const refreshLinks = useCallback(async () => {
+        try {
+            setLinksLoading(true);
+            const res = await fetch("/my-links", {
+                headers: { Accept: "application/json" },
+            });
+            const json = await res.json();
+            if (res.ok && json.success !== false) {
+                setLinks(json.data?.outgoing || []);
+                setIncomingLinks(json.data?.incoming || []);
+                setChildLinks(json.data?.children || []);
+            }
+        } catch (err) {
+            console.error("Refresh links error:", err);
+        } finally {
+            setLinksLoading(false);
+        }
+    }, []);
 
     // Load cache chỉ 1 lần khi component mount
     useEffect(() => {
@@ -250,6 +297,80 @@ export default function ObjectivesPage() {
         });
     };
 
+    const handleOpenLinkModal = (payload) => {
+        setLinkModal({
+            open: true,
+            source: payload?.source || null,
+            sourceType: payload?.sourceType || "objective",
+        });
+    };
+
+    const closeLinkModal = () => {
+        setLinkModal({ open: false, source: null, sourceType: "objective" });
+    };
+
+    const handleLinkRequestSuccess = (link) => {
+        if (link?.link_id) {
+            setLinks((prev) => [link, ...prev.filter((item) => item.link_id !== link.link_id)]);
+        }
+        setToast({
+            type: "success",
+            message: "Đã gửi yêu cầu liên kết. Chờ phê duyệt.",
+        });
+        refreshLinks();
+    };
+
+    const performLinkAction = useCallback(
+        async (linkId, action, payload = {}, fallbackMessage = "Đã cập nhật trạng thái liên kết") => {
+            try {
+                const token = document
+                    .querySelector('meta[name="csrf-token"]')
+                    ?.getAttribute("content");
+                if (!token) throw new Error("Không tìm thấy CSRF token");
+
+                const res = await fetch(`/my-links/${linkId}/${action}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": token,
+                    },
+                    body: JSON.stringify(payload),
+                });
+                const json = await res.json();
+                if (!res.ok || json.success === false) {
+                    throw new Error(json.message || "Không thể cập nhật trạng thái liên kết");
+                }
+                await refreshLinks();
+                setToast({
+                    type: "success",
+                    message: json.message || fallbackMessage,
+                });
+                return json.data;
+            } catch (err) {
+                console.error(`Link action ${action} error:`, err);
+                setToast({
+                    type: "error",
+                    message: err.message || "Không thể xử lý yêu cầu liên kết",
+                });
+                throw err;
+            }
+        },
+        [refreshLinks]
+    );
+
+    const handleCancelLink = (linkId, reason = "", keepOwnership = true) =>
+        performLinkAction(linkId, "cancel", { reason, keep_ownership: keepOwnership }, "Đã hủy liên kết");
+
+    const handleApproveLink = (linkId, note = "") =>
+        performLinkAction(linkId, "approve", { note }, "Đã chấp thuận yêu cầu");
+
+    const handleRejectLink = (linkId, note) =>
+        performLinkAction(linkId, "reject", { note }, "Đã từ chối yêu cầu");
+
+    const handleRequestChanges = (linkId, note) =>
+        performLinkAction(linkId, "request-changes", { note }, "Đã yêu cầu chỉnh sửa");
+
     const openCheckInModal = (keyResult) => {
         console.log('Opening check-in modal for:', keyResult);
         console.log('Objective ID:', keyResult?.objective_id);
@@ -288,6 +409,7 @@ export default function ObjectivesPage() {
                 setEditingKR={setEditingKR}
                 setCreatingObjective={setCreatingObjective}
                 links={links}
+                linksLoading={linksLoading}
                 openCheckInModal={openCheckInModal}
                 openCheckInHistory={openCheckInHistory}
                 currentUser={currentUser}
@@ -295,6 +417,8 @@ export default function ObjectivesPage() {
                 setCycleFilter={setCycleFilter}
                 myOKRFilter={myOKRFilter}
                 setMyOKRFilter={setMyOKRFilter}
+                onOpenLinkModal={handleOpenLinkModal}
+                onCancelLink={handleCancelLink}
             />
             <div className="mt-4 flex justify-center gap-2">
                 <button
@@ -358,6 +482,16 @@ export default function ObjectivesPage() {
                 />
             )}
 
+            <LinkRequestsPanel
+                incoming={incomingLinks}
+                children={childLinks}
+                loading={linksLoading}
+                onApprove={handleApproveLink}
+                onReject={handleRejectLink}
+                onRequestChanges={handleRequestChanges}
+                onCancel={handleCancelLink}
+            />
+
             {/* Check-in Modal */}
             <ErrorBoundary>
                 <CheckInModal
@@ -378,6 +512,16 @@ export default function ObjectivesPage() {
                     objectiveId={checkInHistory.keyResult?.objective_id}
                 />
             </ErrorBoundary>
+
+            {linkModal.open && (
+                <LinkOkrModal
+                    open={linkModal.open}
+                    onClose={closeLinkModal}
+                    source={linkModal.source}
+                    sourceType={linkModal.sourceType}
+                    onSuccess={handleLinkRequestSuccess}
+                />
+            )}
         </div>
     );
 }
