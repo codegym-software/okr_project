@@ -318,6 +318,11 @@ function DashboardTopbar({
 
 export default function DashboardLayout({ children, user }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const roleName = (user?.role?.role_name || "").toLowerCase();
+    const isAdmin = user?.is_admin === true;
+    const isManager = roleName === "manager";
+    const canSeeTeamReport = isAdmin || isManager;
+    const canSeeCompanyReport = isAdmin;
 
     const toggleSidebar = () => {
         setSidebarOpen(!sidebarOpen);
@@ -396,6 +401,12 @@ export default function DashboardLayout({ children, user }) {
                                           currentPath.startsWith(p)
                                       )
                                     : currentPath.startsWith(paths);
+                            const isTeamReportActive =
+                                currentPath === "/reports";
+                            const isCompanyReportActive =
+                                currentPath.startsWith(
+                                    "/reports/company-overview"
+                                );
 
                             return (
                                 <>
@@ -540,8 +551,29 @@ export default function DashboardLayout({ children, user }) {
                                         )}
                                     </div>
 
-                                    {/* Báo cáo - chỉ Admin */}
-                                    {user?.is_admin && (
+                                    {canSeeTeamReport && (
+                                        <SidebarItem
+                                            collapsed={!sidebarOpen}
+                                            href="/reports"
+                                            label={
+                                                canSeeCompanyReport
+                                                    ? "Báo cáo nhóm"
+                                                    : "Báo cáo"
+                                            }
+                                            icon={
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    className="h-6 w-6"
+                                                    viewBox="0 0 24 24"
+                                                    fill="currentColor"
+                                                >
+                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
+                                                </svg>
+                                            }
+                                            isActive={isTeamReportActive}
+                                        />
+                                    )}
+                                    {canSeeCompanyReport && (
                                         <SidebarItem
                                             collapsed={!sidebarOpen}
                                             href="/reports/company-overview"
@@ -556,12 +588,12 @@ export default function DashboardLayout({ children, user }) {
                                                     <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-10h4v24h-4V-3z" />
                                                 </svg>
                                             }
-                                            isActive={isActive("/reports")}
+                                            isActive={isCompanyReportActive}
                                         />
                                     )}
 
                                     {/* Quản trị - Admin only */}
-                                    {user?.is_admin && (
+                                    {isAdmin && (
                                         <div className="rounded-xl">
                                             {sidebarOpen ? (
                                                 <details
