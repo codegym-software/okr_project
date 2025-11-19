@@ -334,9 +334,7 @@ export default function CompanyOkrList() {
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="px-3 py-3 text-center bg-gradient-to-r from-indigo-50 to-purple-50">
-                                            —
-                                        </td>
+                                        <td className="px-3 py-3 text-center bg-gradient-to-r from-indigo-50 to-purple-50"></td>
                                     </tr>
 
                                     {/* Key Results */}
@@ -384,9 +382,7 @@ export default function CompanyOkrList() {
                                                         kr.progress_percent
                                                     )}
                                                 </td>
-                                                <td className="px-3 py-3 text-center text-slate-400">
-                                                    —
-                                                </td>
+                                                <td className="px-3 py-3 text-center text-slate-400"></td>
                                             </tr>
                                         ))}
                                 </React.Fragment>
