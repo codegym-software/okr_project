@@ -10,11 +10,10 @@ export default function CompanyOkrList() {
     const [toast, setToast] = useState(null);
     const [cycleFilter, setCycleFilter] = useState(null);
     const [openObj, setOpenObj] = useState({});
-    const [overallProgress, setOverallProgress] = useState(0);
     const [cyclesList, setCyclesList] = useState([]);
-    const [dropdownOpen, setDropdownOpen] = useState(false); // Thêm để điều khiển dropdown
+    const [dropdownOpen, setDropdownOpen] = useState(false);
 
-    // Fetch danh sách cycles khi mount
+    // Fetch cycles
     useEffect(() => {
         (async () => {
             try {
@@ -22,11 +21,8 @@ export default function CompanyOkrList() {
                     headers: { Accept: "application/json" },
                 });
                 const json = await res.json();
-                if (Array.isArray(json.data)) {
-                    setCyclesList(json.data);
-                }
-            } catch (error) {
-                console.error("Failed to load cycles", error);
+                if (Array.isArray(json.data)) setCyclesList(json.data);
+            } catch (err) {
                 setToast({
                     type: "error",
                     message: "Không tải được danh sách quý",
@@ -37,61 +33,32 @@ export default function CompanyOkrList() {
 
     // Tự động chọn quý hiện tại
     useEffect(() => {
-        if (!cycleFilter && cyclesList.length > 0) {
-            const now = new Date();
-            const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
-            const currentYear = now.getFullYear();
+        if (cycleFilter || cyclesList.length === 0) return;
 
-            const current = cyclesList.find((c) => {
-                const match = c.cycle_name.match(/Quý (\d+) năm (\d+)/);
-                return (
-                    match &&
-                    parseInt(match[1]) === currentQuarter &&
-                    parseInt(match[2]) === currentYear
-                );
-            });
+        const now = new Date();
+        const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+        const currentYear = now.getFullYear();
 
-            if (current) {
-                setCycleFilter(current.cycle_id);
-            }
-        }
+        const current = cyclesList.find((c) => {
+            const m = c.cycle_name.match(/Quý (\d+) năm (\d+)/);
+            return m && +m[1] === currentQuarter && +m[2] === currentYear;
+        });
+
+        if (current) setCycleFilter(current.cycle_id);
     }, [cyclesList, cycleFilter]);
 
-    // Fetch OKR công ty
+    // Fetch company OKRs
     const fetchCompanyOkrs = useCallback(async () => {
         if (!cycleFilter) return;
-
         setLoading(true);
         try {
-            const params = new URLSearchParams();
-            params.append("cycle_id", cycleFilter);
-
+            const params = new URLSearchParams({ cycle_id: cycleFilter });
             const res = await fetch(`/company-okrs?${params}`, {
-                headers: {
-                    Accept: "application/json",
-                },
-                credentials: "omit",
+                headers: { Accept: "application/json" },
             });
             const json = await res.json();
-
             if (json.success) {
-                setItems(json.data);
-
-                // Tính overall progress
-                const total = json.data.reduce((acc, obj) => {
-                    const avgKR =
-                        obj.key_results?.length > 0
-                            ? obj.key_results.reduce(
-                                  (s, kr) => s + (kr.progress_percent || 0),
-                                  0
-                              ) / obj.key_results.length
-                            : 0;
-                    return acc + avgKR;
-                }, 0);
-
-                setOverallProgress(
-                    json.data.length > 0 ? total / json.data.length : 0
-                );
+                setItems(json.data || []);
             } else {
                 throw new Error(json.message || "Lỗi tải dữ liệu");
             }
@@ -105,19 +72,15 @@ export default function CompanyOkrList() {
         }
     }, [cycleFilter]);
 
-    // Gọi fetch khi cycleFilter thay đổi
     useEffect(() => {
         fetchCompanyOkrs();
     }, [fetchCompanyOkrs]);
 
-    // Helper functions
-    const formatPercent = (value) => {
-        const n = Number(value);
-        return Number.isFinite(n) ? `${n.toFixed(1)}%` : "0%";
-    };
-
-    const getStatusText = (status) => {
-        switch (status?.toLowerCase()) {
+    // Helper
+    const formatPercent = (v) =>
+        Number.isFinite(+v) ? `${(+v).toFixed(1)}%` : "0%";
+    const getStatusText = (s) => {
+        switch ((s || "").toLowerCase()) {
             case "draft":
                 return "Bản nháp";
             case "active":
@@ -125,12 +88,11 @@ export default function CompanyOkrList() {
             case "completed":
                 return "Hoàn thành";
             default:
-                return status || "";
+                return s || "";
         }
     };
-
-    const getUnitText = (unit) => {
-        switch (unit?.toLowerCase()) {
+    const getUnitText = (u) => {
+        switch ((u || "").toLowerCase()) {
             case "number":
                 return "Số lượng";
             case "percent":
@@ -141,19 +103,19 @@ export default function CompanyOkrList() {
             case "bài":
                 return "Bài";
             default:
-                return unit || "";
+                return u || "";
         }
     };
 
-    // Lấy tên quý hiện tại để hiển thị đẹp hơn trên dropdown (nếu CycleDropdown hỗ trợ placeholder)
+    // Tên quý hiện tại để hiển thị đẹp
     const currentCycleName =
         cyclesList.find((c) => c.cycle_id === cycleFilter)?.cycle_name ||
         "Chọn quý";
 
     return (
-        <div className="mx-auto w-full max-w-6xl">
-            {/* Header với Dropdown chọn quý - giống hệt ObjectiveList */}
-            <div className="mb-6 flex w-full items-center justify-between">
+        <div className="mx-auto w-full max-w-6xl mt-8">
+            {/* Header – copy 100% từ ObjectiveList */}
+            <div className="mb-4 flex w-full items-center justify-between">
                 <div className="flex items-center gap-4">
                     <CycleDropdown
                         cyclesList={cyclesList}
@@ -161,15 +123,12 @@ export default function CompanyOkrList() {
                         handleCycleChange={setCycleFilter}
                         dropdownOpen={dropdownOpen}
                         setDropdownOpen={setDropdownOpen}
-                        placeholder={currentCycleName} // Tùy chọn, nếu CycleDropdown có hỗ trợ
+                        selectedLabel={currentCycleName}
                     />
                 </div>
-
-                {/* Giữ nguyên Tabs giả để layout không bị lệch */}
-                <Tabs showArchived={false} setShowArchived={() => {}} />
             </div>
 
-            {/* Bảng OKR - giữ nguyên hoàn toàn */}
+            {/* Bảng – copy hoàn toàn từ ObjectiveList, chỉ đổi màu + bỏ hết hành động */}
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
@@ -189,7 +148,7 @@ export default function CompanyOkrList() {
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Thực tế
                             </th>
-                            <th className="px-3 py Trang chủ-2 text-center border-r border-slate-200 w-[10%]">
+                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Mục tiêu
                             </th>
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
@@ -217,19 +176,23 @@ export default function CompanyOkrList() {
                                     colSpan={8}
                                     className="px-3 py-10 text-center text-slate-500"
                                 >
-                                    Chưa có OKR nào trong quý này.
+                                    Chưa có OKR công ty nào trong quý này.
                                 </td>
                             </tr>
                         ) : (
-                            items.map((obj) => (
+                            items.map((obj, index) => (
                                 <React.Fragment key={obj.objective_id}>
-                                    {/* Objective Row */}
-                                    <tr className="bg-gradient-to-r from-indigo-50 to-purple-50 border-t-2 border-indigo-200">
+                                    {/* Objective row – gradient tím giống trang công ty */}
+                                    <tr
+                                        className={`bg-gradient-to-r from-indigo-50 to-purple-50 border-t-2 border-indigo-200 ${
+                                            index > 0 ? "mt-4" : ""
+                                        }`}
+                                    >
                                         <td
                                             colSpan={7}
                                             className="px-3 py-3 border-r border-slate-200"
                                         >
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-1">
                                                 {obj.key_results?.length >
                                                     0 && (
                                                     <button
@@ -245,10 +208,14 @@ export default function CompanyOkrList() {
                                                                 })
                                                             )
                                                         }
-                                                        className="p-2 rounded-lg hover:bg-slate-100 transition-all"
+                                                        className="p-2 rounded-lg hover:bg-slate-100 transition-all duration-200 group"
+                                                        title="Đóng/mở Key Results"
                                                     >
                                                         <svg
-                                                            className={`w-4 h-4 text-slate-600 transition-transform ${
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            viewBox="0 0 20 20"
+                                                            fill="currentColor"
+                                                            className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform duration-200 ${
                                                                 openObj[
                                                                     obj
                                                                         .objective_id
@@ -256,17 +223,17 @@ export default function CompanyOkrList() {
                                                                     ? "rotate-90"
                                                                     : ""
                                                             }`}
-                                                            fill="currentColor"
-                                                            viewBox="0 0 20 20"
                                                         >
                                                             <path
                                                                 fillRule="evenodd"
                                                                 d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                                                clipRule="evenodd"
                                                             />
                                                         </svg>
                                                     </button>
                                                 )}
-                                                <span className="font-bold text-slate-900">
+
+                                                <span className="font-semibold text-slate-900">
                                                     [
                                                     {obj.level === "company"
                                                         ? "CÔNG TY"
@@ -277,8 +244,10 @@ export default function CompanyOkrList() {
                                                 </span>
                                             </div>
                                         </td>
+
+                                        {/* Cột hành động – để trống */}
                                         <td className="px-3 py-3 text-center bg-gradient-to-r from-indigo-50 to-purple-50">
-                                            {/* Hành động cho Objective */}
+                                            —
                                         </td>
                                     </tr>
 
@@ -287,7 +256,7 @@ export default function CompanyOkrList() {
                                         obj.key_results?.map((kr) => (
                                             <tr key={kr.kr_id}>
                                                 <td className="px-8 py-3 border-r border-slate-200">
-                                                    <span className="font-medium text-slate-800">
+                                                    <span className="font-medium text-slate-900">
                                                         {kr.kr_title}
                                                     </span>
                                                 </td>
@@ -327,8 +296,8 @@ export default function CompanyOkrList() {
                                                         kr.progress_percent
                                                     )}
                                                 </td>
-                                                <td className="px-3 py-3 text-center">
-                                                    {/* Hành động cho KR */}
+                                                <td className="px-3 py-3 text-center text-slate-400">
+                                                    —
                                                 </td>
                                             </tr>
                                         ))}
