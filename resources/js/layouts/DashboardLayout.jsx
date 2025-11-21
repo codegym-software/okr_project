@@ -334,7 +334,7 @@ function DashboardSidebar({ open, user }) {
                     <SidebarItem
                         collapsed={collapsed}
                         href="/cycles"
-                        label="Chu kỳ"
+                        label="Quản lý chu kỳ"
                         icon={
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -892,7 +892,7 @@ export default function DashboardLayout({ children, user }) {
                                                             "/users",
                                                         ].map((path, i) => {
                                                             const labels = [
-                                                                "Chu kỳ",
+                                                                "Quản lý chu kỳ",
                                                                 "Quản lý phòng ban",
                                                                 "Quản lý người dùng",
                                                             ];
