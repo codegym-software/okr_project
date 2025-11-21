@@ -154,8 +154,40 @@ export default function ObjectiveModal({
         }
     }, [createForm.cycle_id]);
 
+    // Thêm useEffect để tự động điền department_id khi level là unit/team và có currentUser
+    useEffect(() => {
+        if (
+            currentUser?.department_id &&
+            ["unit", "team"].includes(createForm.level)
+        ) {
+            setCreateForm((prev) => ({
+                ...prev,
+                department_id: String(currentUser.department_id),
+            }));
+        }
+    }, [currentUser, createForm.level]);
+
     const handleCreateFormChange = (field, value) => {
-        setCreateForm((prev) => ({ ...prev, [field]: value }));
+        setCreateForm((prev) => {
+            let newForm = { ...prev, [field]: value };
+
+            // TỰ ĐỘNG gán department_id khi chọn level là unit hoặc team
+            if (field === "level" && ["unit", "team"].includes(value)) {
+                if (currentUser?.department_id) {
+                    newForm.department_id = String(currentUser.department_id);
+                } else {
+                    newForm.department_id = "";
+                    // Có thể thông báo ngay ở đây nếu muốn
+                }
+            }
+
+            // Khi chuyển sang company → xóa department_id
+            if (field === "level" && value === "company") {
+                newForm.department_id = null;
+            }
+
+            return newForm;
+        });
     };
 
     const addNewKR = () => {
@@ -486,24 +518,30 @@ export default function ObjectiveModal({
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">
                                     Phòng ban
                                 </label>
-                                {currentUser?.department_id ? (
-                                    <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                                        <span className="font-medium">
-                                            {departments.find(
-                                                (d) =>
-                                                    String(d.department_id) ===
-                                                    String(
-                                                        currentUser.department_id
-                                                    )
-                                            )?.d_name || "Phòng ban của bạn"}
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <div className="w-full rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-                                        Bạn chưa thuộc phòng ban nào. Không thể
-                                        tạo Objective cấp Unit/Team.
-                                    </div>
-                                )}
+                                {
+                                    currentUser?.department_id ? (
+                                        <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                            <span className="font-medium">
+                                                {departments.find(
+                                                    (d) =>
+                                                        String(
+                                                            d.department_id
+                                                        ) ===
+                                                        String(
+                                                            currentUser.department_id
+                                                        )
+                                                )?.d_name ||
+                                                    "Phòng ban của bạn"}
+                                            </span>
+                                        </div>
+                                    ) : null
+                                    // (
+                                    //     <div className="w-full rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                                    //         Bạn chưa thuộc phòng ban nào. Không thể
+                                    //         tạo Objective cấp Unit/Team.
+                                    //     </div>
+                                    // )
+                                }
                                 {/* Ẩn input để vẫn gửi dữ liệu khi submit */}
                                 <input
                                     type="hidden"
