@@ -75,7 +75,9 @@ function NotificationBell() {
         const map = new Set(ids);
         setNotifications((prev) =>
             prev.map((item) =>
-                map.has(item.notification_id) ? { ...item, is_read: true } : item
+                map.has(item.notification_id)
+                    ? { ...item, is_read: true }
+                    : item
             )
         );
     };
@@ -89,13 +91,16 @@ function NotificationBell() {
         }
 
         try {
-            const res = await fetch(`/api/notifications/${notificationId}/read`, {
-                method: "POST",
-                headers: {
-                    "X-CSRF-TOKEN": csrfToken,
-                    Accept: "application/json",
-                },
-            });
+            const res = await fetch(
+                `/api/notifications/${notificationId}/read`,
+                {
+                    method: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": csrfToken,
+                        Accept: "application/json",
+                    },
+                }
+            );
             if (!res.ok) {
                 throw new Error("Không thể cập nhật thông báo");
             }
@@ -126,7 +131,9 @@ function NotificationBell() {
             if (!res.ok) {
                 throw new Error("Không thể cập nhật thông báo");
             }
-            updateLocalReadState(notifications.map((item) => item.notification_id));
+            updateLocalReadState(
+                notifications.map((item) => item.notification_id)
+            );
             setUnreadCount(0);
         } catch (err) {
             setError(err.message || "Không thể cập nhật thông báo");
@@ -220,7 +227,9 @@ function NotificationBell() {
                                 <div className="flex items-start gap-3">
                                     <span
                                         className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                                            item.is_read ? "bg-slate-300" : "bg-indigo-500"
+                                            item.is_read
+                                                ? "bg-slate-300"
+                                                : "bg-indigo-500"
                                         }`}
                                     />
                                     <div className="flex-1">
@@ -232,7 +241,9 @@ function NotificationBell() {
                                                 {formatTypeLabel(item.type)}
                                             </span>
                                             <span className="tabular-nums">
-                                                {formatTimestamp(item.created_at)}
+                                                {formatTimestamp(
+                                                    item.created_at
+                                                )}
                                             </span>
                                         </div>
                                     </div>
@@ -241,7 +252,9 @@ function NotificationBell() {
                         ))}
                 </div>
                 {error && (
-                    <div className="px-4 py-2 text-xs text-rose-600">{error}</div>
+                    <div className="px-4 py-2 text-xs text-rose-600">
+                        {error}
+                    </div>
                 )}
             </DropdownContent>
         </Dropdown>
@@ -369,7 +382,7 @@ function DashboardSidebar({ open, user }) {
                     <SidebarItem
                         collapsed={collapsed}
                         href="/departments"
-                        label="Phòng ban & Đội nhóm"
+                        label="Quản lý phòng ban"
                         icon={
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -880,7 +893,7 @@ export default function DashboardLayout({ children, user }) {
                                                         ].map((path, i) => {
                                                             const labels = [
                                                                 "Chu kỳ",
-                                                                "Phòng ban/Đội nhóm",
+                                                                "Quản lý phòng ban",
                                                                 "Quản lý người dùng",
                                                             ];
                                                             return (

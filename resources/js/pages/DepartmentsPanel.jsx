@@ -86,7 +86,7 @@ function DepartmentFormModal({
         <Modal
             open={open}
             onClose={onClose}
-            title={mode === "edit" ? "Sửa đơn vị" : "Tạo đơn vị mới"}
+            title={mode === "edit" ? "Sửa phòng ban" : "Tạo phòng ban mới"}
         >
             <Toast
                 type={toast.type}
@@ -96,7 +96,7 @@ function DepartmentFormModal({
             <form onSubmit={submit} className="space-y-4">
                 <div>
                     <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Tên đơn vị
+                        Tên phòng ban
                     </label>
                     <input
                         value={name}
@@ -430,7 +430,7 @@ export default function DepartmentsPanel() {
     };
 
     const remove = async (id) => {
-        if (!window.confirm("Bạn có chắc chắn muốn xóa đơn vị này?")) return;
+        if (!window.confirm("Bạn có chắc chắn muốn xóa phòng ban này?")) return;
         try {
             const token = document
                 .querySelector('meta[name="csrf-token"]')
@@ -448,7 +448,7 @@ export default function DepartmentsPanel() {
             );
             setOpenEdit(false);
             setEditing(null);
-            showToast("success", "Xóa đơn vị thành công");
+            showToast("success", "Xóa phòng ban thành công");
         } catch (e) {
             showToast("error", e.message || "Xóa thất bại");
         }
@@ -475,14 +475,14 @@ export default function DepartmentsPanel() {
 
             <div className="mx-auto mb-3 flex w-full max-w-5xl items-center justify-between">
                 <h2 className="text-2xl font-extrabold text-slate-900">
-                    Quản lý đơn vị
+                    Quản lý phòng ban
                 </h2>
                 {isAdmin && (
                     <button
                         onClick={() => setOpenCreate(true)}
                         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 flex items-center gap-2"
                     >
-                        + Tạo đơn vị mới
+                        + Tạo mới
                     </button>
                 )}
             </div>
@@ -492,7 +492,7 @@ export default function DepartmentsPanel() {
                     <thead className="bg-slate-50">
                         <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">
-                                Tên đơn vị
+                                Tên phòng ban
                             </th>
                             <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">
                                 Thành viên
@@ -519,7 +519,7 @@ export default function DepartmentsPanel() {
                                     colSpan={3}
                                     className="px-4 py-8 text-center text-slate-400"
                                 >
-                                    Chưa có đơn vị nào
+                                    Chưa có phòng ban nào
                                 </td>
                             </tr>
                         )}
