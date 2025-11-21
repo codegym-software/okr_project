@@ -187,7 +187,7 @@ class DepartmentController extends Controller
      */
     public function storeAssignUsers(Request $request, Department $department): JsonResponse|RedirectResponse
     {
-        if (!Auth::user()->canManageUsers() && !Auth::user()->isDeptManager()) {
+        if (!Auth::user()->canManageUsers() && !Auth::user()->isManager()) {
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => 'Bạn không có quyền gán người dùng.'], 403);
             }

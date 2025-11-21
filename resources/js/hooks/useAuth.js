@@ -13,12 +13,9 @@ export function useAuth() {
             user,
             isAuthenticated: !!user,
             isAdmin: user?.is_admin === true,
-            isDeptManager:
+            isManager:
                 user?.role?.role_name?.toLowerCase() === "manager" &&
                 user?.role?.level?.toLowerCase() === "unit",
-            isTeamManager:
-                user?.role?.role_name?.toLowerCase() === "manager" &&
-                user?.role?.level?.toLowerCase() === "team",
             isMember: user?.role?.role_name?.toLowerCase() === "member",
             // Helper methods
             canManageCycles: user?.is_admin === true,
