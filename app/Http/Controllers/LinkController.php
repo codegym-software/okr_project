@@ -373,13 +373,13 @@ class LinkController extends Controller
     private function defaultRelations(): array
     {
         return [
-            'sourceObjective',
-            'sourceKr',
-            'targetObjective',
-            'targetKr',
-            'requester',
-            'targetOwner',
-            'approver',
+            'sourceObjective.user.department',
+            'sourceKr.assignedUser.department',
+            'targetObjective.user.department',
+            'targetKr.assignedUser.department',
+            'requester.department',
+            'targetOwner.department',
+            'approver.department',
             'events.actor',
         ];
     }

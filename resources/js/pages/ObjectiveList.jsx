@@ -48,6 +48,7 @@ export default function ObjectiveList({
         email: "",
         loading: false,
     });
+    const [assigneeTooltip, setAssigneeTooltip] = useState(null);
 
     const linkLookup = useMemo(() => {
         const byObjective = {};
@@ -105,20 +106,26 @@ export default function ObjectiveList({
             const virtualKRs = linkedChildren.map((link) => {
                 const sourceObjective = link.sourceObjective || link.source_objective;
                 const sourceKr = link.sourceKr || link.source_kr;
-                
+                const ownerUser =
+                    sourceKr?.assigned_user ||
+                    sourceKr?.assignedUser ||
+                    sourceObjective?.user ||
+                    null;
+
                 // Tạo virtual KR từ link
                 return {
                     kr_id: `linked_${link.link_id}`, // ID giả để phân biệt
-                    kr_title: sourceKr 
-                        ? `${sourceObjective?.obj_title || 'Objective'} › ${sourceKr.kr_title || 'Key Result'}`
-                        : sourceObjective?.obj_title || 'Linked Objective',
+                    kr_title: sourceKr
+                        ? `${sourceObjective?.obj_title || "Objective"} › ${sourceKr.kr_title || "Key Result"}`
+                        : sourceObjective?.obj_title || "Linked Objective",
                     target_value: sourceKr?.target_value || 0,
                     current_value: sourceKr?.current_value || 0,
-                    unit: sourceKr?.unit || 'number',
-                    status: sourceKr?.status || sourceObjective?.status || 'active',
+                    unit: sourceKr?.unit || "number",
+                    status: sourceKr?.status || sourceObjective?.status || "active",
                     weight: sourceKr?.weight || 0,
                     progress_percent: sourceKr?.progress_percent || 0,
                     assigned_to: sourceKr?.assigned_to || sourceObjective?.user_id || null,
+                    assigned_user: ownerUser,
                     isLinked: true, // Flag để phân biệt với KR thật
                     link: link, // Lưu link để có thể hủy liên kết
                 };
@@ -669,6 +676,66 @@ export default function ObjectiveList({
         }
     };
 
+    const getAssigneeInfo = (kr) => {
+        if (!kr)
+            return {
+                name: "",
+                avatar: null,
+                department: null,
+                email: "",
+            };
+        const user =
+            kr.assigned_user ||
+            kr.assignedUser ||
+            kr.assignee ||
+            null;
+
+        if (user) {
+            return {
+                name:
+                    user.full_name ||
+                    user.fullName ||
+                    user.name ||
+                    user.username ||
+                    user.email ||
+                    `User ${user.user_id || ""}`,
+                avatar:
+                    user.avatar_url ||
+                    user.avatar ||
+                    user.profile_photo_url ||
+                    user.profile_photo_path ||
+                    user.photo_url ||
+                    null,
+                department:
+                    user.department?.d_name ||
+                    user.department?.name ||
+                    user.department_name ||
+                    user.department ||
+                    null,
+                email: user.email || "",
+            };
+        }
+
+        return {
+            name: kr.assigned_to || "",
+            avatar: null,
+            department: null,
+            email: "",
+        };
+    };
+
+    const handleAssigneeHover = (event, info) => {
+        if (!info) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        setAssigneeTooltip({
+            info,
+            position: {
+                x: rect.left + rect.width / 2 + window.scrollX,
+                y: rect.top + window.scrollY,
+            },
+        });
+    };
+
     return (
         <div className="mx-auto w-full max-w-6xl">
             <div className="mb-4 flex w-full items-center justify-between">
@@ -958,27 +1025,42 @@ export default function ObjectiveList({
                                                     </div>
                                                 </td>
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.assigned_to ? (
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            <svg
-                                                                className="w-4 h-4 text-slate-500"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={
-                                                                        2
-                                                                    }
-                                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                                                                />
-                                                            </svg>
-                                                            <span className="text-sm text-slate-700">
-                                                                {kr.assigned_to}
-                                                            </span>
-                                                        </div>
+                                                    {kr.assigned_to ||
+                                                    kr.assigned_user ||
+                                                    kr.assignedUser ||
+                                                    kr.assignee ? (
+                                                        (() => {
+                                                            const info = getAssigneeInfo(kr);
+                                                            const displayName = info.name || "";
+                                                            const avatarSrc = info.avatar;
+                                                            const initial =
+                                                                displayName?.trim()?.charAt(0)?.toUpperCase() ||
+                                                                (kr.assigned_to
+                                                                    ? String(kr.assigned_to).charAt(0).toUpperCase()
+                                                                    : "?");
+                                                            return (
+                                                                <div
+                                                                    className="flex items-center justify-center gap-2"
+                                                                    onMouseEnter={(e) => handleAssigneeHover(e, info)}
+                                                                    onMouseLeave={() => setAssigneeTooltip(null)}
+                                                                >
+                                                                    {avatarSrc ? (
+                                                                        <img
+                                                                            src={avatarSrc}
+                                                                            alt={displayName}
+                                                                            className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
+                                                                            {initial}
+                                                                        </div>
+                                                                    )}
+                                                                    <span className="max-w-[120px] truncate text-sm text-slate-700">
+                                                                        {displayName || kr.assigned_to}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })()
                                                     ) : (
                                                         <span className="text-slate-400 text-xs">
                                                             Chưa giao
@@ -1177,42 +1259,6 @@ export default function ObjectiveList({
                                                                             `menu_${kr.kr_id}`
                                                                         ] && (
                                                                             <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
-                                                                                {onOpenLinkModal && (
-                                                                                    <button
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            onOpenLinkModal({
-                                                                                                sourceType: "kr",
-                                                                                                source: {
-                                                                                                    ...kr,
-                                                                                                    objective_id: obj.objective_id,
-                                                                                                    objective_level: obj.level,
-                                                                                                    obj_title: obj.obj_title,
-                                                                                                },
-                                                                                            });
-                                                                                            setOpenObj((prev) => ({
-                                                                                                ...prev,
-                                                                                                [`menu_${kr.kr_id}`]: false,
-                                                                                            }));
-                                                                                        }}
-                                                                                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 transition-colors"
-                                                                                    >
-                                                                                        <svg
-                                                                                            className="h-4 w-4"
-                                                                                            fill="none"
-                                                                                            viewBox="0 0 24 24"
-                                                                                            stroke="currentColor"
-                                                                                        >
-                                                                                            <path
-                                                                                                strokeLinecap="round"
-                                                                                                strokeLinejoin="round"
-                                                                                                strokeWidth={2}
-                                                                                                d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
-                                                                                            />
-                                                                                        </svg>
-                                                                                        Liên kết OKR cấp cao
-                                                                                    </button>
-                                                                                )}
                                                                                 {/* Giao việc */}
                                                                                 <button
                                                                                     onClick={(
@@ -1421,6 +1467,47 @@ export default function ObjectiveList({
                 onConfirm={handleAssignKR}
                 onClose={closeAssignModal}
             />
+
+            {assigneeTooltip && assigneeTooltip.info && (
+                <div
+                    className="pointer-events-none fixed z-[2000]"
+                    style={{
+                        left: assigneeTooltip.position.x,
+                        top: assigneeTooltip.position.y - 12,
+                    }}
+                >
+                    <div className="relative -translate-x-1/2 -translate-y-full rounded-2xl bg-white px-4 py-3 shadow-2xl ring-1 ring-slate-100">
+                        <div className="flex items-start gap-3">
+                            {assigneeTooltip.info.avatar ? (
+                                <img
+                                    src={assigneeTooltip.info.avatar}
+                                    alt={assigneeTooltip.info.name}
+                                    className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
+                                />
+                            ) : (
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-base font-semibold text-indigo-700">
+                                    {assigneeTooltip.info.name?.trim()?.charAt(0)?.toUpperCase() ||
+                                        "?"}
+                                </div>
+                            )}
+                            <div className="min-w-[180px] max-w-[240px]">
+                                <p className="text-base font-semibold text-slate-900">
+                                    {assigneeTooltip.info.name || "Không rõ tên"}
+                                </p>
+                                <p className="text-sm text-slate-500">
+                                    {assigneeTooltip.info.department || "Phòng ban: Chưa xác định"}
+                                </p>
+                                {assigneeTooltip.info.email && (
+                                    <p className="mt-1 text-xs text-slate-400">
+                                        {assigneeTooltip.info.email}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white shadow-[1px_1px_2px_rgba(15,23,42,.15)]"></div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -112,9 +112,14 @@ class MyObjectiveController extends Controller
 
         if ($request->boolean('include_archived_kr')) {
             $query->with(['keyResults' => function ($q) {
-    $q->with('assignedUser');}]);
+                $q->with(['assignedUser.department']);
+            }]);
         } else {
-            $query->with(['keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at')]);
+            $query->with([
+                'keyResults' => fn($q) => $q
+                    ->with(['assignedUser.department'])
+                    ->whereNull('archived_at'),
+            ]);
         }
 
         $objectives = $query->paginate(10);
