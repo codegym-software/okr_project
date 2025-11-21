@@ -14,18 +14,15 @@ use App\Models\Role;
 class DepartmentController extends Controller
 {
     /**
-     * Hiển thị danh sách tất cả các đơn vị (phòng ban + đội nhóm)
+     * Hiển thị danh sách tất cả các đơn vị
      */
     public function index(Request $request): JsonResponse|View
     {
-        $query = Department::query();
-
-        $departments = $query->with([
-            'parentDepartment',
+        $departments = Department::with([
             'users' => fn($q) => $q->select('user_id', 'full_name', 'email', 'department_id')
         ])
-            ->orderBy('created_at', 'asc')
-            ->get();
+        ->orderBy('created_at', 'asc')
+        ->get();
 
         if ($request->wantsJson()) {
             return response()->json(['success' => true, 'data' => $departments]);
@@ -39,9 +36,7 @@ class DepartmentController extends Controller
      */
     public function create(): View
     {
-        // Chỉ lấy các phòng ban gốc (parent_id = null) làm cha cho đội nhóm mới
-        $parentDepartments = Department::whereNull('parent_department_id')->get();
-        return view('app', compact('parentDepartments'));
+        return view('app');
     }
 
     /**
@@ -52,34 +47,20 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'd_name'        => 'required|string|max:255',
             'd_description' => 'nullable|string|max:1000',
-            'parent_department_id' => [
-                'nullable',
-                'exists:departments,department_id',
-                // Nếu có parent → đây là đội nhóm, không có parent → phòng ban gốc
-                function ($attribute, $value, $fail) use ($request) {
-                    // Ngăn việc tạo vòng lặp (cha của chính nó) – sẽ kiểm tra kỹ hơn ở update
-                    if ($value && $request->parent_department_id == $value) {
-                        $fail('Không thể chọn chính nó làm đơn vị cha.');
-                    }
-                },
-            ],
         ]);
 
-        // Tạo mới
         $department = Department::create($validated);
-
-        $unitType = $department->parent_department_id ? 'đội nhóm' : 'phòng ban';
 
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => "Tạo $unitType thành công!",
+                'message' => 'Tạo đơn vị thành công!',
                 'data'    => $department
             ]);
         }
 
         return redirect()->route('departments.index')
-                         ->with('success', "Tạo $unitType thành công!");
+                         ->with('success', 'Tạo đơn vị thành công!');
     }
 
     /**
@@ -87,9 +68,7 @@ class DepartmentController extends Controller
      */
     public function show(Department $department): JsonResponse|View
     {
-        $department->load(['parentDepartment']);
-
-        if (request()->wantsJson()) {
+       if (request()->wantsJson()) {
             return response()->json(['success' => true, 'data' => $department]);
         }
 
@@ -101,12 +80,7 @@ class DepartmentController extends Controller
      */
     public function edit(Department $department): View
     {
-        // Các phòng ban gốc có thể chọn làm cha (trừ chính nó và con cháu của nó)
-        $possibleParents = Department::whereNull('parent_department_id')
-            ->where('department_id', '!=', $department->department_id)
-            ->get();
-
-        return view('app', compact('department', 'possibleParents'));
+        return view('app', compact('department'));
     }
 
     /**
@@ -117,33 +91,9 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'd_name'        => 'required|string|max:255',
             'd_description' => 'nullable|string|max:1000',
-            'parent_department_id' => [
-                'nullable',
-                'exists:departments,department_id',
-                function ($attribute, $value, $fail) use ($department) {
-                    if ($value && $value == $department->department_id) {
-                        $fail('Đơn vị cha không thể là chính nó.');
-                    }
-
-                    // Ngăn tạo vòng lặp (ví dụ A → B → A)
-                    if ($value) {
-                        $child = Department::find($value);
-                        while ($child) {
-                            if ($child->department_id == $department->department_id) {
-                                $fail('Không thể chọn đơn vị con làm đơn vị cha (tạo vòng lặp).');
-                                break;
-                            }
-                            $child = $child->parentDepartment;
-                        }
-                    }
-                },
-            ],
         ]);
 
-        $oldParent = $department->parent_department_id;
         $department->update($validated);
-
-        $unitType = $department->parent_department_id ? 'đội nhóm' : 'phòng ban';
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -162,7 +112,6 @@ class DepartmentController extends Controller
      */
     public function destroy(Department $department): JsonResponse|RedirectResponse
     {
-
         // Không cho xóa nếu còn người dùng
         if ($department->users()->exists()) {
             $message = 'Không thể xóa vì vẫn còn nhân viên thuộc đơn vị này.';
@@ -172,15 +121,14 @@ class DepartmentController extends Controller
             return redirect()->route('departments.index')->withErrors($message);
         }
 
-        $unitName = $department->parent_department_id ? 'đội nhóm' : 'phòng ban';
         $department->delete();
 
         if (request()->wantsJson()) {
-            return response()->json(['success' => true, 'message' => "Xóa $unitName thành công!"]);
+            return response()->json(['success' => true, 'message' => 'Xóa đơn vị thành công!']);
         }
 
         return redirect()->route('departments.index')
-                         ->with('success', "Xóa $unitName thành công!");
+                         ->with('success', 'Xóa đơn vị thành công!');
     }
 
     /**
@@ -207,15 +155,14 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'user_ids' => 'required|array',
             'user_ids.*' => 'exists:users,user_id',
-            'role'     => 'required|in:manager,member,Manager,Member',
+            'role'       => 'required|in:manager,member,Manager,Member',
         ]);
 
-        // Xác định level dựa trên đơn vị hiện tại
-        $level = $department->parent_department_id === null ? 'unit' : 'team';
+        // Vì không còn phân biệt unit/team nên dùng level mặc định là 'unit'
         $roleName = strtolower(trim($validated['role']));
 
         $role = Role::whereRaw('LOWER(role_name) = ?', [$roleName])
-                    ->where('level', $level)
+                    ->where('level', 'unit')
                     ->firstOrFail();
 
         User::whereIn('user_id', $validated['user_ids'])

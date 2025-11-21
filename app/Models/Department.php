@@ -13,8 +13,4 @@ class Department extends Model
     public function users() {
         return $this->hasMany(User::class, 'department_id', 'department_id');
     }
-
-    public function parentDepartment() {
-        return $this->belongsTo(Department::class, 'parent_department_id', 'department_id');
-    }
 }
