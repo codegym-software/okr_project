@@ -52,6 +52,14 @@ class Role extends Model
     }
 
     /**
+     * Kiểm tra xem role có phải Member không
+     */
+    public function isMember()
+    {
+        return strtolower((string) $this->role_name) === 'member';
+    }
+
+    /**
      * Kiểm tra xem role có quyền tạo OKR cấp công ty/phòng ban không
      */
     public function canCreateCompanyOKR()
