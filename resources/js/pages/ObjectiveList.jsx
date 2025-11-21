@@ -1259,42 +1259,6 @@ export default function ObjectiveList({
                                                                             `menu_${kr.kr_id}`
                                                                         ] && (
                                                                             <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
-                                                                                {onOpenLinkModal && (
-                                                                                    <button
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            onOpenLinkModal({
-                                                                                                sourceType: "kr",
-                                                                                                source: {
-                                                                                                    ...kr,
-                                                                                                    objective_id: obj.objective_id,
-                                                                                                    objective_level: obj.level,
-                                                                                                    obj_title: obj.obj_title,
-                                                                                                },
-                                                                                            });
-                                                                                            setOpenObj((prev) => ({
-                                                                                                ...prev,
-                                                                                                [`menu_${kr.kr_id}`]: false,
-                                                                                            }));
-                                                                                        }}
-                                                                                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 transition-colors"
-                                                                                    >
-                                                                                        <svg
-                                                                                            className="h-4 w-4"
-                                                                                            fill="none"
-                                                                                            viewBox="0 0 24 24"
-                                                                                            stroke="currentColor"
-                                                                                        >
-                                                                                            <path
-                                                                                                strokeLinecap="round"
-                                                                                                strokeLinejoin="round"
-                                                                                                strokeWidth={2}
-                                                                                                d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
-                                                                                            />
-                                                                                        </svg>
-                                                                                        Liên kết OKR cấp cao
-                                                                                    </button>
-                                                                                )}
                                                                                 {/* Giao việc */}
                                                                                 <button
                                                                                     onClick={(

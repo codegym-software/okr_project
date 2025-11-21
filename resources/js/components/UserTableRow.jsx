@@ -35,21 +35,24 @@ export default function UserTableRow({
         pendingChanges[user.user_id] &&
         Object.keys(pendingChanges[user.user_id]).length > 0;
 
-    // Chuyển đổi role name sang tiếng Việt
-    const getRoleDisplayName = (roleName) => {
-        if (!roleName) return "Chưa có";
+    const renderRoleBadge = () => {
+        if (isAdmin) {
+            return <Badge color="indigo">ADMIN</Badge>;
+        }
 
-        const roleLower = roleName.toLowerCase();
-
-        switch (roleLower) {
-            case "admin":
-                return "Quản trị viên";
+        switch (rname) {
+            case "ceo":
+                return <Badge color="red">CEO</Badge>;
             case "manager":
-                return "Quản lý";
+                return <Badge color="blue">Quản lý</Badge>;
             case "member":
-                return "Thành viên";
+                return <Badge color="amber">Thành viên</Badge>;
             default:
-                return roleName; // Hiển thị nguyên gốc nếu không nhận diện được
+                return (
+                    <Badge color="slate">
+                        {user.role?.role_name || "Chưa có"}
+                    </Badge>
+                );
         }
     };
 
@@ -116,16 +119,7 @@ export default function UserTableRow({
                     {getLevelDisplayName(user.role?.level)}
                 </Badge>
             </td>
-            <td className="px-3 py-2">
-                {isAdmin ? (
-                    <Badge color="indigo">ADMIN</Badge>
-                ) : (user.role?.role_name || "").toLowerCase() ===
-                "member" ? (
-                    <Badge color="amber">Thành viên</Badge>
-                ) : (
-                    <Badge color="blue">Quản lý</Badge>
-                )}
-            </td>
+            <td className="px-3 py-2">{renderRoleBadge()}</td>
             <td className="px-3 py-2">
                 {(user.department?.d_name || "").trim() ? (
                     <Badge color="blue">
