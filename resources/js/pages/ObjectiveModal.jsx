@@ -479,58 +479,37 @@ export default function ObjectiveModal({
                                 ))}
                             </select>
                         </div>
-                        {/* === HIỂN THỊ PHÒNG BAN CHỈ KHI CẦN === */}
+                        {/* Thay thế toàn bộ phần hiển thị Phòng ban hiện tại bằng đoạn code mới này */}
+
                         {["unit", "team"].includes(createForm.level) && (
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">
                                     Phòng ban
                                 </label>
-                                <select
-                                    value={createForm.department_id || ""}
-                                    onChange={(e) => {
-                                        const selectedDeptId = e.target.value;
-                                        if (
-                                            selectedDeptId !==
-                                            String(currentUser?.department_id)
-                                        ) {
-                                            setToast({
-                                                type: "error",
-                                                message:
-                                                    "Bạn không thuộc phòng ban này. Vui lòng chọn phòng ban của bạn.",
-                                            });
-                                            return;
-                                        }
-                                        handleCreateFormChange(
-                                            "department_id",
-                                            selectedDeptId
-                                        );
-                                    }}
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                >
-                                    <option value="">
-                                        -- chọn phòng ban --
-                                    </option>
-                                    {departments.map((dept) => (
-                                        <option
-                                            key={dept.department_id}
-                                            value={String(dept.department_id)}
-                                            className={
-                                                String(dept.department_id) ===
-                                                String(
-                                                    currentUser?.department_id
-                                                )
-                                                    ? "font-semibold text-blue-600"
-                                                    : ""
-                                            }
-                                        >
-                                            {dept.d_name}
-                                            {String(dept.department_id) ===
-                                            String(currentUser?.department_id)
-                                                ? " (Phòng ban của bạn)"
-                                                : ""}
-                                        </option>
-                                    ))}
-                                </select>
+                                {currentUser?.department_id ? (
+                                    <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                        <span className="font-medium">
+                                            {departments.find(
+                                                (d) =>
+                                                    String(d.department_id) ===
+                                                    String(
+                                                        currentUser.department_id
+                                                    )
+                                            )?.d_name || "Phòng ban của bạn"}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="w-full rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                                        Bạn chưa thuộc phòng ban nào. Không thể
+                                        tạo Objective cấp Unit/Team.
+                                    </div>
+                                )}
+                                {/* Ẩn input để vẫn gửi dữ liệu khi submit */}
+                                <input
+                                    type="hidden"
+                                    name="department_id"
+                                    value={currentUser?.department_id || ""}
+                                />
                             </div>
                         )}
                     </div>
