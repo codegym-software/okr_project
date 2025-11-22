@@ -10,6 +10,29 @@ export default function SignupPage() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
+    const [showAllPasswords, setShowAllPasswords] = useState(false);
+    
+    // Password requirements checklist
+    const [passwordRequirements, setPasswordRequirements] = useState({
+        minLength: false,
+        hasLowercase: false,
+        hasUppercase: false,
+        hasNumber: false,
+        hasSpecialChar: false,
+        noSpaces: false,
+    });
+
+    // Validate password requirements
+    const validatePasswordRequirements = (pwd) => {
+        setPasswordRequirements({
+            minLength: pwd.length >= 8,
+            hasLowercase: /[a-z]/.test(pwd),
+            hasUppercase: /[A-Z]/.test(pwd),
+            hasNumber: /[0-9]/.test(pwd),
+            hasSpecialChar: /[@$!%*?&]/.test(pwd),
+            noSpaces: !/\s/.test(pwd),
+        });
+    };
 
     // Cấu hình axios để gửi CSRF token
     useEffect(() => {
@@ -23,6 +46,7 @@ export default function SignupPage() {
     useEffect(() => {
         const style = document.createElement('style');
         style.textContent = `
+            /* Chrome, Safari, Edge */
             input#password::-webkit-credentials-auto-fill-button,
             input#password::-webkit-strong-password-auto-fill-button,
             input#password_confirmation::-webkit-credentials-auto-fill-button,
@@ -33,11 +57,36 @@ export default function SignupPage() {
                 pointer-events: none !important;
                 position: absolute !important;
                 right: -9999px !important;
+                width: 0 !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            /* Firefox */
+            input#password::-moz-credentials-auto-fill-button,
+            input#password_confirmation::-moz-credentials-auto-fill-button {
+                display: none !important;
+            }
+            
+            /* General - Ẩn tất cả autofill icons */
+            input[type="password"]::-webkit-credentials-auto-fill-button,
+            input[type="password"]::-webkit-strong-password-auto-fill-button {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                position: absolute !important;
+                right: -9999px !important;
+                width: 0 !important;
+                height: 0 !important;
             }
         `;
         document.head.appendChild(style);
         return () => {
-            document.head.removeChild(style);
+            if (document.head.contains(style)) {
+                document.head.removeChild(style);
+            }
         };
     }, []);
 
@@ -143,18 +192,8 @@ export default function SignupPage() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 px-4 sm:px-6 lg:px-8 py-12">
             <div className="max-w-md w-full">
-                {/* Logo/Header */}
+                {/* Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg mb-4">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-8 w-8 text-white"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                        >
-                            <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5a1 1 0 10-2 0v4.382l-3.447 3.447a1 1 0 101.414 1.414l3.74-3.74A1 1 0 0013 12V7z" />
-                        </svg>
-                    </div>
                     <h2 className="text-3xl font-bold text-gray-900 mb-2">
                         Đăng ký
                     </h2>
@@ -284,12 +323,16 @@ export default function SignupPage() {
                                 <input
                                     id="password"
                                     name="password"
-                                    type={showPassword ? "text" : "password"}
-                                    autoComplete="new-password"
+                                    type={showAllPasswords || showPassword ? "text" : "password"}
+                                    autoComplete="off"
+                                    data-form-type="other"
                                     required
                                     value={password}
                                     onChange={(e) => {
-                                        setPassword(e.target.value);
+                                        const newPassword = e.target.value;
+                                        setPassword(newPassword);
+                                        // Validate password requirements
+                                        validatePasswordRequirements(newPassword);
                                         // Clear error when user starts typing
                                         if (errors.password) {
                                             setErrors(prev => {
@@ -300,7 +343,7 @@ export default function SignupPage() {
                                         }
                                     }}
                                     style={{
-                                        WebkitTextSecurity: showPassword ? 'none' : 'disc',
+                                        WebkitTextSecurity: (showAllPasswords || showPassword) ? 'none' : 'disc',
                                     }}
                                     className={`w-full px-4 py-3 pr-12 rounded-lg border ${
                                         errors.password
@@ -319,7 +362,12 @@ export default function SignupPage() {
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        setShowPassword(!showPassword);
+                                        const newValue = !showPassword;
+                                        setShowPassword(newValue);
+                                        // Đồng bộ với checkbox nếu đang bật
+                                        if (showAllPasswords && !newValue) {
+                                            setShowAllPasswords(false);
+                                        }
                                     }}
                                     tabIndex={-1}
                                 >
@@ -360,6 +408,88 @@ export default function SignupPage() {
                                     )}
                                 </button>
                             </div>
+                            
+                            {/* Password Requirements Checklist */}
+                            {password && (
+                                <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                    <p className="text-xs font-medium text-gray-700 mb-2">Yêu cầu mật khẩu:</p>
+                                    <ul className="space-y-1.5">
+                                        <li className={`flex items-center text-xs ${passwordRequirements.minLength ? 'text-green-600' : 'text-gray-500'}`}>
+                                            {passwordRequirements.minLength ? (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            )}
+                                            Ít nhất 8 ký tự
+                                        </li>
+                                        <li className={`flex items-center text-xs ${passwordRequirements.hasLowercase ? 'text-green-600' : 'text-gray-500'}`}>
+                                            {passwordRequirements.hasLowercase ? (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            )}
+                                            Có ít nhất 1 chữ thường
+                                        </li>
+                                        <li className={`flex items-center text-xs ${passwordRequirements.hasUppercase ? 'text-green-600' : 'text-gray-500'}`}>
+                                            {passwordRequirements.hasUppercase ? (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            )}
+                                            Có ít nhất 1 chữ hoa
+                                        </li>
+                                        <li className={`flex items-center text-xs ${passwordRequirements.hasNumber ? 'text-green-600' : 'text-gray-500'}`}>
+                                            {passwordRequirements.hasNumber ? (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            )}
+                                            Có ít nhất 1 số
+                                        </li>
+                                        <li className={`flex items-center text-xs ${passwordRequirements.hasSpecialChar ? 'text-green-600' : 'text-gray-500'}`}>
+                                            {passwordRequirements.hasSpecialChar ? (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            )}
+                                            Có ít nhất 1 ký tự đặc biệt (@$!%*?&)
+                                        </li>
+                                        <li className={`flex items-center text-xs ${passwordRequirements.noSpaces ? 'text-green-600' : 'text-gray-500'}`}>
+                                            {passwordRequirements.noSpaces ? (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            )}
+                                            Không chứa khoảng trắng
+                                        </li>
+                                    </ul>
+                                </div>
+                            )}
+                            
                             {errors.password && (
                                 <p className="mt-1.5 text-sm text-red-600 flex items-center">
                                     <svg
@@ -392,8 +522,9 @@ export default function SignupPage() {
                                 <input
                                     id="password_confirmation"
                                     name="password_confirmation"
-                                    type={showPasswordConfirmation ? "text" : "password"}
-                                    autoComplete="new-password"
+                                    type={showAllPasswords || showPasswordConfirmation ? "text" : "password"}
+                                    autoComplete="off"
+                                    data-form-type="other"
                                     required
                                     value={passwordConfirmation}
                                     onChange={(e) => {
@@ -408,7 +539,7 @@ export default function SignupPage() {
                                         }
                                     }}
                                     style={{
-                                        WebkitTextSecurity: showPasswordConfirmation ? 'none' : 'disc',
+                                        WebkitTextSecurity: (showAllPasswords || showPasswordConfirmation) ? 'none' : 'disc',
                                     }}
                                     className={`w-full px-4 py-3 pr-12 rounded-lg border ${
                                         errors.password_confirmation
@@ -427,7 +558,12 @@ export default function SignupPage() {
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        setShowPasswordConfirmation(!showPasswordConfirmation);
+                                        const newValue = !showPasswordConfirmation;
+                                        setShowPasswordConfirmation(newValue);
+                                        // Đồng bộ với checkbox nếu đang bật
+                                        if (showAllPasswords && !newValue) {
+                                            setShowAllPasswords(false);
+                                        }
                                     }}
                                     tabIndex={-1}
                                 >
@@ -486,6 +622,35 @@ export default function SignupPage() {
                                         : errors.password_confirmation}
                                 </p>
                             )}
+                        </div>
+
+                        {/* Show Password Checkbox */}
+                        <div className="flex items-center">
+                            <input
+                                id="show-all-passwords"
+                                name="show-all-passwords"
+                                type="checkbox"
+                                checked={showAllPasswords}
+                                onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setShowAllPasswords(checked);
+                                    // Đồng bộ cả 2 trường khi checkbox thay đổi
+                                    if (checked) {
+                                        setShowPassword(true);
+                                        setShowPasswordConfirmation(true);
+                                    } else {
+                                        setShowPassword(false);
+                                        setShowPasswordConfirmation(false);
+                                    }
+                                }}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                            />
+                            <label
+                                htmlFor="show-all-passwords"
+                                className="ml-2 block text-sm text-gray-700 cursor-pointer"
+                            >
+                                Hiển thị mật khẩu
+                            </label>
                         </div>
 
                         {/* Submit Button */}
