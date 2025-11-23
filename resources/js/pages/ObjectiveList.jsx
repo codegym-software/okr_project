@@ -1123,7 +1123,7 @@ export default function ObjectiveList({
                                                 {isLinkedObjective ? (
                                                     <>
                                                         {/* O->O: Merge 7 cột (Tiêu đề + 6 cột sau, không bao gồm Hành động) */}
-                                                        <td colSpan={7} className="px-12 py-3 border-r border-slate-200">
+                                                        <td colSpan={7} className="px-8 py-3 border-r border-slate-200">
                                                             <div className="flex items-center justify-between w-full">
                                                                 <div className="flex items-center gap-2">
                                                                     {/* Chevron button để expand/collapse KR nguồn */}

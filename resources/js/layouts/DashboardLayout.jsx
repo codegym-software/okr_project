@@ -563,10 +563,8 @@ export default function DashboardLayout({ children, user }) {
         window.location.href = "/change-password";
     };
 
-    const isTreeView = typeof window !== "undefined" && window.location.pathname === "/company-okrs/tree-view";
-    
     return (
-        <div className={isTreeView ? "h-screen bg-white overflow-hidden" : "min-h-screen bg-white"}>
+        <div className="min-h-screen bg-white">
             {/* Sidebar */}
             <div
                 className={`${
@@ -712,23 +710,12 @@ export default function DashboardLayout({ children, user }) {
                                                         href="/company-okrs"
                                                         className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
                                         ${
-                                            isActive("/company-okrs") && !isActive("/company-okrs/tree-view")
+                                            isActive("/company-okrs")
                                                 ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
                                                 : "text-slate-700 hover:bg-slate-50"
                                         }`}
                                                     >
                                                         Mục tiêu công ty
-                                                    </a>
-                                                    <a
-                                                        href="/company-okrs/tree-view"
-                                                        className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
-                                        ${
-                                            isActive("/company-okrs/tree-view")
-                                                ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
-                                                : "text-slate-700 hover:bg-slate-50"
-                                        }`}
-                                                    >
-                                                        Tree View OKR
                                                     </a>
                                                 </div>
                                             </details>
@@ -1037,11 +1024,7 @@ export default function DashboardLayout({ children, user }) {
             <div
                 className={`${
                     sidebarOpen ? "ml-64" : "ml-20"
-                } transition-all duration-300 ${
-                    typeof window !== "undefined" && window.location.pathname === "/company-okrs/tree-view"
-                        ? "h-screen overflow-hidden relative"
-                        : "pt-6 pb-8 px-6"
-                }`}
+                } transition-all duration-300 pt-6 pb-8 px-6`}
             >
                 {children}
             </div>
