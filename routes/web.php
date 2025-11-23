@@ -29,13 +29,43 @@ Route::get('/landingpage', function () {
 })->name('landingpage');
 
 Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () {
-    // Route xác thực
-    Route::get('/login', [AuthController::class, 'redirectToCognito'])->name('login');
+    // Route xác thực - Sử dụng giao diện riêng (không qua Cognito Hosted UI)
+    Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+    Route::get('/signup', [AuthController::class, 'showSignupForm'])->name('signup');
+    Route::post('/signup', [AuthController::class, 'signup'])->name('signup.post');
+    Route::get('/forgot-password', [AuthController::class, 'showForgotPasswordForm'])->name('forgot-password');
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password.post');
+    Route::post('/confirm-forgot-password', [AuthController::class, 'confirmForgotPassword'])->name('confirm-forgot-password');
+    
+    // Google OAuth (redirect trực tiếp đến Google, không qua Cognito Hosted UI)
     Route::get('/auth/google', [AuthController::class, 'redirectToGoogle'])->name('auth.google');
-    Route::get('/auth/signup', [AuthController::class, 'redirectToSignup'])->name('auth.signup');
+    Route::get('/auth/google-callback', [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+    
+    // Debug route để kiểm tra redirect URI
+    Route::get('/debug/google-oauth', function() {
+        $redirectUri = config('services.google.redirect');
+        $clientId = config('services.google.client_id');
+        
+        return response()->json([
+            'redirect_uri_from_config' => $redirectUri,
+            'redirect_uri_from_env' => env('GOOGLE_REDIRECT_URI'),
+            'redirect_uri_default' => 'http://localhost:8000/auth/google-callback',
+            'client_id' => $clientId ? 'Configured' : 'Not configured',
+            'expected_uri' => 'http://localhost:8000/auth/google-callback',
+            'match' => ($redirectUri === 'http://localhost:8000/auth/google-callback'),
+        ]);
+    })->name('debug.google.oauth');
+    
+    // Cognito callback (giữ lại cho tương thích nếu cần)
     Route::get('/auth/callback', [AuthController::class, 'handleCallback'])->name('auth.callback');
-    Route::get('/auth/forgot', [AuthController::class, 'forgotPassword'])->name('auth.forgot');
     Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    
+    // Redirect cũ cho tương thích
+    Route::get('/auth/signup', [AuthController::class, 'redirectToSignup'])->name('auth.signup');
+    Route::get('/auth/forgot', function() {
+        return redirect()->route('forgot-password');
+    })->name('auth.forgot');
 
     // Route đăng nhập admin mặc định (chỉ cho development)
     if (env('APP_ENV') === 'local') {

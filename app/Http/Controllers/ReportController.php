@@ -7,12 +7,279 @@ use App\Models\Department;
 use App\Models\Cycle;
 use App\Models\CheckIn;
 use App\Models\KeyResult;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
+    /**
+     * Trang báo cáo cho quản lý (render React app).
+     */
+    public function index()
+    {
+        return view('app');
+    }
+
+    /**
+     * Lấy danh sách chu kỳ (ưu tiên chu kỳ hiện tại nếu có).
+     */
+    public function getCycles(Request $request)
+    {
+        $cycles = Cycle::query()
+            ->orderByDesc('start_date')
+            ->get(['cycle_id', 'cycle_name', 'start_date', 'end_date', 'status']);
+
+        $defaultCycle = $this->resolveCycle($request->integer('cycle_id'));
+
+        return response()->json([
+            'success' => true,
+            'data' => $cycles,
+            'meta' => [
+                'default_cycle_id' => $defaultCycle?->cycle_id,
+                'default_cycle_name' => $defaultCycle?->cycle_name,
+            ],
+        ]);
+    }
+
+    /**
+     * Báo cáo "Nhóm của tôi" cho Manager/Admin.
+     */
+    public function getMyTeamReport(Request $request)
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $department = $user?->department;
+        if (!$department) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn chưa được gán vào phòng ban/đội nhóm nên không thể xem báo cáo.',
+            ], 422);
+        }
+
+        $cycle = $this->resolveCycle($request->integer('cycle_id'));
+        if (!$cycle) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy chu kỳ phù hợp.',
+            ], 404);
+        }
+
+        $objectiveQuery = Objective::query()
+            ->select([
+                'objective_id',
+                'obj_title',
+                'description',
+                'level',
+                'status',
+                'progress_percent',
+                'user_id',
+                'department_id',
+            ])
+            ->where('department_id', $department->department_id)
+            ->where('cycle_id', $cycle->cycle_id);
+
+        $objectives = $objectiveQuery->get();
+        $objectiveIds = $objectives->pluck('objective_id');
+
+        $keyResults = $objectiveIds->isEmpty()
+            ? collect()
+            : KeyResult::query()
+                ->select([
+                    'kr_id',
+                    'objective_id',
+                    'progress_percent',
+                    'current_value',
+                    'target_value',
+                ])
+                ->whereIn('objective_id', $objectiveIds)
+                ->get();
+
+        $krIds = $keyResults->pluck('kr_id');
+        $latestCheckIns = $krIds->isEmpty()
+            ? collect()
+            : CheckIn::query()
+                ->whereIn('kr_id', $krIds)
+                ->orderByDesc('created_at')
+                ->get()
+                ->unique('kr_id')
+                ->keyBy('kr_id');
+
+        $objectiveDetails = $objectives->map(function ($objective) use ($keyResults, $latestCheckIns) {
+            $krs = $keyResults->where('objective_id', $objective->objective_id);
+            $krStats = $krs->map(function ($kr) use ($latestCheckIns) {
+                $latest = $latestCheckIns->get($kr->kr_id);
+                $progress = $latest?->progress_percent;
+                if ($progress === null) {
+                    $progress = $kr->progress_percent;
+                }
+                if ($progress === null && $kr->target_value > 0) {
+                    $progress = ($kr->current_value / max(1, $kr->target_value)) * 100;
+                }
+                $progress = $this->clampProgress((float) ($progress ?? 0));
+
+                return [
+                    'kr_id' => $kr->kr_id,
+                    'progress' => $progress,
+                ];
+            });
+
+            $avgProgress = $krStats->isEmpty()
+                ? $this->clampProgress((float) ($objective->progress_percent ?? 0))
+                : $this->clampProgress((float) $krStats->avg('progress'));
+
+            $completedKrCount = $krStats->where('progress', '>=', 100)->count();
+
+            return [
+                'objective_id' => (int) $objective->objective_id,
+                'obj_title' => $objective->obj_title ?? 'OKR',
+                'description' => $objective->description,
+                'level' => strtolower((string) ($objective->level ?? 'personal')),
+                'user_id' => $objective->user_id ? (int) $objective->user_id : null,
+                'progress' => $avgProgress,
+                'key_results_count' => $krStats->count(),
+                'completed_kr_count' => $completedKrCount,
+            ];
+        });
+
+        $teamAverage = $objectiveDetails->isEmpty()
+            ? 0.0
+            : round($objectiveDetails->avg('progress'), 1);
+
+        $teamOkrs = $objectiveDetails
+            ->filter(function ($obj) {
+                return !$obj['user_id'] || in_array($obj['level'], ['team', 'unit', 'department', 'company'], true);
+            })
+            ->values();
+
+        $members = User::query()
+            ->select(['user_id', 'full_name', 'email'])
+            ->where('department_id', $department->department_id)
+            ->orderBy('full_name')
+            ->get();
+
+        $memberStats = $members->map(function ($member) use ($objectiveDetails) {
+            $memberObjectives = $objectiveDetails->where('user_id', (int) $member->user_id);
+            $avg = $memberObjectives->isEmpty()
+                ? 0.0
+                : round($memberObjectives->avg('progress'), 1);
+            $completedObjectives = $memberObjectives->where('progress', '>=', 100)->count();
+            $totalKr = $memberObjectives->sum('key_results_count');
+            $completedKr = $memberObjectives->sum('completed_kr_count');
+
+            return [
+                'user_id' => (int) $member->user_id,
+                'full_name' => $member->full_name,
+                'email' => $member->email,
+                'completed_okr_count' => $completedObjectives,
+                'average_completion' => $avg,
+                'total_kr_contributed' => (int) $totalKr,
+                'completed_kr_count' => (int) $completedKr,
+            ];
+        })->sortByDesc('average_completion')->values();
+
+        return response()->json([
+            'success' => true,
+            'department_name' => $department->d_name,
+            'cycle' => [
+                'cycle_id' => $cycle->cycle_id,
+                'cycle_name' => $cycle->cycle_name,
+            ],
+            'data' => [
+                'team_average_completion' => $teamAverage,
+                'total_okr_count' => $objectiveDetails->count(),
+                'team_okrs' => $teamOkrs,
+                'members' => $memberStats,
+            ],
+        ]);
+    }
+
+    /**
+     * Biểu đồ xu hướng tiến độ của nhóm theo tuần.
+     */
+    public function getTeamProgressTrend(Request $request)
+    {
+        /** @var User $user */
+        $user = $request->user();
+        if (!$user?->department_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn chưa được gán phòng ban/đội nhóm.',
+            ], 422);
+        }
+
+        $cycle = $this->resolveCycle($request->integer('cycle_id'));
+        if (!$cycle) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy chu kỳ phù hợp.',
+            ], 404);
+        }
+
+        $trend = CheckIn::query()
+            ->select([
+                DB::raw("DATE_FORMAT(check_ins.created_at, '%Y-%u') as bucket"),
+                DB::raw('AVG(check_ins.progress_percent) as avg_progress'),
+            ])
+            ->join('key_results as kr', 'kr.kr_id', '=', 'check_ins.kr_id')
+            ->join('objectives as obj', 'obj.objective_id', '=', 'kr.objective_id')
+            ->where('obj.department_id', $user->department_id)
+            ->where('obj.cycle_id', $cycle->cycle_id)
+            ->whereNotNull('check_ins.progress_percent')
+            ->groupBy('bucket')
+            ->orderBy('bucket')
+            ->get()
+            ->map(fn ($row) => [
+                'bucket' => $row->bucket,
+                'avg_progress' => $this->clampProgress((float) $row->avg_progress),
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'department_name' => optional($user->department)->d_name,
+            'cycle' => [
+                'cycle_id' => $cycle->cycle_id,
+                'cycle_name' => $cycle->cycle_name,
+            ],
+            'data' => $trend,
+        ]);
+    }
+
+    /**
+     * Chọn chu kỳ ưu tiên: tham số -> hiện tại -> gần nhất.
+     */
+    protected function resolveCycle(?int $cycleId = null): ?Cycle
+    {
+        if ($cycleId) {
+            return Cycle::find($cycleId);
+        }
+
+        $now = now();
+        $current = Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->orderByDesc('start_date')
+            ->first();
+
+        if ($current) {
+            return $current;
+        }
+
+        return Cycle::orderByDesc('start_date')->first();
+    }
+
+    /**
+     * Chuẩn hóa tiến độ về 0 - 100 với 2 chữ số thập phân.
+     */
+    protected function clampProgress(?float $value): float
+    {
+        if ($value === null || !is_finite($value)) {
+            return 0.0;
+        }
+
+        return (float) round(max(0, min(100, $value)), 2);
+    }
+
     /**
      * Company overview report with optional cycle filter.
      */
