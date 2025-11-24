@@ -13,6 +13,7 @@ export default function LinkedChildObjectiveRow({
     formatPercent,
     getStatusText,
     getUnitText,
+    colSpanForKRs,
 }) {
     const hasKRs = linkedObj.key_results?.length > 0;
     const expanded =
@@ -22,7 +23,7 @@ export default function LinkedChildObjectiveRow({
         <>
             <tr className="bg-white border-l-4 border-blue-400">
                 <td
-                    colSpan={7}
+                    colSpan={colSpanForKRs - 1} // Adjusted colSpan to remove 1 action column in ObjectiveList's perspective
                     className="px-12 py-3 border-r border-slate-200"
                 >
                     <div className="flex items-center justify-between">
@@ -141,17 +142,6 @@ export default function LinkedChildObjectiveRow({
                                 )}
                             </td>
                             <td className="px-3 py-3 text-center border-r border-slate-200">
-                                <span
-                                    className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
-                                        kr.status === "completed"
-                                            ? "bg-emerald-100 text-emerald-700"
-                                            : "bg-slate-100 text-slate-700"
-                                    }`}
-                                >
-                                    {getStatusText(kr.status)}
-                                </span>
-                            </td>
-                            <td className="px-3 py-3 text-center border-r border-slate-200">
                                 {getUnitText(kr.unit)}
                             </td>
                             <td className="px-3 py-3 text-center border-r border-slate-200">
@@ -161,7 +151,22 @@ export default function LinkedChildObjectiveRow({
                                 {kr.target_value ?? ""}
                             </td>
                             <td className="px-3 py-3 text200 text-center border-r border-slate-200">
-                                {formatPercent(kr.progress_percent)}
+                                <div className="flex flex-col items-center">
+                                    <span>
+                                        {formatPercent(kr.progress_percent)}
+                                    </span>
+                                    <span
+                                        className={`inline-flex items-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
+                                            kr.status === "completed"
+                                                ? "bg-emerald-100 text-emerald-700"
+                                                : kr.status === "active"
+                                                ? "bg-blue-100 text-blue-700"
+                                                : "bg-slate-100 text-slate-700"
+                                        }`}
+                                    >
+                                        {getStatusText(kr.status)}
+                                    </span>
+                                </div>
                             </td>
                             <td className="px-3 py-3 text-center"></td>
                         </tr>

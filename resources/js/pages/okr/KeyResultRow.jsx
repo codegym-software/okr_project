@@ -23,6 +23,7 @@ export default function KeyResultRow({
     menuRefs,
     openCheckInModal,
     openCheckInHistory,
+    colSpanForKRs,
 }) {
     const isLinkedKR = kr.isLinked;
     const isLinkedObjective = kr.isLinkedObjective; // O→O
@@ -36,7 +37,7 @@ export default function KeyResultRow({
             <>
                 <tr className="bg-gray-50">
                     <td
-                        colSpan={7}
+                        colSpan={colSpanForKRs}
                         className="px-8 py-3 border-r border-slate-200"
                     >
                         <div className="flex items-center justify-between">
@@ -163,9 +164,6 @@ export default function KeyResultRow({
                                     )}
                                 </td>
                                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                                    {getStatusText(sourceKr.status)}
-                                </td>
-                                <td className="px-3 py-3 text-center border-r border-slate-200">
                                     {getUnitText(sourceKr.unit)}
                                 </td>
                                 <td className="px-3 py-3 text-center border-r border-slate-200">
@@ -175,9 +173,20 @@ export default function KeyResultRow({
                                     {sourceKr.target_value ?? ""}
                                 </td>
                                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                                    {formatPercent(
-                                        sourceKr.progress_percent
-                                    )}
+                                    <div className="flex flex-col items-center">
+                                        <span>{formatPercent(sourceKr.progress_percent)}</span>
+                                        <span
+                                            className={`inline-flex items-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
+                                                sourceKr.status === "completed"
+                                                    ? "bg-emerald-100 text-emerald-700"
+                                                    : sourceKr.status === "active"
+                                                    ? "bg-blue-100 text-blue-700"
+                                                    : "bg-slate-100 text-slate-700"
+                                            }`}
+                                        >
+                                            {getStatusText(sourceKr.status)}
+                                        </span>
+                                    </div>
                                 </td>
                                 <td className="px-3 py-3 text-center"></td>
                             </tr>
@@ -271,20 +280,6 @@ export default function KeyResultRow({
                 </td>
 
                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                    <span
-                        className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
-                            kr.status === "completed"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : kr.status === "active"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-slate-100 text-slate-700"
-                        }`}
-                    >
-                        {getStatusText(kr.status)}
-                    </span>
-                </td>
-
-                <td className="px-3 py-3 text-center border-r border-slate-200">
                     {getUnitText(kr.unit)}
                 </td>
                 <td className="px-3 py-3 text-center border-r border-slate-200">
@@ -294,7 +289,20 @@ export default function KeyResultRow({
                     {kr.target_value ?? ""}
                 </td>
                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                    {formatPercent(kr.progress_percent)}
+                    <div className="flex flex-col items-center">
+                        <span>{formatPercent(kr.progress_percent)}</span>
+                        <span
+                            className={`inline-flex items-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
+                                kr.status === "completed"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : kr.status === "active"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-slate-100 text-slate-700"
+                            }`}
+                        >
+                            {getStatusText(kr.status)}
+                        </span>
+                    </div>
                 </td>
 
                 <td className="px-3 py-3 text-center">

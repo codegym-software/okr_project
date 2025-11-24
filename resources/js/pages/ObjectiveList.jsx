@@ -384,14 +384,11 @@ export default function ObjectiveList({
                 <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
-                            <th className="px-3 py-2 text-left w-[30%] border-r border-slate-200">
+                            <th className="px-3 py-2 text-left w-[33%] border-r border-slate-200">
                                 Tiêu đề
                             </th>
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
                                 Người thực hiện
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
-                                Trạng thái
                             </th>
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Đơn vị
@@ -402,7 +399,7 @@ export default function ObjectiveList({
                             <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
                                 Mục tiêu
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
+                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[13%]">
                                 Tiến độ (%)
                             </th>
                             <th className="px-3 py-2 text-center w-[12%]">
@@ -415,7 +412,7 @@ export default function ObjectiveList({
                         {!showArchived && loading && (
                             <tr>
                                 <td
-                                    colSpan={8}
+                                    colSpan={7}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
@@ -425,7 +422,7 @@ export default function ObjectiveList({
                         {!showArchived && !loading && items.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={8}
+                                    colSpan={7}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Bạn chưa tạo OKR nào.
@@ -436,7 +433,7 @@ export default function ObjectiveList({
                         {/* Active OKRs */}
                         {!showArchived &&
                             !loading &&
-                            itemsWithLinkedChildren.map((obj) => (
+                            itemsWithLinkedChildren.map((obj, index) => (
                                 <ObjectiveRow
                                     key={obj.objective_id}
                                     obj={obj}
@@ -470,6 +467,8 @@ export default function ObjectiveList({
                                     getStatusText={getStatusText}
                                     getUnitText={getUnitText}
                                     getAssigneeInfo={getAssigneeInfo}
+                                    // The ObjectiveRow itself will now handle its colSpan based on props
+                                    colSpanForObjectiveHeader={6}
                                 />
                             ))}
 
@@ -480,7 +479,7 @@ export default function ObjectiveList({
                                 openObj={openObj}
                                 setOpenObj={setOpenObj}
                                 loadingArchived={loadingArchived}
-                                reloadBothTabs={reloadBothTabs}
+                                reloadData={reloadData}
                             />
                         )}
                     </tbody>

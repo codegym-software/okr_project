@@ -24,16 +24,16 @@ export default function ObjectiveRow({
     setAssigneeTooltip,
     getAssigneeInfo,
     formatPercent,
-
     getStatusText,
     getUnitText,
+    colSpanForObjectiveHeader, // NEW PROP
 }) {
     const hasKRs = obj.key_results?.length > 0;
 
     return (
         <>
             <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200">
-                <td colSpan={7} className="px-3 py-3 border-r border-slate-200">
+                <td colSpan={colSpanForObjectiveHeader} className="px-3 py-3 border-r border-slate-200">
                     <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-1">
                             <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
@@ -197,6 +197,7 @@ export default function ObjectiveRow({
                         getStatusText={getStatusText}
                         getUnitText={getUnitText}
                         menuRefs={menuRefs}
+                        colSpanForKRs={7} // NEW PROP
                     />
                 ))}
         </>
