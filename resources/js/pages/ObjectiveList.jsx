@@ -114,37 +114,177 @@ export default function ObjectiveList({
     }, [links]);
 
     const itemsWithLinkedChildren = useMemo(() => {
-        if (!items || !Array.isArray(items)) {
-            return [];
-        }
-        if (
-            !childLinks ||
-            !Array.isArray(childLinks) ||
-            childLinks.length === 0
-        ) {
+        if (!Array.isArray(childLinks) || childLinks.length === 0) {
+            if (!Array.isArray(items)) return [];
             return items;
         }
+        if (!Array.isArray(items)) return [];
 
-        // Tạo map để dễ tìm kiếm child links theo objective_id
-        const childLinksMap = {};
-        childLinks.forEach((link) => {
-            const targetObjId =
-                link.targetObjective?.objective_id ||
-                link.target_objective?.objective_id;
-            if (targetObjId) {
-                if (!childLinksMap[targetObjId]) {
-                    childLinksMap[targetObjId] = [];
+        return items.map((obj) => {
+            // Tìm các childLinks trỏ tới Objective này (O->O)
+            const linkedChildren = childLinks.filter((link) => {
+                const targetArchived =
+                    (link.targetObjective &&
+                        (link.targetObjective.archived_at ||
+                            link.targetObjective.archivedAt)) ||
+                    (link.targetKr &&
+                        (link.targetKr.archived_at ||
+                            link.targetKr.archivedAt));
+
+                if (targetArchived) {
+                    return false;
                 }
-                childLinksMap[targetObjId].push(link);
-            }
-        });
 
-        // Merge items với child links nếu có
-        return items.map((item) => {
-            const linkedChildren = childLinksMap[item.objective_id] || [];
+                const targetObjectiveId =
+                    link.targetObjective?.objective_id ||
+                    link.target_objective_id;
+                const targetKrId = link.targetKr?.kr_id || link.target_kr_id;
+
+                if (targetObjectiveId === obj.objective_id && !targetKrId) {
+                    return true;
+                }
+                return false;
+            });
+
+            // Tìm các childLinks trỏ tới các KR của Objective này (O->KR)
+            const krLinkedObjectives = {};
+            childLinks.forEach((link) => {
+                const targetArchived =
+                    (link.targetObjective &&
+                        (link.targetObjective.archived_at ||
+                            link.targetObjective.archivedAt)) ||
+                    (link.targetKr &&
+                        (link.targetKr.archived_at ||
+                            link.targetKr.archivedAt));
+
+                if (targetArchived) {
+                    return;
+                }
+
+                const targetKrId = link.targetKr?.kr_id || link.target_kr_id;
+                const targetObjectiveId =
+                    link.targetObjective?.objective_id ||
+                    link.target_objective_id;
+
+                if (targetKrId && targetObjectiveId === obj.objective_id) {
+                    if (!krLinkedObjectives[targetKrId]) {
+                        krLinkedObjectives[targetKrId] = [];
+                    }
+                    krLinkedObjectives[targetKrId].push(link);
+                }
+            });
+
+            // Chuyển đổi childLinks thành virtual Key Results (O->O)
+            const virtualKRs = linkedChildren.map((link) => {
+                const sourceObjective =
+                    link.sourceObjective || link.source_objective;
+                const sourceKr = link.sourceKr || link.source_kr;
+                const ownerUser =
+                    sourceKr?.assigned_user ||
+                    sourceKr?.assignedUser ||
+                    sourceObjective?.user ||
+                    null;
+                const keyResults =
+                    sourceObjective?.keyResults ||
+                    sourceObjective?.key_results ||
+                    [];
+
+                return {
+                    kr_id: `linked_${link.link_id}`,
+                    kr_title: sourceKr
+                        ? `${sourceObjective?.obj_title || "Objective"} › ${
+                              sourceKr.kr_title || "Key Result"
+                          }`
+                        : sourceObjective?.obj_title || "Linked Objective",
+                    target_value: sourceKr?.target_value || 0,
+                    current_value: sourceKr?.current_value || 0,
+                    unit: sourceKr?.unit || "number",
+                    status:
+                        sourceKr?.status ||
+                        sourceObjective?.status ||
+                        "active",
+                    weight: sourceKr?.weight || 0,
+                    progress_percent:
+                        sourceKr?.progress_percent ||
+                        sourceObjective?.progress_percent ||
+                        0,
+                    assigned_to:
+                        sourceKr?.assigned_to ||
+                        sourceObjective?.user_id ||
+                        null,
+                    assigned_user: ownerUser,
+                    isLinked: true,
+                    isLinkedObjective: true,
+                    link: link,
+                    key_results: keyResults.map((kr) => ({
+                        kr_id: kr.kr_id,
+                        kr_title: kr.kr_title,
+                        target_value: kr.target_value,
+                        current_value: kr.current_value,
+                        unit: kr.unit,
+                        status: kr.status,
+                        progress_percent: kr.progress_percent,
+                        assigned_to: kr.assigned_to,
+                        assigned_user:
+                            kr.assigned_user ||
+                            kr.assignedUser ||
+                            kr.assignedUser,
+                    })),
+                };
+            });
+
+            // Thêm linkedObjectives vào các KR (O->KR)
+            const updatedKeyResults = (obj.key_results || []).map((kr) => {
+                const linkedObjs = krLinkedObjectives[kr.kr_id] || [];
+                if (linkedObjs.length === 0) {
+                    return kr;
+                }
+
+                return {
+                    ...kr,
+                    linked_objectives: linkedObjs.map((link) => {
+                        const sourceObjective =
+                            link.sourceObjective || link.source_objective;
+                        const keyResults =
+                            sourceObjective?.keyResults ||
+                            sourceObjective?.key_results ||
+                            [];
+                        return {
+                            objective_id: sourceObjective?.objective_id,
+                            obj_title:
+                                sourceObjective?.obj_title ||
+                                "Linked Objective",
+                            description: sourceObjective?.description,
+                            status: sourceObjective?.status,
+                            progress_percent:
+                                sourceObjective?.progress_percent || 0,
+                            level: sourceObjective?.level,
+                            user_id: sourceObjective?.user_id,
+                            user: sourceObjective?.user,
+                            key_results: keyResults.map((kr) => ({
+                                kr_id: kr.kr_id,
+                                kr_title: kr.kr_title,
+                                target_value: kr.target_value,
+                                current_value: kr.current_value,
+                                unit: kr.unit,
+                                status: kr.status,
+                                progress_percent: kr.progress_percent,
+                                assigned_to: kr.assigned_to,
+                                assigned_user:
+                                    kr.assigned_user ||
+                                    kr.assignedUser ||
+                                    kr.assignedUser,
+                            })),
+                            is_linked: true,
+                            link: link,
+                        };
+                    }),
+                };
+            });
+
             return {
-                ...item,
-                linkedChildren,
+                ...obj,
+                key_results: [...updatedKeyResults, ...virtualKRs],
             };
         });
     }, [items, childLinks]);

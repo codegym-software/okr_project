@@ -31,92 +31,159 @@ export default function KeyResultRow({
 
     // Nếu là KR ảo từ liên kết O→O → render riêng
     if (isLinkedObjective) {
+        const isExpanded = openObj[`linked_obj_kr_${kr.kr_id}`];
         return (
-            <tr className="bg-gray-50">
-                <td colSpan={7} className="px-8 py-3 border-r border-slate-200">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 flex items-center justify-center">
-                                {kr.key_results?.length > 0 && (
-                                    <button
-                                        onClick={() =>
-                                            setOpenObj((prev) => ({
-                                                ...prev,
-                                                [`linked_obj_kr_${kr.kr_id}`]:
-                                                    !prev[
-                                                        `linked_obj_kr_${kr.kr_id}`
-                                                    ],
-                                            }))
-                                        }
-                                        className="p-0.5 hover:bg-slate-100 rounded"
-                                    >
-                                        <svg
-                                            className={`h-4 w-4 text-slate-600 transition-transform ${
-                                                openObj[
-                                                    `linked_obj_kr_${kr.kr_id}`
-                                                ]
-                                                    ? "rotate-90"
-                                                    : ""
-                                            }`}
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
+            <>
+                <tr className="bg-gray-50">
+                    <td
+                        colSpan={7}
+                        className="px-8 py-3 border-r border-slate-200"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 flex items-center justify-center">
+                                    {kr.key_results?.length > 0 && (
+                                        <button
+                                            onClick={() =>
+                                                setOpenObj((prev) => ({
+                                                    ...prev,
+                                                    [`linked_obj_kr_${kr.kr_id}`]:
+                                                        !prev[
+                                                            `linked_obj_kr_${kr.kr_id}`
+                                                        ],
+                                                }))
+                                            }
+                                            className="p-0.5 hover:bg-slate-100 rounded"
                                         >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M9 5l7 7-7 7"
-                                            />
-                                        </svg>
-                                    </button>
+                                            <svg
+                                                className={`h-4 w-4 text-slate-600 transition-transform ${
+                                                    isExpanded ? "rotate-90" : ""
+                                                }`}
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M9 5l7 7-7 7"
+                                                />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                                <LuAlignCenterHorizontal className="h-4 w-4 text-blue-500" />
+                                <span className="font-medium text-slate-900">
+                                    {kr.kr_title}
+                                </span>
+                                {kr.key_results?.length > 0 && (
+                                    <span className="text-xs text-slate-500">
+                                        ({kr.key_results.length} KR)
+                                    </span>
                                 )}
                             </div>
-                            <LuAlignCenterHorizontal className="h-4 w-4 text-blue-500" />
-                            <span className="font-medium text-slate-900">
-                                {kr.kr_title}
-                            </span>
-                            {kr.key_results?.length > 0 && (
-                                <span className="text-xs text-slate-500">
-                                    ({kr.key_results.length} KR)
-                                </span>
-                            )}
                         </div>
-                    </div>
-                </td>
-                <td className="px-3 py-3 text-center">
-                    <button
-                        onClick={() => {
-                            if (
-                                window.confirm(
-                                    `Hủy liên kết với "${kr.kr_title}"?`
-                                )
-                            ) {
-                                const keep = window.confirm(
-                                    "Giữ quyền sở hữu cho OKR cấp cao?"
-                                );
-                                onCancelLink?.(kr.link.link_id, "", keep);
-                            }
-                        }}
-                        className="p-1 text-rose-600 hover:bg-rose-50 rounded"
-                        title="Hủy liên kết"
-                    >
-                        <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                        <button
+                            onClick={() => {
+                                if (
+                                    window.confirm(
+                                        `Hủy liên kết với "${kr.kr_title}"?`
+                                    )
+                                ) {
+                                    const keep = window.confirm(
+                                        "Giữ quyền sở hữu cho OKR cấp cao?"
+                                    );
+                                    onCancelLink?.(kr.link.link_id, "", keep);
+                                }
+                            }}
+                            className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                            title="Hủy liên kết"
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
-                            />
-                        </svg>
-                    </button>
-                </td>
-            </tr>
+                            <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                {isExpanded &&
+                    kr.key_results?.map((sourceKr) => {
+                        const info = getAssigneeInfo(sourceKr);
+                        return (
+                            <tr
+                                key={`source_kr_${sourceKr.kr_id}`}
+                                className="bg-white"
+                            >
+                                <td className="pl-16 pr-8 py-3 border-r border-slate-200 text-sm text-slate-800">
+                                    {sourceKr.kr_title}
+                                </td>
+                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                    {info.name ? (
+                                        <div
+                                            className="flex items-center justify-center gap-2 cursor-pointer"
+                                            onMouseEnter={(e) =>
+                                                setAssigneeTooltip({
+                                                    info,
+                                                    position:
+                                                        e.currentTarget.getBoundingClientRect(),
+                                                })
+                                            }
+                                            onMouseLeave={() =>
+                                                setAssigneeTooltip(null)
+                                            }
+                                        >
+                                            {info.avatar ? (
+                                                <img
+                                                    src={info.avatar}
+                                                    alt={info.name}
+                                                    className="h-7 w-7 rounded-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
+                                                    {info.name?.[0] || "?"}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <span className="text-slate-400 text-xs">
+                                            Chưa giao
+                                        </span>
+                                    )}
+                                </td>
+                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                    {getStatusText(sourceKr.status)}
+                                </td>
+                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                    {getUnitText(sourceKr.unit)}
+                                </td>
+                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                    {sourceKr.current_value ?? ""}
+                                </td>
+                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                    {sourceKr.target_value ?? ""}
+                                </td>
+                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                    {formatPercent(
+                                        sourceKr.progress_percent
+                                    )}
+                                </td>
+                                <td className="px-3 py-3 text-center"></td>
+                            </tr>
+                        );
+                    })}
+            </>
         );
     }
 

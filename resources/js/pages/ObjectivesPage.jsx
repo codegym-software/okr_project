@@ -480,6 +480,7 @@ export default function ObjectivesPage() {
                 setMyOKRFilter={setMyOKRFilter}
                 onOpenLinkModal={handleOpenLinkModal}
                 onCancelLink={handleCancelLink}
+                reloadData={load}
             />
             <div className="mt-4 flex justify-center gap-2">
                 <button
