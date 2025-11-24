@@ -240,10 +240,7 @@ export function CycleDropdown({
                             <label
                                 key={cycle.cycle_id}
                                 className={`flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
-                                    String(cycleFilter) ===
-                                    String(cycle.cycle_id)
-                                        ? "bg-blue-50 border-l-4 border-l-blue-500"
-                                        : isCurrent
+                                    String(cycleFilter) === String(cycle.cycle_id)
                                         ? "bg-blue-50 border-l-4 border-l-blue-500"
                                         : ""
                                 }`}
