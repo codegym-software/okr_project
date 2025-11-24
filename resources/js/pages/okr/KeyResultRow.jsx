@@ -10,6 +10,7 @@ export default function KeyResultRow({
     objective,
     openObj,
     setOpenObj,
+    setEditingKR,
     canCheckInKR,
     onCancelLink,
     setAssignModal,
@@ -263,6 +264,7 @@ export default function KeyResultRow({
                         <KRActionsMenu
                             kr={kr}
                             objective={objective}
+                            setEditingKR={setEditingKR}
                             canCheckIn={canCheckInKR(kr)}
                             openCheckInModal={openCheckInModal}
                             openCheckInHistory={openCheckInHistory}

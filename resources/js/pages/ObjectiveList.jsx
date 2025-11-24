@@ -267,6 +267,7 @@ export default function ObjectiveList({
                                         linkLookup.byObjective[obj.objective_id]
                                     }
                                     setEditingObjective={setEditingObjective}
+                                    setEditingKR={setEditingKR}
                                     setCreatingFor={setCreatingFor}
                                     onOpenLinkModal={onOpenLinkModal}
                                     handleArchive={handleArchive}

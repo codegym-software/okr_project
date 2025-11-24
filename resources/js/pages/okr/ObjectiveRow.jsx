@@ -9,6 +9,7 @@ export default function ObjectiveRow({
     setOpenObj,
     linkBadge,
     setEditingObjective,
+    setEditingKR,
     setCreatingFor,
     onOpenLinkModal,
     handleArchive,
@@ -22,6 +23,7 @@ export default function ObjectiveRow({
     setAssigneeTooltip,
     getAssigneeInfo,
     formatPercent,
+
     getStatusText,
     getUnitText,
 }) {
@@ -181,6 +183,7 @@ export default function ObjectiveRow({
                         objective={obj}
                         openObj={openObj}
                         setOpenObj={setOpenObj}
+                        setEditingKR={setEditingKR}
                         canCheckInKR={canCheckInKR} // truyền tiếp xuống
                         openCheckInModal={openCheckInModal}
                         openCheckInHistory={openCheckInHistory}

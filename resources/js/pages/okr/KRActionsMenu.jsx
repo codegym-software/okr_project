@@ -4,6 +4,7 @@ import React from "react";
 export default function KRActionsMenu({
     kr,
     objective,
+    setEditingKR,
     canCheckIn,
     openCheckInModal,
     openCheckInHistory,
@@ -50,6 +51,19 @@ export default function KRActionsMenu({
 
             {openObj[menuKey] && (
                 <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingKR(kr);
+                            setOpenObj((prev) => ({
+                                ...prev,
+                                [menuKey]: false,
+                            }));
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                        Sửa Key Result
+                    </button>
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
