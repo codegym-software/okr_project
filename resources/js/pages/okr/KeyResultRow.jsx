@@ -176,12 +176,12 @@ export default function KeyResultRow({
                                     <div className="flex flex-col items-center">
                                         <span>{formatPercent(sourceKr.progress_percent)}</span>
                                         <span
-                                            className={`inline-flex items-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
+                                            className={`inline-flex items-center rounded-md px-0 py-0 text-[9px] font-semibold ${
                                                 sourceKr.status === "completed"
-                                                    ? "bg-emerald-100 text-emerald-700"
+                                                    ? "text-emerald-700"
                                                     : sourceKr.status === "active"
-                                                    ? "bg-blue-100 text-blue-700"
-                                                    : "bg-slate-100 text-slate-700"
+                                                    ? "text-blue-700"
+                                                    : "text-slate-700"
                                             }`}
                                         >
                                             {getStatusText(sourceKr.status)}
@@ -292,12 +292,12 @@ export default function KeyResultRow({
                     <div className="flex flex-col items-center">
                         <span>{formatPercent(kr.progress_percent)}</span>
                         <span
-                            className={`inline-flex items-center rounded-md px-1 py-0.5 text-[10px] font-semibold ${
+                            className={`inline-flex items-center rounded-md px-0 py-0 text-[9px] font-semibold ${
                                 kr.status === "completed"
-                                    ? "bg-emerald-100 text-emerald-700"
+                                    ? "text-emerald-700"
                                     : kr.status === "active"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : "bg-slate-100 text-slate-700"
+                                    ? "text-blue-700"
+                                    : "text-slate-700"
                             }`}
                         >
                             {getStatusText(kr.status)}
