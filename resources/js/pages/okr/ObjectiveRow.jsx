@@ -1,5 +1,6 @@
 // src/components/okr/ObjectiveRow.jsx
 import React from "react";
+import { FaBullseye } from "react-icons/fa";
 import AlignmentBadge from "./AlignmentBadge";
 import KeyResultRow from "./KeyResultRow";
 
@@ -32,10 +33,10 @@ export default function ObjectiveRow({
 
     return (
         <>
-            <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200">
+            <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
                 <td colSpan={colSpanForObjectiveHeader} className="px-3 py-3 border-r border-slate-200">
                     <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2">
                             <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
                                 {hasKRs && (
                                     <button
@@ -68,6 +69,7 @@ export default function ObjectiveRow({
                                     </button>
                                 )}
                             </div>
+                            <FaBullseye className="h-5 w-5 text-indigo-600 flex-shrink-0" title="Objective"/>
                             <span className="font-semibold text-slate-900 truncate">
                                 {obj.obj_title}
                             </span>
@@ -78,7 +80,7 @@ export default function ObjectiveRow({
                         />
                     </div>
                 </td>
-                <td className="px-3 py-3 text-center bg-gradient-to-r from-blue-50 to-indigo-50">
+                <td className="px-3 py-3 text-center">
                     <div className="flex items-center justify-center gap-1">
                         {onOpenLinkModal && (
                             <button

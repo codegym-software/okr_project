@@ -1,5 +1,6 @@
 // src/components/okr/KeyResultRow.jsx
 import React from "react";
+import { FaKey, FaBullseye, FaLink } from "react-icons/fa";
 import { LuAlignCenterHorizontal } from "react-icons/lu";
 import LinkedChildObjectiveRow from "./LinkedChildObjectiveRow";
 import KRActionsMenu from "./KRActionsMenu";
@@ -35,7 +36,7 @@ export default function KeyResultRow({
         const isExpanded = openObj[`linked_obj_kr_${kr.kr_id}`];
         return (
             <>
-                <tr className="bg-gray-50">
+                <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
                     <td
                         colSpan={colSpanForKRs}
                         className="px-8 py-3 border-r border-slate-200"
@@ -74,7 +75,8 @@ export default function KeyResultRow({
                                         </button>
                                     )}
                                 </div>
-                                <LuAlignCenterHorizontal className="h-4 w-4 text-blue-500" />
+                                <FaLink className="h-4 w-4 text-slate-500" title="Objective được liên kết" />
+                                <FaBullseye className="h-4 w-4 text-indigo-500" />
                                 <span className="font-medium text-slate-900">
                                     {kr.kr_title}
                                 </span>
@@ -212,37 +214,41 @@ export default function KeyResultRow({
 
     return (
         <>
-            <tr>
+            <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
                 <td className="px-8 py-3 border-r border-slate-200">
                     <div className="flex items-center gap-2">
-                        {hasLinkedChildren && (
-                            <button
-                                onClick={() =>
-                                    setOpenObj((prev) => ({
-                                        ...prev,
-                                        [`kr_${kr.kr_id}`]:
-                                            !prev[`kr_${kr.kr_id}`],
-                                    }))
-                                }
-                                className="p-0.5 hover:bg-slate-100 rounded"
-                            >
-                                <svg
-                                    className={`h-4 w-4 text-slate-600 transition-transform ${
-                                        expanded ? "rotate-90" : ""
-                                    }`}
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
+                        <div className="w-6 flex-shrink-0">
+                            {hasLinkedChildren && (
+                                <button
+                                    onClick={() =>
+                                        setOpenObj((prev) => ({
+                                            ...prev,
+                                            [`kr_${kr.kr_id}`]:
+                                                !prev[`kr_${kr.kr_id}`],
+                                        }))
+                                    }
+                                    className="p-1 rounded-lg hover:bg-slate-100 transition-all group"
                                 >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M9 5l7 7-7 7"
-                                    />
-                                </svg>
-                            </button>
-                        )}
+                                    <svg
+                                        className={`h-4 w-4 text-slate-500 group-hover:text-slate-700 transition-transform ${
+                                            expanded ? "rotate-90" : ""
+                                        }`}
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M9 5l7 7-7 7"
+                                        />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+                        <FaKey className="h-4 w-4 text-amber-600 flex-shrink-0" title="Key Result"/>
+
                         {isLinkedKR && (
                             <LuAlignCenterHorizontal
                                 className="h-4 w-4 text-blue-500"
