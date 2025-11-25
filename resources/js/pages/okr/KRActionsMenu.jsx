@@ -124,7 +124,7 @@ export default function KRActionsMenu({
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            handleArchiveKR(objective.objective_id, kr.kr_id);
+                            handleArchiveKR(kr.kr_id);
                             setOpenObj((prev) => ({
                                 ...prev,
                                 [menuKey]: false,

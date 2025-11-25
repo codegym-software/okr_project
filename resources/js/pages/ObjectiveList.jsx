@@ -397,7 +397,11 @@ export default function ObjectiveList({
     };
 
     // === LƯU TRỮ KR ===
-    const handleArchiveKR = async (krId) => {
+    const handleArchiveKR = async (krId, objectiveId) => {
+        if (!objectiveId) {
+            setToast({ type: "error", message: "Không thể xác định OKR cha." });
+            return;
+        }
         openConfirm(
             "Lưu trữ Key Result",
             "Key Result sẽ được chuyển vào tab Lưu trữ.",
@@ -407,13 +411,9 @@ export default function ObjectiveList({
                     const token = document
                         .querySelector('meta[name="csrf-token"]')
                         ?.getAttribute("content");
-                    const obj = items.find((o) =>
-                        o.key_results?.some((kr) => kr.kr_id === krId)
-                    );
-                    if (!obj) throw new Error("Không tìm thấy OKR cha.");
 
                     const res = await fetch(
-                        `/my-key-results/${obj.objective_id}/${krId}/archive`,
+                        `/my-key-results/${objectiveId}/${krId}/archive`,
                         {
                             method: "POST",
                             headers: {
@@ -433,7 +433,8 @@ export default function ObjectiveList({
                 } finally {
                     setArchivingKR(null);
                 }
-            }
+            },
+            "Lưu trữ"
         );
     };
 
@@ -576,7 +577,7 @@ export default function ObjectiveList({
                                     setCreatingFor={setCreatingFor}
                                     onOpenLinkModal={onOpenLinkModal}
                                     handleArchive={handleArchive}
-                                    handleArchiveKR={handleArchiveKR}
+                                    handleArchiveKR={(krId) => handleArchiveKR(krId, obj.objective_id)}
                                     archiving={archiving}
                                     currentUser={currentUser}
                                     openCheckInModal={openCheckInModal}
