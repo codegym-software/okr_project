@@ -3,6 +3,7 @@ import React from "react";
 import { FaBullseye } from "react-icons/fa";
 import AlignmentBadge from "./AlignmentBadge";
 import KeyResultRow from "./KeyResultRow";
+import ObjectiveActionsMenu from "./ObjectiveActionsMenu";
 
 export default function ObjectiveRow({
     obj,
@@ -27,7 +28,7 @@ export default function ObjectiveRow({
     formatPercent,
     getStatusText,
     getUnitText,
-    colSpanForObjectiveHeader, // NEW PROP
+    colSpanForObjectiveHeader,
 }) {
     const hasKRs = obj.key_results?.length > 0;
 
@@ -82,32 +83,6 @@ export default function ObjectiveRow({
                 </td>
                 <td className="px-3 py-3 text-center">
                     <div className="flex items-center justify-center gap-1">
-                        {onOpenLinkModal && (
-                            <button
-                                onClick={() =>
-                                    onOpenLinkModal({
-                                        sourceType: "objective",
-                                        source: obj,
-                                    })
-                                }
-                                className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
-                                title="Liên kết"
-                            >
-                                <svg
-                                    className="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414"
-                                    />
-                                </svg>
-                            </button>
-                        )}
                         <button
                             onClick={() => setEditingObjective(obj)}
                             className="p-1 text-slate-600 hover:bg-slate-100 rounded"
@@ -154,26 +129,15 @@ export default function ObjectiveRow({
                                 />
                             </svg>
                         </button>
-                        <button
-                            onClick={() => handleArchive(obj.objective_id)}
-                            disabled={archiving === obj.objective_id}
-                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
-                            title="Lưu trữ"
-                        >
-                            <svg
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                                />
-                            </svg>
-                        </button>
+                        <ObjectiveActionsMenu
+                            obj={obj}
+                            onOpenLinkModal={onOpenLinkModal}
+                            handleArchive={handleArchive}
+                            archiving={archiving}
+                            menuRefs={menuRefs}
+                            openObj={openObj}
+                            setOpenObj={setOpenObj}
+                        />
                     </div>
                 </td>
             </tr>
