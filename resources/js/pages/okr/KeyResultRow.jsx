@@ -165,15 +165,7 @@ export default function KeyResultRow({
                                         </span>
                                     )}
                                 </td>
-                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                    {getUnitText(sourceKr.unit)}
-                                </td>
-                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                    {sourceKr.current_value ?? ""}
-                                </td>
-                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                    {sourceKr.target_value ?? ""}
-                                </td>
+
                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                     <div className="flex flex-col items-center">
                                         <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
@@ -296,15 +288,7 @@ export default function KeyResultRow({
                     )}
                 </td>
 
-                <td className="px-3 py-3 text-center border-r border-slate-200">
-                    {getUnitText(kr.unit)}
-                </td>
-                <td className="px-3 py-3 text-center border-r border-slate-200">
-                    {kr.current_value ?? ""}
-                </td>
-                <td className="px-3 py-3 text-center border-r border-slate-200">
-                    {kr.target_value ?? ""}
-                </td>
+
                 <td className="px-3 py-3 text-center border-r border-slate-200">
                     <div className="flex flex-col items-center">
                         <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
