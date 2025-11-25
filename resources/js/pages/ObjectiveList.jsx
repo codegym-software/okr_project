@@ -511,19 +511,19 @@ export default function ObjectiveList({
             )}
 
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                <table className="min-w-full divide-y divide-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 table-fixed">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
-                            <th className="px-3 py-2 text-left w-[45%] border-r border-slate-200">
+                            <th className="px-3 py-2 text-left border-r border-slate-200">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[20%]">
+                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{width: '180px'}}>
                                 Người thực hiện
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[20%]">
+                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{width: '150px'}}>
                                 Tiến độ (%)
                             </th>
-                            <th className="px-3 py-2 text-center w-[15%]">
+                            <th className="px-3 py-2 text-center" style={{width: '100px'}}>
                                 Hành động
                             </th>
                         </tr>
