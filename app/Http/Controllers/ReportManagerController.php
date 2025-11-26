@@ -7,6 +7,7 @@ use App\Models\KeyResult;
 use App\Models\User;
 use App\Models\Department;
 use App\Models\CheckIn;
+use App\Models\Cycle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -62,10 +63,15 @@ class ReportManagerController extends Controller
         ]);
         
         // Filters
-        $cycleId = $request->integer('cycle_id');
-        $memberId = $request->integer('member_id');
-        $status = $request->string('status'); // completed, in_progress, at_risk, not_started
-        $objectiveId = $request->integer('objective_id');
+        $cycleId = $request->input('cycle_id');
+        $memberId = $request->input('member_id');
+        $status = $request->input('status'); // completed, in_progress, at_risk, not_started
+        $objectiveId = $request->input('objective_id');
+        
+        // Convert to integer nếu có giá trị
+        $cycleId = $cycleId ? (int)$cycleId : null;
+        $memberId = $memberId ? (int)$memberId : null;
+        $objectiveId = $objectiveId ? (int)$objectiveId : null;
 
         // Lấy OKR cá nhân của thành viên (level = 'person')
         // Nếu không có memberIds, vẫn cố gắng lấy OKR của phòng ban
@@ -201,9 +207,9 @@ class ReportManagerController extends Controller
                 'objective_title' => $obj->obj_title,
                 'objective_description' => $obj->description,
                 'level' => $obj->level ?? 'person',
-                'member_id' => $obj->user_id, // null nếu là OKR cấp nhóm
-                'member_name' => $obj->user ? ($obj->user->full_name ?? 'N/A') : 'OKR Phòng ban',
-                'member_email' => $obj->user ? ($obj->user->email ?? 'N/A') : null,
+                'member_id' => ($obj->level === 'person') ? $obj->user_id : null, // null nếu là OKR cấp nhóm
+                'member_name' => ($obj->level === 'person' && $obj->user) ? ($obj->user->full_name ?? 'N/A') : 'OKR Phòng ban',
+                'member_email' => ($obj->level === 'person' && $obj->user) ? ($obj->user->email ?? 'N/A') : null,
                 'cycle_id' => $obj->cycle_id,
                 'cycle_name' => $obj->cycle->cycle_name ?? 'N/A',
                 'department_id' => $obj->department_id,
@@ -301,32 +307,8 @@ class ReportManagerController extends Controller
             ];
         }
 
-        // Nếu không có thành viên nào, trả về dữ liệu rỗng
-        if (empty($memberIds) && $teamOkrs->isEmpty()) {
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'okrs' => [],
-                    'personal_okrs' => [],
-                    'team_okrs' => [],
-                    'team_members' => [],
-                    'member_progress' => [],
-                    'summary' => [
-                        'total_okrs' => 0,
-                        'completed_okrs' => 0,
-                        'in_progress_okrs' => 0,
-                        'at_risk_okrs' => 0,
-                        'not_started_okrs' => 0,
-                        'average_progress' => 0,
-                        'completion_rate' => 0,
-                    ],
-                    'department' => [
-                        'department_id' => $managerDepartmentId,
-                        'department_name' => $user->department->d_name ?? 'N/A',
-                    ],
-                ],
-            ]);
-        }
+        // Không cần kiểm tra empty nữa, vì có thể có OKR cấp nhóm mà không có member
+        // Chỉ trả về dữ liệu rỗng nếu thực sự không có gì
 
         return response()->json([
             'success' => true,
@@ -411,6 +393,226 @@ class ReportManagerController extends Controller
                 ];
             }),
         ]);
+    }
+
+    /**
+     * Export PDF for department report
+     */
+    public function exportPdf(Request $request)
+    {
+        $user = Auth::user();
+        
+        // Kiểm tra quyền: chỉ manager mới được xem
+        if (!$user->isManager() && !$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền truy cập trang này.'
+            ], 403);
+        }
+
+        // Lấy department_id của manager
+        $managerDepartmentId = $user->department_id;
+        if (!$managerDepartmentId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn chưa được gán vào phòng ban nào.'
+            ], 400);
+        }
+
+        // Lấy dữ liệu báo cáo (tái sử dụng logic từ getTeamOkrs)
+        $cycleId = $request->input('cycle_id');
+        $cycleId = $cycleId ? (int)$cycleId : null;
+        
+        // Lấy danh sách thành viên trong phòng ban
+        $teamMembers = User::where('department_id', $managerDepartmentId)
+            ->with(['role', 'department'])
+            ->get()
+            ->filter(function($member) {
+                if (!$member->role) return false;
+                $roleName = strtolower(trim($member->role->role_name ?? ''));
+                return $roleName === 'member' || $roleName === 'manager';
+            });
+
+        $memberIds = $teamMembers->pluck('user_id')->toArray();
+
+        // Lấy OKR cá nhân
+        $personalObjectivesQuery = Objective::query()
+            ->where('level', 'person')
+            ->whereNull('archived_at')
+            ->with(['cycle', 'department', 'user'])
+            ->when(!empty($memberIds), fn($q) => $q->whereIn('user_id', $memberIds))
+            ->when(empty($memberIds), fn($q) => $q->where('department_id', $managerDepartmentId))
+            ->when($cycleId, fn($q) => $q->where('cycle_id', $cycleId));
+
+        $personalObjectives = $personalObjectivesQuery->get();
+
+        // Lấy OKR cấp nhóm
+        $teamObjectivesQuery = Objective::query()
+            ->where('department_id', $managerDepartmentId)
+            ->where('level', 'unit')
+            ->whereNull('archived_at')
+            ->with(['cycle', 'department', 'user'])
+            ->when($cycleId, fn($q) => $q->where('cycle_id', $cycleId));
+
+        $teamObjectives = $teamObjectivesQuery->get();
+        $objectives = $personalObjectives->merge($teamObjectives);
+
+        // Load key results
+        $objectiveIds = $objectives->pluck('objective_id');
+        $keyResults = KeyResult::whereIn('objective_id', $objectiveIds)
+            ->with(['assignedUser', 'assignee'])
+            ->get()
+            ->groupBy('objective_id');
+
+        // Tính toán summary
+        $totalOkrs = $objectives->count();
+        $completedOkrs = 0;
+        $inProgressOkrs = 0;
+        $atRiskOkrs = 0;
+        $notStartedOkrs = 0;
+        $totalProgress = 0;
+
+        foreach ($objectives as $obj) {
+            $krs = $keyResults->get($obj->objective_id, collect());
+            $avgProgress = 0;
+            
+            if ($krs->count() > 0) {
+                $progressSum = $krs->sum(function($kr) {
+                    return $kr->progress_percent ?? (($kr->target_value > 0) ? (($kr->current_value / $kr->target_value) * 100) : 0);
+                });
+                $avgProgress = $progressSum / $krs->count();
+            }
+            
+            $totalProgress += $avgProgress;
+            
+            if ($avgProgress >= 100) {
+                $completedOkrs++;
+            } elseif ($avgProgress >= 70) {
+                $inProgressOkrs++;
+            } elseif ($avgProgress >= 40) {
+                $atRiskOkrs++;
+            } else {
+                $notStartedOkrs++;
+            }
+        }
+
+        $averageProgress = $totalOkrs > 0 ? round($totalProgress / $totalOkrs, 2) : 0;
+        $completionRate = $totalOkrs > 0 ? round(($completedOkrs / $totalOkrs) * 100, 2) : 0;
+
+        // Get cycle info
+        $cycle = $cycleId ? Cycle::find($cycleId) : null;
+        $cycleName = $cycle ? $cycle->cycle_name : 'Tất cả chu kỳ';
+
+        // Prepare data for PDF
+        $pdfData = [
+            'department' => [
+                'department_id' => $managerDepartmentId,
+                'department_name' => $user->department->d_name ?? 'N/A',
+            ],
+            'cycle_name' => $cycleName,
+            'summary' => [
+                'total_okrs' => $totalOkrs,
+                'completed_okrs' => $completedOkrs,
+                'in_progress_okrs' => $inProgressOkrs,
+                'at_risk_okrs' => $atRiskOkrs,
+                'not_started_okrs' => $notStartedOkrs,
+                'average_progress' => $averageProgress,
+                'completion_rate' => $completionRate,
+            ],
+            'personal_okrs' => $personalObjectives->map(function($obj) use ($keyResults) {
+                $krs = $keyResults->get($obj->objective_id, collect());
+                $avgProgress = 0;
+                if ($krs->count() > 0) {
+                    $progressSum = $krs->sum(function($kr) {
+                        return $kr->progress_percent ?? (($kr->target_value > 0) ? (($kr->current_value / $kr->target_value) * 100) : 0);
+                    });
+                    $avgProgress = $progressSum / $krs->count();
+                }
+                return [
+                    'objective_id' => $obj->objective_id,
+                    'objective_title' => $obj->obj_title,
+                    'objective_description' => $obj->description,
+                    'member_name' => $obj->user ? $obj->user->full_name : 'N/A',
+                    'cycle_name' => $obj->cycle ? $obj->cycle->cycle_name : 'N/A',
+                    'overall_progress' => round($avgProgress, 2),
+                    'key_results' => $krs->map(function($kr) {
+                        $krProgress = $kr->progress_percent ?? (($kr->target_value > 0) ? (($kr->current_value / $kr->target_value) * 100) : 0);
+                        return [
+                            'kr_title' => $kr->kr_title,
+                            'current_value' => $kr->current_value ?? 0,
+                            'target_value' => $kr->target_value,
+                            'progress_percent' => round($krProgress, 2),
+                            'unit' => $kr->unit,
+                        ];
+                    })->values(),
+                ];
+            })->values(),
+            'team_okrs' => $teamObjectives->map(function($obj) use ($keyResults) {
+                $krs = $keyResults->get($obj->objective_id, collect());
+                $avgProgress = 0;
+                if ($krs->count() > 0) {
+                    $progressSum = $krs->sum(function($kr) {
+                        return $kr->progress_percent ?? (($kr->target_value > 0) ? (($kr->current_value / $kr->target_value) * 100) : 0);
+                    });
+                    $avgProgress = $progressSum / $krs->count();
+                }
+                return [
+                    'objective_id' => $obj->objective_id,
+                    'objective_title' => $obj->obj_title,
+                    'objective_description' => $obj->description,
+                    'cycle_name' => $obj->cycle ? $obj->cycle->cycle_name : 'N/A',
+                    'overall_progress' => round($avgProgress, 2),
+                    'key_results' => $krs->map(function($kr) {
+                        $krProgress = $kr->progress_percent ?? (($kr->target_value > 0) ? (($kr->current_value / $kr->target_value) * 100) : 0);
+                        return [
+                            'kr_title' => $kr->kr_title,
+                            'current_value' => $kr->current_value ?? 0,
+                            'target_value' => $kr->target_value,
+                            'progress_percent' => round($krProgress, 2),
+                            'unit' => $kr->unit,
+                        ];
+                    })->values(),
+                ];
+            })->values(),
+            'member_progress' => $teamMembers->map(function($member) use ($personalObjectives, $keyResults) {
+                $memberPersonalOkrs = $personalObjectives->where('user_id', $member->user_id);
+                $memberAvgProgress = 0;
+                $memberTotalOkrs = $memberPersonalOkrs->count();
+                
+                if ($memberTotalOkrs > 0) {
+                    $totalProgress = 0;
+                    foreach ($memberPersonalOkrs as $obj) {
+                        $krs = $keyResults->get($obj->objective_id, collect());
+                        if ($krs->count() > 0) {
+                            $progressSum = $krs->sum(function($kr) {
+                                return $kr->progress_percent ?? (($kr->target_value > 0) ? (($kr->current_value / $kr->target_value) * 100) : 0);
+                            });
+                            $totalProgress += $progressSum / $krs->count();
+                        }
+                    }
+                    $memberAvgProgress = $totalProgress / $memberTotalOkrs;
+                }
+                
+                return [
+                    'full_name' => $member->full_name,
+                    'job_title' => $member->job_title,
+                    'average_progress' => round($memberAvgProgress, 2),
+                    'total_okrs' => $memberTotalOkrs,
+                    'completed_okrs' => 0, // Có thể tính thêm nếu cần
+                ];
+            })->values(),
+        ];
+
+        // Generate HTML for PDF
+        $html = view('reports.manager-pdf', [
+            'data' => $pdfData,
+            'generatedAt' => now()->format('d/m/Y H:i'),
+        ])->render();
+
+        // Return HTML that can be printed to PDF by browser
+        return response($html)
+            ->header('Content-Type', 'text/html; charset=UTF-8')
+            ->header('Content-Disposition', 'inline; filename="bao_cao_phong_ban_' . now()->format('Ymd_His') . '.html"');
     }
 }
 

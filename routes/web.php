@@ -133,6 +133,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.manager.team-okrs');
         Route::get('/check-in-history/{objectiveId}/{krId}', [\App\Http\Controllers\ReportManagerController::class, 'getCheckInHistory'])
             ->name('api.reports.manager.check-in-history');
+        Route::get('/export.pdf', [\App\Http\Controllers\ReportManagerController::class, 'exportPdf'])
+            ->name('api.reports.manager.export.pdf');
     });
 
     // Routes cho Profile - trả về React app

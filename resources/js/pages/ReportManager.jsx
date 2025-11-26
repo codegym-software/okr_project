@@ -95,7 +95,10 @@ export default function ReportManager() {
         setError('');
         try {
             const params = new URLSearchParams();
-            if (filters.cycle_id) params.set('cycle_id', filters.cycle_id);
+            // Không bắt buộc cycle_id - nếu không có thì lấy tất cả OKR
+            if (filters.cycle_id) {
+                params.set('cycle_id', filters.cycle_id);
+            }
             if (filters.member_id) params.set('member_id', filters.member_id);
             if (filters.status) params.set('status', filters.status);
             if (filters.objective_id) params.set('objective_id', filters.objective_id);
@@ -151,6 +154,7 @@ export default function ReportManager() {
     };
 
     useEffect(() => {
+        // Load OKR ngay cả khi chưa có cycle_id (sẽ lấy tất cả OKR)
         loadOkrs();
     }, [filters.cycle_id, filters.member_id, filters.status, filters.objective_id]);
 
@@ -199,11 +203,36 @@ export default function ReportManager() {
     const handleExport = async () => {
         setExporting(true);
         try {
-            // TODO: Implement PDF export for department report
-            alert('Tính năng xuất PDF đang được phát triển');
+            const params = new URLSearchParams();
+            if (filters.cycle_id) params.set('cycle_id', filters.cycle_id);
+            if (filters.member_id) params.set('member_id', filters.member_id);
+            if (filters.status) params.set('status', filters.status);
+            if (filters.objective_id) params.set('objective_id', filters.objective_id);
+            
+            const url = `/api/reports/manager/export.pdf?${params.toString()}`;
+            
+            // Download PDF file first
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Export failed');
+            
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            const fileName = `bao_cao_phong_ban_${currentCycleMeta?.name || new Date().toISOString().split('T')[0]}.html`;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            // After download, open in new window if needed
+            setTimeout(() => {
+                window.open(url, '_blank');
+            }, 500);
         } catch (e) {
             console.error('Export failed:', e);
-            alert('Xuất báo cáo thất bại');
+            alert('Xuất báo cáo thất bại: ' + (e.message || 'Lỗi không xác định'));
         } finally {
             setExporting(false);
         }
