@@ -22,7 +22,7 @@ export default function LinkedChildObjectiveRow({
         <>
             <tr className="bg-white">
                 {/* Cột Tiêu đề */}
-                <td className="px-8 py-3 border-r border-slate-200">
+                <td className="px-13 py-3 border-r border-slate-200">
                     <div className="flex items-center gap-2">
                         {hasKRs && (
                             <button
@@ -116,9 +116,12 @@ export default function LinkedChildObjectiveRow({
                     const userInfo = getAssigneeInfo(kr);
                     return (
                         <tr key={kr.kr_id} className="bg-white">
-                            <td className="pl-24 py-3 border-r border-slate-200">
+                            <td className="pl-23 py-3 border-r border-slate-200">
                                 <div className="flex items-center gap-2">
-                                    <FaKey className="h-4 w-4 text-amber-600 flex-shrink-0" title="Key Result"/>
+                                    <FaKey
+                                        className="h-4 w-4 text-amber-600 flex-shrink-0"
+                                        title="Key Result"
+                                    />
                                     <span className="font-medium text-slate-700 text-sm">
                                         {kr.kr_title}
                                     </span>
@@ -154,13 +157,19 @@ export default function LinkedChildObjectiveRow({
                                     <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
                                         <div
                                             className={`h-full rounded-full absolute left-0 ${
-                                                kr.status === "completed" ? "bg-green-600" : "bg-blue-600"
+                                                kr.status === "completed"
+                                                    ? "bg-green-600"
+                                                    : "bg-blue-600"
                                             }`}
-                                            style={{ width: `${kr.progress_percent}%` }}
+                                            style={{
+                                                width: `${kr.progress_percent}%`,
+                                            }}
                                         ></div>
                                         {kr.progress_percent > 0 && (
                                             <span className="absolute left-1 text-white text-xs font-semibold z-10">
-                                                {formatPercent(kr.progress_percent)}
+                                                {formatPercent(
+                                                    kr.progress_percent
+                                                )}
                                             </span>
                                         )}
                                     </div>
