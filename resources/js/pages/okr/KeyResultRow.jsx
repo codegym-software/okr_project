@@ -166,6 +166,9 @@ export default function KeyResultRow({
                                                     {info.name?.[0] || "?"}
                                                 </div>
                                             )}
+                                            <span className="max-w-[120px] truncate text-sm">
+                                                {info.name}
+                                            </span>
                                         </div>
                                     ) : (
                                         <span className="text-slate-400 text-xs">
