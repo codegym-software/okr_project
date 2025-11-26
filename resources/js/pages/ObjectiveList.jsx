@@ -602,6 +602,8 @@ export default function ObjectiveList({
                                 loadingArchived={loadingArchived}
                                 reloadBothTabs={reloadBothTabs}
                                 showArchived={showArchived}
+                                formatPercent={formatPercent}
+                                getStatusText={getStatusText}
                             />
                         )}
                     </tbody>
