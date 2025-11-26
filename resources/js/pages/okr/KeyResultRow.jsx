@@ -1,6 +1,6 @@
 // src/components/okr/KeyResultRow.jsx
 import React from "react";
-import { FaKey, FaBullseye, FaLink } from "react-icons/fa";
+import { FaKey, FaBullseye, FaLink, FaLongArrowAltLeft } from "react-icons/fa";
 import { LuAlignCenterHorizontal } from "react-icons/lu";
 import LinkedChildObjectiveRow from "./LinkedChildObjectiveRow";
 import KRActionsMenu from "./KRActionsMenu";
@@ -72,8 +72,10 @@ export default function KeyResultRow({
                                     </button>
                                 )}
                             </div>
-                            <FaBullseye className="h-4 w-4 text-indigo-500 flex-shrink-0" />
-                            <div className="truncate">
+                            <div className="truncate flex items-center gap-2">
+                                <FaBullseye className="h-4 w-4 text-indigo-500 flex-shrink-0" title="Objective cấp cao"/>
+                                <FaLongArrowAltLeft className="h-4 w-4 text-slate-500" />
+                                <FaBullseye className="h-4 w-4 text-indigo-500 flex-shrink-0" title="OKR được liên kết" />
                                 <span className="font-normal text-slate-900 text-sm">
                                     {kr.kr_title}
                                 </span>
