@@ -34,7 +34,6 @@ export default function KeyResultRow({
     // Nếu là KR ảo từ liên kết O→O → render riêng
     if (isLinkedObjective) {
         const isExpanded = openObj[`linked_obj_kr_${kr.kr_id}`];
-        const assigneeInfo = getAssigneeInfo(kr);
         return (
             <>
                 <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
@@ -72,45 +71,10 @@ export default function KeyResultRow({
                             )}
                         </div>
                     </td>
-                    {/* Cột Người thực hiện */}
-                    <td className="px-3 py-3 text-center border-r border-slate-200">
-                        {assigneeInfo.name ? (
-                             <div
-                                className="flex items-center justify-center gap-2 cursor-pointer"
-                                onMouseEnter={(e) => setAssigneeTooltip({ info: assigneeInfo, position: e.currentTarget.getBoundingClientRect() })}
-                                onMouseLeave={() => setAssigneeTooltip(null)}
-                            >
-                                {assigneeInfo.avatar ? (
-                                    <img src={assigneeInfo.avatar} alt={assigneeInfo.name} className="h-7 w-7 rounded-full object-cover" />
-                                ) : (
-                                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
-                                        {assigneeInfo.name?.[0] || "?"}
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <span className="text-slate-400 text-xs">Chưa giao</span>
-                        )}
-                    </td>
-                    {/* Cột Tiến độ */}
-                    <td className="px-3 py-3 text-center border-r border-slate-200">
-                         <div className="flex flex-col items-center">
-                            <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
-                                <div
-                                    className={`h-full rounded-full absolute left-0 ${kr.status === "completed" ? "bg-green-600" : "bg-blue-600"}`}
-                                    style={{ width: `${kr.progress_percent}%` }}
-                                ></div>
-                                {kr.progress_percent > 0 && (
-                                    <span className="absolute left-1 text-white text-xs font-semibold z-10">
-                                        {formatPercent(kr.progress_percent)}
-                                    </span>
-                                )}
-                            </div>
-                            <span className={`inline-flex items-center rounded-md px-0 py-0 text-[9px] font-semibold ${ kr.status === "completed" ? "text-emerald-700" : kr.status === "active" ? "text-blue-700" : "text-slate-700"} mt-1`}>
-                                {getStatusText(kr.status)}
-                            </span>
-                        </div>
-                    </td>
+                    {/* Cột Người thực hiện (Trống) */}
+                    <td className="px-3 py-3 text-center border-r border-slate-200"></td>
+                    {/* Cột Tiến độ (Trống) */}
+                    <td className="px-3 py-3 text-center border-r border-slate-200"></td>
                     {/* Cột Hành động */}
                     <td className="px-3 py-3 text-center">
                         <button
