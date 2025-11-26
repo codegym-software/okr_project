@@ -315,9 +315,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::post('/{link}/cancel', [LinkController::class, 'cancel'])->middleware('auth')->name('my-links.cancel');
     });
 
-    Route::get('/okr-assignments/assignable-users-roles', [OkrAssignmentController::class, 'getAssignableUsersAndRoles'])->name('okr-assignments.assignable');
-    Route::post('/okr-assignments/store', [OkrAssignmentController::class, 'store'])->name('okr-assignments.store');
-    Route::delete('/okr-assignments/destroy/{id}', [OkrAssignmentController::class, 'destroy'])->name('okr-assignments.destroy');
 });
 
 // Phục vụ file trong storage khi thiếu symlink public/storage
