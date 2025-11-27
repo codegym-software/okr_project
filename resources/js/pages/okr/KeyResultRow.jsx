@@ -75,11 +75,6 @@ export default function KeyResultRow({
                             <div className="truncate flex items-center gap-1">
                                 <FaBullseye
                                     className="h-3 w-3 text-indigo-500 flex-shrink-0"
-                                    title="Objective cấp cao"
-                                />
-                                <FaLongArrowAltLeft className="h-3 w-3 text-slate-500" />
-                                <FaBullseye
-                                    className="h-3 w-3 text-indigo-500 flex-shrink-0"
                                     title="OKR được liên kết"
                                 />
                                 <span className="font-normal text-slate-900 text-sm">

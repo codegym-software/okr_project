@@ -54,9 +54,10 @@ export default function LinkedChildObjectiveRow({
                                 </svg>
                             </button>
                         )}
-                        <FaKey className="h-3 w-3 text-amber-600 flex-shrink-0" title="Key Result cấp cao"/>
-                        <FaLongArrowAltLeft className="h-3 w-3 text-slate-500" />
-                        <FaBullseye className="h-3 w-3 text-indigo-500 flex-shrink-0" title="Objective được liên kết" />
+                        <FaBullseye
+                            className="h-3 w-3 text-indigo-500 flex-shrink-0"
+                            title="Objective được liên kết"
+                        />
                         <span className="font-normal text-slate-900 text-sm">
                             {linkedObj.obj_title}
                         </span>
