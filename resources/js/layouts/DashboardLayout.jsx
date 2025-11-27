@@ -847,7 +847,7 @@ export default function DashboardLayout({ children, user }) {
                                 </>
                             );
                         })()}
-                    </nav>                             
+                    </nav>                       
                 </div>
             </div>
 
