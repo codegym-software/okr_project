@@ -117,8 +117,7 @@ class MyKeyResultController extends Controller
                 }
 
                 // === TẠO KEY RESULT ===
-                return KeyResult::create([
-                    'kr_id' => (string) \Str::uuid(),
+                $keyResult = KeyResult::create([
                     'kr_title' => $validated['kr_title'],
                     'target_value' => $target,
                     'current_value' => $current,
@@ -132,7 +131,12 @@ class MyKeyResultController extends Controller
                     'user_id' => $user->user_id,
                     'archived_at' => null,
                     'assigned_to' => $finalAssignedTo,
-                ])->load('objective', 'cycle', 'assignedUser');
+                ]);
+                
+                // Refresh để đảm bảo kr_id được load từ database
+                $keyResult->refresh();
+                
+                return $keyResult->load('objective', 'cycle', 'assignedUser');
             });
 
             return $this->successResponse($request, 'Key Result được tạo thành công!', $created);

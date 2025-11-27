@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Objective;
 use App\Models\Cycle;
-use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;

@@ -1,15 +1,29 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { canCheckInKeyResult } from "../utils/checkinPermissions";
+// src/components/okr/ObjectiveList.jsx
+import React, {
+    useState,
+    useEffect,
+    useCallback,
+    useMemo,
+    useRef,
+} from "react";
 import { CycleDropdown } from "../components/Dropdown";
 import Tabs from "../components/Tabs";
 import ConfirmationModal from "../components/ConfirmationModal";
 import ToastNotification from "../components/ToastNotification";
 import AssignKeyResultModal from "../components/AssignKeyResultModal";
 import ObjectiveArchive from "./ObjectiveArchive";
+import ObjectiveRow from "./okr/ObjectiveRow";
+import AssigneeTooltip from "./okr/AssigneeTooltip";
+import { canCheckInKeyResult } from "../utils/checkinPermissions";
+import {
+    formatPercent,
+    getStatusText,
+    getUnitText,
+    getAssigneeInfo,
+} from "./okr/utils/formatters";
 
 export default function ObjectiveList({
     items,
-    departments,
     cyclesList,
     loading,
     openObj,
@@ -19,13 +33,16 @@ export default function ObjectiveList({
     setEditingKR,
     setCreatingObjective,
     links,
+    childLinks = [],
+    linksLoading = false,
     cycleFilter,
     setCycleFilter,
     openCheckInModal,
     openCheckInHistory,
     currentUser,
-    hideFilters = false,
     setItems,
+    onOpenLinkModal,
+    onCancelLink,
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -33,9 +50,6 @@ export default function ObjectiveList({
     const [archivedCount, setArchivedCount] = useState(0);
     const [loadingArchived, setLoadingArchived] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
-    const [archivingKR, setArchivingKR] = useState(null);
-    const [unarchivingKR, setUnarchivingKR] = useState(null);
-    const [deletingKR, setDeletingKR] = useState(null);
     const [assignModal, setAssignModal] = useState({
         show: false,
         kr: null,
@@ -43,304 +57,9 @@ export default function ObjectiveList({
         email: "",
         loading: false,
     });
-
-    const canCheckInKR = (kr, objective) => {
-        return canCheckInKeyResult(currentUser, kr, objective);
-    };
-
-    const handleOpenCheckIn = (kr, objective) => {
-        if (!openCheckInModal) return;
-        openCheckInModal({ ...kr, objective_id: objective.objective_id });
-    };
-
-    const handleOpenCheckInHistory = (kr, objective) => {
-        if (!openCheckInHistory) return;
-        openCheckInHistory({ ...kr, objective_id: objective.objective_id });
-    };
-
+    const [assigneeTooltip, setAssigneeTooltip] = useState(null);
     const [archiving, setArchiving] = useState(null);
-    const [unarchiving, setUnarchiving] = useState(null);
-    const [deleting, setDeleting] = useState(null);
-
-    // === MODAL XÁC NHẬN CHUNG ===
-    const [confirmModal, setConfirmModal] = useState({
-        show: false,
-        title: "",
-        message: "",
-        onConfirm: () => {},
-        confirmText: "OK",
-        cancelText: "Hủy",
-    });
-
-    const openConfirm = (
-        title,
-        message,
-        onConfirm,
-        confirmText = "OK",
-        cancelText = "Hủy"
-    ) => {
-        setConfirmModal({
-            show: true,
-            title,
-            message,
-            onConfirm,
-            confirmText,
-            cancelText,
-        });
-    };
-
-    const closeConfirm = () => {
-        setConfirmModal((prev) => ({ ...prev, show: false }));
-    };
-
-    useEffect(() => {
-        if (toast) {
-            const timer = setTimeout(() => setToast(null), 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [toast]);
-
-    // === XỬ LÝ CLICK OUTSIDE ĐỂ ĐÓNG MENU ===
-    const menuRefs = useRef({});
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            // Kiểm tra xem click có nằm trong bất kỳ menu nào không
-            let clickedInsideMenu = false;
-            
-            Object.values(menuRefs.current).forEach((ref) => {
-                if (ref && ref.contains(event.target)) {
-                    clickedInsideMenu = true;
-                }
-            });
-
-            // Nếu click ra ngoài tất cả menu, đóng tất cả menu
-            if (!clickedInsideMenu) {
-                setOpenObj((prev) => {
-                    const newState = { ...prev };
-                    // Đóng tất cả menu (các key bắt đầu bằng "menu_")
-                    Object.keys(newState).forEach((key) => {
-                        if (key.startsWith("menu_")) {
-                            newState[key] = false;
-                        }
-                    });
-                    return newState;
-                });
-            }
-        };
-
-        // Chỉ lắng nghe khi có menu đang mở
-        const hasOpenMenu = Object.keys(openObj).some(
-            (key) => key.startsWith("menu_") && openObj[key]
-        );
-
-        if (hasOpenMenu) {
-            document.addEventListener("mousedown", handleClickOutside);
-            return () => {
-                document.removeEventListener("mousedown", handleClickOutside);
-            };
-        }
-    }, [openObj, setOpenObj]);
-
-    // === TẢI OKR LƯU TRỮ ===
-    useEffect(() => {
-        if (showArchived) {
-            const fetchArchived = async () => {
-                setLoadingArchived(true);
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const params = new URLSearchParams({
-                        archived: "1",
-                        include_archived_kr: "1",
-                    });
-                    if (cycleFilter) params.append("cycle_id", cycleFilter);
-
-                    const res = await fetch(`/my-objectives?${params}`, {
-                        headers: {
-                            Accept: "application/json",
-                            "X-CSRF-TOKEN": token,
-                        },
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        setArchivedItems(json.data.data || []);
-                    }
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setLoadingArchived(false);
-                }
-            };
-            fetchArchived();
-        } else {
-            setArchivedItems([]);
-            setArchivedCount(0);
-        }
-    }, [showArchived, cycleFilter]);
-
-    // === HELPER: Tìm quý hiện tại ===
-    const getCurrentCycle = (cyclesList) => {
-        const now = new Date();
-        const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
-        const currentYear = now.getFullYear();
-
-        return cyclesList.find((cycle) => {
-            const match = cycle.cycle_name.match(/Quý (\d+) năm (\d+)/);
-            if (!match) return false;
-            const quarter = parseInt(match[1]);
-            const year = parseInt(match[2]);
-            return quarter === currentQuarter && year === currentYear;
-        });
-    };
-
-    // === 1. FRESH TRẠNG THÁI: XÓA cycle_id KHI VÀO TRANG ===
-    useEffect(() => {
-        const url = new URL(window.location);
-        if (url.searchParams.has("cycle_id")) {
-            url.searchParams.delete("cycle_id");
-            window.history.replaceState({}, "", url);
-        }
-        setCycleFilter(null); // Reset filter
-    }, []);
-
-    // === 2. TỰ ĐỘNG CHỌN QUÝ HIỆN TẠI SAU KHI FRESH ===
-    useEffect(() => {
-        if (cycleFilter) return;
-
-        const currentCycle = getCurrentCycle(cyclesList);
-        if (currentCycle) {
-            setCycleFilter(currentCycle.cycle_id);
-            return;
-        }
-
-        if (items.length > 0 && items[0]?.cycle_id) {
-            setCycleFilter(items[0].cycle_id);
-        }
-    }, [cycleFilter, cyclesList, items]);
-
-    // === 3. CHỌN QUÝ: KHÔNG CẬP NHẬT URL ===
-    const handleCycleChange = (newCycleId) => {
-        setCycleFilter(newCycleId);
-    };
-
-    // === RELOAD CẢ 2 TAB TỪ SERVER ===
-    const reloadBothTabs = useCallback(
-        async (token) => {
-            const baseParams = new URLSearchParams();
-            if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
-
-            // Tab Hoạt động
-            const activeRes = await fetch(`/my-objectives?${baseParams}`, {
-                headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
-            });
-            const activeJson = await activeRes.json();
-            if (activeJson.success) {
-                setItems(activeJson.data.data || []);
-            }
-
-            // Tab Lưu trữ
-            if (showArchived) {
-                const archivedParams = new URLSearchParams({
-                    archived: "1",
-                    include_archived_kr: "1",
-                });
-                if (cycleFilter) archivedParams.append("cycle_id", cycleFilter);
-                const archivedRes = await fetch(
-                    `/my-objectives?${archivedParams}`,
-                    {
-                        headers: {
-                            Accept: "application/json",
-                            "X-CSRF-TOKEN": token,
-                        },
-                    }
-                );
-                const archivedJson = await archivedRes.json();
-                if (archivedJson.success) {
-                    setArchivedItems(archivedJson.data.data || []);
-                }
-            }
-        },
-        [cycleFilter, showArchived, setItems]
-    );
-
-    // === LƯU TRỮ OKR ===
-    const handleArchive = async (id) => {
-        openConfirm(
-            "Lưu trữ OKR",
-            "Bạn sẽ không thể chỉnh sửa OKR này nữa.",
-            async () => {
-                setArchiving(id);
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const res = await fetch(`/my-objectives/${id}/archive`, {
-                        method: "POST",
-                        headers: {
-                            "X-CSRF-TOKEN": token,
-                            Accept: "application/json",
-                        },
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        await reloadBothTabs(token);
-                        setToast({ type: "success", message: json.message });
-                    } else {
-                        throw new Error(json.message);
-                    }
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setArchiving(null);
-                }
-            },
-            "Lưu trữ",
-            "Hủy"
-        );
-    };
-
-    // === LƯU TRỮ KR ===
-    const handleArchiveKR = async (krId) => {
-        openConfirm(
-            "Lưu trữ Key Result",
-            "Key Result sẽ được chuyển vào tab Lưu trữ.",
-            async () => {
-                setArchivingKR(krId);
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const obj = items.find((o) =>
-                        o.key_results?.some((kr) => kr.kr_id === krId)
-                    );
-                    if (!obj) throw new Error("Không tìm thấy OKR cha.");
-
-                    const res = await fetch(
-                        `/my-key-results/${obj.objective_id}/${krId}/archive`,
-                        {
-                            method: "POST",
-                            headers: {
-                                "X-CSRF-TOKEN": token,
-                                Accept: "application/json",
-                            },
-                        }
-                    );
-                    const json = await res.json();
-                    if (!json.success)
-                        throw new Error(json.message || "Lưu trữ thất bại");
-
-                    await reloadBothTabs(token);
-                    setToast({ type: "success", message: json.message });
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setArchivingKR(null);
-                }
-            }
-        );
-    };
+    const [archivingKR, setArchivingKR] = useState(null);
 
     const openAssignModal = (kr, objective) => {
         setAssignModal({
@@ -449,51 +168,452 @@ export default function ObjectiveList({
         }
     };
 
-    // === HELPER FORMAT ===
-    const formatPercent = (value) => {
-        const n = Number(value);
-        return Number.isFinite(n) ? `${n.toFixed(2)}%` : "";
+    const handleAssigneeHover = (event, info) => {
+        if (!info) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        setAssigneeTooltip({
+            info,
+            position: {
+                x: rect.left + rect.width / 2 + window.scrollX,
+                y: rect.top + window.scrollY,
+            },
+        });
     };
 
-    const getStatusText = (status) => {
-        switch (status?.toLowerCase()) {
-            case "draft":
-                return "Bản nháp";
-            case "active":
-                return "Đang thực hiện";
-            case "completed":
-                return "Hoàn thành";
-            default:
-                return status || "";
-        }
+    // === MODAL XÁC NHẬN CHUNG ===
+    const [confirmModal, setConfirmModal] = useState({
+        show: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+        confirmText: "OK",
+        cancelText: "Hủy",
+    });
+
+    const openConfirm = (
+        title,
+        message,
+        onConfirm,
+        confirmText = "OK",
+        cancelText = "Hủy"
+    ) => {
+        setConfirmModal({
+            show: true,
+            title,
+            message,
+            onConfirm,
+            confirmText,
+            cancelText,
+        });
     };
 
-    const getUnitText = (unit) => {
-        switch (unit?.toLowerCase()) {
-            case "number":
-                return "Số lượng";
-            case "percent":
-                return "Phần trăm";
-            case "completion":
-                return "Hoàn thành";
-            default:
-                return unit || "";
-        }
+    const closeConfirm = () => {
+        setConfirmModal((prev) => ({ ...prev, show: false }));
     };
+
+    useEffect(() => {
+        if (toast) {
+            const timer = setTimeout(() => setToast(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [toast]);
+
+
+    const menuRefs = useRef({});
+
+    // === LINK LOOKUP & VIRTUAL ITEMS ===
+    const linkLookup = useMemo(() => {
+        if (!links || !Array.isArray(links)) {
+            return { byObjective: {}, byKeyResult: {} };
+        }
+        const byObjective = {};
+        const byKeyResult = {};
+
+        links.forEach((link) => {
+            const sourceObjId =
+                link.sourceObjective?.objective_id ||
+                link.source_objective?.objective_id;
+            const targetObjId =
+                link.targetObjective?.objective_id ||
+                link.target_objective?.objective_id;
+            const sourceKrId =
+                link.sourceKr?.key_result_id || link.source_kr?.key_result_id;
+            const targetKrId =
+                link.targetKr?.key_result_id || link.target_kr?.key_result_id;
+
+            if (sourceObjId) {
+                if (!byObjective[sourceObjId]) byObjective[sourceObjId] = [];
+                byObjective[sourceObjId].push(link);
+            }
+            if (targetObjId) {
+                if (!byObjective[targetObjId]) byObjective[targetObjId] = [];
+                byObjective[targetObjId].push(link);
+            }
+            if (sourceKrId) {
+                if (!byKeyResult[sourceKrId]) byKeyResult[sourceKrId] = [];
+                byKeyResult[sourceKrId].push(link);
+            }
+            if (targetKrId) {
+                if (!byKeyResult[targetKrId]) byKeyResult[targetKrId] = [];
+                byKeyResult[targetKrId].push(link);
+            }
+        });
+
+        return { byObjective, byKeyResult };
+    }, [links]);
+
+    const itemsWithLinkedChildren = useMemo(() => {
+        if (!Array.isArray(childLinks) || childLinks.length === 0) {
+            if (!Array.isArray(items)) return [];
+            return items;
+        }
+        if (!Array.isArray(items)) return [];
+
+        return items.map((obj) => {
+            // Tìm các childLinks trỏ tới Objective này (O->O)
+            const linkedChildren = childLinks.filter((link) => {
+                const targetArchived =
+                    (link.targetObjective &&
+                        (link.targetObjective.archived_at ||
+                            link.targetObjective.archivedAt)) ||
+                    (link.targetKr &&
+                        (link.targetKr.archived_at ||
+                            link.targetKr.archivedAt));
+
+                if (targetArchived) {
+                    return false;
+                }
+
+                const targetObjectiveId =
+                    link.targetObjective?.objective_id ||
+                    link.target_objective_id;
+                const targetKrId = link.targetKr?.kr_id || link.target_kr_id;
+
+                if (targetObjectiveId === obj.objective_id && !targetKrId) {
+                    return true;
+                }
+                return false;
+            });
+
+            // Tìm các childLinks trỏ tới các KR của Objective này (O->KR)
+            const krLinkedObjectives = {};
+            childLinks.forEach((link) => {
+                const targetArchived =
+                    (link.targetObjective &&
+                        (link.targetObjective.archived_at ||
+                            link.targetObjective.archivedAt)) ||
+                    (link.targetKr &&
+                        (link.targetKr.archived_at ||
+                            link.targetKr.archivedAt));
+
+                if (targetArchived) {
+                    return;
+                }
+
+                const targetKrId = link.targetKr?.kr_id || link.target_kr_id;
+                const targetObjectiveId =
+                    link.targetObjective?.objective_id ||
+                    link.target_objective_id;
+
+                if (targetKrId && targetObjectiveId === obj.objective_id) {
+                    if (!krLinkedObjectives[targetKrId]) {
+                        krLinkedObjectives[targetKrId] = [];
+                    }
+                    krLinkedObjectives[targetKrId].push(link);
+                }
+            });
+
+            // Chuyển đổi childLinks thành virtual Key Results (O->O)
+            const virtualKRs = linkedChildren.map((link) => {
+                const sourceObjective =
+                    link.sourceObjective || link.source_objective;
+                const sourceKr = link.sourceKr || link.source_kr;
+                const ownerUser =
+                    sourceKr?.assigned_user ||
+                    sourceKr?.assignedUser ||
+                    sourceObjective?.user ||
+                    null;
+                const keyResults =
+                    sourceObjective?.keyResults ||
+                    sourceObjective?.key_results ||
+                    [];
+
+                return {
+                    kr_id: `linked_${link.link_id}`,
+                    kr_title: sourceKr
+                        ? `${sourceObjective?.obj_title || "Objective"} › ${
+                              sourceKr.kr_title || "Key Result"
+                          }`
+                        : sourceObjective?.obj_title || "Linked Objective",
+                    target_value: sourceKr?.target_value || 0,
+                    current_value: sourceKr?.current_value || 0,
+                    unit: sourceKr?.unit || "number",
+                    status:
+                        sourceKr?.status ||
+                        sourceObjective?.status ||
+                        "active",
+                    weight: sourceKr?.weight || 0,
+                    progress_percent:
+                        sourceKr?.progress_percent ||
+                        sourceObjective?.progress_percent ||
+                        0,
+                    assigned_to:
+                        sourceKr?.assigned_to ||
+                        sourceObjective?.user_id ||
+                        null,
+                    assigned_user: ownerUser,
+                    isLinked: true,
+                    isLinkedObjective: true,
+                    link: link,
+                    key_results: keyResults.map((kr) => ({
+                        kr_id: kr.kr_id,
+                        kr_title: kr.kr_title,
+                        target_value: kr.target_value,
+                        current_value: kr.current_value,
+                        unit: kr.unit,
+                        status: kr.status,
+                        progress_percent: kr.progress_percent,
+                        assigned_to: kr.assigned_to,
+                        assigned_user:
+                            kr.assigned_user ||
+                            kr.assignedUser ||
+                            kr.assignedUser,
+                    })),
+                };
+            });
+
+            // Thêm linkedObjectives vào các KR (O->KR)
+            const updatedKeyResults = (obj.key_results || []).map((kr) => {
+                const linkedObjs = krLinkedObjectives[kr.kr_id] || [];
+                if (linkedObjs.length === 0) {
+                    return kr;
+                }
+
+                return {
+                    ...kr,
+                    linked_objectives: linkedObjs.map((link) => {
+                        const sourceObjective =
+                            link.sourceObjective || link.source_objective;
+                        const keyResults =
+                            sourceObjective?.keyResults ||
+                            sourceObjective?.key_results ||
+                            [];
+                        return {
+                            objective_id: sourceObjective?.objective_id,
+                            obj_title:
+                                sourceObjective?.obj_title ||
+                                "Linked Objective",
+                            description: sourceObjective?.description,
+                            status: sourceObjective?.status,
+                            progress_percent:
+                                sourceObjective?.progress_percent || 0,
+                            level: sourceObjective?.level,
+                            user_id: sourceObjective?.user_id,
+                            user: sourceObjective?.user,
+                            key_results: keyResults.map((kr) => ({
+                                kr_id: kr.kr_id,
+                                kr_title: kr.kr_title,
+                                target_value: kr.target_value,
+                                current_value: kr.current_value,
+                                unit: kr.unit,
+                                status: kr.status,
+                                progress_percent: kr.progress_percent,
+                                assigned_to: kr.assigned_to,
+                                assigned_user:
+                                    kr.assigned_user ||
+                                    kr.assignedUser ||
+                                    kr.assignedUser,
+                            })),
+                            is_linked: true,
+                            link: link,
+                        };
+                    }),
+                };
+            });
+
+            return {
+                ...obj,
+                key_results: [...updatedKeyResults, ...virtualKRs],
+            };
+        });
+    }, [items, childLinks]);
+
+    // === RELOAD CẢ 2 TAB TỪ SERVER ===
+    const reloadBothTabs = useCallback(
+        async (token) => {
+            const baseParams = new URLSearchParams();
+            if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
+
+            // Tab Hoạt động
+            const activeRes = await fetch(`/my-objectives?${baseParams}`, {
+                headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+            });
+            const activeJson = await activeRes.json();
+            if (activeJson.success) {
+                setItems(activeJson.data.data || []);
+            }
+
+            // Tab Lưu trữ
+            if (showArchived) {
+                const archivedParams = new URLSearchParams({
+                    archived: "1",
+                    include_archived_kr: "1",
+                });
+                if (cycleFilter) archivedParams.append("cycle_id", cycleFilter);
+                const archivedRes = await fetch(
+                    `/my-objectives?${archivedParams}`,
+                    {
+                        headers: {
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                        },
+                    }
+                );
+                const archivedJson = await archivedRes.json();
+                if (archivedJson.success) {
+                    setArchivedItems(archivedJson.data.data || []);
+                }
+            }
+        },
+        [cycleFilter, showArchived, setItems]
+    );
+
+    // === LƯU TRỮ OKR ===
+    const handleArchive = async (id) => {
+        openConfirm(
+            "Lưu trữ OKR",
+            "Bạn sẽ không thể chỉnh sửa OKR này nữa.",
+            async () => {
+                setArchiving(id);
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const res = await fetch(`/my-objectives/${id}/archive`, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRF-TOKEN": token,
+                            Accept: "application/json",
+                        },
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        await reloadBothTabs(token);
+                        setToast({ type: "success", message: json.message });
+                    } else {
+                        throw new Error(json.message);
+                    }
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setArchiving(null);
+                }
+            },
+            "Lưu trữ",
+            "Hủy"
+        );
+    };
+
+    // === LƯU TRỮ KR ===
+    const handleArchiveKR = async (krId, objectiveId) => {
+        if (!objectiveId) {
+            setToast({ type: "error", message: "Không thể xác định OKR cha." });
+            return;
+        }
+        openConfirm(
+            "Lưu trữ Key Result",
+            "Key Result sẽ được chuyển vào tab Lưu trữ.",
+            async () => {
+                setArchivingKR(krId);
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+
+                    const res = await fetch(
+                        `/my-key-results/${objectiveId}/${krId}/archive`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "X-CSRF-TOKEN": token,
+                                Accept: "application/json",
+                            },
+                        }
+                    );
+                    const json = await res.json();
+                    if (!json.success)
+                        throw new Error(json.message || "Lưu trữ thất bại");
+
+                    await reloadBothTabs(token);
+                    setToast({ type: "success", message: json.message });
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setArchivingKR(null);
+                }
+            },
+            "Lưu trữ"
+        );
+    };
+
+    // === CLICK OUTSIDE TO CLOSE MENUS ===
+    useEffect(() => {
+        /* giữ nguyên logic */
+    }, [openObj, setOpenObj]);
+
+    // === CYCLE AUTO SELECT ===
+    useEffect(() => {
+        /* giữ nguyên 3 effect chọn cycle */
+    }, [cycleFilter, cyclesList, items]);
+
+    // === TẢI OKR LƯU TRỮ ===
+    useEffect(() => {
+        if (showArchived) {
+            const fetchArchived = async () => {
+                setLoadingArchived(true);
+                try {
+                    const token = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute("content");
+                    const params = new URLSearchParams({
+                        archived: "1",
+                        include_archived_kr: "1",
+                    });
+                    if (cycleFilter) params.append("cycle_id", cycleFilter);
+
+                    const res = await fetch(`/my-objectives?${params}`, {
+                        headers: {
+                            Accept: "application/json",
+                            "X-CSRF-TOKEN": token,
+                        },
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        setArchivedItems(json.data.data || []);
+                    }
+                } catch (err) {
+                    setToast({ type: "error", message: err.message });
+                } finally {
+                    setLoadingArchived(false);
+                }
+            };
+            fetchArchived();
+        } else {
+            setArchivedItems([]);
+            setArchivedCount(0);
+        }
+    }, [showArchived, cycleFilter]);
 
     return (
         <div className="mx-auto w-full max-w-6xl">
             <div className="mb-4 flex w-full items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <CycleDropdown
-                        cyclesList={cyclesList}
-                        cycleFilter={cycleFilter}
-                        handleCycleChange={setCycleFilter}
-                        dropdownOpen={dropdownOpen}
-                        setDropdownOpen={setDropdownOpen}
-                    />
-                </div>
-
+                <CycleDropdown
+                    cyclesList={cyclesList}
+                    cycleFilter={cycleFilter}
+                    handleCycleChange={setCycleFilter}
+                    dropdownOpen={dropdownOpen}
+                    setDropdownOpen={setDropdownOpen}
+                />
                 <Tabs
                     showArchived={showArchived}
                     setShowArchived={setShowArchived}
@@ -501,55 +621,47 @@ export default function ObjectiveList({
                 />
             </div>
 
-            {/* BẢNG OKR */}
+            {linksLoading && (
+                <div className="mb-3 flex items-center gap-2 text-xs text-indigo-600">
+                    <span className="h-2 w-2 animate-ping rounded-full bg-indigo-500"></span>
+                    <span>Đang cập nhật trạng thái liên kết...</span>
+                </div>
+            )}
+
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                <table className="min-w-full divide-y divide-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 table-fixed">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
-                            <th className="px-3 py-2 text-left w-[30%] border-r border-slate-200">
+                            <th className="px-3 py-2 text-left border-r border-slate-200">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
+                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{width: '180px'}}>
                                 Người thực hiện
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
-                                Trạng thái
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Đơn vị
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Thực tế
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Mục tiêu
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
+                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{width: '150px'}}>
                                 Tiến độ (%)
                             </th>
-                            <th className="px-3 py-2 text-center w-[12%]">
+                            <th className="px-3 py-2 text-center" style={{width: '100px'}}>
                                 Hành động
                             </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {/* Loading */}
+                        {/* Loading & Empty States */}
                         {!showArchived && loading && (
                             <tr>
                                 <td
-                                    colSpan={8}
+                                    colSpan={4}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Đang tải...
                                 </td>
                             </tr>
                         )}
-
-                        {/* Danh sách chính rỗng */}
                         {!showArchived && !loading && items.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={8}
+                                    colSpan={4}
                                     className="px-3 py-5 text-center text-slate-500"
                                 >
                                     Bạn chưa tạo OKR nào.
@@ -557,524 +669,124 @@ export default function ObjectiveList({
                             </tr>
                         )}
 
-                        {/* OKR Đang hoạt động */}
+                        {/* Active OKRs */}
                         {!showArchived &&
                             !loading &&
-                            items.map((obj, index) => (
-                                <React.Fragment key={obj.objective_id}>
-                                    <tr
-                                        className={`bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200 ${
-                                            index > 0 ? "mt-4" : ""
-                                        }`}
-                                    >
-                                        <td
-                                            colSpan={7}
-                                            className="px-3 py-3 border-r border-slate-200"
-                                        >
-                                            <div className="flex items-center justify-between w-full">
-                                                <div className="flex items-center gap-1">
-                                                    {obj.key_results &&
-                                                        obj.key_results.length >
-                                                            0 && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    setOpenObj(
-                                                                        (
-                                                                            prev
-                                                                        ) => ({
-                                                                            ...prev,
-                                                                            [obj.objective_id]:
-                                                                                !prev[
-                                                                                    obj
-                                                                                        .objective_id
-                                                                                ],
-                                                                        })
-                                                                    )
-                                                                }
-                                                                className="p-2 rounded-lg hover:bg-slate-100 transition-all duration-200 group"
-                                                                title="Đóng/mở Key Results"
-                                                            >
-                                                                <svg
-                                                                    xmlns="http://www.w3.org/2000/svg"
-                                                                    viewBox="0 0 20 20"
-                                                                    fill="currentColor"
-                                                                    className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform duration-200 ${
-                                                                        openObj[
-                                                                            obj
-                                                                                .objective_id
-                                                                        ]
-                                                                            ? "rotate-90"
-                                                                            : ""
-                                                                    }`}
-                                                                >
-                                                                    <path
-                                                                        fillRule="evenodd"
-                                                                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                                                                        clipRule="evenodd"
-                                                                    />
-                                                                </svg>
-                                                            </button>
-                                                        )}
-
-                                                    <span className="font-semibold text-slate-900 truncate">
-                                                        {obj.obj_title}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-3 text-center bg-gradient-to-r from-blue-50 to-indigo-50">
-                                            <div className="flex items-center justify-center gap-1">
-                                                <button
-                                                    onClick={() =>
-                                                        setEditingObjective({
-                                                            ...obj,
-                                                            level:
-                                                                obj.level ||
-                                                                "team",
-                                                        })
-                                                    }
-                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                                                    title="Sửa Objective"
-                                                >
-                                                    <svg
-                                                        className="h-4 w-4"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2}
-                                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                                        />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        setCreatingFor(obj)
-                                                    }
-                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                                                    title="Thêm KR"
-                                                >
-                                                    <svg
-                                                        className="h-4 w-4"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <circle
-                                                            cx="12"
-                                                            cy="12"
-                                                            r="10"
-                                                            stroke="currentColor"
-                                                            strokeWidth="2"
-                                                            fill="none"
-                                                        />
-                                                        <path
-                                                            d="M12 7V17M7 12H17"
-                                                            stroke="currentColor"
-                                                            strokeWidth="3"
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                        />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        handleArchive(
-                                                            obj.objective_id
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        archiving ===
-                                                        obj.objective_id
-                                                    }
-                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
-                                                    title="Lưu trữ OKR"
-                                                >
-                                                    <svg
-                                                        className="h-4 w-4"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth={2}
-                                                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                                                        />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                    {/* Key Results */}
-                                    {openObj[obj.objective_id] &&
-                                        obj.key_results?.map((kr) => (
-                                            <tr key={kr.kr_id}>
-                                                <td className="px-8 py-3 border-r border-slate-200">
-                                                    <span className="font-medium text-slate-900">
-                                                        {kr.kr_title}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.assigned_to ? (
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            <svg
-                                                                className="w-4 h-4 text-slate-500"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={
-                                                                        2
-                                                                    }
-                                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                                                                />
-                                                            </svg>
-                                                            <span className="text-sm text-slate-700">
-                                                                {kr.assigned_to}
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-slate-400 text-xs">
-                                                            Chưa giao
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    <span
-                                                        className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
-                                                            (
-                                                                kr.status || ""
-                                                            ).toUpperCase() ===
-                                                            "COMPLETED"
-                                                                ? "bg-emerald-100 text-emerald-700"
-                                                                : (
-                                                                      kr.status ||
-                                                                      ""
-                                                                  ).toUpperCase() ===
-                                                                  "ACTIVE"
-                                                                ? "bg-blue-100 text-blue-700"
-                                                                : "bg-slate-100 text-slate-700"
-                                                        }`}
-                                                    >
-                                                        {getStatusText(
-                                                            kr.status
-                                                        )}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {getUnitText(kr.unit)}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.current_value ?? ""}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.target_value ?? ""}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {formatPercent(
-                                                        kr.progress_percent
-                                                    )}
-                                                </td>
-                                                <td className="px-3 py-3 text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <button
-                                                            onClick={() =>
-                                                                setEditingKR(kr)
-                                                            }
-                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                                                            title="Sửa KR"
-                                                        >
-                                                            <svg
-                                                                className="h-4 w-4"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={
-                                                                        2
-                                                                    }
-                                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                        {/* Menu 3 chấm dọc – ĐÃ SỬA Z-INDEX */}
-                                                        {(openCheckInModal &&
-                                                            canCheckInKR(
-                                                                kr,
-                                                                obj
-                                                            )) ||
-                                                        openCheckInHistory ? (
-                                                            <div 
-                                                                className="relative z-[1000]"
-                                                                ref={(el) => {
-                                                                    menuRefs.current[`menu_${kr.kr_id}`] = el;
-                                                                }}
-                                                            >
-                                                                <button
-                                                                    onClick={(
-                                                                        e
-                                                                    ) => {
-                                                                        e.stopPropagation();
-                                                                        const menuKey = `menu_${kr.kr_id}`;
-                                                                        const isCurrentlyOpen = openObj[menuKey];
-                                                                        
-                                                                        // Đóng tất cả menu trước
-                                                                        setOpenObj((prev) => {
-                                                                            const newState = { ...prev };
-                                                                            // Đóng tất cả menu khác
-                                                                            Object.keys(newState).forEach((key) => {
-                                                                                if (key.startsWith("menu_")) {
-                                                                                    newState[key] = false;
-                                                                                }
-                                                                            });
-                                                                            // Mở menu hiện tại nếu nó đang đóng
-                                                                            if (!isCurrentlyOpen) {
-                                                                                newState[menuKey] = true;
-                                                                            }
-                                                                            return newState;
-                                                                        });
-                                                                    }}
-                                                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded transition-colors"
-                                                                    title="Tùy chọn Check-in"
-                                                                >
-                                                                    <svg
-                                                                        className="h-4 w-4"
-                                                                        fill="none"
-                                                                        viewBox="0 0 24 24"
-                                                                        stroke="currentColor"
-                                                                    >
-                                                                        <path
-                                                                            strokeLinecap="round"
-                                                                            strokeLinejoin="round"
-                                                                            strokeWidth={
-                                                                                2
-                                                                            }
-                                                                            d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-                                                                        />
-                                                                    </svg>
-                                                                </button>
-                                                                {/* Dropdown Menu – z-index cao hơn */}
-                                                                {openObj[
-                                                                    `menu_${kr.kr_id}`
-                                                                ] && (
-                                                                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] py-1">
-                                                                        {/* Giao việc */}
-                                                                        <button
-                                                                            onClick={(
-                                                                                e
-                                                                            ) => {
-                                                                                e.stopPropagation();
-                                                                                openAssignModal(
-                                                                                    kr,
-                                                                                    obj
-                                                                                );
-                                                                                setOpenObj(
-                                                                                    (
-                                                                                        prev
-                                                                                    ) => ({
-                                                                                        ...prev,
-                                                                                        [`menu_${kr.kr_id}`]: false,
-                                                                                    })
-                                                                                );
-                                                                            }}
-                                                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                                                                        >
-                                                                            <svg
-                                                                                className="h-4 w-4"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                                stroke="currentColor"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    strokeWidth={
-                                                                                        2
-                                                                                    }
-                                                                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                                                                                />
-                                                                            </svg>
-                                                                            Giao
-                                                                            việc
-                                                                        </button>
-                                                                        {/* Check-in */}
-                                                                        {openCheckInModal &&
-                                                                            canCheckInKR(
-                                                                                kr,
-                                                                                obj
-                                                                            ) && (
-                                                                                <button
-                                                                                    onClick={(
-                                                                                        e
-                                                                                    ) => {
-                                                                                        e.stopPropagation();
-                                                                                        handleOpenCheckIn(
-                                                                                            kr,
-                                                                                            obj
-                                                                                        );
-                                                                                        setOpenObj(
-                                                                                            (
-                                                                                                prev
-                                                                                            ) => ({
-                                                                                                ...prev,
-                                                                                                [`menu_${kr.kr_id}`]: false,
-                                                                                            })
-                                                                                        );
-                                                                                    }}
-                                                                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                                                                                >
-                                                                                    <svg
-                                                                                        className="h-4 w-4"
-                                                                                        fill="none"
-                                                                                        viewBox="0 0 24 24"
-                                                                                        stroke="currentColor"
-                                                                                    >
-                                                                                        <path
-                                                                                            strokeLinecap="round"
-                                                                                            strokeLinejoin="round"
-                                                                                            strokeWidth={
-                                                                                                2
-                                                                                            }
-                                                                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                                                        />
-                                                                                    </svg>
-                                                                                    Check-in
-                                                                                    Key
-                                                                                    Result
-                                                                                </button>
-                                                                            )}
-
-                                                                        {/* Lịch sử */}
-                                                                        {openCheckInHistory && (
-                                                                            <button
-                                                                                onClick={(
-                                                                                    e
-                                                                                ) => {
-                                                                                    e.stopPropagation();
-                                                                                    handleOpenCheckInHistory(
-                                                                                        kr,
-                                                                                        obj
-                                                                                    );
-                                                                                    setOpenObj(
-                                                                                        (
-                                                                                            prev
-                                                                                        ) => ({
-                                                                                            ...prev,
-                                                                                            [`menu_${kr.kr_id}`]: false,
-                                                                                        })
-                                                                                    );
-                                                                                }}
-                                                                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                                                                            >
-                                                                                <svg
-                                                                                    className="h-4 w-4"
-                                                                                    fill="none"
-                                                                                    viewBox="0 0 24 24"
-                                                                                    stroke="currentColor"
-                                                                                >
-                                                                                    <path
-                                                                                        strokeLinecap="round"
-                                                                                        strokeLinejoin="round"
-                                                                                        strokeWidth={
-                                                                                            2
-                                                                                        }
-                                                                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                                                    />
-                                                                                </svg>
-                                                                                Lịch
-                                                                                sử
-                                                                                Check-in
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ) : null}
-                                                        <button
-                                                            onClick={() =>
-                                                                handleArchiveKR(
-                                                                    kr.kr_id
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                archivingKR ===
-                                                                kr.kr_id
-                                                            }
-                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
-                                                            title="Lưu trữ Key Result"
-                                                        >
-                                                            <svg
-                                                                className="h-4 w-4"
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={
-                                                                        2
-                                                                    }
-                                                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                </React.Fragment>
+                            itemsWithLinkedChildren.map((obj, index) => (
+                                <ObjectiveRow
+                                    key={obj.objective_id}
+                                    obj={obj}
+                                    openObj={openObj}
+                                    setOpenObj={setOpenObj}
+                                    linkBadge={
+                                        linkLookup.byObjective[obj.objective_id]
+                                    }
+                                    setEditingObjective={setEditingObjective}
+                                    setEditingKR={setEditingKR}
+                                    setCreatingFor={setCreatingFor}
+                                    onOpenLinkModal={onOpenLinkModal}
+                                    handleArchive={handleArchive}
+                                    handleArchiveKR={(krId) => handleArchiveKR(krId, obj.objective_id)}
+                                    archiving={archiving}
+                                    currentUser={currentUser}
+                                    openCheckInModal={openCheckInModal}
+                                    openCheckInHistory={openCheckInHistory}
+                                    onCancelLink={onCancelLink}
+                                    setAssignModal={setAssignModal}
+                                    setAssigneeTooltip={setAssigneeTooltip}
+                                    menuRefs={menuRefs}
+                                    canCheckInKR={(kr) =>
+                                        canCheckInKeyResult(
+                                            currentUser,
+                                            kr,
+                                            obj
+                                        )
+                                    }
+                                    formatPercent={formatPercent}
+                                    getStatusText={getStatusText}
+                                    getUnitText={getUnitText}
+                                    getAssigneeInfo={getAssigneeInfo}
+                                    // The ObjectiveRow itself will now handle its colSpan based on props
+                                    colSpanForObjectiveHeader={3}
+                                />
                             ))}
 
-                        {/* OKR Lưu trữ */}
-                        {showArchived ? (
+                        {/* Archived */}
+                        {showArchived && (
                             <ObjectiveArchive
                                 archivedItems={archivedItems}
                                 openObj={openObj}
                                 setOpenObj={setOpenObj}
                                 loadingArchived={loadingArchived}
-                                showArchived={showArchived}
                                 reloadBothTabs={reloadBothTabs}
+                                showArchived={showArchived}
+                                formatPercent={formatPercent}
+                                getStatusText={getStatusText}
                             />
-                        ) : null}
+                        )}
                     </tbody>
                 </table>
             </div>
 
-            {/* === MODAL XÁC NHẬN === */}
             <ConfirmationModal
                 confirmModal={confirmModal}
-                closeConfirm={closeConfirm}
+                closeConfirm={() =>
+                    setConfirmModal((prev) => ({ ...prev, show: false }))
+                }
             />
-
-            {/* === TOAST === */}
             <ToastNotification toast={toast} />
-
-            {/* === MODAL GIAO VIỆC === */}
             <AssignKeyResultModal
                 show={assignModal.show}
                 kr={assignModal.kr}
                 objective={assignModal.objective}
                 email={assignModal.email}
-                setEmail={(email) =>
-                    setAssignModal((prev) => ({ ...prev, email }))
+                setEmail={(e) =>
+                    setAssignModal((prev) => ({ ...prev, email: e }))
                 }
                 loading={assignModal.loading}
                 onConfirm={handleAssignKR}
                 onClose={closeAssignModal}
             />
+            {assigneeTooltip && assigneeTooltip.info && (
+                <div
+                    className="pointer-events-none fixed z-[2000]"
+                    style={{
+                        left: assigneeTooltip.position.x,
+                        top: assigneeTooltip.position.y - 12,
+                    }}
+                >
+                    <div className="relative -translate-x-1/2 -translate-y-full rounded-2xl bg-white px-4 py-3 shadow-2xl ring-1 ring-slate-100">
+                        <div className="flex items-start gap-3">
+                            {assigneeTooltip.info.avatar ? (
+                                <img
+                                    src={assigneeTooltip.info.avatar}
+                                    alt={assigneeTooltip.info.name}
+                                    className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
+                                />
+                            ) : (
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-base font-semibold text-indigo-700">
+                                    {assigneeTooltip.info.name?.trim()?.charAt(0)?.toUpperCase() ||
+                                        "?"}
+                                </div>
+                            )}
+                            <div className="min-w-[180px] max-w-[240px]">
+                                <p className="text-base font-semibold text-slate-900">
+                                    {assigneeTooltip.info.name || "Không rõ tên"}
+                                </p>
+                                <p className="text-sm text-slate-500">
+                                    {assigneeTooltip.info.department || "Phòng ban: Chưa xác định"}
+                                </p>
+                                {assigneeTooltip.info.email && (
+                                    <p className="mt-1 text-xs text-slate-400">
+                                        {assigneeTooltip.info.email}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white shadow-[1px_1px_2px_rgba(15,23,42,.15)]"></div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

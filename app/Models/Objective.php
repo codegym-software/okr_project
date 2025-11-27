@@ -76,6 +76,26 @@ class Objective extends Model
     }
 
     /**
+     * Get OKR links where this objective is the source
+     */
+    public function sourceLinks()
+    {
+        return $this->hasMany(OkrLink::class, 'source_objective_id', 'objective_id')
+            ->where('is_active', true)
+            ->where('status', OkrLink::STATUS_APPROVED);
+    }
+
+    /**
+     * Get OKR links where this objective is the target
+     */
+    public function targetLinks()
+    {
+        return $this->hasMany(OkrLink::class, 'target_objective_id', 'objective_id')
+            ->where('is_active', true)
+            ->where('status', OkrLink::STATUS_APPROVED);
+    }
+
+    /**
      * Append key_results to array/JSON
      */
     protected $appends = [];

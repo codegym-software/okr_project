@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import Dropdown, {
     DropdownItem,
     DropdownHeader,
@@ -29,6 +29,235 @@ function SidebarItem({ icon, label, href, collapsed, isActive = false }) {
             </span>
             {!collapsed && <span className="truncate">{label}</span>}
         </a>
+    );
+}
+
+function NotificationBell() {
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    const fetchNotifications = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError("");
+            const res = await fetch("/api/notifications", {
+                headers: { Accept: "application/json" },
+            });
+            const json = await res.json();
+            if (!res.ok || json.success === false) {
+                throw new Error(json.message || "Không thể tải thông báo");
+            }
+            setNotifications(json.data?.items || []);
+            setUnreadCount(json.data?.unread ?? 0);
+        } catch (err) {
+            setError(err.message || "Không thể tải thông báo");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchNotifications();
+        const interval = setInterval(fetchNotifications, 60000);
+        return () => clearInterval(interval);
+    }, [fetchNotifications]);
+
+    const csrfToken =
+        typeof document !== "undefined"
+            ? document
+                  .querySelector('meta[name="csrf-token"]')
+                  ?.getAttribute("content") || ""
+            : "";
+
+    const updateLocalReadState = (ids) => {
+        const map = new Set(ids);
+        setNotifications((prev) =>
+            prev.map((item) =>
+                map.has(item.notification_id)
+                    ? { ...item, is_read: true }
+                    : item
+            )
+        );
+    };
+
+    const markAsRead = async (notificationId) => {
+        if (!notificationId) return;
+
+        if (!csrfToken) {
+            setError("Thiếu CSRF token. Vui lòng tải lại trang.");
+            return;
+        }
+
+        try {
+            const res = await fetch(
+                `/api/notifications/${notificationId}/read`,
+                {
+                    method: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": csrfToken,
+                        Accept: "application/json",
+                    },
+                }
+            );
+            if (!res.ok) {
+                throw new Error("Không thể cập nhật thông báo");
+            }
+            updateLocalReadState([notificationId]);
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+        } catch (err) {
+            setError(err.message || "Không thể cập nhật thông báo");
+            fetchNotifications();
+        }
+    };
+
+    const markAllAsRead = async () => {
+        if (unreadCount === 0) return;
+
+        if (!csrfToken) {
+            setError("Thiếu CSRF token. Vui lòng tải lại trang.");
+            return;
+        }
+
+        try {
+            const res = await fetch("/api/notifications/mark-all-read", {
+                method: "POST",
+                headers: {
+                    "X-CSRF-TOKEN": csrfToken,
+                    Accept: "application/json",
+                },
+            });
+            if (!res.ok) {
+                throw new Error("Không thể cập nhật thông báo");
+            }
+            updateLocalReadState(
+                notifications.map((item) => item.notification_id)
+            );
+            setUnreadCount(0);
+        } catch (err) {
+            setError(err.message || "Không thể cập nhật thông báo");
+            fetchNotifications();
+        }
+    };
+
+    const formatTimestamp = (value) => {
+        if (!value) return "";
+        try {
+            return new Date(value).toLocaleString("vi-VN", {
+                hour: "2-digit",
+                minute: "2-digit",
+                day: "2-digit",
+                month: "2-digit",
+            });
+        } catch (e) {
+            return value;
+        }
+    };
+
+    const formatTypeLabel = (type) => {
+        if (!type) return "THÔNG BÁO";
+        const map = {
+            okr_link: "OKR LINK",
+        };
+        return map[type] || type.replace(/_/g, " ").toUpperCase();
+    };
+
+    return (
+        <Dropdown
+            position="right"
+            zIndex={10000}
+            className="min-w-[320px]"
+            trigger={
+                <button
+                    className="relative rounded-full border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 transition"
+                    aria-label="Thông báo"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                    >
+                        <path d="M12 2a7 7 0 00-7 7v4.09l-.94 1.88A1 1 0 005 16h14a1 1 0 00.88-1.45L19 13.09V9a7 7 0 00-7-7zm0 20a3 3 0 01-2.995-2.824L9 19h6a3 3 0 01-2.824 2.995L12 22z" />
+                    </svg>
+                    {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                        </span>
+                    )}
+                </button>
+            }
+        >
+            <DropdownHeader>
+                <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-slate-900">Thông báo</p>
+                    <button
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:text-slate-400"
+                        onClick={markAllAsRead}
+                        disabled={unreadCount === 0}
+                    >
+                        Đánh dấu đã đọc
+                    </button>
+                </div>
+            </DropdownHeader>
+            <DropdownContent>
+                <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto">
+                    {loading && (
+                        <div className="px-4 py-6 text-center text-sm text-slate-500">
+                            Đang tải thông báo...
+                        </div>
+                    )}
+                    {!loading && notifications.length === 0 && (
+                        <div className="px-4 py-6 text-center text-sm text-slate-500">
+                            Bạn chưa có thông báo mới
+                        </div>
+                    )}
+                    {!loading &&
+                        notifications.map((item) => (
+                            <button
+                                key={item.notification_id}
+                                onClick={() => markAsRead(item.notification_id)}
+                                className={`w-full text-left px-4 py-3 text-sm transition ${
+                                    item.is_read
+                                        ? "bg-white hover:bg-slate-50"
+                                        : "bg-indigo-50/80 hover:bg-indigo-100"
+                                }`}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <span
+                                        className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                                            item.is_read
+                                                ? "bg-slate-300"
+                                                : "bg-indigo-500"
+                                        }`}
+                                    />
+                                    <div className="flex-1">
+                                        <p className="font-semibold text-slate-900 whitespace-pre-line leading-snug">
+                                            {item.message}
+                                        </p>
+                                        <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                                            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
+                                                {formatTypeLabel(item.type)}
+                                            </span>
+                                            <span className="tabular-nums">
+                                                {formatTimestamp(
+                                                    item.created_at
+                                                )}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                </div>
+                {error && (
+                    <div className="px-4 py-2 text-xs text-rose-600">
+                        {error}
+                    </div>
+                )}
+            </DropdownContent>
+        </Dropdown>
     );
 }
 
@@ -105,7 +334,7 @@ function DashboardSidebar({ open, user }) {
                     <SidebarItem
                         collapsed={collapsed}
                         href="/cycles"
-                        label="Chu kỳ"
+                        label="Quản lý chu kỳ"
                         icon={
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -153,7 +382,7 @@ function DashboardSidebar({ open, user }) {
                     <SidebarItem
                         collapsed={collapsed}
                         href="/departments"
-                        label="Phòng ban & Đội nhóm"
+                        label="Quản lý phòng ban"
                         icon={
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -240,6 +469,7 @@ function DashboardTopbar({
                 />
             </div>
             <div className="flex items-center gap-3">
+                <NotificationBell />
                 <Dropdown
                     position="right"
                     zIndex={10000}
@@ -356,7 +586,7 @@ export default function DashboardLayout({ children, user }) {
             {/* Sidebar */}
             <div
                 className={`${
-                    sidebarOpen ? "w-64" : "w-20"
+                    sidebarOpen ? "w-67" : "w-20"
                 } bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 z-10 transition-all duration-300`}
             >
                 <div className={`p-6 ${!sidebarOpen ? "px-3" : ""}`}>
@@ -662,8 +892,8 @@ export default function DashboardLayout({ children, user }) {
                                                             "/users",
                                                         ].map((path, i) => {
                                                             const labels = [
-                                                                "Chu kỳ",
-                                                                "Phòng ban/Đội nhóm",
+                                                                "Quản lý chu kỳ",
+                                                                "Quản lý phòng ban",
                                                                 "Quản lý người dùng",
                                                             ];
                                                             return (
@@ -733,7 +963,7 @@ export default function DashboardLayout({ children, user }) {
             {/* Header */}
             <div
                 className={`${
-                    sidebarOpen ? "ml-64" : "ml-20"
+                    sidebarOpen ? "ml-67" : "ml-20"
                 } bg-white border-b border-gray-200 px-6 py-4 transition-all duration-300`}
             >
                 <div className="flex items-center justify-between">
@@ -754,6 +984,7 @@ export default function DashboardLayout({ children, user }) {
                         </button>
                     </div>
                     <div className="flex items-center space-x-4">
+                        <NotificationBell />
                         <Dropdown
                             position="right"
                             zIndex={10000}
@@ -837,7 +1068,7 @@ export default function DashboardLayout({ children, user }) {
             {/* Main Content */}
             <div
                 className={`${
-                    sidebarOpen ? "ml-64" : "ml-20"
+                    sidebarOpen ? "ml-67" : "ml-20"
                 } transition-all duration-300`}
             >
                 {children}
