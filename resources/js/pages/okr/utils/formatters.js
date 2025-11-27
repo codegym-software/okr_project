@@ -30,8 +30,18 @@ export const getUnitText = (unit) => {
     }
 };
 
+const DEFAULT_AVATAR_URL = "/images/default.png";
+
 export const getAssigneeInfo = (kr) => {
+    if (!kr)
+        return {
+            name: "",
+            avatar: DEFAULT_AVATAR_URL,
+            department: null,
+            email: "",
+        };
     const user = kr.assigned_user || kr.assignedUser || kr.assignee || null;
+
     if (user) {
         return {
             name:
@@ -40,19 +50,28 @@ export const getAssigneeInfo = (kr) => {
                 user.name ||
                 user.username ||
                 user.email ||
-                "User",
+                `User ${user.user_id || ""}`,
             avatar:
                 user.avatar_url ||
                 user.avatar ||
                 user.profile_photo_url ||
-                null,
+                user.profile_photo_path ||
+                user.photo_url ||
+                DEFAULT_AVATAR_URL,
             department:
                 user.department?.d_name ||
                 user.department?.name ||
                 user.department_name ||
+                user.department ||
                 null,
             email: user.email || "",
         };
     }
-    return { name: "", avatar: null, department: null, email: "" };
+
+    return {
+        name: kr.assigned_to || "",
+        avatar: DEFAULT_AVATAR_URL,
+        department: null,
+        email: "",
+    };
 };
