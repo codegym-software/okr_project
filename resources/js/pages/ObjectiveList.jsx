@@ -714,7 +714,7 @@ export default function ObjectiveList({
                                     {/* Key Results */}
                                     {openObj[obj.objective_id] &&
                                         obj.key_results?.map((kr) => (
-                                            <tr key={kr.kr_id}>
+                                            <tr key={kr.kr_id} className="group hover:bg-blue-50/50 transition-colors">
                                                 <td className="px-8 py-3 border-r border-slate-200">
                                                     <span className="font-medium text-slate-900">
                                                         {kr.kr_title}
@@ -786,6 +786,31 @@ export default function ObjectiveList({
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-1">
+                                                        {/* Nút Check-in - hiển thị khi hover và có quyền */}
+                                                        {openCheckInModal && canCheckInKR(kr, obj) && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleOpenCheckIn(kr, obj);
+                                                                }}
+                                                                className="p-1.5 rounded-md hover:bg-blue-100 transition-all opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 bg-blue-50 border border-blue-200"
+                                                                title="Check-in"
+                                                            >
+                                                                <svg
+                                                                    className="h-4 w-4 text-blue-600"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={2}
+                                                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                                    />
+                                                                </svg>
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() =>
                                                                 setEditingKR(kr)
