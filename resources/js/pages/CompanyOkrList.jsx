@@ -2,7 +2,29 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
-import ObjectiveList from "./ObjectiveList"; // Assuming text.txt is ObjectiveList.jsx
+import ObjectiveList from "./ObjectiveList"; // Corrected import
+
+// Helper functions copied from ObjectivesPage.jsx
+const pickRelation = (link, camel, snake) =>
+    (link && link[camel]) || (link && link[snake]) || null;
+
+const normalizeLinkData = (link) => {
+    if (!link || typeof link !== "object") return link;
+    return {
+        ...link,
+        sourceObjective: pickRelation(link, "sourceObjective", "source_objective"),
+        sourceKr: pickRelation(link, "sourceKr", "source_kr"),
+        targetObjective: pickRelation(link, "targetObjective", "target_objective"),
+        targetKr: pickRelation(link, "targetKr", "target_kr"),
+        requester: pickRelation(link, "requester", "requester"),
+        targetOwner: pickRelation(link, "targetOwner", "target_owner"),
+        approver: pickRelation(link, "approver", "approver"),
+    };
+};
+
+const normalizeLinksList = (list) =>
+    Array.isArray(list) ? list.map((item) => normalizeLinkData(item)) : [];
+
 
 export default function CompanyOkrList() {
     const [items, setItems] = useState([]);
@@ -13,6 +35,8 @@ export default function CompanyOkrList() {
     const [cyclesList, setCyclesList] = useState([]);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
+    const [childLinks, setChildLinks] = useState([]); // State for linked OKRs
+    const [linksLoading, setLinksLoading] = useState(false); // Loading state for links
 
     // Fetch current user
     useEffect(() => {
@@ -27,17 +51,14 @@ export default function CompanyOkrList() {
                 }
             } catch (err) {
                 console.error("Failed to fetch user:", err);
-                setToast({
-                    type: "error",
-                    message: "Không thể tải thông tin người dùng.",
-                });
+                setToast({ type: "error", message: "Không thể tải thông tin người dùng." });
             }
         };
         fetchUser();
     }, []);
 
     // ============================================================
-    // CHỌN QUÝ MẶC ĐỊNH DỰA TRÊN NGÀY (HOÀN TOÀN KHÔNG DỰA VÀO TÊN!)
+    // CHỌN QUÝ MẶC ĐỊNH
     // ============================================================
     useEffect(() => {
         (async () => {
@@ -60,11 +81,10 @@ export default function CompanyOkrList() {
                 setCyclesList(cycles);
 
                 const today = new Date();
-                today.setHours(0, 0, 0, 0); // chuẩn hóa
+                today.setHours(0, 0, 0, 0); 
 
                 let selectedCycle = null;
 
-                // Ưu tiên 1: Dùng start_date / end_date (nếu có)
                 for (const c of cycles) {
                     const start = c.start_date ? new Date(c.start_date) : null;
                     const end = c.end_date ? new Date(c.end_date) : null;
@@ -80,7 +100,6 @@ export default function CompanyOkrList() {
                     }
                 }
 
-                // Ưu tiên 2: Nếu không có quý nào đang active → chọn quý gần nhất với hôm nay
                 if (!selectedCycle) {
                     selectedCycle = cycles.reduce((best, c) => {
                         const start = c.start_date
@@ -90,7 +109,6 @@ export default function CompanyOkrList() {
 
                         let refDate = today;
                         if (start && end) {
-                            // Dùng ngày giữa quý làm tham chiếu
                             refDate = new Date(
                                 (start.getTime() + end.getTime()) / 2
                             );
@@ -99,7 +117,6 @@ export default function CompanyOkrList() {
                         } else if (end) {
                             refDate = end;
                         } else {
-                            // Nếu không có ngày → dùng cycle_id lớn nhất (quý mới nhất)
                             return !best || c.cycle_id > best.cycle_id
                                 ? c
                                 : best;
@@ -112,7 +129,6 @@ export default function CompanyOkrList() {
                     }, null);
                 }
 
-                // An toàn tuyệt đối
                 setCycleFilter(selectedCycle?.cycle_id || cycles[0]?.cycle_id);
             } catch (err) {
                 console.error(err);
@@ -122,58 +138,68 @@ export default function CompanyOkrList() {
         })();
     }, []);
 
-    // Xóa cycle_id trên URL
-    useEffect(() => {
-        const url = new URL(window.location);
-        if (url.searchParams.has("cycle_id")) {
-            url.searchParams.delete("cycle_id");
-            window.history.replaceState({}, "", url);
-        }
-    }, []);
-
     // ============================================================
-    // LẤY OKR CÔNG TY
+    // LẤY OKR CÔNG TY VÀ CÁC LIÊN KẾT
     // ============================================================
-    const fetchCompanyOkrs = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         if (!cycleFilter) {
             setLoading(false);
             return;
         }
         setLoading(true);
+        setLinksLoading(true);
         try {
             const params = new URLSearchParams({ cycle_id: cycleFilter });
-            const res = await fetch(`/company-okrs?${params}`, {
-                headers: { Accept: "application/json" },
-            });
-            const json = await res.json();
-            if (json.success) {
-                setItems(json.data.data || []); // Adjusted for pagination
+            
+            const [okrRes, linksRes] = await Promise.all([
+                fetch(`/company-okrs?${params}`, { headers: { Accept: "application/json" } }),
+                fetch(`/my-links`, { headers: { Accept: "application/json" } })
+            ]);
+
+            const okrJson = await okrRes.json();
+            if (okrJson.success) {
+                setItems(okrJson.data.data || []);
+            } else {
+                throw new Error("Không tải được OKR công ty");
             }
+
+            const linksJson = await linksRes.json();
+            if (linksJson.success) {
+                setChildLinks(normalizeLinksList(linksJson.data?.children || []));
+            } else {
+                console.warn("Không thể tải dữ liệu liên kết");
+                setChildLinks([]);
+            }
+
         } catch (err) {
-            setToast({ type: "error", message: "Không tải được OKR công ty" });
+            setToast({ type: "error", message: err.message });
             setItems([]);
+            setChildLinks([]);
         } finally {
             setLoading(false);
+            setLinksLoading(false);
         }
     }, [cycleFilter]);
 
     useEffect(() => {
-        fetchCompanyOkrs();
-    }, [fetchCompanyOkrs]);
+        fetchData();
+    }, [fetchData]);
 
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
             <ObjectiveList
                 items={items}
                 cyclesList={cyclesList}
-                loading={loading}
+                loading={loading || linksLoading}
                 openObj={openObj}
                 setOpenObj={setOpenObj}
                 cycleFilter={cycleFilter}
                 setCycleFilter={setCycleFilter}
                 currentUser={currentUser}
                 setItems={setItems}
-                // Stub interactive props since this is a read-only view
+                childLinks={childLinks} // Pass childLinks data
+                linksLoading={linksLoading}
+                // Stub interactive props as this is a read-only view for now
                 setCreatingFor={() => {}}
                 setEditingObjective={() => {}}
                 setEditingKR={() => {}}
@@ -182,7 +208,7 @@ export default function CompanyOkrList() {
                 openCheckInHistory={() => {}}
                 onOpenLinkModal={() => {}}
                 onCancelLink={() => {}}
-                hideFilters={false} // You might want to control this
+                hideFilters={false}
             />
             <ToastNotification toast={toast} />
         </div>
