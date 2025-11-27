@@ -52,26 +52,26 @@ class CompanyOkrController extends Controller
             }
         }
 
-        // === 2. QUERY OKR CÔNG KHAI (chỉ company + unit) ===
+        // === 2. QUERY OKR CÔNG KHAI (chỉ company) ===
         $query = Objective::with([
                 'keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at'),
                 'department',
                 'cycle',
                 'user' => fn($q) => $q->select('user_id', 'full_name', 'avatar_url'),
+                'assignments.user',
+                'assignments.role',
             ])
             ->whereNull('archived_at')
-            ->whereIn('level', ['company', 'unit'])
+            ->where('level', 'company')
             ->when($request->filled('cycle_id'), fn($q) => $q->where('cycle_id', $request->cycle_id))
-            ->orderByRaw("CASE WHEN level = 'company' THEN 1 ELSE 2 END")
-            ->orderBy('department_id')
             ->orderBy('created_at', 'desc');
 
-        $objectives = $query->get();
+        $objectives = $query->paginate(10); // Sử dụng paginate
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'data' => $objectives,                    // ← mảng Objective
+                'data' => $objectives,                    // ← dữ liệu đã được paginate
                 'current_cycle_id' => $currentCycleId,
                 'current_cycle_name' => $currentCycleName,
             ]);

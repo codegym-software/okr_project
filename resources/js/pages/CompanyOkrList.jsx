@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
+import ObjectiveList from "./ObjectiveList"; // Assuming text.txt is ObjectiveList.jsx
 
 export default function CompanyOkrList() {
     const [items, setItems] = useState([]);
@@ -11,6 +12,29 @@ export default function CompanyOkrList() {
     const [openObj, setOpenObj] = useState({});
     const [cyclesList, setCyclesList] = useState([]);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
+
+    // Fetch current user
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const res = await fetch("/api/profile");
+                const json = await res.json();
+                if (res.ok) {
+                    setCurrentUser(json);
+                } else {
+                    throw new Error(json.message || "Failed to fetch user");
+                }
+            } catch (err) {
+                console.error("Failed to fetch user:", err);
+                setToast({
+                    type: "error",
+                    message: "Không thể tải thông tin người dùng.",
+                });
+            }
+        };
+        fetchUser();
+    }, []);
 
     // ============================================================
     // CHỌN QUÝ MẶC ĐỊNH DỰA TRÊN NGÀY (HOÀN TOÀN KHÔNG DỰA VÀO TÊN!)
@@ -123,7 +147,7 @@ export default function CompanyOkrList() {
             });
             const json = await res.json();
             if (json.success) {
-                setItems(json.data || []);
+                setItems(json.data.data || []); // Adjusted for pagination
             }
         } catch (err) {
             setToast({ type: "error", message: "Không tải được OKR công ty" });
@@ -137,228 +161,29 @@ export default function CompanyOkrList() {
         fetchCompanyOkrs();
     }, [fetchCompanyOkrs]);
 
-    // ============================================================
-    // HELPER
-    // ============================================================
-    const formatPercent = (v) =>
-        Number.isFinite(+v) ? `${(+v).toFixed(1)}%` : "0%";
-    const getStatusText = (s) => {
-        switch ((s || "").toLowerCase()) {
-            case "draft":
-                return "Bản nháp";
-            case "active":
-                return "Đang thực hiện";
-            case "completed":
-                return "Hoàn thành";
-            default:
-                return s || "";
-        }
-    };
-    const getUnitText = (u) => {
-        switch ((u || "").toLowerCase()) {
-            case "number":
-                return "Số lượng";
-            case "percent":
-                return "Phần trăm";
-            case "completion":
-                return "Hoàn thành";
-            case "bai":
-            case "bài":
-                return "Bài";
-            default:
-                return u || "";
-        }
-    };
-
-    const currentCycleName =
-        cyclesList.find((c) => c.cycle_id === cycleFilter)?.cycle_name ||
-        "Đang tải...";
-
-    // ============================================================
-    // RENDER
-    // ============================================================
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
-            <div className="mb-4 flex w-full items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <CycleDropdown
-                        cyclesList={cyclesList}
-                        cycleFilter={cycleFilter}
-                        handleCycleChange={setCycleFilter}
-                        dropdownOpen={dropdownOpen}
-                        setDropdownOpen={setDropdownOpen}
-                        selectedLabel={currentCycleName}
-                    />
-                </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-slate-50 text-left font-semibold text-slate-700">
-                        <tr>
-                            <th className="px-3 py-2 text-left w-[30%] border-r border-slate-200">
-                                Tiêu đề
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
-                                Người thực hiện
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
-                                Trạng thái
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Đơn vị
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Thực tế
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Mục tiêu
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Tiến độ (%)
-                            </th>
-                            <th className="px-3 py-2 text-center w-[12%]">
-                                Hành động
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr>
-                                <td
-                                    colSpan={8}
-                                    className="px-3 py-10 text-center text-slate-500"
-                                >
-                                    Đang tải...
-                                </td>
-                            </tr>
-                        ) : items.length === 0 ? (
-                            <tr>
-                                <td
-                                    colSpan={8}
-                                    className="px-3 py-10 text-center text-slate-500"
-                                >
-                                    Chưa có OKR công ty nào trong quý này.
-                                </td>
-                            </tr>
-                        ) : (
-                            items.map((obj, index) => (
-                                <React.Fragment key={obj.objective_id}>
-                                    <tr
-                                        className={`bg-gradient-to-r from-indigo-50 to-purple-50 border-t-2 border-indigo-200 ${
-                                            index > 0 ? "mt-4" : ""
-                                        }`}
-                                    >
-                                        <td
-                                            colSpan={7}
-                                            className="px-3 py-3 border-r border-slate-200"
-                                        >
-                                            <div className="flex items-center gap-1">
-                                                {obj.key_results?.length >
-                                                    0 && (
-                                                    <button
-                                                        onClick={() =>
-                                                            setOpenObj((p) => ({
-                                                                ...p,
-                                                                [obj.objective_id]:
-                                                                    !p[
-                                                                        obj
-                                                                            .objective_id
-                                                                    ],
-                                                            }))
-                                                        }
-                                                        className="p-2 rounded-lg hover:bg-slate-100 transition-all group"
-                                                    >
-                                                        <svg
-                                                            className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform ${
-                                                                openObj[
-                                                                    obj
-                                                                        .objective_id
-                                                                ]
-                                                                    ? "rotate-90"
-                                                                    : ""
-                                                            }`}
-                                                            fill="currentColor"
-                                                            viewBox="0 0 20 20"
-                                                        >
-                                                            <path
-                                                                fillRule="evenodd"
-                                                                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                                                            />
-                                                        </svg>
-                                                    </button>
-                                                )}
-                                                <span className="font-semibold text-slate-900">
-                                                    [
-                                                    {obj.level === "company"
-                                                        ? "CÔNG TY"
-                                                        : obj.department
-                                                              ?.department_name ||
-                                                          obj.level.toUpperCase()}
-                                                    ] {obj.obj_title}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-3 text-center bg-gradient-to-r from-indigo-50 to-purple-50">
-                                            —
-                                        </td>
-                                    </tr>
-
-                                    {openObj[obj.objective_id] &&
-                                        obj.key_results?.map((kr) => (
-                                            <tr key={kr.kr_id}>
-                                                <td className="px-8 py-3 border-r border-slate-200 font-medium text-slate-900">
-                                                    {kr.kr_title}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.assignee?.fullName ||
-                                                        kr.assigned_to ||
-                                                        "Chưa giao"}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    <span
-                                                        className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
-                                                            kr.status ===
-                                                            "completed"
-                                                                ? "bg-emerald-100 text-emerald-700"
-                                                                : kr.status ===
-                                                                  "active"
-                                                                ? "bg-blue-100 text-blue-700"
-                                                                : "bg-slate-100 text-slate-700"
-                                                        }`}
-                                                    >
-                                                        {getStatusText(
-                                                            kr.status
-                                                        )}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {getUnitText(kr.unit)}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.current_value ?? 0}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.target_value}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {formatPercent(
-                                                        kr.progress_percent
-                                                    )}
-                                                </td>
-                                                <td className="px-3 py-3 text-center text-slate-400">
-                                                    —
-                                                </td>
-                                            </tr>
-                                        ))}
-                                </React.Fragment>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
+            <ObjectiveList
+                items={items}
+                cyclesList={cyclesList}
+                loading={loading}
+                openObj={openObj}
+                setOpenObj={setOpenObj}
+                cycleFilter={cycleFilter}
+                setCycleFilter={setCycleFilter}
+                currentUser={currentUser}
+                setItems={setItems}
+                // Stub interactive props since this is a read-only view
+                setCreatingFor={() => {}}
+                setEditingObjective={() => {}}
+                setEditingKR={() => {}}
+                setCreatingObjective={() => {}}
+                openCheckInModal={() => {}}
+                openCheckInHistory={() => {}}
+                onOpenLinkModal={() => {}}
+                onCancelLink={() => {}}
+                hideFilters={false} // You might want to control this
+            />
             <ToastNotification toast={toast} />
         </div>
     );
