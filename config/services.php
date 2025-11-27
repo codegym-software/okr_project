@@ -39,4 +39,10 @@ return [
         'client_id' => env('AWS_COGNITO_CLIENT_ID', '3ar8acocnqav49qof9qetdj2dj'),
         'domain' => env('AWS_COGNITO_DOMAIN', 'https://ap-southeast-2rqig6bh9c.auth.ap-southeast-2.amazoncognito.com'),
     ],
+
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', 'http://localhost:8000/auth/google-callback'),
+    ],
 ];

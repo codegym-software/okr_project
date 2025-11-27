@@ -1,16 +1,30 @@
-import React, { useRef, useState, useEffect } from "react";
-import Dropdown, { DropdownItem, DropdownHeader, DropdownContent } from "../components/Dropdown";
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import Dropdown, {
+    DropdownItem,
+    DropdownHeader,
+    DropdownContent,
+} from "../components/Dropdown";
 import { navigateTo } from "../utils/navigation";
 
-function SidebarItem({ icon, label, href, collapsed }) {
+function SidebarItem({ icon, label, href, collapsed, isActive = false }) {
     return (
         <a
             href={href}
-            className={`group flex items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold text-slate-700 hover:bg-slate-50 ${
-                collapsed ? "justify-center" : ""
-            }`}
+            className={`group flex items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
+                ${
+                    isActive
+                        ? "bg-slate-100 text-blue-700"
+                        : "text-slate-700 hover:bg-slate-50"
+                } ${collapsed ? "justify-center" : ""}`}
         >
-            <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-hover:text-blue-600">
+            <span
+                className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                ${
+                    isActive
+                        ? "text-blue-600"
+                        : "text-slate-500 group-hover:text-blue-600"
+                }`}
+            >
                 {icon}
             </span>
             {!collapsed && <span className="truncate">{label}</span>}
@@ -18,10 +32,239 @@ function SidebarItem({ icon, label, href, collapsed }) {
     );
 }
 
+function NotificationBell() {
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    const fetchNotifications = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError("");
+            const res = await fetch("/api/notifications", {
+                headers: { Accept: "application/json" },
+            });
+            const json = await res.json();
+            if (!res.ok || json.success === false) {
+                throw new Error(json.message || "Không thể tải thông báo");
+            }
+            setNotifications(json.data?.items || []);
+            setUnreadCount(json.data?.unread ?? 0);
+        } catch (err) {
+            setError(err.message || "Không thể tải thông báo");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchNotifications();
+        const interval = setInterval(fetchNotifications, 60000);
+        return () => clearInterval(interval);
+    }, [fetchNotifications]);
+
+    const csrfToken =
+        typeof document !== "undefined"
+            ? document
+                  .querySelector('meta[name="csrf-token"]')
+                  ?.getAttribute("content") || ""
+            : "";
+
+    const updateLocalReadState = (ids) => {
+        const map = new Set(ids);
+        setNotifications((prev) =>
+            prev.map((item) =>
+                map.has(item.notification_id)
+                    ? { ...item, is_read: true }
+                    : item
+            )
+        );
+    };
+
+    const markAsRead = async (notificationId) => {
+        if (!notificationId) return;
+
+        if (!csrfToken) {
+            setError("Thiếu CSRF token. Vui lòng tải lại trang.");
+            return;
+        }
+
+        try {
+            const res = await fetch(
+                `/api/notifications/${notificationId}/read`,
+                {
+                    method: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": csrfToken,
+                        Accept: "application/json",
+                    },
+                }
+            );
+            if (!res.ok) {
+                throw new Error("Không thể cập nhật thông báo");
+            }
+            updateLocalReadState([notificationId]);
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+        } catch (err) {
+            setError(err.message || "Không thể cập nhật thông báo");
+            fetchNotifications();
+        }
+    };
+
+    const markAllAsRead = async () => {
+        if (unreadCount === 0) return;
+
+        if (!csrfToken) {
+            setError("Thiếu CSRF token. Vui lòng tải lại trang.");
+            return;
+        }
+
+        try {
+            const res = await fetch("/api/notifications/mark-all-read", {
+                method: "POST",
+                headers: {
+                    "X-CSRF-TOKEN": csrfToken,
+                    Accept: "application/json",
+                },
+            });
+            if (!res.ok) {
+                throw new Error("Không thể cập nhật thông báo");
+            }
+            updateLocalReadState(
+                notifications.map((item) => item.notification_id)
+            );
+            setUnreadCount(0);
+        } catch (err) {
+            setError(err.message || "Không thể cập nhật thông báo");
+            fetchNotifications();
+        }
+    };
+
+    const formatTimestamp = (value) => {
+        if (!value) return "";
+        try {
+            return new Date(value).toLocaleString("vi-VN", {
+                hour: "2-digit",
+                minute: "2-digit",
+                day: "2-digit",
+                month: "2-digit",
+            });
+        } catch (e) {
+            return value;
+        }
+    };
+
+    const formatTypeLabel = (type) => {
+        if (!type) return "THÔNG BÁO";
+        const map = {
+            okr_link: "OKR LINK",
+        };
+        return map[type] || type.replace(/_/g, " ").toUpperCase();
+    };
+
+    return (
+        <Dropdown
+            position="right"
+            zIndex={10000}
+            className="min-w-[320px]"
+            trigger={
+                <button
+                    className="relative rounded-full border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 transition"
+                    aria-label="Thông báo"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                    >
+                        <path d="M12 2a7 7 0 00-7 7v4.09l-.94 1.88A1 1 0 005 16h14a1 1 0 00.88-1.45L19 13.09V9a7 7 0 00-7-7zm0 20a3 3 0 01-2.995-2.824L9 19h6a3 3 0 01-2.824 2.995L12 22z" />
+                    </svg>
+                    {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                        </span>
+                    )}
+                </button>
+            }
+        >
+            <DropdownHeader>
+                <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-slate-900">Thông báo</p>
+                    <button
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:text-slate-400"
+                        onClick={markAllAsRead}
+                        disabled={unreadCount === 0}
+                    >
+                        Đánh dấu đã đọc
+                    </button>
+                </div>
+            </DropdownHeader>
+            <DropdownContent>
+                <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto">
+                    {loading && (
+                        <div className="px-4 py-6 text-center text-sm text-slate-500">
+                            Đang tải thông báo...
+                        </div>
+                    )}
+                    {!loading && notifications.length === 0 && (
+                        <div className="px-4 py-6 text-center text-sm text-slate-500">
+                            Bạn chưa có thông báo mới
+                        </div>
+                    )}
+                    {!loading &&
+                        notifications.map((item) => (
+                            <button
+                                key={item.notification_id}
+                                onClick={() => markAsRead(item.notification_id)}
+                                className={`w-full text-left px-4 py-3 text-sm transition ${
+                                    item.is_read
+                                        ? "bg-white hover:bg-slate-50"
+                                        : "bg-indigo-50/80 hover:bg-indigo-100"
+                                }`}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <span
+                                        className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                                            item.is_read
+                                                ? "bg-slate-300"
+                                                : "bg-indigo-500"
+                                        }`}
+                                    />
+                                    <div className="flex-1">
+                                        <p className="font-semibold text-slate-900 whitespace-pre-line leading-snug">
+                                            {item.message}
+                                        </p>
+                                        <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                                            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
+                                                {formatTypeLabel(item.type)}
+                                            </span>
+                                            <span className="tabular-nums">
+                                                {formatTimestamp(
+                                                    item.created_at
+                                                )}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                </div>
+                {error && (
+                    <div className="px-4 py-2 text-xs text-rose-600">
+                        {error}
+                    </div>
+                )}
+            </DropdownContent>
+        </Dropdown>
+    );
+}
+
 function DashboardSidebar({ open, user }) {
     const collapsed = !open;
     const isAdmin = user?.is_admin === true;
-    const isMember = user?.role?.role_name?.toLowerCase() === 'member';
+    const isMember = user?.role?.role_name?.toLowerCase() === "member";
     return (
         <aside
             className={`${
@@ -91,7 +334,7 @@ function DashboardSidebar({ open, user }) {
                     <SidebarItem
                         collapsed={collapsed}
                         href="/cycles"
-                        label="Chu kỳ"
+                        label="Quản lý chu kỳ"
                         icon={
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -119,12 +362,27 @@ function DashboardSidebar({ open, user }) {
                         </svg>
                     }
                 />
+                <SidebarItem
+                    collapsed={collapsed}
+                    href="/company-okrs"
+                    label="Mục tiêu công ty"
+                    icon={
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-6 w-6"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                        >
+                            <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
+                        </svg>
+                    }
+                />
                 {/* Phòng ban & Đội nhóm - chỉ hiển thị cho Admin */}
                 {isAdmin && (
                     <SidebarItem
                         collapsed={collapsed}
                         href="/departments"
-                        label="Phòng ban & Đội nhóm"
+                        label="Quản lý phòng ban"
                         icon={
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -154,8 +412,8 @@ function DashboardSidebar({ open, user }) {
                         }
                     />
                 )}
-                {/* Báo cáo - chỉ hiển thị cho Admin */}
-                {isAdmin && (
+                {/* Báo cáo - hiển thị cho Admin, CEO, Manager */}
+                {canSeeReports && (
                     <SidebarItem
                         collapsed={collapsed}
                         href="/reports"
@@ -211,6 +469,7 @@ function DashboardTopbar({
                 />
             </div>
             <div className="flex items-center gap-3">
+                <NotificationBell />
                 <Dropdown
                     position="right"
                     zIndex={10000}
@@ -244,9 +503,7 @@ function DashboardTopbar({
                         <div className="font-semibold text-slate-900">
                             {displayName}
                         </div>
-                        <div className="text-sm text-slate-500">
-                            {email}
-                        </div>
+                        <div className="text-sm text-slate-500">{email}</div>
                     </DropdownHeader>
                     <DropdownContent>
                         <DropdownItem onClick={onOpenProfile}>
@@ -291,11 +548,16 @@ function DashboardTopbar({
 
 export default function DashboardLayout({ children, user }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
-    
+    const roleName = (user?.role?.role_name || "").toLowerCase();
+    const isAdmin = user?.is_admin === true;
+    const isManager = roleName === "manager";
+    const canSeeTeamReport = isAdmin || isManager;
+    const canSeeCompanyReport = isAdmin;
+
     const toggleSidebar = () => {
         setSidebarOpen(!sidebarOpen);
     };
-    
+
     const logout = async () => {
         try {
             const token = document
@@ -322,9 +584,17 @@ export default function DashboardLayout({ children, user }) {
     return (
         <div className="min-h-screen bg-white">
             {/* Sidebar */}
-            <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 z-10 transition-all duration-300`}>
-                <div className={`p-6 ${!sidebarOpen ? 'px-3' : ''}`}>
-                    <div className={`mb-8 flex items-center gap-3 ${!sidebarOpen ? 'justify-center px-0' : 'px-2'}`}>
+            <div
+                className={`${
+                    sidebarOpen ? "w-67" : "w-20"
+                } bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 z-10 transition-all duration-300`}
+            >
+                <div className={`p-6 ${!sidebarOpen ? "px-3" : ""}`}>
+                    <div
+                        className={`mb-8 flex items-center gap-3 ${
+                            !sidebarOpen ? "justify-center px-0" : "px-2"
+                        }`}
+                    >
                         <a
                             href="/dashboard"
                             className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 p-3 shrink-0"
@@ -348,104 +618,245 @@ export default function DashboardLayout({ children, user }) {
                             </a>
                         )}
                     </div>
-                    <nav className="space-y-1">
-                        <SidebarItem
-                            collapsed={!sidebarOpen}
-                            href="/dashboard"
-                            label="Tổng quan"
-                            icon={
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-6 w-6"
-                                    viewBox="0 0 24 24"
-                                    fill="currentColor"
-                                >
-                                    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
-                                </svg>
-                            }
-                        />
-                        <SidebarItem
-                            collapsed={!sidebarOpen}
-                            href="/my-objectives"
-                            label="Mục tiêu"
-                            icon={
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-6 w-6"
-                                    viewBox="0 0 24 24"
-                                    fill="currentColor"
-                                >
-                                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
-                                </svg>
-                            }
-                        />
-                        {/* Báo cáo tổng quan - chỉ Admin */}
-                        {user?.is_admin === true && (
-                            <SidebarItem
-                                collapsed={!sidebarOpen}
-                                href="/reports/company-overview"
-                                label="Báo cáo"
-                                icon={
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-10h4v24h-4V-3z" />
-                                    </svg>
-                                }
-                            />
-                        )}
-                        {/* Nhóm Quản trị (Admin): gom Chu kỳ, Phòng ban/Đội nhóm, Quản lý người dùng) */}
-                        {user?.is_admin === true && (
-                            <div className="rounded-xl">
-                                {sidebarOpen ? (
-                                    <details
-                                        className="group [&_summary::-webkit-details-marker]:hidden"
-                                        open={typeof window !== 'undefined' && ['/cycles', '/departments', '/users'].some(p => window.location.pathname.startsWith(p))}
-                                    >
-                                        <summary className="flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold text-slate-700 hover:bg-slate-50">
-                                            <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-open:text-blue-600">
+                    <nav className="space-y-2">
+                        {/* Helper: kiểm tra trang hiện tại */}
+                        {(() => {
+                            const currentPath =
+                                typeof window !== "undefined"
+                                    ? window.location.pathname
+                                    : "";
+                            const isActive = (paths) =>
+                                Array.isArray(paths)
+                                    ? paths.some((p) => currentPath.startsWith(p))
+                                    : currentPath.startsWith(paths);
+                            const isTeamReportActive = currentPath === "/reports";
+                            const isCompanyReportActive = currentPath.startsWith("/reports/company-overview");
+
+                            return (
+                                <>
+                                    {/* Tổng quan */}
+                                    <SidebarItem
+                                        collapsed={!sidebarOpen}
+                                        href="/dashboard"
+                                        label="Tổng quan"
+                                        icon={
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+                                            </svg>
+                                        }
+                                        isActive={isActive("/dashboard")}
+                                    />
+
+                                    {/* MỤC TIÊU - giữ nguyên */}
+                                    <div className="rounded-xl">
+                                        {sidebarOpen ? (
+                                            <details className="group [&_summary::-webkit-details-marker]:hidden" open={isActive(["/my-objectives", "/company-okrs"])}>
+                                                <summary className={`flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
+                                                    ${isActive(["/my-objectives", "/company-okrs"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}>
+                                                    <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                        ${isActive(["/my-objectives", "/company-okrs"]) ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                            <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
+                                                        </svg>
+                                                    </span>
+                                                    <span className="truncate">Mục tiêu</span>
+                                                    <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </span>
+                                                </summary>
+
+                                                <div className="mt-1 pl-12 pr-2 space-y-1">
+                                                    <a href="/my-objectives" className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
+                                                        ${isActive("/my-objectives") ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}>
+                                                        Mục tiêu của tôi
+                                                    </a>
+                                                    <a href="/company-okrs" className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
+                                                        ${isActive("/company-okrs") ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}>
+                                                        Mục tiêu công ty
+                                                    </a>
+                                                </div>
+                                            </details>
+                                        ) : (
+                                            <a href="/my-objectives" className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
+                                                ${isActive(["/my-objectives", "/company-okrs"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`} title="Mục tiêu">
+                                                <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                    ${isActive(["/my-objectives", "/company-okrs"]) ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
+                                                    </svg>
+                                                </span>
+                                            </a>
+                                        )}
+                                    </div>
+
+                                    {/* ==================== BÁO CÁO - GỘP THÀNH 1 DROPDOWN ==================== */}
+                                    {(canSeeTeamReport || canSeeCompanyReport) && (
+                                    <div className="rounded-xl">
+                                        {/* Trường hợp chỉ có 1 mục (thường là Manager) → không cần details mở/đóng */}
+                                        {canSeeTeamReport && !canSeeCompanyReport ? (
+                                        /* Chỉ có Báo cáo nhóm → hiển thị thẳng, không cần nút mở đóng */
+                                        <>
+                                            {sidebarOpen ? (
+                                            <a
+                                                href="/reports"
+                                                className={`flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
+                                                ${isTeamReportActive ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}
+                                            >
+                                                <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                ${isTeamReportActive ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
                                                 </svg>
-                                            </span>
-                                            <span className="truncate">Quản trị</span>
-                                            <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
+                                                </span>
+                                                <span className="truncate">Báo cáo nhóm</span>
+                                            </a>
+                                            ) : (
+                                            /* Sidebar thu gọn → click icon vào thẳng Báo cáo nhóm */
+                                            <a
+                                                href="/reports"
+                                                className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
+                                                ${isTeamReportActive ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}
+                                                title="Báo cáo"
+                                            >
+                                                <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                ${isTeamReportActive ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
+                                                </svg>
+                                                </span>
+                                            </a>
+                                            )}
+                                        </>
+                                        ) : (
+                                        /* Trường hợp có từ 2 mục trở lên (có Tổng quan công ty) → giữ nguyên details mở/đóng */
+                                        sidebarOpen ? (
+                                            <details
+                                            className="group [&_summary::-webkit-details-marker]:hidden"
+                                            open={isTeamReportActive || isCompanyReportActive}
+                                            >
+                                            <summary
+                                                className={`flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
+                                                ${isTeamReportActive || isCompanyReportActive ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}
+                                            >
+                                                <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                ${isTeamReportActive || isCompanyReportActive ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
+                                                </svg>
+                                                </span>
+                                                <span className="truncate">Báo cáo</span>
+                                                <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                                                 </svg>
+                                                </span>
+                                            </summary>
+
+                                            <div className="mt-1 pl-12 pr-2 space-y-1">
+                                                {canSeeTeamReport && (
+                                                <a
+                                                    href="/reports"
+                                                    className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
+                                                    ${isTeamReportActive ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}
+                                                >
+                                                    Báo cáo nhóm
+                                                </a>
+                                                )}
+                                                {canSeeCompanyReport && (
+                                                <a
+                                                    href="/reports/company-overview"
+                                                    className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
+                                                    ${isCompanyReportActive ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}
+                                                >
+                                                    Báo cáo công ty
+                                                </a>
+                                                )}
+                                            </div>
+                                            </details>
+                                        ) : (
+                                            /* Sidebar thu gọn nhưng vẫn có nhiều mục → click icon vào trang mặc định (Báo cáo nhóm) */
+                                            <a
+                                            href="/reports"
+                                            className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
+                                                ${isTeamReportActive || isCompanyReportActive ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}
+                                            title="Báo cáo"
+                                            >
+                                            <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                ${isTeamReportActive || isCompanyReportActive ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
+                                                </svg>
                                             </span>
-                                        </summary>
-                                        <div className="mt-1 pl-12 pr-2 space-y-1">
-                                            <a href="/cycles" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
-                                                Chu kỳ
                                             </a>
-                                            <a href="/departments" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
-                                                Phòng ban/Đội nhóm
-                                            </a>
-                                            <a href="/users" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
-                                                Quản lý người dùng
-                                            </a>
+                                        )
+                                        )}
+                                    </div>
+                                    )}
+
+                                    {/* Quản trị - giữ nguyên hoàn toàn */}
+                                    {isAdmin && (
+                                        <div className="rounded-xl">
+                                            {sidebarOpen ? (
+                                                <details className="group [&_summary::-webkit-details-marker]:hidden" open={isActive(["/cycles", "/departments", "/users"])}>
+                                                    <summary className={`flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
+                                                        ${isActive(["/cycles", "/departments", "/users"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}>
+                                                        <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                            ${isActive(["/cycles", "/departments", "/users"]) ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                                <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                                                            </svg>
+                                                        </span>
+                                                        <span className="truncate">Quản trị</span>
+                                                        <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                                            </svg>
+                                                        </span>
+                                                    </summary>
+                                                    <div className="mt-1 pl-12 pr-2 space-y-1">
+                                                        {["/cycles", "/departments", "/users"].map((path, i) => {
+                                                            const labels = ["Quản lý chu kỳ", "Quản lý phòng ban", "Quản lý người dùng"];
+                                                            return (
+                                                                <a
+                                                                    key={path}
+                                                                    href={path}
+                                                                    className={`block rounded-lg px-3 py-2 text-[15px] font-medium transition-all
+                                                                        ${isActive(path) ? "bg-blue-50 text-blue-700 font-bold shadow-sm" : "text-slate-700 hover:bg-slate-50"}`}
+                                                                >
+                                                                    {labels[i]}
+                                                                </a>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </details>
+                                            ) : (
+                                                <a href="/cycles" className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
+                                                    ${isActive(["/cycles", "/departments", "/users"]) ? "bg-slate-100 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`} title="Quản trị">
+                                                    <span className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                        ${isActive(["/cycles", "/departments", "/users"]) ? "text-blue-600" : "text-slate-500 group-hover:text-blue-600"}`}>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                            <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                                                        </svg>
+                                                    </span>
+                                                </a>
+                                            )}
                                         </div>
-                                    </details>
-                                ) : (
-                                    <a
-                                        href="/cycles"
-                                        className="group flex items-center justify-center rounded-xl px-4 py-3.5 text-slate-700 hover:bg-slate-50"
-                                        title="Quản trị"
-                                    >
-                                        <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-hover:text-blue-600">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
-                                            </svg>
-                                        </span>
-                                    </a>
-                                )}
-                            </div>
-                        )}
-                    </nav>
+                                    )}
+                                </>
+                            );
+                        })()}
+                    </nav>                       
                 </div>
             </div>
-            
+
             {/* Header */}
-            <div className={`${sidebarOpen ? 'ml-64' : 'ml-20'} bg-white border-b border-gray-200 px-6 py-4 transition-all duration-300`}>
+            <div
+                className={`${
+                    sidebarOpen ? "ml-67" : "ml-20"
+                } bg-white border-b border-gray-200 px-6 py-4 transition-all duration-300`}
+            >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                         <button
@@ -464,6 +875,7 @@ export default function DashboardLayout({ children, user }) {
                         </button>
                     </div>
                     <div className="flex items-center space-x-4">
+                        <NotificationBell />
                         <Dropdown
                             position="right"
                             zIndex={10000}
@@ -471,7 +883,10 @@ export default function DashboardLayout({ children, user }) {
                             trigger={
                                 <button className="flex items-center gap-3 rounded-full border border-slate-200 bg-white pl-3 pr-4 py-2 hover:bg-slate-50">
                                     <img
-                                        src={user?.avatar || "/images/default.png"}
+                                        src={
+                                            user?.avatar ||
+                                            "/images/default.png"
+                                        }
                                         alt="avatar"
                                         className="h-10 w-10 rounded-full object-cover"
                                     />
@@ -540,9 +955,13 @@ export default function DashboardLayout({ children, user }) {
                     </div>
                 </div>
             </div>
-            
+
             {/* Main Content */}
-            <div className={`${sidebarOpen ? 'ml-64' : 'ml-20'} transition-all duration-300`}>
+            <div
+                className={`${
+                    sidebarOpen ? "ml-67" : "ml-20"
+                } transition-all duration-300`}
+            >
                 {children}
             </div>
         </div>

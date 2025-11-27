@@ -20,21 +20,22 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        // Validation
+        // Validation frontend - chỉ kiểm tra có điền đầy đủ thông tin
         if (!formData.email || !formData.full_name || !formData.role_name || !formData.level || !formData.department_id) {
             showToast('error', 'Vui lòng điền đầy đủ tất cả thông tin bắt buộc');
-            return;
-        }
-
-        if (!formData.email.includes('@')) {
-            showToast('error', 'Email không hợp lệ');
             return;
         }
 
         setLoading(true);
 
         try {
-            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!token) {
+                showToast('error', 'Không tìm thấy CSRF token. Vui lòng tải lại trang.');
+                setLoading(false);
+                return;
+            }
+
             const response = await fetch('/admin/invite-user', {
                 method: 'POST',
                 headers: {
@@ -47,16 +48,55 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
 
             const result = await response.json();
 
-            if (result.success) {
-                showToast('success', result.message);
-                onSuccess();
-                handleClose();
+            // Xử lý các trường hợp lỗi khác nhau
+            if (response.status === 422) {
+                // Validation errors từ backend
+                let errorMessage = 'Dữ liệu không hợp lệ: ';
+                if (result.errors) {
+                    const errorFields = Object.keys(result.errors);
+                    const errorMessages = errorFields.map(field => {
+                        const fieldName = field === 'email' ? 'Email' : 
+                                         field === 'full_name' ? 'Họ và tên' :
+                                         field === 'role_name' ? 'Vai trò' :
+                                         field === 'level' ? 'Cấp độ' :
+                                         field === 'department_id' ? 'Phòng ban/Đội nhóm' : field;
+                        return `${fieldName}: ${result.errors[field][0]}`;
+                    });
+                    errorMessage += errorMessages.join(', ');
+                } else {
+                    errorMessage = result.message || 'Dữ liệu không hợp lệ';
+                }
+                showToast('error', errorMessage);
+            } else if (response.status === 500) {
+                // Server errors
+                if (result.message) {
+                    showToast('error', result.message);
+                } else {
+                    showToast('error', 'Có lỗi xảy ra ở máy chủ. Vui lòng thử lại sau.');
+                }
+            } else if (result.success) {
+                // Thành công
+                if (result.warning) {
+                    // Trường hợp có cảnh báo (tài khoản tạo thành công nhưng email không gửi được)
+                    showToast('error', result.message || 'Tài khoản đã được tạo nhưng không thể gửi email mời.');
+                } else {
+                    showToast('success', result.message || 'Email mời đã được gửi thành công!');
+                }
+                setTimeout(() => {
+                    onSuccess();
+                    handleClose();
+                }, result.warning ? 2000 : 1000);
             } else {
-                showToast('error', result.message || 'Có lỗi xảy ra khi gửi email mời');
+                // Lỗi khác
+                showToast('error', result.message || 'Có lỗi xảy ra khi gửi email mời. Vui lòng thử lại.');
             }
         } catch (error) {
             console.error('Error inviting user:', error);
-            showToast('error', 'Có lỗi xảy ra khi gửi email mời');
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                showToast('error', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.');
+            } else {
+                showToast('error', 'Có lỗi xảy ra khi gửi email mời. Vui lòng thử lại sau.');
+            }
         } finally {
             setLoading(false);
         }
@@ -172,7 +212,8 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             placeholder="-- Chọn vai trò --"
                             options={[
                                 { value: 'member', label: 'Thành viên' },
-                                { value: 'manager', label: 'Quản lý' }
+                                { value: 'manager', label: 'Quản lý' },
+                                { value: 'ceo', label: 'CEO' },
                             ]}
                             className="w-full"
                         />

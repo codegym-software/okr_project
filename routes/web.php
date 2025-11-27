@@ -13,6 +13,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CheckInController;
 use App\Http\Controllers\OkrAssignmentController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
@@ -28,13 +29,43 @@ Route::get('/landingpage', function () {
 })->name('landingpage');
 
 Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () {
-    // Route xác thực
-    Route::get('/login', [AuthController::class, 'redirectToCognito'])->name('login');
+    // Route xác thực - Sử dụng giao diện riêng (không qua Cognito Hosted UI)
+    Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+    Route::get('/signup', [AuthController::class, 'showSignupForm'])->name('signup');
+    Route::post('/signup', [AuthController::class, 'signup'])->name('signup.post');
+    Route::get('/forgot-password', [AuthController::class, 'showForgotPasswordForm'])->name('forgot-password');
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password.post');
+    Route::post('/confirm-forgot-password', [AuthController::class, 'confirmForgotPassword'])->name('confirm-forgot-password');
+    
+    // Google OAuth (redirect trực tiếp đến Google, không qua Cognito Hosted UI)
     Route::get('/auth/google', [AuthController::class, 'redirectToGoogle'])->name('auth.google');
-    Route::get('/auth/signup', [AuthController::class, 'redirectToSignup'])->name('auth.signup');
+    Route::get('/auth/google-callback', [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+    
+    // Debug route để kiểm tra redirect URI
+    Route::get('/debug/google-oauth', function() {
+        $redirectUri = config('services.google.redirect');
+        $clientId = config('services.google.client_id');
+        
+        return response()->json([
+            'redirect_uri_from_config' => $redirectUri,
+            'redirect_uri_from_env' => env('GOOGLE_REDIRECT_URI'),
+            'redirect_uri_default' => 'http://localhost:8000/auth/google-callback',
+            'client_id' => $clientId ? 'Configured' : 'Not configured',
+            'expected_uri' => 'http://localhost:8000/auth/google-callback',
+            'match' => ($redirectUri === 'http://localhost:8000/auth/google-callback'),
+        ]);
+    })->name('debug.google.oauth');
+    
+    // Cognito callback (giữ lại cho tương thích nếu cần)
     Route::get('/auth/callback', [AuthController::class, 'handleCallback'])->name('auth.callback');
-    Route::get('/auth/forgot', [AuthController::class, 'forgotPassword'])->name('auth.forgot');
     Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    
+    // Redirect cũ cho tương thích
+    Route::get('/auth/signup', [AuthController::class, 'redirectToSignup'])->name('auth.signup');
+    Route::get('/auth/forgot', function() {
+        return redirect()->route('forgot-password');
+    })->name('auth.forgot');
 
     // Route đăng nhập admin mặc định (chỉ cho development)
     if (env('APP_ENV') === 'local') {
@@ -107,6 +138,13 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         return view('app');
     })->middleware('auth')->name('change.password.form');
     Route::post('/change-password', [App\Http\Controllers\AuthController::class, 'changePassword'])->middleware('auth')->name('change.password');
+
+    // Notifications
+    Route::middleware('auth')->group(function () {
+        Route::get('/api/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/api/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
+        Route::post('/api/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
+    });
 
             // Routes cho User Management (chỉ Admin)
             Route::middleware(['auth', 'admin'])->group(function () {
@@ -220,12 +258,20 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('my-key-results.archive');
         Route::post('/{objectiveId}/{keyResultId}/unarchive', [MyKeyResultController::class, 'unarchive'])
             ->name('my-key-results.unarchive');
-            Route::post('/{keyResultId}/assign', [MyKeyResultController::class, 'assign'])
+            Route::post('/{objectiveId}/{keyResultId}/assign', [MyKeyResultController::class, 'assign'])
             ->name('my-key-results.assign');
         Route::delete('/{id}', [MyKeyResultController::class, 'destroy'])  
             ->middleware('auth')
             ->name('my-key-result.destroy');
     });
+
+    // Company OKR Routes - yêu cầu đăng nhập
+    Route::get('/company-okrs', [App\Http\Controllers\CompanyOkrController::class, 'index'])
+        ->middleware('auth')
+        ->name('company.okrs');
+    Route::get('/company-okrs/{id}', [App\Http\Controllers\CompanyOkrController::class, 'show'])
+        ->middleware('auth')
+        ->name('company.okrs.show');
 
     // Check-in Routes
     Route::prefix('check-in')->middleware('auth')->group(function () {
@@ -240,8 +286,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->name('api.check-in.history');
     });
 
-    // Reports API (Admin only)
-    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOnly::class])->group(function () {
+    // Reports API (Admin hoặc CEO)
+    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])->group(function () {
         Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
             ->name('api.reports.company-overview');
         Route::get('/okr-company', [\App\Http\Controllers\ReportController::class, 'companyOkrReport'])
@@ -250,12 +296,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.okr-company.export.csv');
     });
 
-    // Frontend page route for Reports (SPA)
+    // Frontend page route for Reports (SPA) - Admin hoặc CEO
     Route::get('/reports/company-overview', function() { return view('app'); })
-        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])
         ->name('reports.company-overview');
     Route::get('/reports/okr-company', function() { return view('app'); })
-        ->middleware(['auth', \App\Http\Middleware\AdminOnly::class])
+        ->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])
         ->name('reports.okr-company');
 
     // OKR Assignments
@@ -263,11 +309,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/', [LinkController::class, 'index'])->middleware('auth')->name('my-links.index');
         Route::get('/available-targets', [LinkController::class, 'getAvailableTargets'])->middleware('auth')->name('my-links.available-targets');
         Route::post('/store', [LinkController::class, 'store'])->middleware('auth')->name('my-links.store');
+        Route::post('/{link}/approve', [LinkController::class, 'approve'])->middleware('auth')->name('my-links.approve');
+        Route::post('/{link}/reject', [LinkController::class, 'reject'])->middleware('auth')->name('my-links.reject');
+        Route::post('/{link}/request-changes', [LinkController::class, 'requestChanges'])->middleware('auth')->name('my-links.request-changes');
+        Route::post('/{link}/cancel', [LinkController::class, 'cancel'])->middleware('auth')->name('my-links.cancel');
     });
 
-    Route::get('/okr-assignments/assignable-users-roles', [OkrAssignmentController::class, 'getAssignableUsersAndRoles'])->name('okr-assignments.assignable');
-    Route::post('/okr-assignments/store', [OkrAssignmentController::class, 'store'])->name('okr-assignments.store');
-    Route::delete('/okr-assignments/destroy/{id}', [OkrAssignmentController::class, 'destroy'])->name('okr-assignments.destroy');
 });
 
 // Phục vụ file trong storage khi thiếu symlink public/storage

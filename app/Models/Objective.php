@@ -25,6 +25,7 @@ class Objective extends Model
         'status',
         'progress_percent',
         'user_id',
+        'department_id',
         'cycle_id',
         'department_id',
     ];
@@ -72,6 +73,26 @@ class Objective extends Model
     public function assignments()
     {
         return $this->hasMany(OkrAssignment::class, 'objective_id', 'objective_id');
+    }
+
+    /**
+     * Get OKR links where this objective is the source
+     */
+    public function sourceLinks()
+    {
+        return $this->hasMany(OkrLink::class, 'source_objective_id', 'objective_id')
+            ->where('is_active', true)
+            ->where('status', OkrLink::STATUS_APPROVED);
+    }
+
+    /**
+     * Get OKR links where this objective is the target
+     */
+    public function targetLinks()
+    {
+        return $this->hasMany(OkrLink::class, 'target_objective_id', 'objective_id')
+            ->where('is_active', true)
+            ->where('status', OkrLink::STATUS_APPROVED);
     }
 
     /**

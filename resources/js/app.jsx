@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import DashboardLayout from "./layouts/DashboardLayout";
 import Dashboard from "./components/Dashboard";
 import UsersPage from "./pages/UsersPage";
-// import ReportPage from "./pages/ReportPage";
+import ReportPage from "./pages/ReportPage";
 import CyclesPanel from "./pages/CyclesPanel";
 import DepartmentsPanel from "./pages/DepartmentsPanel";
 import ObjectivesPage from "./pages/ObjectivesPage";
@@ -11,6 +11,10 @@ import ProfilePage from "./pages/ProfilePage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import CompanyOverviewReport from "./pages/CompanyOverviewReport";
 import { GradientText } from "./components/ui";
+import CompanyOkrList from "./pages/CompanyOkrList";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 
 function NavBar({ activeTab, onChangeTab }) {
     const go = (tab) => {
@@ -82,13 +86,21 @@ function NavBar({ activeTab, onChangeTab }) {
                 </nav>
                 <div className="flex items-center gap-3">
                     <a
-                        href="/auth/signup"
+                        href="/signup"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            window.location.href = "/signup";
+                        }}
                         className="hidden rounded-lg px-4 py-2 text-sm font-semibold text-slate-700 hover:text-blue-600 sm:block"
                     >
                         Đăng ký
                     </a>
                     <a
                         href="/login"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            window.location.href = "/login";
+                        }}
                         className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:opacity-95"
                     >
                         Đăng nhập
@@ -120,7 +132,11 @@ function Hero({ onShowFeatures }) {
                 </p>
                 <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                     <a
-                        href="/auth/signup"
+                        href="/signup"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            window.location.href = "/signup";
+                        }}
                         className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-4 text-lg font-semibold text-white shadow-lg transition hover:translate-y-[-1px] hover:shadow-xl"
                     >
                         Dùng thử miễn phí
@@ -312,7 +328,11 @@ function Footer() {
                         <li>
                             <a
                                 className="hover:text-blue-600"
-                                href="/auth/signup"
+                                href="/signup"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    window.location.href = "/signup";
+                                }}
                             >
                                 Đăng ký
                             </a>
@@ -340,14 +360,47 @@ export default function App() {
     const [path, setPath] = useState(
         window.location.pathname + window.location.hash
     );
+    
+    // Listen for pathname changes
     useEffect(() => {
-        const handler = () =>
+        const handler = () => {
             setPath(window.location.pathname + window.location.hash);
+        };
+        
+        // Listen for popstate (back/forward buttons)
         window.addEventListener("popstate", handler);
-        return () => window.removeEventListener("popstate", handler);
+        
+        // Also check on mount and when path might change
+        const checkInterval = setInterval(() => {
+            const currentPath = window.location.pathname + window.location.hash;
+            if (currentPath !== path) {
+                setPath(currentPath);
+            }
+        }, 50);
+        
+        return () => {
+            window.removeEventListener("popstate", handler);
+            clearInterval(checkInterval);
+        };
     }, []);
 
     const p = window.location.pathname;
+    
+    // Render login page
+    if (p === "/login" || p.startsWith("/login")) {
+        return <LoginPage />;
+    }
+    
+    // Render signup page
+    if (p === "/signup" || p.startsWith("/signup")) {
+        return <SignupPage />;
+    }
+    
+    // Render forgot password page
+    if (p === "/forgot-password" || p.startsWith("/forgot-password")) {
+        return <ForgotPasswordPage />;
+    }
+    
     const isAdminArea =
         p.startsWith("/dashboard") ||
         p.startsWith("/users") ||
@@ -355,6 +408,7 @@ export default function App() {
         p.startsWith("/departments") ||
         p.startsWith("/reports") ||
         p.startsWith("/my-objectives") ||
+        p.startsWith("/company-okrs") ||
         p.startsWith("/profile") ||
         p.startsWith("/change-password") ||
         p.startsWith("/reports");
@@ -366,12 +420,15 @@ export default function App() {
         else if (p.startsWith("/cycles")) content = <CyclesPanel />;
         else if (p.startsWith("/departments")) content = <DepartmentsPanel />;
         else if (p.startsWith("/my-objectives")) content = <ObjectivesPage />;
+        else if (p.startsWith("/company-okrs"))
+            content = <CompanyOkrList currentUser={user} />;
         else if (p.startsWith("/profile")) content = <ProfilePage />;
         else if (p.startsWith("/change-password"))
             content = <ChangePasswordPage />;
-        // else if (p.startsWith("/reports")) content = <ReportPage />;
+        else if (p.startsWith("/reports/company-overview"))
+            content = <CompanyOverviewReport />;
+        else if (p.startsWith("/reports")) content = <ReportPage />;
         else if (p.startsWith("/dashboard")) content = <Dashboard />;
-        else if (p.startsWith("/reports")) content = <CompanyOverviewReport />;
         return <DashboardLayout user={user}>{content}</DashboardLayout>;
     }
 
@@ -397,9 +454,9 @@ export default function App() {
     }, [activeTab]);
 
     return (
-        <div className="min-h-screen bg-white text-slate-900">
+        <div className="min-h-screen flex flex-col bg-white text-slate-900">
             <NavBar activeTab={activeTab} onChangeTab={setActiveTab} />
-            <main>
+            <main className="flex-1">
                 <Hero onShowFeatures={() => setActiveTab("features")} />
                 {activeTab === "features" && <Features />}
                 {activeTab === "pricing" && <Pricing />}
