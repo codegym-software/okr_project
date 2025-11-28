@@ -6,20 +6,20 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up(): void
     {
         Schema::create('cycles', function (Blueprint $table) {
             $table->id('cycle_id');
-            $table->string('cycle_name')->nullable();
+            $table->string('cycle_name', 255)->nullable();
             $table->dateTime('start_date')->nullable();
             $table->dateTime('end_date')->nullable();
-            $table->string('status')->nullable();
+            $table->string('status', 255)->nullable();
             $table->text('description')->nullable();
             $table->timestamps();
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::dropIfExists('cycles');
     }

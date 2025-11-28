@@ -6,17 +6,19 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up(): void
     {
         Schema::create('roles', function (Blueprint $table) {
             $table->id('role_id');
             $table->string('role_name');
-            $table->string('description')->nullable();
+            $table->text('description')->nullable();
+            $table->string('level', 50)->nullable();
+            $table->json('allowed_levels')->nullable()->comment('JSON array of allowed OKR levels for this role');
             $table->timestamps();
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::dropIfExists('roles');
     }
