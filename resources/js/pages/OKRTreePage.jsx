@@ -9,6 +9,7 @@ import ReactFlow, {
     Position,
     ReactFlowProvider,
     useReactFlow,
+    Handle,
 } from "reactflow";
 import dagre from "dagre";
 import "reactflow/dist/style.css";
@@ -16,7 +17,7 @@ import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
 
 // Custom Node Component cho Objective
-const ObjectiveNode = ({ data }) => {
+const ObjectiveNode = ({ data, sourcePosition, targetPosition, hasChildren, isExpanded, onToggleExpand }) => {
     const getLevelColor = (level) => {
         const colors = {
             company: "bg-blue-500",
@@ -42,7 +43,41 @@ const ObjectiveNode = ({ data }) => {
     };
 
     return (
-        <div className="bg-white rounded-lg border-2 border-gray-300 shadow-lg p-4 min-w-[280px] max-w-[320px]">
+        <div className="bg-white rounded-lg border-2 border-gray-300 shadow-lg p-4 min-w-[280px] max-w-[320px] relative">
+            {/* Source Handle - để kết nối đi ra */}
+            <Handle
+                type="source"
+                position={sourcePosition || Position.Right}
+                id="source"
+                style={{ background: '#94a3b8', width: 12, height: 12, border: '2px solid white' }}
+            />
+            {/* Target Handle - để kết nối đi vào */}
+            <Handle
+                type="target"
+                position={targetPosition || Position.Left}
+                id="target"
+                style={{ background: '#94a3b8', width: 12, height: 12, border: '2px solid white' }}
+            />
+            {/* Chevron Button */}
+            {hasChildren && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onToggleExpand) onToggleExpand();
+                    }}
+                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors z-10"
+                    title={isExpanded ? "Thu gọn" : "Mở rộng"}
+                >
+                    <svg
+                        className={`w-4 h-4 text-gray-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            )}
             <div className="flex items-start gap-3 mb-3">
                 <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${getLevelColor(data.level)}`}>
                     <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -100,13 +135,47 @@ const ObjectiveNode = ({ data }) => {
 };
 
 // Custom Node Component cho Key Result
-const KeyResultNode = ({ data }) => {
+const KeyResultNode = ({ data, sourcePosition, targetPosition, hasChildren, isExpanded, onToggleExpand }) => {
     const formatProgress = (progress) => {
         return typeof progress === 'number' ? Math.round(progress * 10) / 10 : 0;
     };
 
     return (
-        <div className="bg-white rounded-lg border-2 border-indigo-300 shadow-lg p-4 min-w-[280px] max-w-[320px]">
+        <div className="bg-white rounded-lg border-2 border-indigo-300 shadow-lg p-4 min-w-[280px] max-w-[320px] relative">
+            {/* Source Handle - để kết nối đi ra */}
+            <Handle
+                type="source"
+                position={sourcePosition || Position.Right}
+                id="source"
+                style={{ background: '#94a3b8', width: 12, height: 12, border: '2px solid white' }}
+            />
+            {/* Target Handle - để kết nối đi vào */}
+            <Handle
+                type="target"
+                position={targetPosition || Position.Left}
+                id="target"
+                style={{ background: '#94a3b8', width: 12, height: 12, border: '2px solid white' }}
+            />
+            {/* Chevron Button */}
+            {hasChildren && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onToggleExpand) onToggleExpand();
+                    }}
+                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors z-10"
+                    title={isExpanded ? "Thu gọn" : "Mở rộng"}
+                >
+                    <svg
+                        className={`w-4 h-4 text-gray-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            )}
             <div className="flex items-start gap-3 mb-3">
                 <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center bg-indigo-500">
                     <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -164,11 +233,7 @@ const KeyResultNode = ({ data }) => {
     );
 };
 
-// Node types
-const nodeTypes = {
-    objective: ObjectiveNode,
-    key_result: KeyResultNode,
-};
+// Node types sẽ được tạo động với callback
 
 // Inner component để sử dụng useReactFlow hook
 function OKRTreeFlow({ 
@@ -237,6 +302,9 @@ export default function OKRTreePage() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [objectiveDropdownOpen, setObjectiveDropdownOpen] = useState(false);
     const [layoutDirection, setLayoutDirection] = useState('horizontal'); // 'horizontal' or 'vertical'
+    const [expandedNodes, setExpandedNodes] = useState(new Set()); // Track expanded nodes
+    const [allNodes, setAllNodes] = useState([]); // Store all nodes (before filtering)
+    const [allEdges, setAllEdges] = useState([]); // Store all edges (before filtering)
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
@@ -343,18 +411,13 @@ export default function OKRTreePage() {
 
     // Function to get layout using dagre
     const getLayoutedElements = useCallback((nodes, edges, direction = 'TB') => {
-        // Kiểm tra nodes và edges hợp lệ
-        if (!nodes || nodes.length === 0) {
-            return { nodes: [], edges: [] };
-        }
-
         const dagreGraph = new dagre.graphlib.Graph();
         dagreGraph.setDefaultEdgeLabel(() => ({}));
         dagreGraph.setGraph({ 
             rankdir: direction,
             nodesep: 100, // Khoảng cách giữa các nodes cùng level
             ranksep: 150, // Khoảng cách giữa các levels
-            align: 'C', // Căn giữa (Center) thay vì UL (Upper Left)
+            align: 'UL',
             marginx: 50,
             marginy: 50,
         });
@@ -363,117 +426,26 @@ export default function OKRTreePage() {
         const nodeWidth = 320;
         const nodeHeight = 220;
 
-        // Chỉ thêm nodes có id hợp lệ
         nodes.forEach((node) => {
-            if (node && node.id) {
-                dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
-            }
+            dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
         });
 
-        // Chỉ thêm edges có source và target hợp lệ
         edges.forEach((edge) => {
-            if (edge && edge.source && edge.target) {
-                // Kiểm tra cả source và target đều tồn tại trong graph
-                if (dagreGraph.hasNode(edge.source) && dagreGraph.hasNode(edge.target)) {
-                    dagreGraph.setEdge(edge.source, edge.target);
-                }
-            }
+            dagreGraph.setEdge(edge.source, edge.target);
         });
 
         dagre.layout(dagreGraph);
 
-        // Nhóm nodes theo rank để căn giữa từng level
-        const nodesByRank = {};
-        const rankOffsets = {}; // Lưu offset cho mỗi rank
-
-        nodes.forEach((node) => {
-            if (!node || !node.id) return;
-            
-            const nodeWithPosition = dagreGraph.node(node.id);
-            // Kiểm tra node có tồn tại trong graph không
-            if (!nodeWithPosition || typeof nodeWithPosition.x !== 'number' || typeof nodeWithPosition.y !== 'number') {
-                console.warn(`Node ${node.id} not found in dagre graph or has invalid position`);
-                return;
-            }
-            // Sử dụng giá trị rank chính xác (có thể có sai số nhỏ do floating point)
-            // Làm tròn với tolerance nhỏ để nhóm các nodes trong cùng rank
-            const rankValue = direction === 'LR' ? nodeWithPosition.y : nodeWithPosition.x;
-            const rank = Math.round(rankValue * 100) / 100;
-            
-            // Đảm bảo rank là một số hợp lệ
-            if (isNaN(rank) || !isFinite(rank)) {
-                console.warn(`Invalid rank for node ${node.id}:`, rankValue);
-                return;
-            }
-            
-            const rankKey = String(rank);
-            if (!nodesByRank[rankKey]) {
-                nodesByRank[rankKey] = [];
-            }
-            nodesByRank[rankKey].push({ node, nodeWithPosition });
-        });
-
-        // Tính toán offset để căn giữa từng rank
-        Object.keys(nodesByRank).forEach((rankKey) => {
-            const rankNodes = nodesByRank[rankKey];
-            if (!rankNodes || rankNodes.length === 0) return;
-
-            // Tìm min và max position trong rank này
-            let minPos = Infinity;
-            let maxPos = -Infinity;
-
-            rankNodes.forEach(({ nodeWithPosition }) => {
-                if (!nodeWithPosition) return;
-                
-                if (direction === 'LR') {
-                    // Layout ngang: căn giữa theo chiều ngang (X)
-                    const x = nodeWithPosition.x - nodeWidth / 2;
-                    minPos = Math.min(minPos, x);
-                    maxPos = Math.max(maxPos, x + nodeWidth);
-                } else {
-                    // Layout dọc: căn giữa theo chiều dọc (Y)
-                    const y = nodeWithPosition.y - nodeHeight / 2;
-                    minPos = Math.min(minPos, y);
-                    maxPos = Math.max(maxPos, y + nodeHeight);
-                }
-            });
-
-            // Tính center của rank và offset để căn giữa
-            if (isFinite(minPos) && isFinite(maxPos)) {
-                const rankCenter = (minPos + maxPos) / 2;
-                rankOffsets[rankKey] = -rankCenter;
-            }
-        });
-
-        // Tính toán bounding box để căn giữa toàn bộ graph
+        // Tính toán bounding box
         let minX = Infinity;
         let maxX = -Infinity;
         let minY = Infinity;
         let maxY = -Infinity;
 
         nodes.forEach((node) => {
-            if (!node || !node.id) return;
-            
             const nodeWithPosition = dagreGraph.node(node.id);
-            // Kiểm tra node có tồn tại trong graph không
-            if (!nodeWithPosition || typeof nodeWithPosition.x !== 'number' || typeof nodeWithPosition.y !== 'number') {
-                console.warn(`Node ${node.id} not found in dagre graph when calculating bounding box`);
-                return;
-            }
-            // Làm tròn rank để lấy offset (giống như khi nhóm)
-            const rankValue = direction === 'LR' ? nodeWithPosition.y : nodeWithPosition.x;
-            const rank = Math.round(rankValue * 100) / 100;
-            const rankKey = String(rank);
-            const rankOffset = rankOffsets[rankKey] || 0;
-
-            let x, y;
-            if (direction === 'LR') {
-                x = nodeWithPosition.x - nodeWidth / 2 + rankOffset;
-                y = nodeWithPosition.y - nodeHeight / 2;
-            } else {
-                x = nodeWithPosition.x - nodeWidth / 2;
-                y = nodeWithPosition.y - nodeHeight / 2 + rankOffset;
-            }
+            const x = nodeWithPosition.x - nodeWidth / 2;
+            const y = nodeWithPosition.y - nodeHeight / 2;
             
             minX = Math.min(minX, x);
             maxX = Math.max(maxX, x + nodeWidth);
@@ -482,73 +454,114 @@ export default function OKRTreePage() {
         });
 
         // Tính center của graph
+        const graphWidth = maxX - minX;
+        const graphHeight = maxY - minY;
         const graphCenterX = (minX + maxX) / 2;
         const graphCenterY = (minY + maxY) / 2;
         
-        // Offset để đưa center của graph về (0, 0) - fitView sẽ tự động căn giữa
+        // Offset để đưa graph về gốc tọa độ (0,0) làm center
         const offsetX = -graphCenterX;
         const offsetY = -graphCenterY;
 
         nodes.forEach((node) => {
-            if (!node || !node.id) return;
-            
             const nodeWithPosition = dagreGraph.node(node.id);
-            // Kiểm tra node có tồn tại trong graph không
-            if (!nodeWithPosition || typeof nodeWithPosition.x !== 'number' || typeof nodeWithPosition.y !== 'number') {
-                console.warn(`Node ${node.id} not found in dagre graph when setting position`);
-                // Set default position nếu node không tồn tại
-                node.position = { x: 0, y: 0 };
-                return;
-            }
-            // Làm tròn rank để lấy offset (giống như khi nhóm)
-            const rankValue = direction === 'LR' ? nodeWithPosition.y : nodeWithPosition.x;
-            const rank = Math.round(rankValue * 100) / 100;
-            const rankKey = String(rank);
-            const rankOffset = rankOffsets[rankKey] || 0;
-
             node.targetPosition = direction === 'LR' ? Position.Left : Position.Top;
             node.sourcePosition = direction === 'LR' ? Position.Right : Position.Bottom;
-            
-            if (direction === 'LR') {
-                node.position = {
-                    x: nodeWithPosition.x - nodeWidth / 2 + rankOffset + offsetX,
-                    y: nodeWithPosition.y - nodeHeight / 2 + offsetY,
-                };
-            } else {
-                node.position = {
-                    x: nodeWithPosition.x - nodeWidth / 2 + offsetX,
-                    y: nodeWithPosition.y - nodeHeight / 2 + rankOffset + offsetY,
-                };
-            }
+            node.position = {
+                x: nodeWithPosition.x - nodeWidth / 2 + offsetX,
+                y: nodeWithPosition.y - nodeHeight / 2 + offsetY,
+            };
         });
 
         return { nodes, edges };
     }, []);
 
+    // Helper function to check if a node has children
+    const hasChildren = useCallback((nodeId, allNodes, allEdges) => {
+        return allEdges.some(edge => edge.source === nodeId);
+    }, []);
+
+    // Helper function to get all descendant node IDs
+    const getDescendantIds = useCallback((nodeId, allEdges) => {
+        const descendants = new Set();
+        const queue = [nodeId];
+        
+        while (queue.length > 0) {
+            const current = queue.shift();
+            const children = allEdges
+                .filter(edge => edge.source === current)
+                .map(edge => edge.target);
+            
+            children.forEach(child => {
+                if (!descendants.has(child)) {
+                    descendants.add(child);
+                    queue.push(child);
+                }
+            });
+        }
+        
+        return descendants;
+    }, []);
+
+    // Filter nodes and edges based on expanded state
+    const filterNodesAndEdges = useCallback((allNodesList, allEdgesList, expandedSet) => {
+        const visibleNodeIds = new Set();
+        const visibleEdges = [];
+        
+        // Start with root nodes (nodes without incoming edges)
+        const rootNodes = allNodesList.filter(node => 
+            !allEdgesList.some(edge => edge.target === node.id)
+        );
+        
+        // BFS to find all visible nodes
+        const queue = [...rootNodes.map(n => n.id)];
+        rootNodes.forEach(n => visibleNodeIds.add(n.id));
+        
+        while (queue.length > 0) {
+            const currentNodeId = queue.shift();
+            
+            // If node is expanded, add its children
+            if (expandedSet.has(currentNodeId)) {
+                const childEdges = allEdgesList.filter(edge => edge.source === currentNodeId);
+                childEdges.forEach(edge => {
+                    if (!visibleNodeIds.has(edge.target)) {
+                        visibleNodeIds.add(edge.target);
+                        queue.push(edge.target);
+                    }
+                    visibleEdges.push(edge);
+                });
+            }
+        }
+        
+        const visibleNodes = allNodesList.filter(node => visibleNodeIds.has(node.id));
+        
+        return { nodes: visibleNodes, edges: visibleEdges };
+    }, []);
+
     // Convert tree data to ReactFlow nodes and edges
     useEffect(() => {
         if (!treeData) {
+            setAllNodes([]);
+            setAllEdges([]);
             setNodes([]);
             setEdges([]);
+            setExpandedNodes(new Set()); // Reset expanded nodes
             return;
         }
 
         const buildFlowData = (node, parentId = null) => {
-            // Đảm bảo node có id hợp lệ
-            if (!node) return { nodes: [], edges: [] };
-            
-            const nodeId = node.objective_id ? `obj-${node.objective_id}` : (node.kr_id ? `kr-${node.kr_id}` : null);
-            if (!nodeId) {
-                console.warn('Node missing both objective_id and kr_id:', node);
-                return { nodes: [], edges: [] };
-            }
-            
+            const nodeId = node.objective_id ? `obj-${node.objective_id}` : `kr-${node.kr_id}`;
             const nodeType = node.type === 'key_result' || node.kr_id ? 'key_result' : 'objective';
+            
+            const hasChildrenNodes = node.children && node.children.length > 0;
             
             const flowNode = {
                 id: nodeId,
                 type: nodeType,
-                data: node,
+                data: {
+                    ...node,
+                    hasChildren: hasChildrenNodes,
+                },
             };
 
             const flowNodes = [flowNode];
@@ -567,7 +580,7 @@ export default function OKRTreePage() {
             }
 
             // Process children
-            if (node.children && node.children.length > 0) {
+            if (hasChildrenNodes) {
                 node.children.forEach((child) => {
                     const childData = buildFlowData(child, nodeId);
                     flowNodes.push(...childData.nodes);
@@ -580,17 +593,87 @@ export default function OKRTreePage() {
 
         const flowData = buildFlowData(treeData);
         
+        // Store all nodes and edges
+        setAllNodes(flowData.nodes);
+        setAllEdges(flowData.edges);
+        
+        // Initialize: expand all root nodes by default
+        const rootNodes = flowData.nodes.filter(node => 
+            !flowData.edges.some(edge => edge.target === node.id)
+        );
+        
+        if (rootNodes.length > 0) {
+            setExpandedNodes(new Set(rootNodes.map(n => n.id)));
+        } else {
+            setExpandedNodes(new Set());
+        }
+    }, [treeData]);
+
+    // Apply layout and filtering when nodes, edges, or expanded state changes
+    useEffect(() => {
+        if (allNodes.length === 0) {
+            setNodes([]);
+            setEdges([]);
+            return;
+        }
+
+        // Filter nodes and edges based on expanded state
+        const { nodes: visibleNodes, edges: visibleEdges } = filterNodesAndEdges(
+            allNodes,
+            allEdges,
+            expandedNodes
+        );
+        
         // Sử dụng dagre để tự động layout
         const direction = layoutDirection === 'horizontal' ? 'LR' : 'TB'; // LR = Left to Right, TB = Top to Bottom
         const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-            flowData.nodes,
-            flowData.edges,
+            visibleNodes,
+            visibleEdges,
             direction
         );
 
         setNodes(layoutedNodes);
         setEdges(layoutedEdges);
-    }, [treeData, layoutDirection, setNodes, setEdges, getLayoutedElements]);
+    }, [allNodes, allEdges, expandedNodes, layoutDirection, filterNodesAndEdges, getLayoutedElements, setNodes, setEdges]);
+
+    // Handler to toggle expanded state
+    const handleToggleExpand = useCallback((nodeId) => {
+        setExpandedNodes(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(nodeId)) {
+                newSet.delete(nodeId);
+            } else {
+                newSet.add(nodeId);
+            }
+            return newSet;
+        });
+    }, []);
+
+    // Create nodeTypes with callback
+    const nodeTypes = useMemo(() => ({
+        objective: (props) => {
+            const nodeData = props.data || {};
+            return (
+                <ObjectiveNode
+                    {...props}
+                    hasChildren={nodeData.hasChildren || false}
+                    isExpanded={expandedNodes.has(props.id)}
+                    onToggleExpand={() => handleToggleExpand(props.id)}
+                />
+            );
+        },
+        key_result: (props) => {
+            const nodeData = props.data || {};
+            return (
+                <KeyResultNode
+                    {...props}
+                    hasChildren={nodeData.hasChildren || false}
+                    isExpanded={expandedNodes.has(props.id)}
+                    onToggleExpand={() => handleToggleExpand(props.id)}
+                />
+            );
+        },
+    }), [expandedNodes, handleToggleExpand]);
 
 
     // Close dropdowns when clicking outside
