@@ -15,24 +15,47 @@ import {
 } from "react-icons/fi";
 
 // --- Helper Functions ---
+const parseDateSafe = (v) => {
+    if (!v) return null;
+    const str = String(v);
+    
+    // Trường hợp 1: ISO String có Timezone (VD: 2025-11-11T17:00:00.000000Z)
+    if (str.includes('T') || str.includes('Z')) {
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    
+    // Trường hợp 2: Date String thuần (VD: 2025-11-12)
+    // Regex bắt định dạng YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+        const [y, m, d] = str.slice(0, 10).split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
+
+    // Trường hợp 3: Thử parse bằng Date constructor cho các định dạng khác
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+};
+
 const formatDate = (dateStr) => {
     if (!dateStr) return "—";
-    // Lấy 10 ký tự đầu (YYYY-MM-DD) bất kể định dạng có giờ hay không
-    const rawDate = String(dateStr).slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return "—";
-    const [y, m, d] = rawDate.split("-");
-    return `${d}/${m}/${y}`;
+    const date = parseDateSafe(dateStr);
+    if (!date) {
+        console.warn("formatDate: Invalid date", dateStr);
+        return "—";
+    }
+    return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
 };
 
 const toInputDate = (v) => {
     if (!v) return "";
-    const str = String(v);
-    // Nếu chuỗi có dạng YYYY-MM-DD... thì cắt lấy 10 ký tự đầu
-    if (str.length >= 10) {
-        const datePart = str.slice(0, 10);
-        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
-    }
-    return "";
+    const date = parseDateSafe(v);
+    if (!date) return "";
+    
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 };
 
 // --- Components ---
@@ -340,14 +363,17 @@ export default function CyclesPanel() {
         const handler = async () => {
             const m = window.location.pathname.match(/^\/cycles\/(\d+)\/detail$/);
             setIsDetail(Boolean(m));
-            if (!m) {
-                setDetail(null);
-                setKrs({});
-                return;
-            }
-            const id = m[1];
-            try {
-                const res = await fetch(`/cycles/${id}/detail`, { headers: { Accept: "application/json" } });
+                        if (!m) {
+                            setDetail(null);
+                            setKrs({});
+                            return;
+                        }
+            
+                        // Clear old detail immediately to avoid showing stale data
+                        setDetail(null); 
+                        
+                        const id = m[1];
+                        try {                const res = await fetch(`/cycles/${id}/detail`, { headers: { Accept: "application/json" } });
                 const data = await res.json();
                 if (res.ok && data.success) {
                     setDetail(data.data);
@@ -474,14 +500,19 @@ export default function CyclesPanel() {
         });
     };
 
-    // --- Filtering Data ---
-    const sortedCycles = [...cycles].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+    // --- Filtering & Sorting Data ---
     
-    // Tab "current": Active OR Draft
-    const currentCycles = sortedCycles.filter(c => c.status === 'active' || c.status === 'draft');
-    
-    // Tab "history": Inactive
-    const historyCycles = sortedCycles.filter(c => c.status !== 'active' && c.status !== 'draft');
+    // 1. Tách nhóm trước
+    const rawCurrent = cycles.filter(c => c.status === 'active' || c.status === 'draft');
+    const rawHistory = cycles.filter(c => c.status !== 'active' && c.status !== 'draft');
+
+    // 2. Sắp xếp riêng biệt
+
+    // Tab Hiện tại: Tăng dần (ASC) -> Đang diễn ra (cũ hơn) nằm trên, Tương lai (mới hơn) nằm dưới
+    const currentCycles = [...rawCurrent].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
+    // Tab Lịch sử: Giảm dần (DESC) -> Vừa đóng (mới nhất) nằm trên, Lâu rồi (cũ nhất) nằm dưới
+    const historyCycles = [...rawHistory].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-8 font-sans">
@@ -624,6 +655,7 @@ export default function CyclesPanel() {
 
 // --- Detail View ---
 function CycleDetailView({ detail, krs, formatDate }) {
+    console.log("CycleDetailView render with detail:", detail); // Debug log
     const [openObj, setOpenObj] = useState({});
     const toggleObj = (id) => setOpenObj(prev => ({ ...prev, [id]: !prev[id] }));
 
