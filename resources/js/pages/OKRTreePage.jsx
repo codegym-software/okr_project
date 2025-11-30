@@ -16,8 +16,65 @@ import "reactflow/dist/style.css";
 import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
 
+// Custom CSS for ReactFlow Controls
+const controlsStyle = `
+    .react-flow__controls {
+        top: 16px !important;
+        right: 16px !important;
+        bottom: auto !important;
+        left: auto !important;
+        width: auto !important;
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .react-flow__controls-button {
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        min-height: 40px !important;
+        max-width: 40px !important;
+        max-height: 40px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: 1px solid #e5e7eb !important;
+        background: white !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        transition: all 0.2s ease !important;
+    }
+    .react-flow__controls-button:hover {
+        background: #f9fafb !important;
+        border-color: #d1d5db !important;
+        box-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.15) !important;
+    }
+    .react-flow__controls-button:active {
+        transform: scale(0.95) !important;
+    }
+    .react-flow__controls-button svg {
+        width: 18px !important;
+        height: 18px !important;
+        stroke-width: 2 !important;
+    }
+`;
+
+// Inject custom CSS
+if (typeof document !== 'undefined') {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = controlsStyle;
+    if (!document.head.querySelector('style[data-react-flow-controls]')) {
+        styleElement.setAttribute('data-react-flow-controls', 'true');
+        document.head.appendChild(styleElement);
+    }
+}
+
 // Custom Node Component cho Objective
-const ObjectiveNode = ({ data, sourcePosition, targetPosition, hasChildren, isExpanded, onToggleExpand }) => {
+const ObjectiveNode = ({ data, sourcePosition, targetPosition, hasChildren, isExpanded, onToggleExpand, layoutDirection }) => {
     const getLevelColor = (level) => {
         const colors = {
             company: "bg-blue-500",
@@ -44,40 +101,20 @@ const ObjectiveNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
 
     return (
         <div className="bg-white rounded-lg border-2 border-gray-300 shadow-lg p-4 min-w-[280px] max-w-[320px] relative">
-            {/* Source Handle - để kết nối đi ra */}
+            {/* Source Handle - để kết nối đi ra (ẩn nhưng vẫn hoạt động) */}
             <Handle
                 type="source"
                 position={sourcePosition || Position.Right}
                 id="source"
-                style={{ background: '#94a3b8', width: 12, height: 12, border: '2px solid white' }}
+                style={{ background: 'transparent', width: 12, height: 12, border: 'none', opacity: 0 }}
             />
-            {/* Target Handle - để kết nối đi vào */}
+            {/* Target Handle - để kết nối đi vào (ẩn nhưng vẫn hoạt động) */}
             <Handle
                 type="target"
                 position={targetPosition || Position.Left}
                 id="target"
-                style={{ background: '#94a3b8', width: 12, height: 12, border: '2px solid white' }}
+                style={{ background: 'transparent', width: 12, height: 12, border: 'none', opacity: 0 }}
             />
-            {/* Chevron Button */}
-            {hasChildren && (
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (onToggleExpand) onToggleExpand();
-                    }}
-                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors z-10"
-                    title={isExpanded ? "Thu gọn" : "Mở rộng"}
-                >
-                    <svg
-                        className={`w-4 h-4 text-gray-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                </button>
-            )}
             <div className="flex items-start gap-3 mb-3">
                 <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${getLevelColor(data.level)}`}>
                     <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,57 +162,69 @@ const ObjectiveNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
                 </div>
             </div>
 
-            {data.user && (
-                <div className="text-xs text-gray-500 mt-2">
-                    {data.user.full_name}
-                </div>
-            )}
-        </div>
-    );
-};
-
-// Custom Node Component cho Key Result
-const KeyResultNode = ({ data, sourcePosition, targetPosition, hasChildren, isExpanded, onToggleExpand }) => {
-    const formatProgress = (progress) => {
-        return typeof progress === 'number' ? Math.round(progress * 10) / 10 : 0;
-    };
-
-    return (
-        <div className="bg-white rounded-lg border-2 border-indigo-300 shadow-lg p-4 min-w-[280px] max-w-[320px] relative">
-            {/* Source Handle - để kết nối đi ra */}
-            <Handle
-                type="source"
-                position={sourcePosition || Position.Right}
-                id="source"
-                style={{ background: '#94a3b8', width: 12, height: 12, border: '2px solid white' }}
-            />
-            {/* Target Handle - để kết nối đi vào */}
-            <Handle
-                type="target"
-                position={targetPosition || Position.Left}
-                id="target"
-                style={{ background: '#94a3b8', width: 12, height: 12, border: '2px solid white' }}
-            />
-            {/* Chevron Button */}
+            {/* Chevron Button - vị trí thay đổi theo layout */}
             {hasChildren && (
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
                         if (onToggleExpand) onToggleExpand();
                     }}
-                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors z-10"
+                    className={`w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors absolute z-10 ${
+                        layoutDirection === 'horizontal' 
+                            ? 'right-0 top-1/2 -translate-y-1/2 translate-x-1/2' 
+                            : 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2'
+                    }`}
                     title={isExpanded ? "Thu gọn" : "Mở rộng"}
                 >
-                    <svg
-                        className={`w-4 h-4 text-gray-600 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
+                    {isExpanded ? (
+                        // Expanded: hiển thị dấu trừ (minus)
+                        <svg
+                            className="w-3 h-3 text-gray-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" />
+                        </svg>
+                    ) : (
+                        // Collapsed: hiển thị chevron theo hướng layout
+                        <svg
+                            className={`w-3 h-3 text-gray-600 ${layoutDirection === 'horizontal' ? 'rotate-90' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    )}
                 </button>
             )}
+        </div>
+    );
+};
+
+// Custom Node Component cho Key Result
+const KeyResultNode = ({ data, sourcePosition, targetPosition, hasChildren, isExpanded, onToggleExpand, layoutDirection }) => {
+    const formatProgress = (progress) => {
+        return typeof progress === 'number' ? Math.round(progress * 10) / 10 : 0;
+    };
+
+    return (
+        <div className="bg-white rounded-lg border-2 border-indigo-300 shadow-lg p-4 min-w-[280px] max-w-[320px] relative">
+            {/* Source Handle - để kết nối đi ra (ẩn nhưng vẫn hoạt động) */}
+            <Handle
+                type="source"
+                position={sourcePosition || Position.Right}
+                id="source"
+                style={{ background: 'transparent', width: 12, height: 12, border: 'none', opacity: 0 }}
+            />
+            {/* Target Handle - để kết nối đi vào (ẩn nhưng vẫn hoạt động) */}
+            <Handle
+                type="target"
+                position={targetPosition || Position.Left}
+                id="target"
+                style={{ background: 'transparent', width: 12, height: 12, border: 'none', opacity: 0 }}
+            />
             <div className="flex items-start gap-3 mb-3">
                 <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center bg-indigo-500">
                     <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -213,21 +262,48 @@ const KeyResultNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs mb-2">
-                <div>
-                    <span className="text-gray-600">Hiện tại: </span>
-                    <span className="font-semibold text-gray-900">{data.current_value || 0}</span>
-                </div>
-                <div>
-                    <span className="text-gray-600">Mục tiêu: </span>
-                    <span className="font-semibold text-gray-900">{data.target_value || 0} {data.unit || 'number'}</span>
-                </div>
-            </div>
-
             {data.assigned_user && (
                 <div className="text-xs text-gray-500">
                     Người phụ trách: {data.assigned_user.full_name}
                 </div>
+            )}
+
+            {/* Chevron Button - vị trí thay đổi theo layout */}
+            {hasChildren && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onToggleExpand) onToggleExpand();
+                    }}
+                    className={`w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors absolute z-10 ${
+                        layoutDirection === 'horizontal' 
+                            ? 'right-0 top-1/2 -translate-y-1/2 translate-x-1/2' 
+                            : 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2'
+                    }`}
+                    title={isExpanded ? "Thu gọn" : "Mở rộng"}
+                >
+                    {isExpanded ? (
+                        // Expanded: hiển thị dấu trừ (minus)
+                        <svg
+                            className="w-3 h-3 text-gray-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" />
+                        </svg>
+                    ) : (
+                        // Collapsed: hiển thị chevron theo hướng layout
+                        <svg
+                            className={`w-3 h-3 text-gray-600 ${layoutDirection === 'horizontal' ? 'rotate-90' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    )}
+                </button>
             )}
         </div>
     );
@@ -277,6 +353,7 @@ function OKRTreeFlow({
             }}
             minZoom={0.1}
             maxZoom={2}
+            style={{ width: '100%', height: '100%' }}
         >
             <Controls />
             <MiniMap 
@@ -659,6 +736,7 @@ export default function OKRTreePage() {
                     hasChildren={nodeData.hasChildren || false}
                     isExpanded={expandedNodes.has(props.id)}
                     onToggleExpand={() => handleToggleExpand(props.id)}
+                    layoutDirection={layoutDirection}
                 />
             );
         },
@@ -670,10 +748,11 @@ export default function OKRTreePage() {
                     hasChildren={nodeData.hasChildren || false}
                     isExpanded={expandedNodes.has(props.id)}
                     onToggleExpand={() => handleToggleExpand(props.id)}
+                    layoutDirection={layoutDirection}
                 />
             );
         },
-    }), [expandedNodes, handleToggleExpand]);
+    }), [expandedNodes, handleToggleExpand, layoutDirection]);
 
 
     // Close dropdowns when clicking outside
@@ -698,128 +777,17 @@ export default function OKRTreePage() {
     }
 
     return (
-        <div className="p-6 bg-gray-50 min-h-screen">
-            <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
-                <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-2xl font-bold text-gray-900">Tree View OKR</h1>
-                    {/* Layout Toggle Button */}
-                    {treeData && (
-                        <button
-                            onClick={() => setLayoutDirection(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                            title={layoutDirection === 'horizontal' ? 'Chuyển sang dọc' : 'Chuyển sang ngang'}
-                        >
-                            {layoutDirection === 'horizontal' ? (
-                                <>
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                                    </svg>
-                                    <span className="text-sm font-medium">Dọc</span>
-                                </>
-                            ) : (
-                                <>
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                                    </svg>
-                                    <span className="text-sm font-medium">Ngang</span>
-                                </>
-                            )}
-                        </button>
-                    )}
-                </div>
-                <div className="flex items-center gap-4 flex-wrap">
-                    {cyclesList && cyclesList.length > 0 && (
-                        <CycleDropdown
-                            cyclesList={cyclesList}
-                            cycleFilter={cycleId}
-                            handleCycleChange={setCycleId}
-                            dropdownOpen={dropdownOpen}
-                            setDropdownOpen={setDropdownOpen}
-                        />
-                    )}
-                    
-                    {/* Company Objective Dropdown */}
-                    {companyObjectives && companyObjectives.length > 0 && (
-                        <div className="relative w-64">
-                            <button
-                                onClick={() => setObjectiveDropdownOpen((prev) => !prev)}
-                                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                            >
-                                <span className="flex items-center gap-2 truncate">
-                                    {companyObjectives.find(
-                                        (obj) => String(obj.objective_id) === String(selectedObjectiveId)
-                                    )?.obj_title || "Chọn Objective công ty"}
-                                </span>
-                                <svg
-                                    className={`w-4 h-4 transition-transform ${
-                                        objectiveDropdownOpen ? "rotate-180" : ""
-                                    }`}
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M19 9l-7 7-7-7"
-                                    />
-                                </svg>
-                            </button>
-
-                            {objectiveDropdownOpen && (
-                                <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
-                                    {companyObjectives.map((obj) => (
-                                        <label
-                                            key={obj.objective_id}
-                                            className={`flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
-                                                String(selectedObjectiveId) === String(obj.objective_id)
-                                                    ? "bg-blue-50 border-l-4 border-l-blue-500"
-                                                    : ""
-                                            }`}
-                                        >
-                                            <input
-                                                type="radio"
-                                                name="objective"
-                                                value={obj.objective_id}
-                                                checked={
-                                                    String(selectedObjectiveId) === String(obj.objective_id)
-                                                }
-                                                onChange={(e) => {
-                                                    setSelectedObjectiveId(Number(e.target.value));
-                                                    setObjectiveDropdownOpen(false);
-                                                }}
-                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <div className="flex-1">
-                                                <p className="text-sm font-medium text-slate-900">
-                                                    {obj.obj_title}
-                                                </p>
-                                                {obj.cycle_name && (
-                                                    <p className="text-xs text-gray-500">
-                                                        {obj.cycle_name}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </label>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
+        <div className="w-full bg-gray-50 overflow-hidden" style={{ height: 'calc(100vh - 95px)' }}>
             {!selectedObjectiveId ? (
-                <div className="text-center py-12 text-gray-500 bg-white rounded-lg shadow-sm">
+                <div className="h-full flex items-center justify-center text-gray-500 bg-white overflow-hidden">
                     Vui lòng chọn Objective cấp công ty để xem tree view
                 </div>
             ) : !treeData ? (
-                <div className="text-center py-12 text-gray-500 bg-white rounded-lg shadow-sm">
+                <div className="h-full flex items-center justify-center text-gray-500 bg-white overflow-hidden">
                     Đang tải dữ liệu...
                 </div>
             ) : (
-                <div className="bg-white rounded-lg shadow-sm" style={{ height: 'calc(100vh - 250px)', minHeight: '600px' }}>
+                <div className="h-full w-full bg-white relative overflow-hidden">
                     <ReactFlowProvider>
                         <OKRTreeFlow
                             nodes={nodes}
@@ -829,6 +797,100 @@ export default function OKRTreePage() {
                             nodeTypes={nodeTypes}
                             layoutDirection={layoutDirection}
                         />
+                        {/* Controls - đặt ở góc trên bên trái trong ReactFlow view */}
+                        <div className="absolute top-4 left-4 z-20 flex items-center gap-3 flex-wrap">
+                            {cyclesList && cyclesList.length > 0 && (
+                                <CycleDropdown
+                                    cyclesList={cyclesList}
+                                    cycleFilter={cycleId}
+                                    handleCycleChange={setCycleId}
+                                    dropdownOpen={dropdownOpen}
+                                    setDropdownOpen={setDropdownOpen}
+                                />
+                            )}
+                            
+                            {/* Company Objective Dropdown */}
+                            {companyObjectives && companyObjectives.length > 0 && (
+                                <div className="relative w-64">
+                                    <button
+                                        onClick={() => setObjectiveDropdownOpen((prev) => !prev)}
+                                        className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
+                                    >
+                                        <span className="flex items-center gap-2 truncate">
+                                            {companyObjectives.find(
+                                                (obj) => String(obj.objective_id) === String(selectedObjectiveId)
+                                            )?.obj_title || "Chọn Objective công ty"}
+                                        </span>
+                                        <svg
+                                            className={`w-4 h-4 transition-transform ${
+                                                objectiveDropdownOpen ? "rotate-180" : ""
+                                            }`}
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M19 9l-7 7-7-7"
+                                            />
+                                        </svg>
+                                    </button>
+
+                                    {objectiveDropdownOpen && (
+                                        <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
+                                            {companyObjectives.map((obj) => (
+                                                <label
+                                                    key={obj.objective_id}
+                                                    className={`flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
+                                                        String(selectedObjectiveId) === String(obj.objective_id)
+                                                            ? "bg-blue-50 border-l-4 border-l-blue-500"
+                                                            : ""
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="objective"
+                                                        value={obj.objective_id}
+                                                        checked={
+                                                            String(selectedObjectiveId) === String(obj.objective_id)
+                                                        }
+                                                        onChange={(e) => {
+                                                            setSelectedObjectiveId(Number(e.target.value));
+                                                            setObjectiveDropdownOpen(false);
+                                                        }}
+                                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium text-slate-900">
+                                                            {obj.obj_title}
+                                                        </p>
+                                                        {obj.cycle_name && (
+                                                            <p className="text-xs text-gray-500">
+                                                                {obj.cycle_name}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Layout Toggle Button - Icon Swap - cùng hàng với Controls, đặt bên trái Controls */}
+                        <button
+                            onClick={() => setLayoutDirection(prev => prev === 'horizontal' ? 'vertical' : 'horizontal')}
+                            className="absolute top-4 z-20 flex items-center justify-center w-10 h-10 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                            style={{ right: '215px' }}
+                            title={layoutDirection === 'horizontal' ? 'Chuyển sang dọc' : 'Chuyển sang ngang'}
+                        >
+                            <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                        </button>
                     </ReactFlowProvider>
                 </div>
             )}

@@ -160,7 +160,7 @@ class OkrTreeController extends Controller
 
         // Tìm các KeyResult được liên kết lên OKR này
         $linkedKRs = OkrLink::with([
-                'targetKr' => fn($q) => $q->with('assignedUser', 'objective'),
+                'targetKr' => fn($q) => $q->with(['assignedUser', 'objective']),
             ])
             ->where('target_objective_id', $objective->objective_id)
             ->where('target_type', 'kr')
@@ -201,11 +201,19 @@ class OkrTreeController extends Controller
                     }
                 }
                 
+                // Tính progress_percent: từ database hoặc từ current_value/target_value
+                $progressPercent = $kr->getAttributes()['progress_percent'] ?? null;
+                if (is_null($progressPercent) && $kr->target_value > 0) {
+                    $progressPercent = ($kr->current_value / $kr->target_value) * 100;
+                    $progressPercent = round(max(0, min(100, $progressPercent)), 2);
+                }
+                $progressPercent = $progressPercent ?? 0;
+                
                 $children[] = [
                     'type' => 'key_result',
                     'kr_id' => $kr->kr_id,
                     'kr_title' => $kr->kr_title,
-                    'progress_percent' => $kr->progress_percent,
+                    'progress_percent' => (float) $progressPercent,
                     'current_value' => $kr->current_value,
                     'target_value' => $kr->target_value,
                     'unit' => $kr->unit,
@@ -248,14 +256,23 @@ class OkrTreeController extends Controller
                     }
                 }
                 
+                // Tính progress_percent cho linked KR
+                $linkedKr = $link->targetKr;
+                $linkedProgressPercent = $linkedKr->getAttributes()['progress_percent'] ?? null;
+                if (is_null($linkedProgressPercent) && $linkedKr->target_value > 0) {
+                    $linkedProgressPercent = ($linkedKr->current_value / $linkedKr->target_value) * 100;
+                    $linkedProgressPercent = round(max(0, min(100, $linkedProgressPercent)), 2);
+                }
+                $linkedProgressPercent = $linkedProgressPercent ?? 0;
+                
                 $children[] = [
                     'type' => 'key_result',
-                    'kr_id' => $link->targetKr->kr_id,
-                    'kr_title' => $link->targetKr->kr_title,
-                    'progress_percent' => $link->targetKr->progress_percent,
-                    'current_value' => $link->targetKr->current_value,
-                    'target_value' => $link->targetKr->target_value,
-                    'unit' => $link->targetKr->unit,
+                    'kr_id' => $linkedKr->kr_id,
+                    'kr_title' => $linkedKr->kr_title,
+                    'progress_percent' => (float) $linkedProgressPercent,
+                    'current_value' => $linkedKr->current_value,
+                    'target_value' => $linkedKr->target_value,
+                    'unit' => $linkedKr->unit,
                     'assigned_user' => $link->targetKr->assignedUser ? [
                         'user_id' => $link->targetKr->assignedUser->user_id,
                         'full_name' => $link->targetKr->assignedUser->full_name,
@@ -308,10 +325,18 @@ class OkrTreeController extends Controller
                 'department_name' => $objective->department->department_name,
             ] : null,
             'key_results' => $objective->keyResults->map(function($kr) {
+                // Tính progress_percent
+                $progressPercent = $kr->getAttributes()['progress_percent'] ?? null;
+                if (is_null($progressPercent) && $kr->target_value > 0) {
+                    $progressPercent = ($kr->current_value / $kr->target_value) * 100;
+                    $progressPercent = round(max(0, min(100, $progressPercent)), 2);
+                }
+                $progressPercent = $progressPercent ?? 0;
+                
                 return [
                     'kr_id' => $kr->kr_id,
                     'kr_title' => $kr->kr_title,
-                    'progress_percent' => $kr->progress_percent,
+                    'progress_percent' => (float) $progressPercent,
                     'current_value' => $kr->current_value,
                     'target_value' => $kr->target_value,
                     'unit' => $kr->unit,
@@ -331,7 +356,7 @@ class OkrTreeController extends Controller
      */
     public function show(Request $request, int $objectiveId): JsonResponse
     {
-        $objective = Objective::with([
+            $objective = Objective::with([
                 'keyResults' => fn($q) => $q->whereNull('archived_at')->with('assignedUser'),
                 'user.department',
                 'department',

@@ -136,6 +136,9 @@ class MyKeyResultController extends Controller
                 // Refresh để đảm bảo kr_id được load từ database
                 $keyResult->refresh();
                 
+                // Tự động cập nhật progress của Objective từ KeyResults
+                $objective->updateProgressFromKeyResults();
+                
                 return $keyResult->load('objective', 'cycle', 'assignedUser');
             });
 
@@ -249,6 +252,9 @@ class MyKeyResultController extends Controller
                     'assigned_to' => $keyResult->assigned_to,
                 ]);
 
+                // Tự động cập nhật progress của Objective từ KeyResults
+                $objective->updateProgressFromKeyResults();
+
                 return $keyResult->load('objective', 'cycle', 'assignedUser');
             });
 
@@ -289,8 +295,11 @@ class MyKeyResultController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($keyResult) {
-                $keyResult->forceDelete(); 
+            DB::transaction(function () use ($keyResult, $objective) {
+                $keyResult->forceDelete();
+                
+                // Tự động cập nhật progress của Objective từ KeyResults
+                $objective->updateProgressFromKeyResults();
             });
 
             return response()->json(['success' => true, 'message' => 'Key Result đã được xóa vĩnh viễn!']);
@@ -326,6 +335,10 @@ class MyKeyResultController extends Controller
 
         try {
             $keyResult->update(['archived_at' => now()]);
+            
+            // Tự động cập nhật progress của Objective từ KeyResults (loại trừ KR đã archive)
+            $objective->updateProgressFromKeyResults();
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Lưu trữ thành công!',
@@ -356,6 +369,9 @@ class MyKeyResultController extends Controller
 
         try {
             $keyResult->update(['archived_at' => null]);
+
+            // Tự động cập nhật progress của Objective từ KeyResults
+            $objective->updateProgressFromKeyResults();
 
             $fullObjective = Objective::with(['keyResults' => fn($q) => $q->active()])
                 ->where('objective_id', $objectiveId)
