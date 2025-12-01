@@ -13,6 +13,10 @@ import ReactFlow, {
 } from "reactflow";
 import dagre from "dagre";
 import "reactflow/dist/style.css";
+<<<<<<< HEAD
+=======
+import { LuFlagTriangleRight } from "react-icons/lu";
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
 import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
 
@@ -116,10 +120,15 @@ const ObjectiveNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
                 style={{ background: 'transparent', width: 12, height: 12, border: 'none', opacity: 0 }}
             />
             <div className="flex items-start gap-3 mb-3">
+<<<<<<< HEAD
                 <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${getLevelColor(data.level)}`}>
                     <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
+=======
+                <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${getLevelColor(data.level)} relative`}>
+                    <LuFlagTriangleRight className="w-6 h-6 text-white flex-shrink-0" style={{ transform: 'translate(2px, 0)' }} />
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -169,7 +178,11 @@ const ObjectiveNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
                         e.stopPropagation();
                         if (onToggleExpand) onToggleExpand();
                     }}
+<<<<<<< HEAD
                     className={`w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors absolute z-10 ${
+=======
+                    className={`w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-blue-500 hover:shadow-lg hover:scale-110 transition-all duration-200 absolute z-10 group ${
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
                         layoutDirection === 'horizontal' 
                             ? 'right-0 top-1/2 -translate-y-1/2 translate-x-1/2' 
                             : 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2'
@@ -179,7 +192,11 @@ const ObjectiveNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
                     {isExpanded ? (
                         // Expanded: hiển thị dấu trừ (minus)
                         <svg
+<<<<<<< HEAD
                             className="w-3 h-3 text-gray-600"
+=======
+                            className="w-3 h-3 text-gray-600 group-hover:text-white transition-colors"
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -189,7 +206,11 @@ const ObjectiveNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
                     ) : (
                         // Collapsed: hiển thị chevron theo hướng layout
                         <svg
+<<<<<<< HEAD
                             className={`w-3 h-3 text-gray-600 ${layoutDirection === 'horizontal' ? 'rotate-90' : ''}`}
+=======
+                            className={`w-3 h-3 text-gray-600 group-hover:text-white transition-colors ${layoutDirection === 'horizontal' ? 'rotate-90' : ''}`}
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -275,7 +296,11 @@ const KeyResultNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
                         e.stopPropagation();
                         if (onToggleExpand) onToggleExpand();
                     }}
+<<<<<<< HEAD
                     className={`w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors absolute z-10 ${
+=======
+                    className={`w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-blue-500 hover:shadow-lg hover:scale-110 transition-all duration-200 absolute z-10 group ${
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
                         layoutDirection === 'horizontal' 
                             ? 'right-0 top-1/2 -translate-y-1/2 translate-x-1/2' 
                             : 'bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2'
@@ -285,7 +310,11 @@ const KeyResultNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
                     {isExpanded ? (
                         // Expanded: hiển thị dấu trừ (minus)
                         <svg
+<<<<<<< HEAD
                             className="w-3 h-3 text-gray-600"
+=======
+                            className="w-3 h-3 text-gray-600 group-hover:text-white transition-colors"
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -295,7 +324,11 @@ const KeyResultNode = ({ data, sourcePosition, targetPosition, hasChildren, isEx
                     ) : (
                         // Collapsed: hiển thị chevron theo hướng layout
                         <svg
+<<<<<<< HEAD
                             className={`w-3 h-3 text-gray-600 ${layoutDirection === 'horizontal' ? 'rotate-90' : ''}`}
+=======
+                            className={`w-3 h-3 text-gray-600 group-hover:text-white transition-colors ${layoutDirection === 'horizontal' ? 'rotate-90' : ''}`}
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"

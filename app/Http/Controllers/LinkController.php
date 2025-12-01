@@ -232,6 +232,26 @@ class LinkController extends Controller
             return response()->json(['success' => false, 'message' => 'Chỉ xử lý yêu cầu đang chờ.'], 422);
         }
 
+        // Kiểm tra xem source Objective đã có link approved khác chưa (đảm bảo quy tắc 1:1)
+        $existingApprovedLink = OkrLink::query()
+            ->where('source_type', 'objective')
+            ->where('source_objective_id', $link->source_objective_id)
+            ->where('status', OkrLink::STATUS_APPROVED)
+            ->where('link_id', '!=', $link->link_id)
+            ->first();
+
+        if ($existingApprovedLink) {
+            $targetType = $existingApprovedLink->target_type === 'objective' ? 'Objective' : 'Key Result';
+            $targetId = $existingApprovedLink->target_type === 'objective' 
+                ? $existingApprovedLink->target_objective_id 
+                : $existingApprovedLink->target_kr_id;
+            
+            return response()->json([
+                'success' => false, 
+                'message' => "Không thể chấp thuận liên kết này. Objective này đã có liên kết được chấp thuận đến một {$targetType} khác (ID: {$targetId}). Mỗi Objective chỉ có thể liên kết đến một đích duy nhất."
+            ], 422);
+        }
+
         $validated = $request->validate([
             'note' => ['nullable', 'string', 'max:255'],
         ]);
@@ -481,7 +501,13 @@ class LinkController extends Controller
     }
 
     /**
+<<<<<<< HEAD
      * Ngăn tạo liên kết trùng lặp
+=======
+     * Ngăn tạo liên kết trùng lặp và đảm bảo quy tắc 1:1
+     * Quy tắc: 1 Objective chỉ có thể liên kết đến 1 đích (1 O hoặc 1 KR) - 1:1
+     *          1 đích (O hoặc KR) có thể có nhiều O con liên kết tới - 1:n
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
      * Lưu ý: Source luôn là Objective
      */
     private function preventDuplicate($source, $target): void
@@ -490,8 +516,39 @@ class LinkController extends Controller
             abort(response()->json(['success' => false, 'message' => 'Source phải là Objective.'], 422));
         }
 
+<<<<<<< HEAD
         $query = OkrLink::query()
             ->where('source_type', 'objective') // Source luôn là Objective
+=======
+        // Bước 1: Kiểm tra xem source Objective đã có liên kết đến bất kỳ target nào chưa (1:1)
+        // Chỉ kiểm tra các liên kết đã approved hoặc đang pending (bỏ qua cancelled, rejected, needs_changes)
+        $existingLink = OkrLink::query()
+            ->where('source_type', 'objective')
+            ->where('source_objective_id', $source->objective_id)
+            ->whereNotIn('status', [
+                OkrLink::STATUS_CANCELLED,
+                OkrLink::STATUS_REJECTED,
+                OkrLink::STATUS_NEEDS_CHANGES,
+            ])
+            ->first();
+
+        if ($existingLink) {
+            // Source Objective đã có liên kết đến một target khác
+            $targetType = $existingLink->target_type === 'objective' ? 'Objective' : 'Key Result';
+            $targetId = $existingLink->target_type === 'objective' 
+                ? $existingLink->target_objective_id 
+                : $existingLink->target_kr_id;
+            
+            abort(response()->json([
+                'success' => false, 
+                'message' => "Objective này đã có liên kết đến một {$targetType} khác (ID: {$targetId}). Mỗi Objective chỉ có thể liên kết đến một đích duy nhất."
+            ], 422));
+        }
+
+        // Bước 2: Kiểm tra xem liên kết đến target này đã tồn tại chưa (tránh duplicate)
+        $duplicateQuery = OkrLink::query()
+            ->where('source_type', 'objective')
+>>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
             ->where('target_type', $target instanceof Objective ? 'objective' : 'kr')
             ->where('source_objective_id', $source->objective_id)
             ->whereNotIn('status', [
@@ -501,12 +558,12 @@ class LinkController extends Controller
             ]);
 
         if ($target instanceof Objective) {
-            $query->where('target_objective_id', $target->objective_id);
+            $duplicateQuery->where('target_objective_id', $target->objective_id);
         } else {
-            $query->where('target_kr_id', $target->kr_id);
+            $duplicateQuery->where('target_kr_id', $target->kr_id);
         }
 
-        if ($query->exists()) {
+        if ($duplicateQuery->exists()) {
             abort(response()->json(['success' => false, 'message' => 'Liên kết này đã tồn tại.'], 422));
         }
     }
