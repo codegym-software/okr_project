@@ -17,6 +17,8 @@ use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
+use Illuminate\Http\Request;
+use App\Http\Controllers\ReportController;
 
 
 Route::get('/', function () {

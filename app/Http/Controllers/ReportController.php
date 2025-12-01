@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\Cycle;
 use App\Models\CheckIn;
 use App\Models\KeyResult;
+use App\Models\Report;  
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,93 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
+    /**
+     * Tạo snapshot báo cáo
+     */
+public function createSnapshot(Request $request)
+{
+    try {
+        // Không validate gì nặng để tránh crash
+        $cycle = \App\Models\Cycle::find($request->cycle_id);
+        $user = $request->user();
+
+        // Store the snapshot using Eloquent casting (store array, let Eloquent JSON-encode)
+        $report = \App\Models\Report::create([
+            'title'           => $request->title ?? 'Báo cáo snapshot - '.now()->format('d/m/Y H:i'),
+            'cycle_name'      => $cycle?->cycle_name ?? 'Unknown',
+            'cycle_id'        => $request->cycle_id,
+            'scope'           => $request->scope ?? 'company',
+            'created_by'      => $user?->user_id,
+            'created_by_name' => $user?->name ?? 'Hệ thống',
+            'data_snapshot'   => $request->input('data_snapshot') ?? [],
+            'snapshotted_at'  => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ĐÃ LƯU SNAPSHOT THÀNH CÔNG!',
+            'data' => [
+                'id' => $report->id,
+                'title' => $report->title,
+                'cycle_name' => $report->cycle_name,
+                'created_by_name' => $report->created_by_name,
+                'created_at' => $report->created_at?->toDateTimeString(),
+            ],
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Lỗi cụ thể: ' . $e->getMessage(),
+            'line'    => $e->getLine(),
+            'file'    => $e->getFile(),
+        ], 500);
+    }
+}
+
+    /**
+     * Lấy danh sách snapshots (lịch sử)
+     */
+    public function getSnapshots(Request $request)
+    {
+        $query = Report::query()
+            ->orderBy('snapshotted_at', 'desc');
+
+        // Filters (từ query params)
+        if ($request->scope) $query->where('scope', $request->scope);
+        if ($request->cycle_id) $query->where('cycle_id', $request->cycle_id);
+        if ($request->limit) $query->limit($request->limit);
+
+        $snapshots = $query->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $snapshots->map(function ($s) {
+                return [
+                    'id' => $s->id,
+                    'title' => $s->title,
+                    'cycle_name' => $s->cycle_name,
+                    'created_by_name' => $s->created_by_name,
+                    // Return ISO timestamps so frontend can safely parse with `new Date(...)`
+                    'created_at' => $s->created_at ? $s->created_at->toIso8601String() : null,
+                    'snapshotted_at' => $s->snapshotted_at ? $s->snapshotted_at->toIso8601String() : null,
+                ];
+            }),
+        ]);
+    }
+
+    /**
+     * Xem chi tiết 1 snapshot (để render lại báo cáo cũ)
+     */
+    public function showSnapshot($id)
+    {
+        $snapshot = Report::findOrFail($id);
+        return response()->json([
+            'success' => true,
+            'data' => $snapshot,  // Trả toàn bộ, bao gồm data_snapshot để frontend render
+        ]);
+    }
+
     /**
      * Trang báo cáo cho quản lý (render React app).
      */
