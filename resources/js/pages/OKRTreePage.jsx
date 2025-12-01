@@ -494,7 +494,8 @@ export default function OKRTreePage() {
             rankdir: direction,
             nodesep: 100, // Khoảng cách giữa các nodes cùng level
             ranksep: 150, // Khoảng cách giữa các levels
-            align: 'UL',
+            // Bỏ align: 'UL' để không căn lệch về góc trên bên trái
+            // Logic offset bên dưới sẽ tự động căn giữa graph
             marginx: 50,
             marginy: 50,
         });
