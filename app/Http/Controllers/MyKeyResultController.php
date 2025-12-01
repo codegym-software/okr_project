@@ -141,7 +141,7 @@ class MyKeyResultController extends Controller
                 if ($finalAssignedTo && $finalAssignedTo !== $user->user_id) {
                     Notification::create([
                         'user_id' => $finalAssignedTo,
-                        'message' => "{$user->fullName} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                        'message' => "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
                         'type' => 'kr_assigned',
                         'is_read' => false,
                         'cycle_id' => $keyResult->cycle_id,
@@ -252,7 +252,7 @@ class MyKeyResultController extends Controller
                     if ($assignee->user_id !== $user->user_id) {
                         Notification::create([
                             'user_id' => $assignee->user_id,
-                            'message' => "{$user->fullName} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                            'message' => "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
                             'type' => 'kr_assigned',
                             'is_read' => false,
                             'cycle_id' => $keyResult->cycle_id,
@@ -437,7 +437,7 @@ class MyKeyResultController extends Controller
         if ($assignee->user_id !== $user->user_id) {
             Notification::create([
                 'user_id' => $assignee->user_id,
-                'message' => "{$user->fullName} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                'message' => "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
                 'type' => 'kr_assigned',
                 'is_read' => false,
                 'cycle_id' => $keyResult->cycle_id,
@@ -446,7 +446,7 @@ class MyKeyResultController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Đã giao KR cho {$assignee->fullName}",
+            'message' => "Đã giao KR cho {$assignee->full_name}",
             'data' => [
                 'kr_id' => $keyResult->kr_id,
                 'assigned_to' => $assignee->only(['user_id', 'fullName', 'email', 'avatar'])
