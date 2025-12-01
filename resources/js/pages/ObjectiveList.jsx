@@ -779,38 +779,42 @@ export default function ObjectiveList({
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
                                                     {kr.target_value ?? ""}
                                                 </td>
+                                                {/* Cột Tiến độ - Click để check-in */}
                                                 <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {formatPercent(
-                                                        kr.progress_percent
-                                                    )}
+                                                    <div 
+                                                        className={`flex flex-col items-center ${canCheckInKR && canCheckInKR(kr, obj) ? 'cursor-pointer group/progress' : ''}`}
+                                                        onClick={(e) => {
+                                                            if (canCheckInKR && canCheckInKR(kr, obj) && openCheckInModal) {
+                                                                e.stopPropagation();
+                                                                handleOpenCheckIn(kr, obj);
+                                                            }
+                                                        }}
+                                                        title={canCheckInKR && canCheckInKR(kr, obj) ? "Click để check-in" : ""}
+                                                    >
+                                                        {/* Progress bar */}
+                                                        <div className={`w-full bg-gray-200 rounded-full h-5 relative overflow-hidden transition-all ${canCheckInKR && canCheckInKR(kr, obj) ? 'group-hover/progress:ring-2 group-hover/progress:ring-blue-400 group-hover/progress:ring-offset-1' : ''}`}>
+                                                            <div
+                                                                className={`h-full rounded-full absolute left-0 transition-all ${
+                                                                    kr.status === "completed"
+                                                                        ? "bg-green-500"
+                                                                        : "bg-blue-500"
+                                                                }`}
+                                                                style={{ width: `${Math.min(kr.progress_percent || 0, 100)}%` }}
+                                                            ></div>
+                                                            <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700">
+                                                                {formatPercent(kr.progress_percent)}
+                                                            </span>
+                                                        </div>
+                                                        {/* Hint khi hover */}
+                                                        {canCheckInKR && canCheckInKR(kr, obj) && (
+                                                            <span className="text-[10px] text-blue-500 opacity-0 group-hover/progress:opacity-100 transition-opacity mt-0.5">
+                                                                Click để check-in
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-3 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-1">
-                                                        {/* Nút Check-in - hiển thị khi hover và có quyền */}
-                                                        {openCheckInModal && canCheckInKR(kr, obj) && (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleOpenCheckIn(kr, obj);
-                                                                }}
-                                                                className="p-1.5 rounded-md hover:bg-blue-100 transition-all opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 bg-blue-50 border border-blue-200"
-                                                                title="Check-in"
-                                                            >
-                                                                <svg
-                                                                    className="h-4 w-4 text-blue-600"
-                                                                    fill="none"
-                                                                    viewBox="0 0 24 24"
-                                                                    stroke="currentColor"
-                                                                >
-                                                                    <path
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        strokeWidth={2}
-                                                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                                    />
-                                                                </svg>
-                                                            </button>
-                                                        )}
                                                         <button
                                                             onClick={() =>
                                                                 setEditingKR(kr)
