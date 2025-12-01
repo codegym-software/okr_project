@@ -64,7 +64,7 @@ export default function ObjectivesPage() {
         if (currentUser?.role?.role_name?.toLowerCase() === 'member') {
             setViewMode('personal');
         }
-    }, [currentUser]);
+    }, [currentUser?.user_id]);
 
     // Effect to select the default cycle on initial load
     useEffect(() => {
