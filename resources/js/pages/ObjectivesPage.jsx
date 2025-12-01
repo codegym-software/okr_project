@@ -54,10 +54,71 @@ export default function ObjectivesPage() {
     const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
     const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
     const [currentUser, setCurrentUser] = useState(null);
-    const [cycleFilter, setCycleFilter] = useState("");
+    const [cycleFilter, setCycleFilter] = useState(null);
     const [myOKRFilter, setMyOKRFilter] = useState(false);
 
+    // Effect to select the default cycle on initial load
+    useEffect(() => {
+        const selectDefaultCycle = async () => {
+            try {
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+                const res = await fetch("/cycles", {
+                    headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+                });
+                const json = await res.json();
+
+                if (!Array.isArray(json.data) || json.data.length === 0) {
+                    setToast({ type: "error", message: "Không có dữ liệu chu kỳ" });
+                    return;
+                }
+
+                const cycles = json.data;
+                setCyclesList(cycles);
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                let selectedCycle = cycles.find(c => {
+                    const start = c.start_date ? new Date(c.start_date) : null;
+                    const end = c.end_date ? new Date(c.end_date) : null;
+                    if (start && end) {
+                        start.setHours(0, 0, 0, 0);
+                        end.setHours(23, 59, 59, 999);
+                        return today >= start && today <= end;
+                    }
+                    return false;
+                });
+
+                if (!selectedCycle) {
+                    selectedCycle = cycles.reduce((best, c) => {
+                        const start = c.start_date ? new Date(c.start_date) : null;
+                        const end = c.end_date ? new Date(c.end_date) : null;
+                        let refDate = start || end || new Date(c.created_at);
+                        const diff = Math.abs(refDate - today);
+                        return !best || diff < best.diff ? { ...c, diff } : best;
+                    }, null);
+                }
+                
+                // Set the cycle filter which will trigger the data load effect
+                if(selectedCycle) {
+                    setCycleFilter(selectedCycle.cycle_id);
+                }
+
+            } catch (err) {
+                console.error(err);
+                setToast({ type: "error", message: "Lỗi tải danh sách chu kỳ" });
+            }
+        };
+        selectDefaultCycle();
+    }, []);
+
+
     const load = async (pageNum = 1, cycle = "", myOKR = false) => {
+        // If cycleFilter is not set yet, don't load
+        if (cycle === null) {
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
             const token = document
@@ -75,7 +136,7 @@ export default function ObjectivesPage() {
             if (cycle) url += `&cycle_id=${cycle}`;
             if (myOKR) url += `&my_okr=true`;
 
-            const [resObj, resDept, resCycles, resUser, resLinks] = await Promise.all([
+            const [resObj, resDept, resUser, resLinks] = await Promise.all([
                 fetch(url, {
                     headers: {
                         Accept: "application/json",
@@ -85,7 +146,6 @@ export default function ObjectivesPage() {
                 fetch("/departments", {
                     headers: { Accept: "application/json" },
                 }),
-                fetch("/cycles", { headers: { Accept: "application/json" } }),
                 fetch("/api/profile", {
                     headers: {
                         Accept: "application/json",
@@ -158,17 +218,6 @@ export default function ObjectivesPage() {
             } else {
                 console.error("Departments API error:", resDept.status, resDept.statusText);
                 setDepartments([]);
-            }
-
-            const cyclesData = await resCycles.json().catch((err) => {
-                console.error("Error parsing cycles:", err);
-                return { data: [] };
-            });
-            if (resCycles.ok) {
-                setCyclesList(cyclesData.data || []);
-            } else {
-                console.error("Cycles API error:", resCycles.status, resCycles.statusText);
-                setCyclesList([]);
             }
 
             const linksJson = await resLinks.json().catch((err) => {
