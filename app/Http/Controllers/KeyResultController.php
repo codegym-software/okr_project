@@ -143,10 +143,6 @@ class KeyResultController extends Controller
     public function update(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
         
         // Load user relationships
         if (!$user->relationLoaded('role')) {

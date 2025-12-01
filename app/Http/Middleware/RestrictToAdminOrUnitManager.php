@@ -19,7 +19,7 @@ class RestrictToAdminOrUnitManager
     {
         $user = Auth::user();
 
-        if (!$user || (!$user->isAdmin() && !$user->isDeptManager())) {
+        if (!$user || (!$user->isAdmin() && !$user->isManager())) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bạn không có quyền truy cập tài nguyên này.'

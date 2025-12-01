@@ -49,7 +49,7 @@ class CheckInController extends Controller
     public function store(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-    $keyResult = KeyResult::with(['objective.cycle', 'cycle'])->findOrFail($krId);
+        $keyResult = KeyResult::with(['objective.cycle', 'cycle'])->findOrFail($krId);
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {

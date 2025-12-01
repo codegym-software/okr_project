@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class KeyResult extends Model
@@ -18,10 +19,23 @@ class KeyResult extends Model
     protected $keyType = 'string';
 
     /**
+     * Boot function để tự động tạo UUID
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (empty($model->kr_id)) {
+                $model->kr_id = (string) Str::uuid();
+            }
+        });
+    }
+
+    /**
      * The attributes that are mass assignable.
      */
     protected $fillable = [
-        'kr_id',
         'kr_title',
         'target_value',
         'current_value',

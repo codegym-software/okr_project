@@ -28,7 +28,7 @@ class CycleController extends Controller
             'cycle_name' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
-            'status' => 'required|in:active,inactive',
+            'status' => 'required|in:active,inactive,draft',
             'description' => 'nullable|string',
         ]);
 
@@ -58,7 +58,7 @@ class CycleController extends Controller
             'cycle_name' => 'nullable|string|max:255',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',
-            'status' => 'nullable|in:active,inactive',
+            'status' => 'nullable|in:active,inactive,draft',
             'description' => 'nullable|string',
         ]);
 

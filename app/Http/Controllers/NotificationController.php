@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notification;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -12,7 +13,7 @@ class NotificationController extends Controller
     /**
      * Lấy danh sách thông báo của user hiện tại
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
         
@@ -61,7 +62,7 @@ class NotificationController extends Controller
     /**
      * Đánh dấu thông báo là đã đọc
      */
-    public function markAsRead(Request $request, $notificationId)
+    public function markAsRead(Request $request, $notificationId): JsonResponse
     {
         $user = Auth::user();
         
@@ -87,7 +88,7 @@ class NotificationController extends Controller
     /**
      * Đánh dấu tất cả thông báo là đã đọc
      */
-    public function markAllAsRead(Request $request)
+    public function markAllAsRead(Request $request): JsonResponse
     {
         $user = Auth::user();
         
@@ -114,7 +115,7 @@ class NotificationController extends Controller
     /**
      * Lấy số lượng thông báo chưa đọc
      */
-    public function unreadCount(Request $request)
+    public function unreadCount(Request $request): JsonResponse
     {
         $user = Auth::user();
         
@@ -140,7 +141,7 @@ class NotificationController extends Controller
     /**
      * Xóa thông báo
      */
-    public function destroy(Request $request, $notificationId)
+    public function destroy(Request $request, $notificationId): JsonResponse
     {
         $user = Auth::user();
         
@@ -162,4 +163,3 @@ class NotificationController extends Controller
         ]);
     }
 }
-

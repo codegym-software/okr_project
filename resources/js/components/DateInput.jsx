@@ -17,12 +17,25 @@ export default function DateInput({ name, value, defaultValue, onChange, require
         }
     }, [defaultValue, value]);
     
+    // Sync internal state with prop value changes
+    useEffect(() => {
+        if (value !== undefined) {
+            setIso(value);
+        }
+    }, [value]);
+    
     useEffect(() => {
         // Cập nhật currentMonth khi có ngày được chọn
         if (iso) {
-            const date = new Date(iso);
-            if (!isNaN(date.getTime())) {
-                setCurrentMonth(date);
+            // Parse YYYY-MM-DD thủ công để tránh lỗi timezone
+            if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+                const [y, m, d] = iso.split('-').map(Number);
+                setCurrentMonth(new Date(y, m - 1, d));
+            } else {
+                const date = new Date(iso);
+                if (!isNaN(date.getTime())) {
+                    setCurrentMonth(date);
+                }
             }
         }
     }, [iso]);
@@ -39,6 +52,12 @@ export default function DateInput({ name, value, defaultValue, onChange, require
     
     const formatDMY = (v) => {
         if (!v) return '';
+        // Ưu tiên parse chuỗi YYYY-MM-DD trực tiếp
+        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+            const [y, m, d] = v.split('-');
+            return `${d}/${m}/${y}`;
+        }
+        
         const d = new Date(v);
         if (isNaN(d.getTime())) return '';
         const dd = String(d.getDate()).padStart(2, '0');
@@ -56,14 +75,16 @@ export default function DateInput({ name, value, defaultValue, onChange, require
             event.stopPropagation();
         }
         
-        // Tạo ngày local để tránh lỗi timezone
+        // Lấy ngày tháng từ ô lịch đã render (đảm bảo là local date)
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
-        const iso = `${year}-${month}-${day}`;
         
-        setIso(iso);
-        onChange && onChange(iso);
+        // Ghép chuỗi thủ công, KHÔNG dùng toISOString() hay bất kỳ hàm Date nào khác
+        const isoString = `${year}-${month}-${day}`;
+        
+        setIso(isoString);
+        onChange && onChange(isoString);
         setShowPicker(false);
     };
     

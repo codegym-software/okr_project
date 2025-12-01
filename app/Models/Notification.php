@@ -59,4 +59,3 @@ class Notification extends Model
         return $this->update(['is_read' => false]);
     }
 }
-

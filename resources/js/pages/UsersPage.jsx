@@ -404,6 +404,7 @@ export default function UsersPage() {
                                                         placeholder="Chọn vai trò"
                                                         options={[
                                                             { value: "", label: "Tất cả" },
+                                                            { value: "ceo", label: "CEO" },
                                                             { value: "manager", label: "Quản lý" },
                                                             { value: "member", label: "Thành viên" },
                                                         ]}

@@ -88,14 +88,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Kiểm tra xem user có phải Unit Manager không
-     */
-    public function isDeptManager()
-    {
-        return $this->role && $this->role->isDeptManager();
-    }
-
-    /**
      * Kiểm tra xem user có phải Member không
      */
     public function isMember()

@@ -13,6 +13,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CheckInController;
 use App\Http\Controllers\OkrAssignmentController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
@@ -151,6 +152,13 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     })->middleware('auth')->name('change.password.form');
     Route::post('/change-password', [App\Http\Controllers\AuthController::class, 'changePassword'])->middleware('auth')->name('change.password');
 
+    // Notifications
+    Route::middleware('auth')->group(function () {
+        Route::get('/api/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/api/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
+        Route::post('/api/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.markAsRead');
+    });
+
             // Routes cho User Management (chỉ Admin)
             Route::middleware(['auth', 'admin'])->group(function () {
                 Route::get('/users/{id}/detail', [UserController::class, 'show'])->name('users.show');
@@ -273,10 +281,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('my-key-result.destroy');
     });
 
-    // Company OKR Routes
+    // Company OKR Routes - yêu cầu đăng nhập
     Route::get('/company-okrs', [App\Http\Controllers\CompanyOkrController::class, 'index'])
+        ->middleware('auth')
         ->name('company.okrs');
     Route::get('/company-okrs/{id}', [App\Http\Controllers\CompanyOkrController::class, 'show'])
+        ->middleware('auth')
         ->name('company.okrs.show');
 
     // Check-in Routes
@@ -340,11 +350,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/', [LinkController::class, 'index'])->middleware('auth')->name('my-links.index');
         Route::get('/available-targets', [LinkController::class, 'getAvailableTargets'])->middleware('auth')->name('my-links.available-targets');
         Route::post('/store', [LinkController::class, 'store'])->middleware('auth')->name('my-links.store');
+        Route::post('/{link}/approve', [LinkController::class, 'approve'])->middleware('auth')->name('my-links.approve');
+        Route::post('/{link}/reject', [LinkController::class, 'reject'])->middleware('auth')->name('my-links.reject');
+        Route::post('/{link}/request-changes', [LinkController::class, 'requestChanges'])->middleware('auth')->name('my-links.request-changes');
+        Route::post('/{link}/cancel', [LinkController::class, 'cancel'])->middleware('auth')->name('my-links.cancel');
     });
 
-    Route::get('/okr-assignments/assignable-users-roles', [OkrAssignmentController::class, 'getAssignableUsersAndRoles'])->name('okr-assignments.assignable');
-    Route::post('/okr-assignments/store', [OkrAssignmentController::class, 'store'])->name('okr-assignments.store');
-    Route::delete('/okr-assignments/destroy/{id}', [OkrAssignmentController::class, 'destroy'])->name('okr-assignments.destroy');
 });
 
 // Phục vụ file trong storage khi thiếu symlink public/storage

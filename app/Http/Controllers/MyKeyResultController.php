@@ -3,14 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\KeyResult;
+use App\Models\Notification;
 use App\Models\Objective;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
-use App\Models\User;
 
 class MyKeyResultController extends Controller
 {
@@ -117,8 +118,7 @@ class MyKeyResultController extends Controller
                 }
 
                 // === TẠO KEY RESULT ===
-                return KeyResult::create([
-                    'kr_id' => (string) \Str::uuid(),
+                $keyResult = KeyResult::create([
                     'kr_title' => $validated['kr_title'],
                     'target_value' => $target,
                     'current_value' => $current,
@@ -132,7 +132,23 @@ class MyKeyResultController extends Controller
                     'user_id' => $user->user_id,
                     'archived_at' => null,
                     'assigned_to' => $finalAssignedTo,
-                ])->load('objective', 'cycle', 'assignedUser');
+                ]);
+                
+                // Refresh để đảm bảo kr_id được load từ database
+                $keyResult->refresh();
+
+                // Gửi thông báo cho người được giao (nếu khác người tạo)
+                if ($finalAssignedTo && $finalAssignedTo !== $user->user_id) {
+                    Notification::create([
+                        'user_id' => $finalAssignedTo,
+                        'message' => "{$user->fullName} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                        'type' => 'kr_assigned',
+                        'is_read' => false,
+                        'cycle_id' => $keyResult->cycle_id,
+                    ]);
+                }
+                
+                return $keyResult->load('objective', 'cycle', 'assignedUser');
             });
 
             return $this->successResponse($request, 'Key Result được tạo thành công!', $created);
@@ -218,6 +234,7 @@ class MyKeyResultController extends Controller
 
                 // === XỬ LÝ assigned_to ===
                 $assignedToInput = $validated['assigned_to'] ?? null;
+                $oldAssignedTo = $keyResult->assigned_to;
 
                 if ($assignedToInput !== null && $assignedToInput !== $keyResult->assigned_to) {
                     if (!$this->canAssign($user, $objective)) {
@@ -230,6 +247,17 @@ class MyKeyResultController extends Controller
                     }
 
                     $keyResult->assigned_to = $assignee->user_id;
+
+                    // Gửi thông báo cho người được giao mới (nếu khác người thực hiện trước và khác người tạo)
+                    if ($assignee->user_id !== $user->user_id) {
+                        Notification::create([
+                            'user_id' => $assignee->user_id,
+                            'message' => "{$user->fullName} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                            'type' => 'kr_assigned',
+                            'is_read' => false,
+                            'cycle_id' => $keyResult->cycle_id,
+                        ]);
+                    }
                 }
                 // Không thay đổi nếu không gửi hoặc gửi giống cũ
 
@@ -376,7 +404,6 @@ class MyKeyResultController extends Controller
         $user = Auth::user();
         $keyResult = KeyResult::where('objective_id', $objectiveId)
             ->where('kr_id', $keyResultId)
-            ->whereNotNull('assigned_to')
             ->firstOrFail();
 
         $objective = Objective::findOrFail($objectiveId);
@@ -406,9 +433,20 @@ class MyKeyResultController extends Controller
         $keyResult->assigned_to = $assignee->user_id;
         $keyResult->save();
 
+        // Tạo thông báo cho người được giao
+        if ($assignee->user_id !== $user->user_id) {
+            Notification::create([
+                'user_id' => $assignee->user_id,
+                'message' => "{$user->fullName} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                'type' => 'kr_assigned',
+                'is_read' => false,
+                'cycle_id' => $keyResult->cycle_id,
+            ]);
+        }
+
         return response()->json([
             'success' => true,
-            'message' => "Đã giao KR cho {$assignee->name}",
+            'message' => "Đã giao KR cho {$assignee->fullName}",
             'data' => [
                 'kr_id' => $keyResult->kr_id,
                 'assigned_to' => $assignee->only(['user_id', 'fullName', 'email', 'avatar'])
