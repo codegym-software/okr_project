@@ -112,7 +112,7 @@ export default function CompanyOkrList() {
             if (okrRes.ok) {
                 const okrJson = await okrRes.json();
                 if (okrJson.success) {
-                    setItems(okrJson.data.data || []);
+                    setItems(okrJson.data.objectives.data || []);
                 } else {
                     throw new Error(okrJson.message || "Không tải được OKR");
                 }
