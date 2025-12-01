@@ -264,42 +264,57 @@ function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdm
                                 <td className="px-4 py-3 text-center">
                                     {isAdmin && (
                                         <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                            {/* Slot 1: Close/Lock Button (Fixed Width Slot) */}
-                                            <div className="w-8 flex justify-center">
-                                                {isActive && isEnded ? (
+                                            {/* Logic hiển thị nút hành động */}
+                                            {/* Trường hợp 1: Tab Lịch sử (Inactive) -> Chỉ có nút Xóa -> Căn giữa */}
+                                            {!isActive && !isDraft ? (
+                                                <div className="flex justify-center w-full">
                                                     <button 
-                                                        onClick={() => onCloseCycle(cycle)} 
-                                                        className="p-1.5 rounded text-amber-600 hover:bg-amber-50 transition-colors"
-                                                        title="Đóng chu kỳ (Khóa để lưu trữ)"
+                                                        onClick={() => onDelete(cycle)}
+                                                        className="p-1.5 rounded hover:bg-slate-100 hover:text-rose-600 transition-colors text-slate-400"
+                                                        title="Xóa"
                                                     >
-                                                        <FiLock size={16} />
+                                                        <FiTrash2 size={16} />
                                                     </button>
-                                                ) : null}
-                                            </div>
+                                                </div>
+                                            ) : (
+                                                /* Trường hợp 2: Tab Hiện tại (Active/Draft) -> Giữ layout 3 slots để thẳng hàng */
+                                                <>
+                                                    {/* Slot 1: Close/Lock Button */}
+                                                    <div className="w-8 flex justify-center">
+                                                        {isActive && isEnded ? (
+                                                            <button 
+                                                                onClick={() => onCloseCycle(cycle)} 
+                                                                className="p-1.5 rounded text-amber-600 hover:bg-amber-50 transition-colors"
+                                                                title="Đóng chu kỳ (Khóa để lưu trữ)"
+                                                            >
+                                                                <FiLock size={16} />
+                                                            </button>
+                                                        ) : null}
+                                                    </div>
 
-                                            {/* Slot 2: Edit Button (Fixed Width Slot) */}
-                                            <div className="w-8 flex justify-center">
-                                                {(isActive || isDraft) ? (
-                                                    <button 
-                                                        onClick={() => onEdit(cycle)}
-                                                        className="p-1.5 rounded hover:bg-slate-100 hover:text-blue-600 transition-colors text-slate-400"
-                                                        title="Chỉnh sửa"
-                                                    >
-                                                        <FiEdit2 size={16} />
-                                                    </button>
-                                                ) : null}
-                                            </div>
+                                                    {/* Slot 2: Edit Button */}
+                                                    <div className="w-8 flex justify-center">
+                                                        <button 
+                                                            onClick={() => onEdit(cycle)}
+                                                            className="p-1.5 rounded hover:bg-slate-100 hover:text-blue-600 transition-colors text-slate-400"
+                                                            title="Chỉnh sửa"
+                                                        >
+                                                            <FiEdit2 size={16} />
+                                                        </button>
+                                                    </div>
 
-                                            {/* Slot 3: Delete Button (Fixed Width Slot) */}
-                                            <div className="w-8 flex justify-center">
-                                                <button 
-                                                    onClick={() => onDelete(cycle)}
-                                                    className="p-1.5 rounded hover:bg-slate-100 hover:text-rose-600 transition-colors text-slate-400"
-                                                    title="Xóa"
-                                                >
-                                                    <FiTrash2 size={16} />
-                                                </button>
-                                            </div>
+                                                    {/* Slot 3: Delete Button */}
+                                                    <div className="w-8 flex justify-center">
+                                                        <button 
+                                                            onClick={() => onDelete(cycle)}
+                                                            className="p-1.5 rounded hover:bg-slate-100 hover:text-rose-600 transition-colors text-slate-400"
+                                                            title="Xóa"
+                                                        >
+                                                            <FiTrash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                 </td>
@@ -774,10 +789,23 @@ function CycleDetailView({ detail, krs, formatDate }) {
                                         </div>
                                         <div>
                                             <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-1">{obj.obj_title}</h4>
-                                            <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                                                <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-600 border border-slate-200">
+                                            <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                                                <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-600 border border-slate-200 uppercase tracking-wider text-[10px]">
                                                     {obj.level || 'Company'}
                                                 </span>
+                                                
+                                                {/* Hiển thị thông tin User/Department nếu có */}
+                                                {obj.user && (
+                                                    <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-blue-700 border border-blue-100">
+                                                        <span className="font-medium">{obj.user.full_name}</span>
+                                                    </span>
+                                                )}
+                                                
+                                                {obj.department && (
+                                                    <span className="flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-purple-700 border border-purple-100">
+                                                        <span className="font-medium">{obj.department.d_name}</span>
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
