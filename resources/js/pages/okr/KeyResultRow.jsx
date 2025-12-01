@@ -322,7 +322,7 @@ export default function KeyResultRow({
                                 style={{ width: `${kr.progress_percent}%` }}
                             ></div>
                             {kr.progress_percent > 0 && (
-                                <span className="absolute left-1 text-white text-xs font-semibold z-10">
+                                <span className="absolute left-1 text-gray text-xs font-normal z-10">
                                     {formatPercent(kr.progress_percent)}
                                 </span>
                             )}
