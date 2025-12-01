@@ -552,7 +552,7 @@ export default function ObjectiveModal({
                                 <input
                                     type="hidden"
                                     name="department_id"
-                                    value={currentUser?.department_id || ""}
+                                    value={createForm.department_id || ""}
                                 />
                             </div>
                         )}

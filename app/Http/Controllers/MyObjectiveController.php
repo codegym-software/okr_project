@@ -181,7 +181,7 @@ class MyObjectiveController extends Controller
             'key_results.*.kr_title' => 'required|string|max:255',
             'key_results.*.target_value' => 'required|numeric|min:0',
             'key_results.*.current_value' => 'nullable|numeric|min:0',
-            'key_results.*.unit' => 'required|in:number,percent,completion,bai,num,bài',
+            'key_results.*.unit' => 'required|in:number,percent,currency,completion',
             'key_results.*.status' => 'required|in:draft,active,completed',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
@@ -564,8 +564,9 @@ class MyObjectiveController extends Controller
      */
     private function getAllowedLevels(string $roleName): array
     {
-        return match ($roleName) {
-            'admin' => ['company', 'person'],  
+        return match (strtolower($roleName)) {
+            'admin' => ['company'],  
+            'ceo' => ['company'],
             'manager' => ['unit', 'person'],  
             'member' => ['person'],  
             default => ['person'],
