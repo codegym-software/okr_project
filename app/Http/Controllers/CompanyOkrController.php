@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Objective;
 use App\Models\Cycle;
+use App\Models\Department;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -18,68 +19,83 @@ class CompanyOkrController extends Controller
      */
     public function index(Request $request): JsonResponse|View
     {
+        // === 1. LẤY TẤT CẢ PHÒNG BAN & XỬ LÝ CHU KỲ HIỆN TẠI ===
+        $departments = Department::orderBy('d_name')->get();
+        $cycles = Cycle::orderByDesc('start_date')->get();
+        
         $currentCycleId = null;
         $currentCycleName = null;
 
-        // === 1. XÁC ĐỊNH CHU KỲ HIỆN TẠI - GIỐNG HỆT MyObjectiveController ===
         if (!$request->filled('cycle_id')) {
             $now = Carbon::now('Asia/Ho_Chi_Minh');
-            $year = $now->year;
-            $quarter = ceil($now->month / 3);
-            $cycleNameDisplay = "Quý {$quarter} năm {$year}";
+            $activeCycle = $cycles->first(function ($cycle) use ($now) {
+                return Carbon::parse($cycle->start_date)->lte($now) && Carbon::parse($cycle->end_date)->gte($now);
+            });
 
-            $currentCycle = Cycle::where('start_date', '<=', $now)
-                ->where('end_date', '>=', $now)
-                ->first();
-
-            if (!$currentCycle) {
-                $possibleNames = [$cycleNameDisplay, "Q{$quarter} {$year}", "Q{$quarter} - {$year}"];
-                $currentCycle = Cycle::whereIn('cycle_name', $possibleNames)->first();
+            if ($activeCycle) {
+                $currentCycleId = $activeCycle->cycle_id;
+            } else if ($cycles->isNotEmpty()) {
+                 $currentCycleId = $cycles->first()->cycle_id; // Mặc định là chu kỳ mới nhất
             }
+            $request->merge(['cycle_id' => $currentCycleId]);
 
-            if ($currentCycle) {
-                $currentCycleId = $currentCycle->cycle_id;
-                $currentCycleName = $currentCycle->cycle_name;
-                $request->merge(['cycle_id' => $currentCycleId]);
-            } else {
-                $currentCycleName = $cycleNameDisplay;
-            }
         } else {
-            $currentCycle = Cycle::find($request->cycle_id);
-            if ($currentCycle) {
-                $currentCycleId = $currentCycle->cycle_id;
-                $currentCycleName = $currentCycle->cycle_name;
-            }
+            $currentCycleId = $request->cycle_id;
         }
 
-        // === 2. QUERY OKR CÔNG KHAI (chỉ company) ===
+        $currentCycle = $cycles->firstWhere('cycle_id', (int)$currentCycleId);
+        $currentCycleName = $currentCycle->cycle_name ?? 'Không có chu kỳ';
+
+
+        // === 2. QUERY OKR DỰA TRÊN BỘ LỌC ===
         $query = Objective::with([
-                'keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at'),
+                'keyResults' => fn($q) => $q->with('assignedUser.department')->whereNull('archived_at'),
                 'department',
                 'cycle',
                 'user' => fn($q) => $q->select('user_id', 'full_name', 'avatar_url'),
-                'assignments.user',
-                'assignments.role',
             ])
-            ->whereNull('archived_at')
-            ->where('level', 'company')
-            ->when($request->filled('cycle_id'), fn($q) => $q->where('cycle_id', $request->cycle_id))
-            ->orderBy('created_at', 'desc');
+            ->whereNull('archived_at');
+        
+        // Lọc theo cycle_id
+        if ($request->filled('cycle_id')) {
+            $query->where('cycle_id', $request->cycle_id);
+        }
 
-        $objectives = $query->paginate(10); // Sử dụng paginate
+        // Lọc theo loại (công ty / phòng ban)
+        $filterType = $request->input('filter_type', 'company'); // Mặc định là OKR công ty
+        if ($filterType === 'department') {
+            $query->where('level', 'unit'); // Chỉ lấy OKR cấp phòng ban
+            if ($request->filled('department_id')) {
+                $query->where('department_id', $request->department_id);
+            }
+        } else {
+            $query->where('level', 'company');
+        }
 
+        $objectives = $query->orderBy('created_at', 'desc')->paginate(20);
+
+        // === 3. TRẢ VỀ RESPONSE ===
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'data' => $objectives,                    // ← dữ liệu đã được paginate
+                'data' => [
+                    'objectives' => $objectives,
+                    'departments' => $departments,
+                    'cycles' => $cycles,
+                ],
                 'current_cycle_id' => $currentCycleId,
                 'current_cycle_name' => $currentCycleName,
             ]);
         }
 
-        // Nếu truy cập trực tiếp bằng trình duyệt (không cần login)
-        $cycles = Cycle::orderByDesc('start_date')->get();
-        return view('app', compact('objectives', 'cycles', 'currentCycleId', 'currentCycleName'));
+        // Dành cho trường hợp render từ server side (ít khả năng xảy ra)
+        return view('app', [
+            'objectives' => $objectives, 
+            'departments' => $departments,
+            'cycles' => $cycles, 
+            'currentCycleId' => $currentCycleId, 
+            'currentCycleName' => $currentCycleName
+        ]);
     }
 
     /**

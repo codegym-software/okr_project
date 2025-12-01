@@ -4,7 +4,6 @@ import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
 import ObjectiveList from "./ObjectiveList"; // Corrected import
 
-// Helper functions copied from ObjectivesPage.jsx
 const pickRelation = (link, camel, snake) =>
     (link && link[camel]) || (link && link[snake]) || null;
 
@@ -35,140 +34,98 @@ export default function CompanyOkrList() {
     const [cyclesList, setCyclesList] = useState([]);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
-    const [childLinks, setChildLinks] = useState([]); // State for linked OKRs
-    const [linksLoading, setLinksLoading] = useState(false); // Loading state for links
+    const [childLinks, setChildLinks] = useState([]);
+    const [linksLoading, setLinksLoading] = useState(false);
+    
+    // New state for advanced filtering
+    const [filterType, setFilterType] = useState('company'); // 'company' or 'department'
+    const [selectedDepartment, setSelectedDepartment] = useState('');
+    const [departments, setDepartments] = useState([]);
 
-    // Fetch current user
+    // Fetch initial data (user, cycles, departments)
     useEffect(() => {
-        const fetchUser = async () => {
+        const fetchInitialData = async () => {
             try {
-                const res = await fetch("/api/profile");
-                const json = await res.json();
-                if (res.ok) {
-                    setCurrentUser(json);
-                } else {
-                    throw new Error(json.message || "Failed to fetch user");
+                const [userRes, cyclesRes, deptsRes] = await Promise.all([
+                    fetch("/api/profile"),
+                    fetch("/cycles", { headers: { Accept: "application/json" } }),
+                    fetch("/departments", { headers: { Accept: "application/json" } }),
+                ]);
+
+                if (userRes.ok) {
+                    const userJson = await userRes.json();
+                    setCurrentUser(userJson.user);
                 }
+
+                if (cyclesRes.ok) {
+                    const cyclesJson = await cyclesRes.json();
+                    const cycles = cyclesJson.data || [];
+                    setCyclesList(cycles);
+                    
+                    // Set default cycle
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    let selectedCycle = cycles.find(c => {
+                        const start = c.start_date ? new Date(c.start_date) : null;
+                        const end = c.end_date ? new Date(c.end_date) : null;
+                        return start && end && today >= start && today <= end;
+                    });
+                    if (!selectedCycle && cycles.length > 0) {
+                        selectedCycle = cycles[0];
+                    }
+                    setCycleFilter(selectedCycle?.cycle_id || null);
+                }
+                
+                if (deptsRes.ok) {
+                    const deptsJson = await deptsRes.json();
+                    setDepartments(deptsJson.data || []);
+                }
+
             } catch (err) {
-                console.error("Failed to fetch user:", err);
-                setToast({ type: "error", message: "Không thể tải thông tin người dùng." });
+                console.error("Failed to fetch initial data:", err);
+                setToast({ type: "error", message: "Không thể tải dữ liệu ban đầu." });
             }
         };
-        fetchUser();
+        fetchInitialData();
     }, []);
 
-    // ============================================================
-    // CHỌN QUÝ MẶC ĐỊNH
-    // ============================================================
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await fetch("/cycles", {
-                    headers: { Accept: "application/json" },
-                });
-                const json = await res.json();
-
-                if (!Array.isArray(json.data) || json.data.length === 0) {
-                    setToast({
-                        type: "error",
-                        message: "Không có dữ liệu quý",
-                    });
-                    setLoading(false);
-                    return;
-                }
-
-                const cycles = json.data;
-                setCyclesList(cycles);
-
-                const today = new Date();
-                today.setHours(0, 0, 0, 0); 
-
-                let selectedCycle = null;
-
-                for (const c of cycles) {
-                    const start = c.start_date ? new Date(c.start_date) : null;
-                    const end = c.end_date ? new Date(c.end_date) : null;
-
-                    if (start && end) {
-                        start.setHours(0, 0, 0, 0);
-                        end.setHours(23, 59, 59, 999);
-
-                        if (today >= start && today <= end) {
-                            selectedCycle = c;
-                            break;
-                        }
-                    }
-                }
-
-                if (!selectedCycle) {
-                    selectedCycle = cycles.reduce((best, c) => {
-                        const start = c.start_date
-                            ? new Date(c.start_date)
-                            : null;
-                        const end = c.end_date ? new Date(c.end_date) : null;
-
-                        let refDate = today;
-                        if (start && end) {
-                            refDate = new Date(
-                                (start.getTime() + end.getTime()) / 2
-                            );
-                        } else if (start) {
-                            refDate = start;
-                        } else if (end) {
-                            refDate = end;
-                        } else {
-                            return !best || c.cycle_id > best.cycle_id
-                                ? c
-                                : best;
-                        }
-
-                        const diff = Math.abs(refDate - today);
-                        return !best || diff < best.diff
-                            ? { ...c, diff }
-                            : best;
-                    }, null);
-                }
-
-                setCycleFilter(selectedCycle?.cycle_id || cycles[0]?.cycle_id);
-            } catch (err) {
-                console.error(err);
-                setToast({ type: "error", message: "Lỗi tải danh sách quý" });
-                setLoading(false);
-            }
-        })();
-    }, []);
-
-    // ============================================================
-    // LẤY OKR CÔNG TY VÀ CÁC LIÊN KẾT
-    // ============================================================
+    // Fetch OKR data when filters change
     const fetchData = useCallback(async () => {
-        if (!cycleFilter) {
-            setLoading(false);
-            return;
-        }
+        if (cycleFilter === null) return;
+        
         setLoading(true);
         setLinksLoading(true);
         try {
-            const params = new URLSearchParams({ cycle_id: cycleFilter });
+            const params = new URLSearchParams({ 
+                cycle_id: cycleFilter,
+                filter_type: filterType 
+            });
+            if (filterType === 'department' && selectedDepartment) {
+                params.append('department_id', selectedDepartment);
+            }
             
             const [okrRes, linksRes] = await Promise.all([
                 fetch(`/company-okrs?${params}`, { headers: { Accept: "application/json" } }),
                 fetch(`/my-links`, { headers: { Accept: "application/json" } })
             ]);
 
-            const okrJson = await okrRes.json();
-            if (okrJson.success) {
-                setItems(okrJson.data.data || []);
+            if (okrRes.ok) {
+                const okrJson = await okrRes.json();
+                if (okrJson.success) {
+                    setItems(okrJson.data.data || []);
+                } else {
+                    throw new Error(okrJson.message || "Không tải được OKR");
+                }
             } else {
-                throw new Error("Không tải được OKR công ty");
+                 throw new Error("Lỗi mạng khi tải OKR");
             }
 
-            const linksJson = await linksRes.json();
-            if (linksJson.success) {
-                setChildLinks(normalizeLinksList(linksJson.data?.children || []));
-            } else {
-                console.warn("Không thể tải dữ liệu liên kết");
-                setChildLinks([]);
+
+            if (linksRes.ok) {
+                const linksJson = await linksRes.json();
+                if (linksJson.success) {
+                    setChildLinks(normalizeLinksList(linksJson.data?.children || []));
+                }
             }
 
         } catch (err) {
@@ -179,25 +136,65 @@ export default function CompanyOkrList() {
             setLoading(false);
             setLinksLoading(false);
         }
-    }, [cycleFilter]);
+    }, [cycleFilter, filterType, selectedDepartment]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
+    const handleFilterChange = (type, value) => {
+        if (type === 'company') {
+            setFilterType('company');
+            setSelectedDepartment('');
+        } else if (type === 'department') {
+            setFilterType('department');
+            setSelectedDepartment(value);
+        }
+    };
+
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                {/* OKR Filter Dropdown */}
+                <div className="relative w-full sm:w-60">
+                    <select 
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        value={filterType === 'company' ? 'company' : selectedDepartment}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'company') {
+                                handleFilterChange('company');
+                            } else {
+                                handleFilterChange('department', val);
+                            }
+                        }}
+                    >
+                        <option value="company">OKR Công ty</option>
+                        {departments.map(dept => (
+                            <option key={dept.department_id} value={dept.department_id}>
+                                OKR {dept.d_name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                {/* Cycle Filter Dropdown */}
+                <CycleDropdown
+                    cyclesList={cyclesList}
+                    cycleFilter={cycleFilter}
+                    handleCycleChange={setCycleFilter}
+                    dropdownOpen={dropdownOpen}
+                    setDropdownOpen={setDropdownOpen}
+                />
+            </div>
+            
             <ObjectiveList
                 items={items}
-                cyclesList={cyclesList}
                 loading={loading || linksLoading}
                 openObj={openObj}
                 setOpenObj={setOpenObj}
-                cycleFilter={cycleFilter}
-                setCycleFilter={setCycleFilter}
                 currentUser={currentUser}
                 setItems={setItems}
-                childLinks={childLinks} // Pass childLinks data
+                childLinks={childLinks}
                 linksLoading={linksLoading}
                 // Stub interactive props as this is a read-only view for now
                 setCreatingFor={() => {}}
@@ -208,7 +205,7 @@ export default function CompanyOkrList() {
                 openCheckInHistory={() => {}}
                 onOpenLinkModal={() => {}}
                 onCancelLink={() => {}}
-                hideFilters={false}
+                hideFilters={true} // Hide internal filters of ObjectiveList
             />
             <ToastNotification toast={toast} />
         </div>

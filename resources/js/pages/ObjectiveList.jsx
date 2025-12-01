@@ -46,6 +46,7 @@ export default function ObjectiveList({
     setItems,
     onOpenLinkModal,
     onCancelLink,
+    hideFilters = false, // Add this prop with a default value
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -613,32 +614,35 @@ export default function ObjectiveList({
 
     return (
         <div className="mx-auto w-full max-w-6xl">
-            <div className="mb-4 flex w-full items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <CycleDropdown
-                        cyclesList={cyclesList}
-                        cycleFilter={cycleFilter}
-                        handleCycleChange={setCycleFilter}
-                        dropdownOpen={dropdownOpen}
-                        setDropdownOpen={setDropdownOpen}
-                    />
-                    {!isCeo && (
-                        <ViewModeDropdown
-                            viewMode={viewMode}
-                            setViewMode={setViewMode}
-                            dropdownOpen={viewModeDropdownOpen}
-                            setDropdownOpen={setViewModeDropdownOpen}
-                            currentUser={currentUser}
-                            userDepartmentName={userDepartmentName}
+            {/* Conditional rendering for the entire filter bar */}
+            {!hideFilters && (
+                <div className="mb-4 flex w-full items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <CycleDropdown
+                            cyclesList={cyclesList}
+                            cycleFilter={cycleFilter}
+                            handleCycleChange={setCycleFilter}
+                            dropdownOpen={dropdownOpen}
+                            setDropdownOpen={setDropdownOpen}
                         />
-                    )}
+                        {!isCeo && (
+                            <ViewModeDropdown
+                                viewMode={viewMode}
+                                setViewMode={setViewMode}
+                                dropdownOpen={viewModeDropdownOpen}
+                                setDropdownOpen={setViewModeDropdownOpen}
+                                currentUser={currentUser}
+                                userDepartmentName={userDepartmentName}
+                            />
+                        )}
+                    </div>
+                    <Tabs
+                        showArchived={showArchived}
+                        setShowArchived={setShowArchived}
+                        setCreatingObjective={setCreatingObjective}
+                    />
                 </div>
-                <Tabs
-                    showArchived={showArchived}
-                    setShowArchived={setShowArchived}
-                    setCreatingObjective={setCreatingObjective}
-                />
-            </div>
+            )}
 
             {linksLoading && (
                 <div className="mb-3 flex items-center gap-2 text-xs text-indigo-600">
