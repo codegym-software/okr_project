@@ -7,10 +7,16 @@ import {
     FiPlus, 
     FiEdit2, 
     FiTrash2, 
-    FiArrowLeft,
-    FiFileText,
-    FiCalendar,
-    FiMoreVertical
+    FiArrowLeft, 
+    FiFileText, 
+    FiCalendar, 
+    FiMoreVertical,
+    FiLock,
+    FiChevronDown,
+    FiCheckCircle,
+    FiActivity,
+    FiPieChart,
+    FiTarget
 } from "react-icons/fi";
 
 // --- Helper Functions ---
@@ -182,7 +188,7 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
 function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdmin, emptyMessage }) {
     if (!cycles || cycles.length === 0) {
         return (
-            <div className="mx-auto w-full max-w-5xl rounded-xl border border-dashed border-slate-300 p-12 text-center">
+            <div className="mt-3 w-full rounded-xl border border-dashed border-slate-300 p-12 text-center">
                 <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
                     <FiFileText size={24} />
                 </div>
@@ -192,7 +198,7 @@ function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdm
     }
 
     return (
-        <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
                 <thead className="bg-slate-50">
                     <tr>
@@ -257,35 +263,43 @@ function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdm
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                     {isAdmin && (
-                                        <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                            {/* Nút đóng chu kỳ: Chỉ hiện khi Active + Quá hạn */}
-                                            {isActive && isEnded && (
-                                                <button 
-                                                    onClick={() => onCloseCycle(cycle)} 
-                                                    className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
-                                                    title="Đóng chu kỳ này lại để lưu trữ"
-                                                >
-                                                    Đóng
-                                                </button>
-                                            )}
+                                        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                            {/* Slot 1: Close/Lock Button (Fixed Width Slot) */}
+                                            <div className="w-8 flex justify-center">
+                                                {isActive && isEnded ? (
+                                                    <button 
+                                                        onClick={() => onCloseCycle(cycle)} 
+                                                        className="p-1.5 rounded text-amber-600 hover:bg-amber-50 transition-colors"
+                                                        title="Đóng chu kỳ (Khóa để lưu trữ)"
+                                                    >
+                                                        <FiLock size={16} />
+                                                    </button>
+                                                ) : null}
+                                            </div>
 
-                                            {/* Cho phép sửa Active và Draft */}
-                                            {(isActive || isDraft) && (
+                                            {/* Slot 2: Edit Button (Fixed Width Slot) */}
+                                            <div className="w-8 flex justify-center">
+                                                {(isActive || isDraft) ? (
+                                                    <button 
+                                                        onClick={() => onEdit(cycle)}
+                                                        className="p-1.5 rounded hover:bg-slate-100 hover:text-blue-600 transition-colors text-slate-400"
+                                                        title="Chỉnh sửa"
+                                                    >
+                                                        <FiEdit2 size={16} />
+                                                    </button>
+                                                ) : null}
+                                            </div>
+
+                                            {/* Slot 3: Delete Button (Fixed Width Slot) */}
+                                            <div className="w-8 flex justify-center">
                                                 <button 
-                                                    onClick={() => onEdit(cycle)}
-                                                    className="p-1.5 rounded hover:bg-slate-100 hover:text-blue-600 transition-colors text-slate-400"
-                                                    title="Chỉnh sửa"
+                                                    onClick={() => onDelete(cycle)}
+                                                    className="p-1.5 rounded hover:bg-slate-100 hover:text-rose-600 transition-colors text-slate-400"
+                                                    title="Xóa"
                                                 >
-                                                    <FiEdit2 size={16} />
+                                                    <FiTrash2 size={16} />
                                                 </button>
-                                            )}
-                                            <button 
-                                                onClick={() => onDelete(cycle)}
-                                                className="p-1.5 rounded hover:bg-slate-100 hover:text-rose-600 transition-colors text-slate-400"
-                                                title="Xóa"
-                                            >
-                                                <FiTrash2 size={16} />
-                                            </button>
+                                            </div>
                                         </div>
                                     )}
                                 </td>
@@ -502,7 +516,7 @@ export default function CyclesPanel() {
     const historyCycles = [...rawHistory].sort((a, b) => new Date(b.start_date) - new Date(a.start_date)); // DESC
 
     return (
-        <div className="px-4 py-6">
+        <div className="">
             <Toast type={toast.type} message={toast.message} onClose={() => setToast({ type: "success", message: "" })} />
 
             {confirm.open && (
@@ -544,110 +558,112 @@ export default function CyclesPanel() {
                 title="Chỉnh sửa chu kỳ"
             />
 
-            <div className="mx-auto mb-3 flex w-full max-w-5xl items-center justify-between">
-                <h2 className="text-2xl font-extrabold text-slate-900">
-                    {isDetail ? (detail ? detail.cycle?.cycle_name : "Đang tải...") : "Quản lý Chu kỳ"}
-                </h2>
-                
-                <div className="flex items-center gap-3">
-                    {isDetail ? (
-                        <button onClick={goBack} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-                            <FiArrowLeft /> Quay lại
-                        </button>
-                    ) : (
-                        <AdminOnly permission="canManageCycles">
-                            <button 
-                                onClick={() => setCreateModalOpen(true)}
-                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 flex items-center gap-2"
-                            >
-                                <FiPlus /> Tạo chu kỳ
+            <div className="mx-auto max-w-6xl px-4 py-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-2xl font-extrabold text-slate-900">
+                        {isDetail ? (detail ? detail.cycle?.cycle_name : "Đang tải...") : "Quản lý Chu kỳ"}
+                    </h1>
+                    
+                    <div className="flex items-center gap-2">
+                        {isDetail ? (
+                            <button onClick={goBack} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                                <FiArrowLeft /> Quay lại
                             </button>
-                        </AdminOnly>
-                    )}
-                </div>
-            </div>
-
-            {!isDetail && (
-                <div className="mx-auto mb-6 w-full max-w-5xl border-b border-slate-200">
-                    <div className="flex items-center gap-6">
-                        <button
-                            onClick={() => setActiveTab('current')}
-                            className={`relative pb-3 text-sm font-medium transition-all ${
-                                activeTab === 'current' 
-                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
-                                : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            Hiện tại ({currentCycles.length})
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('history')}
-                            className={`relative pb-3 text-sm font-medium transition-all ${
-                                activeTab === 'history' 
-                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
-                                : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            Lịch sử ({historyCycles.length})
-                        </button>
+                        ) : (
+                            <AdminOnly permission="canManageCycles">
+                                <button 
+                                    onClick={() => setCreateModalOpen(true)}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm flex items-center gap-2"
+                                >
+                                    <FiPlus /> Tạo chu kỳ
+                                </button>
+                            </AdminOnly>
+                        )}
                     </div>
                 </div>
-            )}
 
-            {isDetail ? (
-                <div className="mx-auto w-full max-w-5xl">
-                    {detail && detail.cycle ? (
-                        <CycleDetailView 
-                            key={detail.cycle.cycle_id || detail.cycle.id}
-                            detail={detail} 
-                            krs={krs} 
-                            formatDate={formatDate}
-                        />
-                    ) : (
-                        <div className="flex h-64 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
-                            <div className="text-center">
-                                <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600"></div>
-                                <div className="text-sm font-medium text-slate-500">Đang tải dữ liệu...</div>
-                            </div>
+                {!isDetail && (
+                    <div className="mb-6 w-full border-b border-slate-200">
+                        <div className="flex items-center gap-6">
+                            <button
+                                onClick={() => setActiveTab('current')}
+                                className={`relative pb-3 text-sm font-medium transition-all ${
+                                    activeTab === 'current' 
+                                    ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                    : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                Hiện tại ({currentCycles.length})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('history')}
+                                className={`relative pb-3 text-sm font-medium transition-all ${
+                                    activeTab === 'history' 
+                                    ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                    : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                Lịch sử ({historyCycles.length})
+                            </button>
                         </div>
-                    )}
-                </div>
-            ) : (
-                <div className="min-h-[400px]">
-                    {loading ? (
-                        <div className="mx-auto flex h-64 w-full max-w-5xl items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
-                            <div className="text-center">
-                                <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600"></div>
-                                <div className="text-sm font-medium text-slate-500">Đang tải danh sách...</div>
+                    </div>
+                )}
+
+                {isDetail ? (
+                    <div className="w-full">
+                        {detail && detail.cycle ? (
+                            <CycleDetailView 
+                                key={detail.cycle.cycle_id || detail.cycle.id}
+                                detail={detail} 
+                                krs={krs} 
+                                formatDate={formatDate}
+                            />
+                        ) : (
+                            <div className="flex h-64 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                                <div className="text-center">
+                                    <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600"></div>
+                                    <div className="text-sm font-medium text-slate-500">Đang tải dữ liệu...</div>
+                                </div>
                             </div>
-                        </div>
-                    ) : (
-                        <>
-                            {activeTab === 'current' && (
-                                <CyclesTable 
-                                    cycles={currentCycles}
-                                    onRowClick={(c) => goDetail(c.id || c.cycle_id)}
-                                    onEdit={(c) => { setEditingCycle(c); setEditModalOpen(true); }}
-                                    onCloseCycle={handleCloseCycle}
-                                    onDelete={handleDelete}
-                                    isAdmin={isAdmin}
-                                    emptyMessage="Không có chu kỳ nào đang hoạt động."
-                                />
-                            )}
-                            {activeTab === 'history' && (
-                                <CyclesTable 
-                                    cycles={historyCycles}
-                                    onRowClick={(c) => goDetail(c.id || c.cycle_id)}
-                                    onEdit={(c) => { setEditingCycle(c); setEditModalOpen(true); }}
-                                    onDelete={handleDelete}
-                                    isAdmin={isAdmin}
-                                    emptyMessage="Chưa có chu kỳ nào đã đóng."
-                                />
-                            )}
-                        </>
-                    )}
-                </div>
-            )}
+                        )}
+                    </div>
+                ) : (
+                    <div className="min-h-[400px]">
+                        {loading ? (
+                            <div className="flex h-64 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                                <div className="text-center">
+                                    <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600"></div>
+                                    <div className="text-sm font-medium text-slate-500">Đang tải danh sách...</div>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {activeTab === 'current' && (
+                                    <CyclesTable 
+                                        cycles={currentCycles}
+                                        onRowClick={(c) => goDetail(c.id || c.cycle_id)}
+                                        onEdit={(c) => { setEditingCycle(c); setEditModalOpen(true); }}
+                                        onCloseCycle={handleCloseCycle}
+                                        onDelete={handleDelete}
+                                        isAdmin={isAdmin}
+                                        emptyMessage="Không có chu kỳ nào đang hoạt động."
+                                    />
+                                )}
+                                {activeTab === 'history' && (
+                                    <CyclesTable 
+                                        cycles={historyCycles}
+                                        onRowClick={(c) => goDetail(c.id || c.cycle_id)}
+                                        onEdit={(c) => { setEditingCycle(c); setEditModalOpen(true); }}
+                                        onDelete={handleDelete}
+                                        isAdmin={isAdmin}
+                                        emptyMessage="Chưa có chu kỳ nào đã đóng."
+                                    />
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
@@ -658,80 +674,153 @@ function CycleDetailView({ detail, krs, formatDate }) {
 
     // Safe check cho list objectives
     const objectives = detail?.objectives || [];
+    
+    // Tính toán thống kê đơn giản
+    const totalObjectives = objectives.length;
+    const totalKRs = objectives.reduce((acc, obj) => acc + (krs[obj.objective_id]?.length || 0), 0);
 
     return (
-        <div className="space-y-6">
-            {/* Info Card */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4">
-                    <h3 className="font-semibold text-slate-900">Thông tin chung</h3>
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Summary Cards Section */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {/* Thời gian */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                            <FiCalendar size={20} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Thời gian</p>
+                            <p className="text-sm font-semibold text-slate-900">
+                                {formatDate(detail.cycle?.start_date)} - {formatDate(detail.cycle?.end_date)}
+                            </p>
+                        </div>
+                    </div>
                 </div>
-                <div className="grid gap-6 px-6 py-6 md:grid-cols-3">
-                    <div>
-                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Thời gian</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900">
-                            {formatDate(detail.cycle?.start_date)} — {formatDate(detail.cycle?.end_date)}
+                
+                {/* Trạng thái */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                            <FiActivity size={20} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Trạng thái</p>
+                             <div className="mt-0.5">
+                                <Badge color={detail.cycle?.status === 'active' ? 'emerald' : detail.cycle?.status === 'draft' ? 'slate' : 'red'}>
+                                    {detail.cycle?.status === 'active' ? 'Đang hoạt động' : detail.cycle?.status === 'draft' ? 'Bản nháp' : 'Đã đóng'}
+                                </Badge>
+                             </div>
                         </div>
                     </div>
-                    <div>
-                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Trạng thái</div>
-                        <div className="mt-1">
-                             <Badge color={detail.cycle?.status === 'active' ? 'emerald' : detail.cycle?.status === 'draft' ? 'slate' : 'red'}>
-                                {detail.cycle?.status}
-                             </Badge>
+                </div>
+
+                {/* Tổng quan */}
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-50 text-purple-600">
+                            <FiPieChart size={20} />
                         </div>
-                    </div>
-                    <div className="md:col-span-3">
-                        <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Mô tả</div>
-                        <div className="mt-1 text-sm text-slate-700">
-                            {detail.cycle?.description || "Chưa có mô tả"}
+                        <div>
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tổng quan</p>
+                            <p className="text-sm font-semibold text-slate-900">
+                                {totalObjectives} Mục tiêu • {totalKRs} Kết quả
+                            </p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Objectives List */}
+            {/* Description Section */}
+            {detail.cycle?.description && (
+                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h3 className="mb-2 text-sm font-semibold text-slate-900 flex items-center gap-2">
+                        <FiFileText className="text-slate-400"/> Mô tả chu kỳ
+                    </h3>
+                    <p className="text-slate-600 text-sm leading-relaxed">{detail.cycle.description}</p>
+                </div>
+            )}
+
+            {/* Objectives & KRs List */}
             <div className="space-y-4">
-                <h3 className="text-lg font-bold text-slate-900">Objectives & Key Results</h3>
+                <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <FiTarget className="text-blue-600" />
+                        Objectives & Key Results
+                    </h3>
+                </div>
+                
                 {objectives.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
-                        Chưa có mục tiêu nào trong chu kỳ này.
+                    <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center bg-slate-50">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm text-slate-400">
+                            <FiTarget size={24} />
+                        </div>
+                        <p className="text-slate-500 font-medium">Chưa có mục tiêu nào được thiết lập trong chu kỳ này.</p>
                     </div>
                 ) : (
-                    objectives.map(obj => (
-                        <div key={obj.objective_id} className="overflow-hidden rounded-xl border border-slate-200 bg-white transition-shadow hover:shadow-sm">
-                            <div 
-                                onClick={() => toggleObj(obj.objective_id)}
-                                className="flex cursor-pointer items-center justify-between px-6 py-4 hover:bg-slate-50"
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600 font-bold text-sm">
-                                        {(obj.obj_title || "O")[0]}
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-slate-900">{obj.obj_title}</div>
-                                        <div className="text-xs text-slate-500">{obj.level}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {openObj[obj.objective_id] !== false && (
-                                <div className="border-t border-slate-100 bg-slate-50/30 px-6 py-4">
-                                    <div className="space-y-3 pl-14">
-                                        {(krs[obj.objective_id] || []).map(kr => (
-                                            <div key={kr.kr_id || kr.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
-                                                <span className="text-sm font-medium text-slate-700">{kr.kr_title}</span>
-                                                <Badge color={kr.status === 'completed' ? 'blue' : 'slate'}>{kr.status || 'active'}</Badge>
+                    objectives.map(obj => {
+                        const isOpen = openObj[obj.objective_id] !== false; // Default open
+                        
+                        return (
+                            <div key={obj.objective_id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md hover:border-blue-200">
+                                {/* Objective Header */}
+                                <div 
+                                    onClick={() => toggleObj(obj.objective_id)}
+                                    className="flex cursor-pointer items-center justify-between px-6 py-5 bg-white select-none"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-bold text-lg transition-colors ${isOpen ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100'}`}>
+                                            {(obj.obj_title || "O")[0].toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-1">{obj.obj_title}</h4>
+                                            <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                                                <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-600 border border-slate-200">
+                                                    {obj.level || 'Company'}
+                                                </span>
                                             </div>
-                                        ))}
-                                        {(krs[obj.objective_id] || []).length === 0 && (
-                                            <div className="text-sm italic text-slate-400">Chưa có Key Results</div>
-                                        )}
+                                        </div>
+                                    </div>
+                                    <div className={`text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
+                                        <FiChevronDown size={20} />
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                    ))
+                                
+                                {/* KRs Section (Expandable) */}
+                                {isOpen && (
+                                    <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-4 animate-in slide-in-from-top-2 duration-200">
+                                        <div className="space-y-3 pl-0 sm:pl-16">
+                                            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                                                <span>Key Results</span>
+                                                <span>Trạng thái</span>
+                                            </div>
+                                            
+                                            {(krs[obj.objective_id] || []).map(kr => (
+                                                <div key={kr.kr_id || kr.id} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-blue-300 hover:shadow-sm">
+                                                    <div className="mt-0.5 text-slate-400">
+                                                        <FiCheckCircle size={16} className={kr.status === 'completed' ? 'text-emerald-500' : ''} />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium text-slate-800 leading-snug">{kr.kr_title}</p>
+                                                    </div>
+                                                    <Badge color={kr.status === 'completed' ? 'emerald' : 'slate'}>
+                                                        {kr.status || 'active'}
+                                                    </Badge>
+                                                </div>
+                                            ))}
+                                            
+                                            {(krs[obj.objective_id] || []).length === 0 && (
+                                                <div className="flex items-center gap-2 text-sm italic text-slate-400 px-2 py-2 border border-dashed border-slate-300 rounded-lg justify-center">
+                                                    <FiTarget size={14} />
+                                                    Chưa có Key Results nào được thiết lập.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })
                 )}
             </div>
         </div>
