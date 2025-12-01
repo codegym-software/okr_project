@@ -182,7 +182,7 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
 function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdmin, emptyMessage }) {
     if (!cycles || cycles.length === 0) {
         return (
-            <div className="rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+            <div className="mx-auto w-full max-w-5xl rounded-xl border border-dashed border-slate-300 p-12 text-center">
                 <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
                     <FiFileText size={24} />
                 </div>
@@ -192,14 +192,14 @@ function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdm
     }
 
     return (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50/50 text-xs font-semibold uppercase text-slate-500">
+        <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
+                <thead className="bg-slate-50">
                     <tr>
-                        <th className="px-6 py-4 font-medium">Tên chu kỳ</th>
-                        <th className="px-6 py-4 font-medium">Thời gian</th>
-                        <th className="px-6 py-4 font-medium">Trạng thái</th>
-                        <th className="px-6 py-4 font-medium text-right">Hành động</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">Tên chu kỳ</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">Thời gian</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">Trạng thái</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Hành động</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -239,7 +239,7 @@ function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdm
                                 onClick={() => onRowClick(cycle)}
                                 className="cursor-pointer transition-colors hover:bg-slate-50"
                             >
-                                <td className="px-6 py-4">
+                                <td className="px-4 py-3 border-r border-slate-200">
                                     <div className="font-medium text-slate-900">{cycle.cycle_name}</div>
                                     {cycle.description && (
                                         <div className="text-xs text-slate-500 mt-0.5 truncate max-w-[200px]">
@@ -247,22 +247,22 @@ function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdm
                                         </div>
                                     )}
                                 </td>
-                                <td className="px-6 py-4 text-slate-600">
+                                <td className="px-4 py-3 text-center border-r border-slate-200 text-slate-600">
                                     {formatDate(cycle.start_date)} — {formatDate(cycle.end_date)}
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="px-4 py-3 text-center border-r border-slate-200">
                                     <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ${statusClass}`}>
                                         {statusLabel}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 text-right">
+                                <td className="px-4 py-3 text-center">
                                     {isAdmin && (
-                                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                                             {/* Nút đóng chu kỳ: Chỉ hiện khi Active + Quá hạn */}
                                             {isActive && isEnded && (
                                                 <button 
                                                     onClick={() => onCloseCycle(cycle)} 
-                                                    className="rounded-md bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+                                                    className="rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
                                                     title="Đóng chu kỳ này lại để lưu trữ"
                                                 >
                                                     Đóng
@@ -273,7 +273,7 @@ function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdm
                                             {(isActive || isDraft) && (
                                                 <button 
                                                     onClick={() => onEdit(cycle)}
-                                                    className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-blue-600 transition-colors"
+                                                    className="p-1.5 rounded hover:bg-slate-100 hover:text-blue-600 transition-colors text-slate-400"
                                                     title="Chỉnh sửa"
                                                 >
                                                     <FiEdit2 size={16} />
@@ -281,7 +281,7 @@ function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdm
                                             )}
                                             <button 
                                                 onClick={() => onDelete(cycle)}
-                                                className="p-2 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                                                className="p-1.5 rounded hover:bg-slate-100 hover:text-rose-600 transition-colors text-slate-400"
                                                 title="Xóa"
                                             >
                                                 <FiTrash2 size={16} />
@@ -502,7 +502,7 @@ export default function CyclesPanel() {
     const historyCycles = [...rawHistory].sort((a, b) => new Date(b.start_date) - new Date(a.start_date)); // DESC
 
     return (
-        <div className="mx-auto max-w-7xl px-4 py-8 font-sans">
+        <div className="px-4 py-6">
             <Toast type={toast.type} message={toast.message} onClose={() => setToast({ type: "success", message: "" })} />
 
             {confirm.open && (
@@ -544,79 +544,78 @@ export default function CyclesPanel() {
                 title="Chỉnh sửa chu kỳ"
             />
 
-            {/* Main Header */}
-            <div className="mb-8">
-                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-                            {isDetail ? (detail ? detail.cycle?.cycle_name : "Đang tải...") : "Quản lý Chu kỳ"}
-                        </h1>
-                        {!isDetail && (
-                            <div className="mt-6 flex items-center gap-6 border-b border-slate-200">
-                                <button
-                                    onClick={() => setActiveTab('current')}
-                                    className={`relative pb-3 text-sm font-medium transition-all ${
-                                        activeTab === 'current' 
-                                        ? 'text-slate-900 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-slate-900' 
-                                        : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                                >
-                                    Hiện tại ({currentCycles.length})
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('history')}
-                                    className={`relative pb-3 text-sm font-medium transition-all ${
-                                        activeTab === 'history' 
-                                        ? 'text-slate-900 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-slate-900' 
-                                        : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                                >
-                                    Lịch sử ({historyCycles.length})
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="flex items-center gap-3 mb-2">
-                        {isDetail ? (
-                            <button onClick={goBack} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-                                <FiArrowLeft /> Quay lại
+            <div className="mx-auto mb-3 flex w-full max-w-5xl items-center justify-between">
+                <h2 className="text-2xl font-extrabold text-slate-900">
+                    {isDetail ? (detail ? detail.cycle?.cycle_name : "Đang tải...") : "Quản lý Chu kỳ"}
+                </h2>
+                
+                <div className="flex items-center gap-3">
+                    {isDetail ? (
+                        <button onClick={goBack} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                            <FiArrowLeft /> Quay lại
+                        </button>
+                    ) : (
+                        <AdminOnly permission="canManageCycles">
+                            <button 
+                                onClick={() => setCreateModalOpen(true)}
+                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 flex items-center gap-2"
+                            >
+                                <FiPlus /> Tạo chu kỳ
                             </button>
-                        ) : (
-                            <AdminOnly permission="canManageCycles">
-                                <button 
-                                    onClick={() => setCreateModalOpen(true)}
-                                    className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 transition-colors shadow-sm"
-                                >
-                                    <FiPlus /> Tạo chu kỳ
-                                </button>
-                            </AdminOnly>
-                        )}
-                    </div>
+                        </AdminOnly>
+                    )}
                 </div>
             </div>
 
-            {/* Content */}
-            {isDetail ? (
-                detail && detail.cycle ? (
-                    <CycleDetailView 
-                        key={detail.cycle.cycle_id || detail.cycle.id}
-                        detail={detail} 
-                        krs={krs} 
-                        formatDate={formatDate}
-                    />
-                ) : (
-                    <div className="flex h-64 w-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
-                        <div className="text-center">
-                            <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600"></div>
-                            <div className="text-sm font-medium text-slate-500">Đang tải dữ liệu...</div>
-                        </div>
+            {!isDetail && (
+                <div className="mx-auto mb-6 w-full max-w-5xl border-b border-slate-200">
+                    <div className="flex items-center gap-6">
+                        <button
+                            onClick={() => setActiveTab('current')}
+                            className={`relative pb-3 text-sm font-medium transition-all ${
+                                activeTab === 'current' 
+                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Hiện tại ({currentCycles.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('history')}
+                            className={`relative pb-3 text-sm font-medium transition-all ${
+                                activeTab === 'history' 
+                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Lịch sử ({historyCycles.length})
+                        </button>
                     </div>
-                )
+                </div>
+            )}
+
+            {isDetail ? (
+                <div className="mx-auto w-full max-w-5xl">
+                    {detail && detail.cycle ? (
+                        <CycleDetailView 
+                            key={detail.cycle.cycle_id || detail.cycle.id}
+                            detail={detail} 
+                            krs={krs} 
+                            formatDate={formatDate}
+                        />
+                    ) : (
+                        <div className="flex h-64 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                            <div className="text-center">
+                                <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600"></div>
+                                <div className="text-sm font-medium text-slate-500">Đang tải dữ liệu...</div>
+                            </div>
+                        </div>
+                    )}
+                </div>
             ) : (
                 <div className="min-h-[400px]">
                     {loading ? (
-                        <div className="flex h-64 w-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
+                        <div className="mx-auto flex h-64 w-full max-w-5xl items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
                             <div className="text-center">
                                 <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600"></div>
                                 <div className="text-sm font-medium text-slate-500">Đang tải danh sách...</div>
