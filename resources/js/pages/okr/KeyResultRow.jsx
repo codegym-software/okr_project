@@ -373,7 +373,8 @@ export default function KeyResultRow({
                             </svg>
                         </button>
                     ) : (
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-end gap-1">
+                            <div className="w-6 h-6"></div> {/* Placeholder for alignment */}
                             <button
                                 onClick={() => setEditingKR(kr)}
                                 className="p-1 text-slate-600 hover:bg-slate-100 rounded"
