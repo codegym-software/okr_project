@@ -408,27 +408,34 @@ class MyKeyResultController extends Controller
         }
 
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,user_id'
+            'user_id' => 'nullable|exists:users,user_id' // Changed to nullable
         ]);
 
-        $assignee = User::findOrFail($validated['user_id']);
+        $assigneeId = $validated['user_id'] ?? null;
+        $assignee = null;
+        if ($assigneeId) {
+            $assignee = User::findOrFail($assigneeId);
+        }
 
-        // (Tùy chọn) Kiểm tra cùng phòng ban
-        if ($objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
+        // Kiểm tra cùng phòng ban nếu objective là unit-level VÀ có assignee
+        if ($assignee && $objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Chỉ được giao cho người trong cùng phòng ban.'
             ], 422);
         }
 
-        $keyResult->assigned_to = $assignee->user_id;
+        $keyResult->assigned_to = $assigneeId; // Assign null if $assigneeId is null
         $keyResult->save();
         
+        // Tải lại objective để có dữ liệu mới nhất
         $updatedObjective = $objective->fresh()->load('keyResults.assignedUser', 'user');
+
+        $message = $assignee ? "Đã giao KR cho {$assignee->full_name}" : "Đã bỏ giao KR thành công.";
 
         return response()->json([
             'success' => true,
-            'message' => "Đã giao KR cho {$assignee->full_name}",
+            'message' => $message,
             'data' => [
                 'objective' => $updatedObjective
             ]

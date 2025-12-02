@@ -1,41 +1,44 @@
 import React, { useState, useEffect } from "react";
 import { Modal } from "./ui";
-import UserSearchInput from './UserSearchInput'; // NEW
+import UserSearchInput from './UserSearchInput';
 
 export default function AssignKeyResultModal({
     show,
     kr,
     objective,
     loading,
-    onConfirm, // Will now receive userId directly
+    onConfirm,
     onClose,
-    currentUserRole, // NEW
+    currentUserRole,
 }) {
-    // NEW state to hold the selected user from the search input
     const [selectedAssignee, setSelectedAssignee] = useState(null);
 
-    // Dynamic title and button text
-    const isReassign = kr && kr.assigned_to;
-    const modalTitle = isReassign ? "Giao lại Key Result" : "Giao Key Result";
-    const confirmButtonText = isReassign ? "Giao lại" : "Giao việc";
+    // Dynamic title and button text based on context
+    const isCurrentlyAssigned = kr && kr.assigned_user;
+    const isAssigningNew = selectedAssignee && (!isCurrentlyAssigned || selectedAssignee.user_id !== kr.assigned_user?.user_id);
+    const isUnassigning = !selectedAssignee && isCurrentlyAssigned;
+    const isNoChange = selectedAssignee && isCurrentlyAssigned && selectedAssignee.user_id === kr.assigned_user?.user_id;
 
-    // Set initial selected assignee when modal opens or KR changes
-    useEffect(() => {
-        if (kr && kr.assigned_user) {
-            setSelectedAssignee(kr.assigned_user);
-        } else {
-            setSelectedAssignee(null); // Reset if no assignee or new KR
-        }
-    }, [kr]);
+    const modalTitle = isCurrentlyAssigned ? "Giao lại Key Result" : "Giao Key Result";
+    let confirmButtonText = "Giao việc";
+    if (isUnassigning) {
+        confirmButtonText = "Bỏ giao";
+    } else if (isAssigningNew) {
+        confirmButtonText = "Giao việc";
+    } else if (isNoChange) {
+        confirmButtonText = "Đã giao";
+    }
+    
+    // Determine if the submit button should be disabled
+    const isSubmitDisabled = loading || isNoChange;
 
     // Handle form submission
     const handleSubmit = () => {
-        if (selectedAssignee) {
-            onConfirm(selectedAssignee.user_id); // Pass user_id directly
-        }
+        // Pass userId if selected, otherwise pass null for unassigning
+        onConfirm(selectedAssignee ? selectedAssignee.user_id : null);
     };
 
-    if (!show || !kr || !objective) return null; // Ensure kr and objective are present
+    if (!show || !kr || !objective) return null;
 
     return (
         <Modal open={show} onClose={onClose} title={modalTitle}>
@@ -75,15 +78,15 @@ export default function AssignKeyResultModal({
                     </label>
                     <UserSearchInput
                         onUserSelect={setSelectedAssignee}
-                        initialUser={selectedAssignee} // Pass currently selected user to pre-fill
-                        objectiveDepartmentId={objective.department_id} // For departmental filtering
-                        currentUserRole={currentUserRole?.role_name} // For role-based filtering
+                        initialUser={null} // Default to null (empty) as per user request
+                        objectiveDepartmentId={objective.department_id}
+                        currentUserRole={currentUserRole?.role_name}
                     />
                 </div>
 
                 <div className="flex justify-end gap-2 mt-6">
                     <button
-                        type="button" // Important for preventing form submission
+                        type="button"
                         onClick={onClose}
                         disabled={loading}
                         className="px-4 py-2 text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors"
@@ -91,9 +94,9 @@ export default function AssignKeyResultModal({
                         Hủy
                     </button>
                     <button
-                        type="button" // Important for preventing form submission
-                        onClick={handleSubmit} // Call our new handler
-                        disabled={loading || !selectedAssignee} // Disable if no user selected
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={isSubmitDisabled}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                     >
                         {loading ? (
@@ -117,7 +120,7 @@ export default function AssignKeyResultModal({
                                         className="opacity-75"
                                     />
                                 </svg>
-                                Đang giao...
+                                Đang xử lý...
                             </>
                         ) : (
                             confirmButtonText
