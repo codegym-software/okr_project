@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Select from 'react-select';
+import React, { useState, useEffect } from 'react';
+import AsyncSelect from 'react-select/async';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
 
 export default function UserSearchInput({ onUserSelect, initialUser, objectiveDepartmentId, currentUserRole }) {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [options, setOptions] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
     const [selectedOption, setSelectedOption] = useState(null);
 
     // Set initial selected user if provided
@@ -22,89 +19,73 @@ export default function UserSearchInput({ onUserSelect, initialUser, objectiveDe
         }
     }, [initialUser]);
 
-    // Debounced search function
-    const debouncedSearch = useRef(
-        debounce(async (query, departmentId, callback) => {
-            if (!query) {
-                callback([]);
-                return;
-            }
+    const loadOptions = (inputValue, callback) => {
+        if (!inputValue) {
+            return callback([]);
+        }
 
-            setIsLoading(true);
-            try {
-                const params = { q: query };
-                // Apply department filter if objective is unit-level and user is not admin/ceo
-                if (departmentId && currentUserRole && !['admin', 'ceo'].includes(currentUserRole.toLowerCase())) {
-                    params.department_id = departmentId;
-                }
-                
-                const response = await axios.get('/api/users/search', { params });
+        const params = { q: inputValue };
+        if (objectiveDepartmentId && currentUserRole && !['admin', 'ceo'].includes(currentUserRole.toLowerCase())) {
+            params.department_id = objectiveDepartmentId;
+        }
+
+        axios.get('/api/users/search', { params })
+            .then(response => {
                 const users = response.data.data.map(user => ({
                     value: user.user_id,
                     label: user.full_name + ' (' + user.email + ')',
                     user: user
                 }));
                 callback(users);
-            } catch (error) {
+            })
+            .catch(error => {
                 console.error('Error fetching users:', error);
                 callback([]);
-            } finally {
-                setIsLoading(false);
-            }
-        }, 300)
-    ).current;
-
-    // Load options when search query changes
-    const loadOptions = (inputValue, callback) => {
-        setSearchQuery(inputValue); // Update searchQuery state
-        debouncedSearch(inputValue, objectiveDepartmentId, callback);
+            });
     };
 
-    // Handle selection change
+    const debouncedLoadOptions = debounce(loadOptions, 350);
+
     const handleChange = (selectedOption) => {
         setSelectedOption(selectedOption);
         onUserSelect(selectedOption ? selectedOption.user : null);
     };
 
     return (
-        <Select
-            loadOptions={loadOptions}
+        <AsyncSelect
+            cacheOptions
+            loadOptions={debouncedLoadOptions}
+            defaultOptions
             onChange={handleChange}
-            onInputChange={(newValue) => setSearchQuery(newValue)} // Keep search query in sync
-            inputValue={searchQuery}
             value={selectedOption}
             isClearable
-            isSearchable
-            isLoading={isLoading}
             placeholder="Tìm kiếm người dùng..."
             noOptionsMessage={() => "Không tìm thấy người dùng"}
             loadingMessage={() => "Đang tìm kiếm..."}
-            defaultOptions={true} // Allow initial load of options when component mounts
-            // Custom styling for better UX
             styles={{
                 control: (base) => ({
                     ...base,
-                    minHeight: '38px', // Match standard input height
-                    borderColor: '#CBD5E0', // border-slate-300
+                    minHeight: '38px',
+                    borderColor: '#CBD5E0',
                     '&:hover': {
-                        borderColor: '#94A3B8', // hover:border-slate-400
+                        borderColor: '#94A3B8',
                     },
-                    boxShadow: 'none', // Remove default box-shadow
+                    boxShadow: 'none',
                     '&:focus': {
-                        borderColor: '#2563EB', // focus:border-blue-500
-                        boxShadow: '0 0 0 1px #2563EB', // focus:ring-1 focus:ring-blue-500
+                        borderColor: '#2563EB',
+                        boxShadow: '0 0 0 1px #2563EB',
                     },
                 }),
                 menu: (base) => ({
                     ...base,
-                    zIndex: 9999 // Ensure dropdown is above other elements
+                    zIndex: 9999
                 }),
                 option: (base, state) => ({
                     ...base,
-                    backgroundColor: state.isFocused ? '#E0F2F7' : null, // bg-sky-100
-                    color: '#1A202C', // text-gray-900
+                    backgroundColor: state.isFocused ? '#E0F2F7' : null,
+                    color: '#1A202C',
                     '&:active': {
-                        backgroundColor: '#0EA5E9' // bg-sky-500
+                        backgroundColor: '#0EA5E9'
                     }
                 }),
             }}

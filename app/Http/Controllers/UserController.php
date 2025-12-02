@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use App\Models\Role;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
@@ -312,9 +314,11 @@ class UserController extends Controller
             return response()->json(['success' => true, 'data' => []]);
         }
 
-        $users = User::where(function ($qBuilder) use ($query) {
-                $qBuilder->where('full_name', 'like', '%' . $query . '%')
-                         ->orWhere('email', 'like', '%' . $query . '%');
+        $lowerQuery = strtolower($query);
+
+        $users = User::where(function ($qBuilder) use ($lowerQuery) {
+                $qBuilder->where(DB::raw('LOWER(full_name)'), 'like', '%' . $lowerQuery . '%')
+                         ->orWhere(DB::raw('LOWER(email)'), 'like', '%' . $lowerQuery . '%');
             })
             ->when($departmentId, function ($qBuilder) use ($departmentId) {
                 $qBuilder->where('department_id', $departmentId);

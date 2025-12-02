@@ -408,10 +408,10 @@ class MyKeyResultController extends Controller
         }
 
         $validated = $request->validate([
-            'email' => 'required|email|exists:users,email'
+            'user_id' => 'required|exists:users,user_id'
         ]);
 
-        $assignee = User::where('email', $validated['email'])->firstOrFail();
+        $assignee = User::findOrFail($validated['user_id']);
 
         // (Tùy chọn) Kiểm tra cùng phòng ban
         if ($objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
