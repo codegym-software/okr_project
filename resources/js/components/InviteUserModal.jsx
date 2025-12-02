@@ -180,7 +180,6 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             options={[
                                 { value: 'member', label: 'Thành viên' },
                                 { value: 'manager', label: 'Quản lý' },
-                                { value: 'ceo', label: 'CEO' },
                             ]}
                             className="w-full"
                         />

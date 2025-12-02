@@ -6,6 +6,7 @@ import InviteUserModal from "../components/InviteUserModal";
 
 export default function UsersPage() {
     const [users, setUsers] = useState([]);
+    const [originalUsers, setOriginalUsers] = useState([]); // Lưu giá trị ban đầu từ API
     const [departments, setDepartments] = useState([]);
     const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -91,6 +92,8 @@ export default function UsersPage() {
             );
             setPendingChanges({});
             setShowConfirmModal(false);
+            // Cập nhật originalUsers sau khi lưu thành công
+            await loadUsers();
         } else {
             showToast(
                 "error",
@@ -106,7 +109,9 @@ export default function UsersPage() {
                 headers: { Accept: "application/json" },
             });
             const usersData = await resUsers.json();
-            setUsers(usersData.data || []);
+            const usersList = usersData.data || [];
+            setUsers(usersList);
+            setOriginalUsers(usersList); // Lưu giá trị ban đầu
         } catch (e) {
             console.error("Error loading users:", e);
         }
@@ -129,7 +134,9 @@ export default function UsersPage() {
                 const usersData = await resUsers.json();
                 const depsData = await resDeps.json();
                 const rolesData = await resRoles.json();
-                setUsers(usersData.data || []);
+                const usersList = usersData.data || [];
+                setUsers(usersList);
+                setOriginalUsers(usersList); // Lưu giá trị ban đầu
                 setDepartments(depsData.data || []);
                 setRoles(rolesData.data || []);
             } catch (e) {
@@ -335,7 +342,6 @@ export default function UsersPage() {
                                                         placeholder="Chọn vai trò"
                                                         options={[
                                                             { value: "", label: "Tất cả" },
-                                                            { value: "ceo", label: "CEO" },
                                                             { value: "manager", label: "Quản lý" },
                                                             { value: "member", label: "Thành viên" },
                                                         ]}
@@ -406,14 +412,18 @@ export default function UsersPage() {
                                                 String(d.department_id) ===
                                                 String(val)
                                         );
-                                        setPendingChanges((prev) => ({
-                                            ...prev,
-                                            [u.user_id]: {
-                                                ...prev[u.user_id],
-                                                department_id: val,
-                                                department: depObj,
-                                            },
-                                        }));
+                                        
+                                        // Lấy giá trị ban đầu từ originalUsers
+                                        const originalUser = originalUsers.find(
+                                            (ou) => ou.user_id === u.user_id
+                                        );
+                                        const originalDeptId = originalUser?.department_id
+                                            ? String(originalUser.department_id)
+                                            : null;
+                                        
+                                        // So sánh với giá trị ban đầu
+                                        const isBackToOriginal = String(val) === originalDeptId;
+                                        
                                         setUsers((prev) =>
                                             prev.map((x) =>
                                                 x.user_id === u.user_id
@@ -427,6 +437,33 @@ export default function UsersPage() {
                                                     : x
                                             )
                                         );
+                                        
+                                        setPendingChanges((prev) => {
+                                            const newPending = { ...prev };
+                                            
+                                            if (isBackToOriginal) {
+                                                // Nếu về giá trị ban đầu, xóa khỏi pendingChanges
+                                                if (newPending[u.user_id]) {
+                                                    const { department_id, department, ...rest } = newPending[u.user_id];
+                                                    if (Object.keys(rest).length === 0) {
+                                                        // Nếu không còn thay đổi nào khác, xóa user khỏi pendingChanges
+                                                        delete newPending[u.user_id];
+                                                    } else {
+                                                        // Nếu còn thay đổi khác, chỉ xóa department
+                                                        newPending[u.user_id] = rest;
+                                                    }
+                                                }
+                                            } else {
+                                                // Nếu khác giá trị ban đầu, cập nhật pendingChanges
+                                                newPending[u.user_id] = {
+                                                    ...newPending[u.user_id],
+                                                    department_id: val,
+                                                    department: depObj,
+                                                };
+                                            }
+                                            
+                                            return newPending;
+                                        });
                                     };
                                     const toggleStatus = () => {
                                         // Chỉ cập nhật giao diện, không gọi API
@@ -434,13 +471,16 @@ export default function UsersPage() {
                                             u.status === "active"
                                                 ? "inactive"
                                                 : "active";
-                                        setPendingChanges((prev) => ({
-                                            ...prev,
-                                            [u.user_id]: {
-                                                ...prev[u.user_id],
-                                                status: newStatus,
-                                            },
-                                        }));
+                                        
+                                        // Lấy giá trị ban đầu từ originalUsers
+                                        const originalUser = originalUsers.find(
+                                            (ou) => ou.user_id === u.user_id
+                                        );
+                                        const originalStatus = originalUser?.status || "active";
+                                        
+                                        // So sánh với giá trị ban đầu
+                                        const isBackToOriginal = newStatus === originalStatus;
+                                        
                                         setUsers((prev) =>
                                             prev.map((x) =>
                                                 x.user_id === u.user_id
@@ -451,6 +491,32 @@ export default function UsersPage() {
                                                     : x
                                             )
                                         );
+                                        
+                                        setPendingChanges((prev) => {
+                                            const newPending = { ...prev };
+                                            
+                                            if (isBackToOriginal) {
+                                                // Nếu về giá trị ban đầu, xóa khỏi pendingChanges
+                                                if (newPending[u.user_id]) {
+                                                    const { status, ...rest } = newPending[u.user_id];
+                                                    if (Object.keys(rest).length === 0) {
+                                                        // Nếu không còn thay đổi nào khác, xóa user khỏi pendingChanges
+                                                        delete newPending[u.user_id];
+                                                    } else {
+                                                        // Nếu còn thay đổi khác, chỉ xóa status
+                                                        newPending[u.user_id] = rest;
+                                                    }
+                                                }
+                                            } else {
+                                                // Nếu khác giá trị ban đầu, cập nhật pendingChanges
+                                                newPending[u.user_id] = {
+                                                    ...newPending[u.user_id],
+                                                    status: newStatus,
+                                                };
+                                            }
+                                            
+                                            return newPending;
+                                        });
                                     };
                                     return (
                                         <UserTableRow
