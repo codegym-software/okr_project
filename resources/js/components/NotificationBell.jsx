@@ -283,54 +283,81 @@ export default function NotificationBell() {
                             </div>
                         ) : (
                             <div className="divide-y divide-slate-100">
-                                {notifications.map((notification) => (
-                                    <div
-                                        key={notification.notification_id}
-                                        className={`p-4 hover:bg-slate-50 transition-colors ${
-                                            !notification.is_read ? 'bg-blue-50' : ''
-                                        }`}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div className={`flex-shrink-0 w-2 h-2 rounded-full mt-2 ${
-                                                !notification.is_read ? 'bg-blue-600' : 'bg-transparent'
-                                            }`}></div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className={`text-sm ${
-                                                    !notification.is_read 
-                                                        ? 'font-semibold text-slate-900' 
-                                                        : 'text-slate-700'
-                                                }`}>
-                                                    {notification.message}
-                                                </p>
-                                                <p className="text-xs text-slate-500 mt-1">
-                                                    {formatDate(notification.created_at)}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                {!notification.is_read && (
+                                {notifications.map((notification) => {
+                                    // Check if this is a link request notification
+                                    const isLinkRequest = notification.type === 'link_request' || 
+                                        notification.message?.includes('đề nghị liên kết') ||
+                                        notification.message?.includes('yêu cầu liên kết');
+                                    
+                                    const handleNotificationClick = () => {
+                                        // Mark as read first
+                                        if (!notification.is_read) {
+                                            markAsRead(notification.notification_id);
+                                        }
+                                        // Navigate based on notification type
+                                        if (isLinkRequest) {
+                                            setIsOpen(false);
+                                            window.location.href = '/my-objectives';
+                                        }
+                                    };
+
+                                    return (
+                                        <div
+                                            key={notification.notification_id}
+                                            className={`p-4 hover:bg-slate-50 transition-colors ${
+                                                !notification.is_read ? 'bg-blue-50' : ''
+                                            } ${isLinkRequest ? 'cursor-pointer' : ''}`}
+                                            onClick={isLinkRequest ? handleNotificationClick : undefined}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className={`flex-shrink-0 w-2 h-2 rounded-full mt-2 ${
+                                                    !notification.is_read ? 'bg-blue-600' : 'bg-transparent'
+                                                }`}></div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-sm ${
+                                                        !notification.is_read 
+                                                            ? 'font-semibold text-slate-900' 
+                                                            : 'text-slate-700'
+                                                    }`}>
+                                                        {notification.message}
+                                                        {isLinkRequest && (
+                                                            <span className="ml-2 inline-flex items-center text-xs text-blue-600">
+                                                                <svg className="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                                </svg>
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 mt-1">
+                                                        {formatDate(notification.created_at)}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                    {!notification.is_read && (
+                                                        <button
+                                                            onClick={() => markAsRead(notification.notification_id)}
+                                                            className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                                                            title="Đánh dấu đã đọc"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={() => markAsRead(notification.notification_id)}
-                                                        className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
-                                                        title="Đánh dấu đã đọc"
+                                                        onClick={() => deleteNotification(notification.notification_id)}
+                                                        className="p-1 text-slate-400 hover:text-red-600 transition-colors"
+                                                        title="Xóa"
                                                     >
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                                         </svg>
                                                     </button>
-                                                )}
-                                                <button
-                                                    onClick={() => deleteNotification(notification.notification_id)}
-                                                    className="p-1 text-slate-400 hover:text-red-600 transition-colors"
-                                                    title="Xóa"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
