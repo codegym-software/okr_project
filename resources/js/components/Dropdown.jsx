@@ -195,20 +195,34 @@ export function CycleDropdown({
 }) {
     // Đảm bảo cyclesList luôn là array
     const safeCyclesList = Array.isArray(cyclesList) ? cyclesList : [];
+    const selectedCycle = safeCyclesList.find(c => String(c.cycle_id) === String(cycleFilter));
+
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${day}/${month}`;
+    };
     
     return (
-        <div className="relative w-40">
+        <div className="relative w-52">
             <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
-                <span className="flex items-center gap-2">
-                    {safeCyclesList.find(
-                        (c) => String(c.cycle_id) === String(cycleFilter)
-                    )?.cycle_name || "Chọn chu kỳ"}
-                </span>
+                <div className="flex items-baseline flex-1 truncate mr-2">
+                    <span className="truncate font-medium text-slate-700">
+                        {selectedCycle?.cycle_name || "Chọn chu kỳ"}
+                    </span>
+                    {selectedCycle && (
+                        <span className="ml-2 text-xs text-slate-500">
+                            ({formatDate(selectedCycle.start_date)}-{formatDate(selectedCycle.end_date)})
+                        </span>
+                    )}
+                </div>
                 <svg
-                    className={`w-4 h-4 transition-transform ${
+                    className={`w-4 h-4 transition-transform flex-shrink-0 ${
                         dropdownOpen ? "rotate-180" : ""
                     }`}
                     fill="none"
