@@ -295,17 +295,17 @@ export function ViewModeDropdown({
 
     const getLevelsLabel = () => {
         if (role === 'manager') {
-            return `OKR ${userDepartmentName || 'Phòng ban'}`;
+            return `${userDepartmentName || 'Phòng ban'}`;
         }
         if (role === 'admin' || role === 'ceo') {
-            return 'OKR Công ty';
+            return 'Công ty';
         }
-        return 'OKR Phòng ban được giao';
+        return userDepartmentName || 'Phòng ban được giao';
     };
 
     const options = {
         levels: getLevelsLabel(),
-        personal: 'OKR cá nhân',
+        personal: 'Cá nhân',
     };
 
     const handleSelect = (mode) => {
