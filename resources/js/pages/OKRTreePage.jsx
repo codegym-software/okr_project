@@ -937,21 +937,29 @@ export default function OKRTreePage() {
                             layoutDirection={layoutDirection}
                         />
                         {/* Controls - đặt ở góc trên bên trái trong ReactFlow view */}
-                        <div className="absolute top-4 left-4 z-20 flex items-center gap-3 flex-wrap">
+                        <div className="absolute top-4 left-4 z-20 flex items-start gap-4 flex-wrap">
                             {cyclesList && cyclesList.length > 0 && (
-                                <CycleDropdown
-                                    cyclesList={cyclesList}
-                                    cycleFilter={cycleId}
-                                    handleCycleChange={setCycleId}
-                                    dropdownOpen={dropdownOpen}
-                                    setDropdownOpen={setDropdownOpen}
-                                />
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs font-semibold text-slate-600 leading-none">
+                                        Chu kỳ OKR
+                                    </span>
+                                    <CycleDropdown
+                                        cyclesList={cyclesList}
+                                        cycleFilter={cycleId}
+                                        handleCycleChange={setCycleId}
+                                        dropdownOpen={dropdownOpen}
+                                        setDropdownOpen={setDropdownOpen}
+                                    />
+                                </div>
                             )}
 
                             {/* Company Objective Dropdown */}
                             {companyObjectives &&
                                 companyObjectives.length > 0 && (
-                                    <div className="relative w-64">
+                                    <div className="flex flex-col gap-1 w-64">
+                                        <span className="text-xs font-semibold text-slate-600 leading-none">
+                                            Objective công ty
+                                        </span>
                                         <button
                                             onClick={() =>
                                                 setObjectiveDropdownOpen(
