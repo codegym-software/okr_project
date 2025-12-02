@@ -155,6 +155,14 @@ export default function CompanyOkrList() {
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
             <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                {/* Cycle Filter Dropdown */}
+                <CycleDropdown
+                    cyclesList={cyclesList}
+                    cycleFilter={cycleFilter}
+                    handleCycleChange={setCycleFilter}
+                    dropdownOpen={dropdownOpen}
+                    setDropdownOpen={setDropdownOpen}
+                />
                 {/* OKR Filter Dropdown */}
                 <div className="relative w-full sm:w-60">
                     <select 
@@ -177,14 +185,6 @@ export default function CompanyOkrList() {
                         ))}
                     </select>
                 </div>
-                {/* Cycle Filter Dropdown */}
-                <CycleDropdown
-                    cyclesList={cyclesList}
-                    cycleFilter={cycleFilter}
-                    handleCycleChange={setCycleFilter}
-                    dropdownOpen={dropdownOpen}
-                    setDropdownOpen={setDropdownOpen}
-                />
             </div>
             
             <ObjectiveList
