@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
 import ObjectiveList from "./ObjectiveList"; // Corrected import
-import ObjectiveModal from "./ObjectiveModal";
 
 const pickRelation = (link, camel, snake) =>
     (link && link[camel]) || (link && link[snake]) || null;
@@ -37,7 +36,6 @@ export default function CompanyOkrList() {
     const [currentUser, setCurrentUser] = useState(null);
     const [childLinks, setChildLinks] = useState([]);
     const [linksLoading, setLinksLoading] = useState(false);
-    const [creatingObjective, setCreatingObjective] = useState(false);
 
     // New state for advanced filtering
     const [filterType, setFilterType] = useState('company'); // 'company' or 'department'
@@ -154,16 +152,6 @@ export default function CompanyOkrList() {
         }
     };
 
-    const canCreateObjective = () => {
-        if (!currentUser || !currentUser.role) {
-            return false;
-        }
-
-        const userRole = currentUser.role.role_name.toLowerCase();
-
-        return userRole === 'ceo';
-    };
-
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
             <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -199,14 +187,6 @@ export default function CompanyOkrList() {
                         </select>
                     </div>
                 </div>
-                {canCreateObjective() && (
-                    <button
-                        onClick={() => setCreatingObjective(true)}
-                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                    >
-                        Tạo Objective
-                    </button>
-                )}
             </div>
             
             <ObjectiveList
@@ -218,27 +198,17 @@ export default function CompanyOkrList() {
                 setItems={setItems}
                 childLinks={childLinks}
                 linksLoading={linksLoading}
+                // Stub interactive props as this is a read-only view for now
                 setCreatingFor={() => {}}
                 setEditingObjective={() => {}}
                 setEditingKR={() => {}}
-                setCreatingObjective={setCreatingObjective}
+                setCreatingObjective={() => {}}
                 openCheckInModal={() => {}}
                 openCheckInHistory={() => {}}
                 onOpenLinkModal={() => {}}
                 onCancelLink={() => {}}
                 hideFilters={true} // Hide internal filters of ObjectiveList
             />
-
-            {creatingObjective && (
-                <ObjectiveModal
-                    creatingObjective={creatingObjective}
-                    setCreatingObjective={setCreatingObjective}
-                    departments={departments}
-                    cyclesList={cyclesList}
-                    setItems={setItems}
-                    setToast={setToast}
-                />
-            )}
 
             <ToastNotification toast={toast} />
         </div>
