@@ -501,13 +501,9 @@ class LinkController extends Controller
     }
 
     /**
-<<<<<<< HEAD
-     * Ngăn tạo liên kết trùng lặp
-=======
      * Ngăn tạo liên kết trùng lặp và đảm bảo quy tắc 1:1
      * Quy tắc: 1 Objective chỉ có thể liên kết đến 1 đích (1 O hoặc 1 KR) - 1:1
      *          1 đích (O hoặc KR) có thể có nhiều O con liên kết tới - 1:n
->>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
      * Lưu ý: Source luôn là Objective
      */
     private function preventDuplicate($source, $target): void
@@ -516,10 +512,6 @@ class LinkController extends Controller
             abort(response()->json(['success' => false, 'message' => 'Source phải là Objective.'], 422));
         }
 
-<<<<<<< HEAD
-        $query = OkrLink::query()
-            ->where('source_type', 'objective') // Source luôn là Objective
-=======
         // Bước 1: Kiểm tra xem source Objective đã có liên kết đến bất kỳ target nào chưa (1:1)
         // Chỉ kiểm tra các liên kết đã approved hoặc đang pending (bỏ qua cancelled, rejected, needs_changes)
         $existingLink = OkrLink::query()
@@ -548,7 +540,6 @@ class LinkController extends Controller
         // Bước 2: Kiểm tra xem liên kết đến target này đã tồn tại chưa (tránh duplicate)
         $duplicateQuery = OkrLink::query()
             ->where('source_type', 'objective')
->>>>>>> 64505305094b5391020c4ac7bc73fa2a4ae71a77
             ->where('target_type', $target instanceof Objective ? 'objective' : 'kr')
             ->where('source_objective_id', $source->objective_id)
             ->whereNotIn('status', [

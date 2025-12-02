@@ -325,4 +325,3 @@ class Objective extends Model
         return $array;
     }
 }
-
