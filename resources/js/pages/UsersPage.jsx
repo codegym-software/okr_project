@@ -13,7 +13,6 @@ export default function UsersPage() {
     const [role, setRole] = useState("");
     const [status, setStatus] = useState("");
     const [departmentId, setDepartmentId] = useState("");
-    const [level, setLevel] = useState("");
     const [toast, setToast] = useState({ type: "success", message: "" });
     const showToast = (type, message) => setToast({ type, message });
     const [editingDept, setEditingDept] = useState({});
@@ -145,24 +144,15 @@ export default function UsersPage() {
     // Function để reset tất cả filter về trạng thái ban đầu
     const resetAllFilters = () => {
         setQ("");
-        setLevel("");
         setRole("");
         setDepartmentId("");
         setStatus("");
         setTeamId("");
     };
 
-    // Handler khi thay đổi cấp độ - reset các bộ lọc liên quan
-    const handleLevelChange = (newLevel) => {
-        setLevel(newLevel);
-        // Reset departmentId và teamId khi thay đổi cấp độ
-        setDepartmentId("");
-        setTeamId("");
-    };
-
     // Kiểm tra có filter nào đang active không
     const hasActiveFilters =
-        (q && q.trim()) || level || role || departmentId || status || teamId;
+        (q && q.trim()) || role || departmentId || status || teamId;
 
     // Logic filter users
     const filtered = users.filter((u) => {
@@ -173,7 +163,6 @@ export default function UsersPage() {
             u.email?.toLowerCase().includes(needle);
         const matchesRole = !role || u.role?.role_name?.toLowerCase() === role;
         const matchesStatus = !status || u.status?.toLowerCase() === status;
-        const matchesLevel = !level || u.role?.level === level;
         const isAdmin =
             (u.role?.role_name || "").toLowerCase() === "admin" ||
             u.email === "okr.admin@company.com";
@@ -187,7 +176,6 @@ export default function UsersPage() {
             matchesRole &&
             matchesStatus &&
             matchesDept &&
-            matchesLevel &&
             matchesTeam
         );
     });
@@ -263,7 +251,6 @@ export default function UsersPage() {
                                 {hasActiveFilters && (
                                     <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold leading-none text-white bg-blue-600 rounded-full">
                                         {[
-                                            level,
                                             role,
                                             departmentId,
                                             teamId,
@@ -318,80 +305,24 @@ export default function UsersPage() {
                                             </div>
                                             
                                             <div className="space-y-4">
-                                                {/* Cấp độ */}
+                                                {/* Phòng ban */}
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                                                        Cấp độ
+                                                        Phòng ban
                                                     </label>
                                                     <Select
-                                                        value={level}
-                                                        onChange={handleLevelChange}
-                                                        placeholder="Chọn cấp độ"
+                                                        value={departmentId}
+                                                        onChange={setDepartmentId}
+                                                        placeholder="Chọn phòng ban"
                                                         options={[
                                                             { value: "", label: "Tất cả" },
-                                                            { value: "unit", label: "Phòng ban" },
-                                                            { value: "team", label: "Nhóm" },
+                                                            ...departments.map((d) => ({
+                                                                value: String(d.department_id),
+                                                                label: d.d_name,
+                                                            })),
                                                         ]}
                                                     />
                                                 </div>
-
-                                                {/* Phòng ban - chỉ hiển thị khi level = "unit" */}
-                                                {level === "unit" && (
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                                                            Phòng ban
-                                                        </label>
-                                                        <Select
-                                                            value={departmentId}
-                                                            onChange={setDepartmentId}
-                                                            placeholder="Chọn phòng ban"
-                                                            options={[
-                                                                { value: "", label: "Tất cả" },
-                                                                ...departments
-                                                                    .filter(
-                                                                        (d) =>
-                                                                            d.parent_department_id === null &&
-                                                                            d.type === "phòng ban"
-                                                                    )
-                                                                    .map((d) => ({
-                                                                        value: String(d.department_id),
-                                                                        label: d.d_name,
-                                                                    })),
-                                                            ]}
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                {/* Đội nhóm - chỉ hiển thị khi level = "team" */}
-                                                {level === "team" && (
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                                                            Đội nhóm
-                                                        </label>
-                                                        <Select
-                                                            value={teamId}
-                                                            onChange={setTeamId}
-                                                            placeholder="Chọn đội nhóm"
-                                                            options={[
-                                                                { value: "", label: "Tất cả" },
-                                                                ...departments
-                                                                    .filter(
-                                                                        (d) =>
-                                                                            d.type === "đội nhóm" &&
-                                                                            (!departmentId ||
-                                                                                d.parent_department_id ===
-                                                                                    (departmentId
-                                                                                        ? parseInt(departmentId)
-                                                                                        : null))
-                                                                    )
-                                                                    .map((d) => ({
-                                                                        value: String(d.department_id),
-                                                                        label: d.d_name,
-                                                                    })),
-                                                            ]}
-                                                        />
-                                                    </div>
-                                                )}
 
                                                 {/* Vai trò */}
                                                 <div>

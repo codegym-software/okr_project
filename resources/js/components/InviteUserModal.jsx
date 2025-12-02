@@ -6,7 +6,7 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
         email: '',
         full_name: '',
         role_name: '',
-        level: '',
+        level: 'unit', // Mặc định là phòng ban
         department_id: ''
     });
     const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
         e.preventDefault();
         
         // Validation frontend - chỉ kiểm tra có điền đầy đủ thông tin
-        if (!formData.email || !formData.full_name || !formData.role_name || !formData.level || !formData.department_id) {
+        if (!formData.email || !formData.full_name || !formData.role_name || !formData.department_id) {
             showToast('error', 'Vui lòng điền đầy đủ tất cả thông tin bắt buộc');
             return;
         }
@@ -58,7 +58,6 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                         const fieldName = field === 'email' ? 'Email' : 
                                          field === 'full_name' ? 'Họ và tên' :
                                          field === 'role_name' ? 'Vai trò' :
-                                         field === 'level' ? 'Cấp độ' :
                                          field === 'department_id' ? 'Phòng ban/Đội nhóm' : field;
                         return `${fieldName}: ${result.errors[field][0]}`;
                     });
@@ -107,62 +106,30 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
             email: '',
             full_name: '',
             role_name: '',
-            level: '',
+            level: 'unit', // Mặc định là phòng ban
             department_id: ''
         });
         onClose();
     };
 
     const handleInputChange = (field, value) => {
-        setFormData(prev => {
-            const newData = {
-                ...prev,
-                [field]: value
-            };
-            
-            // Khi thay đổi level, reset department_id
-            if (field === 'level') {
-                newData.department_id = '';
-            }
-            
-            return newData;
-        });
+        setFormData(prev => ({
+            ...prev,
+            [field]: value
+        }));
     };
 
-    // Lọc departments theo level
-    const getFilteredDepartments = () => {
-        if (formData.level === 'unit') {
-            // Chỉ hiển thị phòng ban (parent_department_id === null và type === "phòng ban")
-            return departments.filter(d => 
-                d.parent_department_id === null && d.type === "phòng ban"
-            );
-        } else if (formData.level === 'team') {
-            // Chỉ hiển thị nhóm (type === "đội nhóm")
-            return departments.filter(d => d.type === "đội nhóm");
-        }
-        return departments;
-    };
-
-    // Tạo options cho dropdown phòng ban
+    // Lọc departments - chỉ hiển thị phòng ban
     const getDepartmentOptions = () => {
-        const filteredDepts = getFilteredDepartments();
+        // Chỉ hiển thị phòng ban (parent_department_id === null và type === "phòng ban")
+        const filteredDepts = departments.filter(d => 
+            d.parent_department_id === null && d.type === "phòng ban"
+        );
         
-        return filteredDepts.map(d => {
-            let label = d.d_name;
-            
-            // Nếu là nhóm, thêm tên phòng ban vào đằng sau
-            if (formData.level === 'team' && d.parent_department_id) {
-                const parentDept = departments.find(pd => pd.department_id === d.parent_department_id);
-                if (parentDept) {
-                    label = `${d.d_name} (${parentDept.d_name})`;
-                }
-            }
-            
-            return {
-                value: String(d.department_id),
-                label: label
-            };
-        });
+        return filteredDepts.map(d => ({
+            value: String(d.department_id),
+            label: d.d_name
+        }));
     };
 
     return (
@@ -219,32 +186,15 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                         />
                     </div>
 
-                    {/* Cấp độ */}
+                    {/* Phòng ban */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Cấp độ <span className="text-red-500">*</span>
-                        </label>
-                        <Select
-                            value={formData.level}
-                            onChange={(value) => handleInputChange('level', value)}
-                            placeholder="-- Chọn cấp độ --"
-                            options={[
-                                { value: 'unit', label: 'Đơn vị' },
-                                { value: 'team', label: 'Nhóm' }
-                            ]}
-                            className="w-full"
-                        />
-                    </div>
-
-                    {/* Phòng ban/Đội nhóm */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Phòng ban/Đội nhóm <span className="text-red-500">*</span>
+                            Phòng ban <span className="text-red-500">*</span>
                         </label>
                         <Select
                             value={formData.department_id}
                             onChange={(value) => handleInputChange('department_id', value)}
-                            placeholder={formData.level ? `-- Chọn ${formData.level === 'unit' ? 'phòng ban' : 'nhóm'} --` : "-- Chọn phòng ban/đội nhóm --"}
+                            placeholder="-- Chọn phòng ban --"
                             options={getDepartmentOptions()}
                             className="w-full"
                         />
