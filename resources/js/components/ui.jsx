@@ -38,12 +38,12 @@ export function GradientText({ children }) {
     );
 }
 
-export function Modal({ open, onClose, title, children }) {
+export function Modal({ open, onClose, title, children, maxWidth = 'max-w-2xl' }) {
     if (!open) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-            <div className="relative w-full max-w-2xl max-h-[90vh] rounded-2xl bg-white shadow-xl flex flex-col">
+            <div className={`relative w-full ${maxWidth} max-h-[90vh] rounded-2xl bg-white shadow-xl flex flex-col`}>
                 <div className="flex items-center justify-between border-b border-slate-200 p-4 flex-shrink-0">
                     <h3 className="text-lg font-bold text-slate-900">{title}</h3>
                     <button onClick={onClose} className="rounded-md p-2 text-slate-500 hover:bg-slate-100" aria-label="Close">

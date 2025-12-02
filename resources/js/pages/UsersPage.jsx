@@ -166,6 +166,39 @@ export default function UsersPage() {
         }
     };
 
+    // Đọc query params từ URL khi component mount
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const qParam = params.get("q") || "";
+        const roleParam = params.get("role") || "";
+        const statusParam = params.get("status") || "";
+        const departmentParam = params.get("department_id") || "";
+        const pageParam = params.get("page") || "1";
+        
+        setQ(qParam);
+        setRole(roleParam);
+        setStatus(statusParam);
+        setDepartmentId(departmentParam);
+        setCurrentPage(parseInt(pageParam) || 1);
+    }, []);
+
+    // Cập nhật URL khi filter thay đổi
+    useEffect(() => {
+        const params = new URLSearchParams();
+        
+        if (q) params.set("q", q);
+        if (role) params.set("role", role);
+        if (status) params.set("status", status);
+        if (departmentId) params.set("department_id", departmentId);
+        if (currentPage > 1) params.set("page", currentPage.toString());
+        
+        const newUrl = params.toString() 
+            ? `${window.location.pathname}?${params.toString()}`
+            : window.location.pathname;
+        
+        window.history.pushState({}, "", newUrl);
+    }, [q, role, status, departmentId, currentPage]);
+
     useEffect(() => {
         const load = async () => {
             try {

@@ -117,6 +117,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
 
     //Routes cho Department
     Route::resource('departments', DepartmentController::class);
+    Route::delete('departments/{department}/users/{user}', [DepartmentController::class, 'removeUser'])->name('departments.users.remove');
     Route::post('/departments/{department}/assign-users', [DepartmentController::class, 'storeAssignUsers'])->name('departments.assign.users.store');
 
     //Routes cho Report - chỉ Manager
