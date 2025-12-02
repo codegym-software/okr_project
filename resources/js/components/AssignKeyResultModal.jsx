@@ -21,8 +21,8 @@ export default function AssignKeyResultModal({
 
     // Set initial selected assignee when modal opens or KR changes
     useEffect(() => {
-        if (kr && kr.assignedUser) {
-            setSelectedAssignee(kr.assignedUser);
+        if (kr && kr.assigned_user) {
+            setSelectedAssignee(kr.assigned_user);
         } else {
             setSelectedAssignee(null); // Reset if no assignee or new KR
         }
@@ -52,16 +52,16 @@ export default function AssignKeyResultModal({
                         Người thực hiện hiện tại:
                     </label>
                     <div className="p-2 border border-slate-300 rounded-md bg-slate-50 text-slate-600 text-sm">
-                        {kr.assignedUser ? 
+                        {kr.assigned_user ? 
                             <div className="flex items-center gap-2">
-                                {kr.assignedUser.avatar_url ? (
-                                    <img src={kr.assignedUser.avatar_url} alt={kr.assignedUser.full_name} className="h-5 w-5 rounded-full object-cover" />
+                                {kr.assigned_user.avatar_url ? (
+                                    <img src={kr.assigned_user.avatar_url} alt={kr.assigned_user.full_name} className="h-5 w-5 rounded-full object-cover" />
                                 ) : (
                                     <div className="h-5 w-5 rounded-full bg-indigo-100 flex items-center justify-center text-xs text-indigo-700">
-                                        {kr.assignedUser.full_name?.charAt(0).toUpperCase()}
+                                        {kr.assigned_user.full_name?.charAt(0).toUpperCase()}
                                     </div>
                                 )}
-                                {kr.assignedUser.full_name} ({kr.assignedUser.email})
+                                {kr.assigned_user.full_name} ({kr.assigned_user.email})
                             </div>
                             : "Chưa giao"
                         }
