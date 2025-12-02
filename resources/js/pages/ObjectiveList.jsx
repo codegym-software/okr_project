@@ -1,4 +1,3 @@
-// src/components/okr/ObjectiveList.jsx
 import React, {
     useState,
     useEffect,
@@ -46,7 +45,8 @@ export default function ObjectiveList({
     setItems,
     onOpenLinkModal,
     onCancelLink,
-    hideFilters = false, // Add this prop with a default value
+    hideFilters = false,
+    disableActions = false,
 }) {
     const [toast, setToast] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
@@ -447,8 +447,8 @@ export default function ObjectiveList({
                     `/my-objectives?${archivedParams}`,
                     {
                         headers: {
-                            Accept: "application/json",
                             "X-CSRF-TOKEN": token,
+                            Accept: "application/json",
                         },
                     }
                 );
@@ -706,6 +706,7 @@ export default function ObjectiveList({
                                     getAssigneeInfo={getAssigneeInfo}
                                     // The ObjectiveRow itself will now handle its colSpan based on props
                                     colSpanForObjectiveHeader={3}
+                                    disableActions={disableActions}
                                 />
                             ))}
 

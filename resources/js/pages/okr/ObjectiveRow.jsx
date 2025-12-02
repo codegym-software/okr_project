@@ -29,6 +29,7 @@ export default function ObjectiveRow({
     getStatusText,
     getUnitText,
     colSpanForObjectiveHeader,
+    disableActions = false,
 }) {
     const hasKRs = obj.key_results?.length > 0;
 
@@ -85,8 +86,9 @@ export default function ObjectiveRow({
                     <div className="flex items-center justify-end gap-1">
                         <button
                             onClick={() => setCreatingFor(obj)}
-                            className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Thêm KR"
+                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -112,8 +114,9 @@ export default function ObjectiveRow({
                         </button>
                         <button
                             onClick={() => setEditingObjective(obj)}
-                            className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Sửa"
+                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -137,6 +140,7 @@ export default function ObjectiveRow({
                             menuRefs={menuRefs}
                             openObj={openObj}
                             setOpenObj={setOpenObj}
+                            disableActions={disableActions}
                         />
                     </div>
                 </td>
@@ -164,6 +168,7 @@ export default function ObjectiveRow({
                         getUnitText={getUnitText}
                         menuRefs={menuRefs}
                         colSpanForKRs={7} // NEW PROP
+                        disableActions={disableActions}
                     />
                 ))}
         </>

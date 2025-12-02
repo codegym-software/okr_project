@@ -8,6 +8,7 @@ export default function ObjectiveActionsMenu({
     menuRefs,
     openObj,
     setOpenObj,
+    disableActions = false,
 }) {
     const menuKey = `menu_obj_${obj.objective_id}`;
 
@@ -28,8 +29,9 @@ export default function ObjectiveActionsMenu({
                         return next;
                     });
                 }}
-                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Thêm tùy chọn"
+                disabled={disableActions}
             >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />

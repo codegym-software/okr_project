@@ -25,6 +25,7 @@ export default function KeyResultRow({
     openCheckInModal,
     openCheckInHistory,
     colSpanForKRs,
+    disableActions = false,
 }) {
     const isLinkedKR = kr.isLinked;
     const isLinkedObjective = kr.isLinkedObjective; // O→O
@@ -107,8 +108,9 @@ export default function KeyResultRow({
                                     onCancelLink?.(kr.link.link_id, "", keep);
                                 }
                             }}
-                            className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                            className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Hủy liên kết"
+                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -356,7 +358,8 @@ export default function KeyResultRow({
                                     onCancelLink?.(kr.link.link_id, "", keep);
                                 }
                             }}
-                            className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                            className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -376,8 +379,9 @@ export default function KeyResultRow({
                         <div className="flex items-center justify-end gap-1">
                             <button
                                 onClick={() => setAssignModal({ show: true, kr, objective, email: "", loading: false })}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Giao việc"
+                                disabled={disableActions}
                             >
                                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" />
@@ -385,8 +389,9 @@ export default function KeyResultRow({
                             </button>
                             <button
                                 onClick={() => setEditingKR(kr)}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Sửa"
+                                disabled={disableActions}
                             >
                                 <svg
                                     className="h-4 w-4"
@@ -414,6 +419,7 @@ export default function KeyResultRow({
                                 menuRefs={menuRefs}
                                 openObj={openObj}
                                 setOpenObj={setOpenObj}
+                                disableActions={disableActions}
                             />
                         </div>
                     )}
@@ -436,6 +442,7 @@ export default function KeyResultRow({
                         formatPercent={formatPercent}
                         getStatusText={getStatusText}
                         getUnitText={getUnitText}
+                        disableActions={disableActions}
                     />
                 ))}
         </>

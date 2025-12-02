@@ -208,6 +208,7 @@ export default function CompanyOkrList() {
                 onOpenLinkModal={() => {}}
                 onCancelLink={() => {}}
                 hideFilters={true} // Hide internal filters of ObjectiveList
+                disableActions={true}
             />
 
             <ToastNotification toast={toast} />

@@ -13,6 +13,7 @@ export default function LinkedChildObjectiveRow({
     getStatusText,
     getUnitText,
     colSpanForKRs,
+    disableActions = false,
 }) {
     const hasKRs = linkedObj.key_results?.length > 0;
     const expanded =
@@ -94,7 +95,8 @@ export default function LinkedChildObjectiveRow({
                                 );
                             }
                         }}
-                        className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                        className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={disableActions}
                     >
                         <svg
                             className="h-4 w-4"
