@@ -781,7 +781,6 @@ export default function UsersPage() {
                 onSuccess={() => {
                     setShowInviteModal(false);
                     loadUsers(); // Reload danh sách users
-                    showToast("success", "Email mời đã được gửi thành công");
                 }}
                 departments={departments}
                 roles={roles}

@@ -161,7 +161,7 @@ class AdminController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Email mời đã được gửi thành công đến ' . $request->email . '. Người dùng sẽ nhận được mật khẩu tạm thời qua email.'
+                'message' => 'Email mời đã được gửi thành công đến ' . $request->email . '.'
             ]);
 
         } catch (AwsException $e) {

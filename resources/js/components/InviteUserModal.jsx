@@ -11,6 +11,7 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     });
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState({ type: 'success', message: '' });
+    const [validationErrors, setValidationErrors] = useState({});
 
     const showToast = (type, message) => {
         setToast({ type, message });
@@ -20,9 +21,18 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
+        // Reset validation errors
+        setValidationErrors({});
+        
         // Validation frontend - chỉ kiểm tra có điền đầy đủ thông tin
-        if (!formData.email || !formData.full_name || !formData.role_name || !formData.department_id) {
-            showToast('error', 'Vui lòng điền đầy đủ tất cả thông tin bắt buộc');
+        const errors = {};
+        if (!formData.email) errors.email = 'Email là bắt buộc';
+        if (!formData.full_name) errors.full_name = 'Họ và tên là bắt buộc';
+        if (!formData.role_name) errors.role_name = 'Vai trò là bắt buộc';
+        if (!formData.department_id) errors.department_id = 'Phòng ban là bắt buộc';
+        
+        if (Object.keys(errors).length > 0) {
+            setValidationErrors(errors);
             return;
         }
 
@@ -50,22 +60,18 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
 
             // Xử lý các trường hợp lỗi khác nhau
             if (response.status === 422) {
-                // Validation errors từ backend
-                let errorMessage = 'Dữ liệu không hợp lệ: ';
+                // Validation errors từ backend - hiển thị trong modal
                 if (result.errors) {
-                    const errorFields = Object.keys(result.errors);
-                    const errorMessages = errorFields.map(field => {
-                        const fieldName = field === 'email' ? 'Email' : 
-                                         field === 'full_name' ? 'Họ và tên' :
-                                         field === 'role_name' ? 'Vai trò' :
-                                         field === 'department_id' ? 'Phòng ban/Đội nhóm' : field;
-                        return `${fieldName}: ${result.errors[field][0]}`;
+                    const backendErrors = {};
+                    Object.keys(result.errors).forEach(field => {
+                        backendErrors[field] = result.errors[field][0];
                     });
-                    errorMessage += errorMessages.join(', ');
+                    setValidationErrors(backendErrors);
                 } else {
-                    errorMessage = result.message || 'Dữ liệu không hợp lệ';
+                    setValidationErrors({ _general: result.message || 'Dữ liệu không hợp lệ' });
                 }
-                showToast('error', errorMessage);
+                setLoading(false);
+                return;
             } else if (response.status === 500) {
                 // Server errors
                 if (result.message) {
@@ -109,6 +115,7 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
             level: 'unit', // Mặc định là phòng ban
             department_id: ''
         });
+        setValidationErrors({});
         onClose();
     };
 
@@ -117,6 +124,14 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
             ...prev,
             [field]: value
         }));
+        // Xóa lỗi validation của field khi user bắt đầu nhập
+        if (validationErrors[field]) {
+            setValidationErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[field];
+                return newErrors;
+            });
+        }
     };
 
     // Lọc departments - chỉ hiển thị phòng ban
@@ -138,6 +153,13 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
             
             <Modal open={isOpen} onClose={handleClose} title="Mời người dùng mới">
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Thông báo lỗi tổng */}
+                    {validationErrors._general && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="text-sm text-red-600">{validationErrors._general}</p>
+                        </div>
+                    )}
+
                     {/* Email */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -148,9 +170,16 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             value={formData.email}
                             onChange={(e) => handleInputChange('email', e.target.value)}
                             placeholder="Nhập email người dùng"
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${
+                                validationErrors.email
+                                    ? 'border-red-300 focus:ring-red-500'
+                                    : 'border-gray-300 focus:ring-blue-500'
+                            }`}
                             required
                         />
+                        {validationErrors.email && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
+                        )}
                     </div>
 
                     {/* Họ tên */}
@@ -163,9 +192,16 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             value={formData.full_name}
                             onChange={(e) => handleInputChange('full_name', e.target.value)}
                             placeholder="Nhập họ và tên"
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${
+                                validationErrors.full_name
+                                    ? 'border-red-300 focus:ring-red-500'
+                                    : 'border-gray-300 focus:ring-blue-500'
+                            }`}
                             required
                         />
+                        {validationErrors.full_name && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.full_name}</p>
+                        )}
                     </div>
 
                     {/* Vai trò */}
@@ -183,6 +219,9 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             ]}
                             className="w-full"
                         />
+                        {validationErrors.role_name && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.role_name}</p>
+                        )}
                     </div>
 
                     {/* Phòng ban */}
@@ -197,6 +236,9 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             options={getDepartmentOptions()}
                             className="w-full"
                         />
+                        {validationErrors.department_id && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.department_id}</p>
+                        )}
                     </div>
 
                     {/* Thông báo */}
