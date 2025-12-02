@@ -108,6 +108,11 @@ class CheckInController extends Controller
                     $keyResult->update(['status' => 'completed']);
                 }
 
+                // Tự động cập nhật progress của Objective từ KeyResults
+                if ($keyResult->objective) {
+                    $keyResult->objective->updateProgressFromKeyResults();
+                }
+
                 Log::info('Check-in created', [
                     'check_in_id' => $checkIn->check_in_id,
                     'kr_id' => $keyResult->kr_id,
@@ -277,6 +282,11 @@ class CheckInController extends Controller
                         'progress_percent' => 0,
                         'status' => 'active',
                     ]);
+                }
+
+                // Tự động cập nhật progress của Objective từ KeyResults
+                if ($checkIn->keyResult->objective) {
+                    $checkIn->keyResult->objective->updateProgressFromKeyResults();
                 }
             });
 

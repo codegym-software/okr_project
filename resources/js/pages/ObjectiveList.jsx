@@ -572,9 +572,9 @@ export default function ObjectiveList({
             const fetchArchived = async () => {
                 setLoadingArchived(true);
                 try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
                     const params = new URLSearchParams({
                         archived: "1",
                         include_archived_kr: "1",
@@ -582,8 +582,8 @@ export default function ObjectiveList({
                     if (cycleFilter) params.append("cycle_id", cycleFilter);
 
                     const res = await fetch(`/my-objectives?${params}`, {
-                        headers: {
-                            Accept: "application/json",
+                    headers: {
+                        Accept: "application/json",
                             "X-CSRF-TOKEN": token,
                         },
                     });
@@ -591,9 +591,9 @@ export default function ObjectiveList({
                     if (json.success) {
                         setArchivedItems(json.data.data || []);
                     }
-                } catch (err) {
+        } catch (err) {
                     setToast({ type: "error", message: err.message });
-                } finally {
+        } finally {
                     setLoadingArchived(false);
                 }
             };
@@ -607,13 +607,13 @@ export default function ObjectiveList({
     return (
         <div className="mx-auto w-full max-w-6xl">
             <div className="mb-4 flex w-full items-center justify-between">
-                <CycleDropdown
-                    cyclesList={cyclesList}
-                    cycleFilter={cycleFilter}
-                    handleCycleChange={setCycleFilter}
-                    dropdownOpen={dropdownOpen}
-                    setDropdownOpen={setDropdownOpen}
-                />
+                    <CycleDropdown
+                        cyclesList={cyclesList}
+                        cycleFilter={cycleFilter}
+                        handleCycleChange={setCycleFilter}
+                        dropdownOpen={dropdownOpen}
+                        setDropdownOpen={setDropdownOpen}
+                    />
                 <Tabs
                     showArchived={showArchived}
                     setShowArchived={setShowArchived}
@@ -698,8 +698,8 @@ itemsWithLinkedChildren.map((obj, index) => (
                                     canCheckInKR={(kr) =>
                                         canCheckInKeyResult(
                                             currentUser,
-                                            kr,
-                                            obj
+                                                                kr,
+                                                                obj
                                         )
                                     }
                                     formatPercent={formatPercent}

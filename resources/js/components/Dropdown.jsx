@@ -187,12 +187,15 @@ export function DropdownContent({ children, className = "" }) {
  * CycleDropdown Component - Dropdown chọn chu kỳ
  */
 export function CycleDropdown({
-    cyclesList,
+    cyclesList = [],
     cycleFilter,
     handleCycleChange,
     dropdownOpen,
     setDropdownOpen,
 }) {
+    // Đảm bảo cyclesList luôn là array
+    const safeCyclesList = Array.isArray(cyclesList) ? cyclesList : [];
+    
     return (
         <div className="relative w-40">
             <button
@@ -200,7 +203,7 @@ export function CycleDropdown({
                 className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
                 <span className="flex items-center gap-2">
-                    {cyclesList.find(
+                    {safeCyclesList.find(
                         (c) => String(c.cycle_id) === String(cycleFilter)
                     )?.cycle_name || "Chọn chu kỳ"}
                 </span>
@@ -223,7 +226,7 @@ export function CycleDropdown({
 
             {dropdownOpen && (
                 <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
-                    {cyclesList.map((cycle) => {
+                    {safeCyclesList.map((cycle) => {
                         const match =
                             cycle.cycle_name.match(/Quý (\d+) năm (\d+)/);
                         const quarter = match ? parseInt(match[1]) : null;

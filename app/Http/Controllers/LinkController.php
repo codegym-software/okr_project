@@ -99,7 +99,7 @@ class LinkController extends Controller
     public function getAvailableTargets(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'source_type' => ['required', Rule::in(['objective', 'kr'])],
+            'source_type' => ['required', Rule::in(['objective'])], // Source luôn là Objective
             'source_id' => ['required'],
             'source_level' => ['required', Rule::in(array_keys(self::LEVEL_ORDER))],
             'level' => ['nullable', Rule::in(array_keys(self::LEVEL_ORDER))],
@@ -178,14 +178,15 @@ class LinkController extends Controller
     {
         $user = Auth::user();
         $validated = $request->validate([
-            'source_type' => ['required', Rule::in(['objective', 'kr'])],
+            'source_type' => ['required', Rule::in(['objective'])], // Source luôn là Objective
             'source_id' => ['required'],
             'target_type' => ['required', Rule::in(['objective', 'kr'])],
             'target_id' => ['required'],
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $sourceEntity = $this->findEntity($validated['source_type'], $validated['source_id']);
+        // Source luôn là Objective
+        $sourceEntity = Objective::with('keyResults')->findOrFail($validated['source_id']);
         $targetEntity = $this->findEntity($validated['target_type'], $validated['target_id']);
 
         $this->ensureSourceOwnership($sourceEntity, $user->user_id);
@@ -229,6 +230,26 @@ class LinkController extends Controller
 
         if (!$link->isPending()) {
             return response()->json(['success' => false, 'message' => 'Chỉ xử lý yêu cầu đang chờ.'], 422);
+        }
+
+        // Kiểm tra xem source Objective đã có link approved khác chưa (đảm bảo quy tắc 1:1)
+        $existingApprovedLink = OkrLink::query()
+            ->where('source_type', 'objective')
+            ->where('source_objective_id', $link->source_objective_id)
+            ->where('status', OkrLink::STATUS_APPROVED)
+            ->where('link_id', '!=', $link->link_id)
+            ->first();
+
+        if ($existingApprovedLink) {
+            $targetType = $existingApprovedLink->target_type === 'objective' ? 'Objective' : 'Key Result';
+            $targetId = $existingApprovedLink->target_type === 'objective' 
+                ? $existingApprovedLink->target_objective_id 
+                : $existingApprovedLink->target_kr_id;
+            
+            return response()->json([
+                'success' => false, 
+                'message' => "Không thể chấp thuận liên kết này. Objective này đã có liên kết được chấp thuận đến một {$targetType} khác (ID: {$targetId}). Mỗi Objective chỉ có thể liên kết đến một đích duy nhất."
+            ], 422);
         }
 
         $validated = $request->validate([
@@ -408,7 +429,7 @@ class LinkController extends Controller
         return [
             'sourceObjective.user.department',
             'sourceObjective.keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at'),
-            'sourceKr.assignedUser.department',
+            // sourceKr không cần vì source luôn là Objective
             'targetObjective.user.department',
             'targetKr.assignedUser.department',
             'requester.department',
@@ -418,6 +439,10 @@ class LinkController extends Controller
         ];
     }
 
+    /**
+     * Tìm entity cho target (có thể là Objective hoặc KeyResult)
+     * Lưu ý: Source luôn là Objective, không dùng function này cho source
+     */
     private function findEntity(string $type, $id)
     {
         return $type === 'objective'
@@ -425,20 +450,32 @@ class LinkController extends Controller
             : KeyResult::with('objective')->findOrFail($id);
     }
 
+    /**
+     * Kiểm tra quyền sở hữu source
+     * Lưu ý: Source luôn là Objective
+     */
     private function ensureSourceOwnership($entity, int $userId): void
     {
-        $ownerId = $entity instanceof Objective
-            ? $entity->user_id
-            : ($entity->objective->user_id ?? null);
+        if (!($entity instanceof Objective)) {
+            abort(response()->json(['success' => false, 'message' => 'Source phải là Objective.'], 422));
+        }
 
-        if ($ownerId !== $userId) {
+        if ($entity->user_id !== $userId) {
             abort(response()->json(['success' => false, 'message' => 'Bạn không có quyền thực hiện thao tác này.'], 403));
         }
     }
 
+    /**
+     * Kiểm tra cấp độ liên kết
+     * Lưu ý: Source luôn là Objective
+     */
     private function ensureLinkingLevel($source, $target): void
     {
-        $sourceLevel = $source instanceof Objective ? $source->level : ($source->objective->level ?? null);
+        if (!($source instanceof Objective)) {
+            abort(response()->json(['success' => false, 'message' => 'Source phải là Objective.'], 422));
+        }
+
+        $sourceLevel = $source->level;
         $targetLevel = $target instanceof Objective ? $target->level : ($target->objective->level ?? null);
 
         if (!$sourceLevel || !$targetLevel) {
@@ -463,43 +500,82 @@ class LinkController extends Controller
         }
     }
 
+    /**
+     * Ngăn tạo liên kết trùng lặp và đảm bảo quy tắc 1:1
+     * Quy tắc: 1 Objective chỉ có thể liên kết đến 1 đích (1 O hoặc 1 KR) - 1:1
+     *          1 đích (O hoặc KR) có thể có nhiều O con liên kết tới - 1:n
+     * Lưu ý: Source luôn là Objective
+     */
     private function preventDuplicate($source, $target): void
     {
-        $query = OkrLink::query()
-            ->where('source_type', $source instanceof Objective ? 'objective' : 'kr')
+        if (!($source instanceof Objective)) {
+            abort(response()->json(['success' => false, 'message' => 'Source phải là Objective.'], 422));
+        }
+
+        // Bước 1: Kiểm tra xem source Objective đã có liên kết đến bất kỳ target nào chưa (1:1)
+        // Chỉ kiểm tra các liên kết đã approved hoặc đang pending (bỏ qua cancelled, rejected, needs_changes)
+        $existingLink = OkrLink::query()
+            ->where('source_type', 'objective')
+            ->where('source_objective_id', $source->objective_id)
+            ->whereNotIn('status', [
+                OkrLink::STATUS_CANCELLED,
+                OkrLink::STATUS_REJECTED,
+                OkrLink::STATUS_NEEDS_CHANGES,
+            ])
+            ->first();
+
+        if ($existingLink) {
+            // Source Objective đã có liên kết đến một target khác
+            $targetType = $existingLink->target_type === 'objective' ? 'Objective' : 'Key Result';
+            $targetId = $existingLink->target_type === 'objective' 
+                ? $existingLink->target_objective_id 
+                : $existingLink->target_kr_id;
+            
+            abort(response()->json([
+                'success' => false, 
+                'message' => "Objective này đã có liên kết đến một {$targetType} khác (ID: {$targetId}). Mỗi Objective chỉ có thể liên kết đến một đích duy nhất."
+            ], 422));
+        }
+
+        // Bước 2: Kiểm tra xem liên kết đến target này đã tồn tại chưa (tránh duplicate)
+        $duplicateQuery = OkrLink::query()
+            ->where('source_type', 'objective')
             ->where('target_type', $target instanceof Objective ? 'objective' : 'kr')
+            ->where('source_objective_id', $source->objective_id)
             ->whereNotIn('status', [
                 OkrLink::STATUS_CANCELLED,
                 OkrLink::STATUS_REJECTED,
                 OkrLink::STATUS_NEEDS_CHANGES,
             ]);
 
-        if ($source instanceof Objective) {
-            $query->where('source_objective_id', $source->objective_id);
-        } else {
-            $query->where('source_kr_id', $source->kr_id);
-        }
-
         if ($target instanceof Objective) {
-            $query->where('target_objective_id', $target->objective_id);
+            $duplicateQuery->where('target_objective_id', $target->objective_id);
         } else {
-            $query->where('target_kr_id', $target->kr_id);
+            $duplicateQuery->where('target_kr_id', $target->kr_id);
         }
 
-        if ($query->exists()) {
+        if ($duplicateQuery->exists()) {
             abort(response()->json(['success' => false, 'message' => 'Liên kết này đã tồn tại.'], 422));
         }
     }
 
+    /**
+     * Xây dựng payload cho liên kết
+     * Lưu ý: Source luôn là Objective, source_kr_id luôn null
+     */
     private function buildLinkPayload(array $validated, int $userId, $source, $target): array
     {
+        if (!($source instanceof Objective)) {
+            abort(response()->json(['success' => false, 'message' => 'Source phải là Objective.'], 422));
+        }
+
         $targetObjective = $target instanceof Objective ? $target : $target->objective;
 
         return [
-            'source_type' => $validated['source_type'],
+            'source_type' => 'objective', // Source luôn là Objective
             'target_type' => $validated['target_type'],
-            'source_objective_id' => $source instanceof Objective ? $source->objective_id : $source->objective_id,
-            'source_kr_id' => $source instanceof KeyResult ? $source->kr_id : null,
+            'source_objective_id' => $source->objective_id,
+            'source_kr_id' => null, // Source luôn là Objective nên source_kr_id luôn null
             'target_objective_id' => $targetObjective?->objective_id,
             'target_kr_id' => $target instanceof KeyResult ? $target->kr_id : null,
             'status' => OkrLink::STATUS_PENDING,
@@ -582,7 +658,7 @@ class LinkController extends Controller
                 ),
                 'type' => 'okr_link',
                 'user_id' => $link->requested_by,
-                'cycle_id' => $link->sourceObjective?->cycle_id ?? $link->sourceKr?->objective?->cycle_id,
+                'cycle_id' => $link->sourceObjective?->cycle_id, // Source luôn là Objective
             ]);
         } catch (\Throwable $e) {
             Log::warning('Không thể tạo notification', ['error' => $e->getMessage()]);
@@ -653,12 +729,13 @@ class LinkController extends Controller
     {
         $link->loadMissing([
             'sourceObjective',
-            'sourceKr.objective',
+            // sourceKr không cần vì source luôn là Objective
             'targetObjective',
             'targetKr.objective',
         ]);
 
-        $sourceLabel = $this->formatEndpointLabel($link->sourceObjective, $link->sourceKr);
+        // Source luôn là Objective
+        $sourceLabel = $link->sourceObjective?->obj_title ?? 'Objective';
         $targetLabel = $this->formatEndpointLabel($link->targetObjective, $link->targetKr);
 
         return sprintf('%s → %s', $sourceLabel, $targetLabel);
@@ -676,6 +753,10 @@ class LinkController extends Controller
         return $objectiveTitle ?? $krTitle ?? 'OKR';
     }
 
+    /**
+     * Chuyển quyền sở hữu khi liên kết được phê duyệt
+     * Lưu ý: source_kr_id luôn null vì source luôn là Objective
+     */
     private function assignOwnership(OkrLink $link): void
     {
         $targetUserId = $link->target_owner_id;
@@ -689,7 +770,7 @@ class LinkController extends Controller
             [
                 'user_id' => $targetUserId,
                 'objective_id' => $link->source_objective_id,
-                'kr_id' => $link->source_kr_id,
+                'kr_id' => null, // source_kr_id luôn null vì source luôn là Objective
             ],
             [
                 'role_id' => $roleId,
@@ -697,6 +778,10 @@ class LinkController extends Controller
         );
     }
 
+    /**
+     * Thu hồi quyền sở hữu khi hủy liên kết
+     * Lưu ý: source_kr_id luôn null vì source luôn là Objective
+     */
     private function revokeOwnership(OkrLink $link, bool $keepOwnership): void
     {
         if ($keepOwnership) {
@@ -705,7 +790,7 @@ class LinkController extends Controller
 
         OkrAssignment::where('user_id', $link->target_owner_id)
             ->where('objective_id', $link->source_objective_id)
-            ->where('kr_id', $link->source_kr_id)
+            ->whereNull('kr_id') // source_kr_id luôn null vì source luôn là Objective
             ->delete();
     }
 
@@ -716,20 +801,30 @@ class LinkController extends Controller
         }
     }
 
+    /**
+     * Kiểm tra quyền sở hữu source entity
+     * Lưu ý: Source luôn là Objective
+     */
     private function ensureSourceOwnershipEntity(OkrLink $link, int $userId): void
     {
-        $ownerId = $link->sourceObjective?->user_id ?? $link->sourceKr?->objective?->user_id;
-        if ($ownerId !== $userId) {
+        $link->loadMissing('sourceObjective');
+        $ownerId = $link->sourceObjective?->user_id;
+        
+        if (!$ownerId || $ownerId !== $userId) {
             abort(response()->json(['success' => false, 'message' => 'Bạn không phải chủ của OKR nguồn.'], 403));
         }
     }
 
+    /**
+     * Kiểm tra quyền hủy liên kết đã được phê duyệt
+     * Lưu ý: Source luôn là Objective
+     */
     private function ensureCanModifyApproved(OkrLink $link, int $userId): void
     {
+        $link->loadMissing('sourceObjective');
         $owners = [
             $link->target_owner_id,
             $link->sourceObjective?->user_id,
-            $link->sourceKr?->objective?->user_id,
         ];
 
         if (!in_array($userId, array_filter($owners), true)) {

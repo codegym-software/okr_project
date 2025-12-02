@@ -110,6 +110,10 @@ class KeyResultController extends Controller
             'department_id' => $validated['department_id'] ?? null,
             'user_id' => $user->user_id, // Lưu người tạo KR
         ]);
+
+        // Tự động cập nhật progress của Objective từ KeyResults
+        $objective->updateProgressFromKeyResults();
+
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $kr]);
         }
@@ -133,6 +137,9 @@ class KeyResultController extends Controller
         }
 
         $kr->delete();
+
+        // Tự động cập nhật progress của Objective từ KeyResults
+        $objective->updateProgressFromKeyResults();
 
         return response()->json(['success' => true, 'message' => 'Key Result đã được xóa']);
     }
@@ -206,6 +213,9 @@ class KeyResultController extends Controller
 
         $kr->fill($data);
         $kr->save();
+
+        // Tự động cập nhật progress của Objective từ KeyResults
+        $objective->updateProgressFromKeyResults();
 
         // return latest with relations
         $kr->load('objective');

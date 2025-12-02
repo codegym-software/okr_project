@@ -13,6 +13,7 @@ import CompanyOverviewReport from "./pages/CompanyOverviewReport";
 import ReportManager from "./pages/ReportManager";
 import { GradientText } from "./components/ui";
 import CompanyOkrList from "./pages/CompanyOkrList";
+import OKRTreePage from "./pages/OKRTreePage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -410,6 +411,7 @@ export default function App() {
         p.startsWith("/reports") ||
         p.startsWith("/my-objectives") ||
         p.startsWith("/company-okrs") ||
+        p.startsWith("/okr-tree") ||
         p.startsWith("/profile") ||
         p.startsWith("/change-password") ||
         p.startsWith("/reports");
@@ -423,6 +425,8 @@ export default function App() {
         else if (p.startsWith("/my-objectives")) content = <ObjectivesPage />;
         else if (p.startsWith("/company-okrs"))
             content = <CompanyOkrList currentUser={user} />;
+        else if (p.startsWith("/okr-tree"))
+            content = <OKRTreePage />;
         else if (p.startsWith("/profile")) content = <ProfilePage />;
         else if (p.startsWith("/change-password"))
             content = <ChangePasswordPage />;

@@ -356,6 +356,18 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::post('/{link}/cancel', [LinkController::class, 'cancel'])->middleware('auth')->name('my-links.cancel');
     });
 
+    // OKR Tree View
+    Route::prefix('api/okr-tree')->middleware('auth')->group(function () {
+        Route::get('/company-objectives', [App\Http\Controllers\OkrTreeController::class, 'getCompanyObjectives'])->name('api.okr-tree.company-objectives');
+        Route::get('/', [App\Http\Controllers\OkrTreeController::class, 'index'])->name('api.okr-tree.index');
+        Route::get('/{objectiveId}', [App\Http\Controllers\OkrTreeController::class, 'show'])->name('api.okr-tree.show');
+    });
+
+    // Frontend page route for OKR Tree View
+    Route::get('/okr-tree', function() { return view('app'); })
+        ->middleware('auth')
+        ->name('okr-tree');
+
 });
 
 // Phục vụ file trong storage khi thiếu symlink public/storage
