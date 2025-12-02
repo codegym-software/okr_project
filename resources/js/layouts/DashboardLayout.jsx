@@ -565,9 +565,11 @@ export default function DashboardLayout({ children, user }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const roleName = (user?.role?.role_name || "").toLowerCase();
     const isAdmin = user?.is_admin === true;
+    const isCEO = roleName === "ceo";
     const isManager = roleName === "manager";
-    const canSeeTeamReport = isAdmin || isManager;
-    const canSeeCompanyReport = isAdmin;
+
+    const canSeeTeamReport = isManager;        
+    const canSeeCompanyReport = isAdmin || isCEO;
 
     const toggleSidebar = () => {
         setSidebarOpen(!sidebarOpen);
@@ -817,197 +819,109 @@ export default function DashboardLayout({ children, user }) {
                                     </div>
 
                                     {/* ==================== BÁO CÁO - GỘP THÀNH 1 DROPDOWN ==================== */}
-                                    {(canSeeTeamReport ||
-                                        canSeeCompanyReport) && (
-                                        <div className="rounded-xl">
-                                            {/* Trường hợp chỉ có 1 mục (thường là Manager) → không cần details mở/đóng */}
-                                            {canSeeTeamReport &&
-                                            !canSeeCompanyReport ? (
-                                                /* Chỉ có Báo cáo nhóm → hiển thị thẳng, không cần nút mở đóng */
-                                                <>
-                                                    {sidebarOpen ? (
-                                                        <a
-                                                            href="/reports"
-                                                            className={`flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
-                                                ${
-                                                    isTeamReportActive
-                                                        ? "bg-slate-100 text-blue-700"
-                                                        : "text-slate-700 hover:bg-slate-50"
+                                    {(canSeeTeamReport || canSeeCompanyReport) && (
+                                    <div className="space-y-2">
+                                        {canSeeCompanyReport && (
+                                        <>
+                                            {sidebarOpen ? (
+                                            <a
+                                                href="/reports/company-overview"
+                                                className={`flex items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all ${
+                                                isCompanyReportActive
+                                                    ? "bg-slate-100 text-blue-700"
+                                                    : "text-slate-700 hover:bg-slate-50"
                                                 }`}
-                                                        >
-                                                            <span
-                                                                className={`inline-flex h-6 w-6 items-center justify-center transition-colors
-                                                ${
-                                                    isTeamReportActive
-                                                        ? "text-blue-600"
-                                                        : "text-slate-500 group-hover:text-blue-600"
+                                            >
+                                                <span
+                                                className={`inline-flex h-6 w-6 items-center justify-center transition-colors ${
+                                                    isCompanyReportActive
+                                                    ? "text-blue-600"
+                                                    : "text-slate-500 group-hover:text-blue-600"
                                                 }`}
-                                                            >
-                                                                <svg
-                                                                    xmlns="http://www.w3.org/2000/svg"
-                                                                    className="h-6 w-6"
-                                                                    viewBox="0 0 24 24"
-                                                                    fill="currentColor"
-                                                                >
-                                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
-                                                                </svg>
-                                                            </span>
-                                                            <span className="truncate">
-                                                                Báo cáo nhóm
-                                                            </span>
-                                                        </a>
-                                                    ) : (
-                                                        /* Sidebar thu gọn → click icon vào thẳng Báo cáo nhóm */
-                                                        <a
-                                                            href="/reports"
-                                                            className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
-                                                ${
-                                                    isTeamReportActive
-                                                        ? "bg-slate-100 text-blue-700"
-                                                        : "text-slate-700 hover:bg-slate-50"
-                                                }`}
-                                                            title="Báo cáo"
-                                                        >
-                                                            <span
-                                                                className={`inline-flex h-6 w-6 items-center justify-center transition-colors
-                                                ${
-                                                    isTeamReportActive
-                                                        ? "text-blue-600"
-                                                        : "text-slate-500 group-hover:text-blue-600"
-                                                }`}
-                                                            >
-                                                                <svg
-                                                                    xmlns="http://www.w3.org/2000/svg"
-                                                                    className="h-6 w-6"
-                                                                    viewBox="0 0 24 24"
-                                                                    fill="currentColor"
-                                                                >
-                                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
-                                                                </svg>
-                                                            </span>
-                                                        </a>
-                                                    )}
-                                                </>
-                                            ) : /* Trường hợp có từ 2 mục trở lên (có Tổng quan công ty) → giữ nguyên details mở/đóng */
-                                            sidebarOpen ? (
-                                                <details
-                                                    className="group [&_summary::-webkit-details-marker]:hidden"
-                                                    open={
-                                                        isTeamReportActive ||
-                                                        isCompanyReportActive
-                                                    }
                                                 >
-                                                    <summary
-                                                        className={`flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
-                                                ${
-                                                    isTeamReportActive ||
-                                                    isCompanyReportActive
-                                                        ? "bg-slate-100 text-blue-700"
-                                                        : "text-slate-700 hover:bg-slate-50"
-                                                }`}
-                                                    >
-                                                        <span
-                                                            className={`inline-flex h-6 w-6 items-center justify-center transition-colors
-                                                ${
-                                                    isTeamReportActive ||
-                                                    isCompanyReportActive
-                                                        ? "text-blue-600"
-                                                        : "text-slate-500 group-hover:text-blue-600"
-                                                }`}
-                                                        >
-                                                            <svg
-                                                                xmlns="http://www.w3.org/2000/svg"
-                                                                className="h-6 w-6"
-                                                                viewBox="0 0 24 24"
-                                                                fill="currentColor"
-                                                            >
-                                                                <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
-                                                            </svg>
-                                                        </span>
-                                                        <span className="truncate">
-                                                            Báo cáo
-                                                        </span>
-                                                        <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
-                                                            <svg
-                                                                xmlns="http://www.w3.org/2000/svg"
-                                                                className="h-4 w-4"
-                                                                viewBox="0 0 20 20"
-                                                                fill="currentColor"
-                                                            >
-                                                                <path
-                                                                    fillRule="evenodd"
-                                                                    d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
-                                                                    clipRule="evenodd"
-                                                                />
-                                                            </svg>
-                                                        </span>
-                                                    </summary>
-
-                                                    <div className="mt-1 pl-12 pr-2 space-y-1">
-                                                        {canSeeTeamReport && (
-                                                            <a
-                                                                href="/reports"
-                                                                className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
-                                                    ${
-                                                        isTeamReportActive
-                                                            ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
-                                                            : "text-slate-700 hover:bg-slate-50"
-                                                    }`}
-                                                            >
-                                                                Báo cáo nhóm
-                                                            </a>
-                                                        )}
-                                                        {canSeeCompanyReport && (
-                                                            <a
-                                                                href="/reports/company-overview"
-                                                                className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
-                                                    ${
-                                                        isCompanyReportActive
-                                                            ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
-                                                            : "text-slate-700 hover:bg-slate-50"
-                                                    }`}
-                                                            >
-                                                                Báo cáo công ty
-                                                            </a>
-                                                        )}
-                                                    </div>
-                                                </details>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
+                                                </svg>
+                                                </span>
+                                                <span className="truncate">Báo cáo công ty</span>
+                                            </a>
                                             ) : (
-                                                /* Sidebar thu gọn nhưng vẫn có nhiều mục → click icon vào trang mặc định (Báo cáo nhóm) */
-                                                <a
-                                                    href="/reports"
-                                                    className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
-                                                ${
-                                                    isTeamReportActive ||
-                                                    isCompanyReportActive
-                                                        ? "bg-slate-100 text-blue-700"
-                                                        : "text-slate-700 hover:bg-slate-50"
+                                            <a
+                                                href="/reports/company-overview"
+                                                className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all ${
+                                                isCompanyReportActive
+                                                    ? "bg-slate-100 text-blue-700"
+                                                    : "text-slate-700 hover:bg-slate-50"
                                                 }`}
-                                                    title="Báo cáo"
+                                                title="Báo cáo công ty"
+                                            >
+                                                <span
+                                                className={`inline-flex h-6 w-6 items-center justify-center transition-colors ${
+                                                    isCompanyReportActive
+                                                    ? "text-blue-600"
+                                                    : "text-slate-500 group-hover:text-blue-600"
+                                                }`}
                                                 >
-                                                    <span
-                                                        className={`inline-flex h-6 w-6 items-center justify-center transition-colors
-                                                ${
-                                                    isTeamReportActive ||
-                                                    isCompanyReportActive
-                                                        ? "text-blue-600"
-                                                        : "text-slate-500 group-hover:text-blue-600"
-                                                }`}
-                                                    >
-                                                        <svg
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                            className="h-6 w-6"
-                                                            viewBox="0 0 24 24"
-                                                            fill="currentColor"
-                                                        >
-                                                            <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
-                                                        </svg>
-                                                    </span>
-                                                </a>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
+                                                </svg>
+                                                </span>
+                                            </a>
                                             )}
-                                        </div>
-                                    )}
+                                        </>
+                                        )}
 
+                                        {(canSeeTeamReport && !canSeeCompanyReport) && (
+                                        <>
+                                            {sidebarOpen ? (
+                                            <a
+                                                href="/reports"
+                                                className={`flex items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all ${
+                                                isTeamReportActive
+                                                    ? "bg-slate-100 text-blue-700"
+                                                    : "text-slate-700 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                <span
+                                                className={`inline-flex h-6 w-6 items-center justify-center transition-colors ${
+                                                    isTeamReportActive
+                                                    ? "text-blue-600"
+                                                    : "text-slate-500 group-hover:text-blue-600"
+                                                }`}
+                                                >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
+                                                </svg>
+                                                </span>
+                                                <span className="truncate">Báo cáo nhóm</span>
+                                            </a>
+                                            ) : (
+                                            <a
+                                                href="/reports"
+                                                className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all ${
+                                                isTeamReportActive
+                                                    ? "bg-slate-100 text-blue-700"
+                                                    : "text-slate-700 hover:bg-slate-50"
+                                                }`}
+                                                title="Báo cáo nhóm"
+                                            >
+                                                <span
+                                                className={`inline-flex h-6 w-6 items-center justify-center transition-colors ${
+                                                    isTeamReportActive
+                                                    ? "text-blue-600"
+                                                    : "text-slate-500 group-hover:text-blue-600"
+                                                }`}
+                                                >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-8h4v22h-4z" />
+                                                </svg>
+                                                </span>
+                                            </a>
+                                            )}
+                                        </>
+                                        )}
+                                    </div>
+                                    )}
                                     {/* Quản trị - giữ nguyên hoàn toàn */}
                                     {isAdmin && (
                                         <div className="rounded-xl">

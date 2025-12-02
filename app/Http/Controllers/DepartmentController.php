@@ -19,7 +19,14 @@ class DepartmentController extends Controller
     public function index(Request $request): JsonResponse|View
     {
         $departments = Department::with([
-            'users' => fn($q) => $q->select('user_id', 'full_name', 'email', 'department_id')
+            'users' => function($q) {
+                $q->select('user_id', 'full_name', 'email', 'department_id', 'avatar_url', 'role_id')
+                  ->with(['role' => function($r) {
+                      $r->select('role_id', 'role_name');
+                  }])
+                  ->orderByRaw("CASE WHEN role_id IN (SELECT role_id FROM roles WHERE LOWER(role_name) = 'manager') THEN 0 ELSE 1 END")
+                  ->orderBy('full_name', 'asc');
+            }
         ])
         ->orderBy('created_at', 'asc')
         ->get();
@@ -158,6 +165,20 @@ class DepartmentController extends Controller
             'role'       => 'required|in:manager,member,Manager,Member',
         ]);
 
+        // Kiểm tra không cho phép gán role cho Admin và CEO
+        $usersToAssign = User::with('role')->whereIn('user_id', $validated['user_ids'])->get();
+        $adminOrCeoUsers = $usersToAssign->filter(function($user) {
+            $roleName = strtolower($user->role->role_name ?? '');
+            return $roleName === 'admin' || $roleName === 'ceo' || $user->email === 'okr.admin@company.com';
+        });
+
+        if ($adminOrCeoUsers->isNotEmpty()) {
+            $msg = 'Không thể gán role cho Admin hoặc CEO.';
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $msg], 422)
+                : redirect()->back()->withErrors($msg);
+        }
+
         // Vì không còn phân biệt unit/team nên dùng level mặc định là 'unit'
         $roleName = strtolower(trim($validated['role']));
 
@@ -177,5 +198,43 @@ class DepartmentController extends Controller
 
         return redirect()->route('departments.index')
                          ->with('success', 'Gán người dùng và vai trò thành công!');
+    }
+
+    /**
+     * Xóa người dùng khỏi phòng ban
+     */
+    public function removeUser(Request $request, Department $department, User $user): JsonResponse
+    {
+        if (!Auth::user()->canManageUsers() && !Auth::user()->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền xoá người dùng khỏi phòng ban.'
+            ], 403);
+        }
+
+        if ($user->department_id !== $department->department_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Người dùng không thuộc phòng ban này.'
+            ], 422);
+        }
+
+        // Không cho phép xoá Admin hoặc CEO bằng cách này
+        $user->loadMissing('role');
+        $roleName = strtolower($user->role->role_name ?? '');
+        if ($roleName === 'admin' || $roleName === 'ceo' || $user->email === 'okr.admin@company.com') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể xoá Admin hoặc CEO khỏi phòng ban.'
+            ], 422);
+        }
+
+        $user->department_id = null;
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã xoá người dùng khỏi phòng ban.'
+        ]);
     }
 }

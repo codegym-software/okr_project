@@ -4,16 +4,30 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use App\Models\Role;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Aws\CognitoIdentityProvider\CognitoIdentityProviderClient;
+use Aws\Exception\AwsException;
 
 class UserController extends Controller
 {
+    protected $cognitoClient;
+
     public function __construct()
     {
         // Middleware sẽ được áp dụng trong routes
+        // Khởi tạo Cognito client
+        $this->cognitoClient = new CognitoIdentityProviderClient([
+            'region' => env('AWS_DEFAULT_REGION', 'ap-southeast-2'),
+            'version' => 'latest',
+            'credentials' => [
+                'key' => env('AWS_ACCESS_KEY_ID'),
+                'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            ],
+        ]);
     }
 
     /**
@@ -276,29 +290,108 @@ class UserController extends Controller
     }
 
     /**
-     * Xóa người dùng (chỉ Admin)
+     * Xóa người dùng (chỉ Admin) - Xóa cả trong Cognito và Database
      */
-    public function destroy($id)
+    public function destroy($id, Request $request)
     {
         // Middleware đã kiểm tra quyền Admin
 
-        $user = User::findOrFail($id);
+        try {
+            $user = User::findOrFail($id);
 
-        // Không cho phép xóa Admin
-        if ($user->isAdmin()) {
-            return redirect()->back()->withErrors('Không thể xóa tài khoản Admin.');
+            // Không cho phép xóa Admin
+            if ($user->isAdmin()) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Không thể xóa tài khoản Admin.'
+                    ], 400);
+                }
+                return redirect()->back()->withErrors('Không thể xóa tài khoản Admin.');
+            }
+
+            // Không cho phép xóa chính mình
+            if ($user->user_id === Auth::id()) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Bạn không thể xóa tài khoản của chính mình.'
+                    ], 400);
+                }
+                return redirect()->back()->withErrors('Bạn không thể xóa tài khoản của chính mình.');
+            }
+
+            $userName = $user->full_name;
+            $userEmail = $user->email;
+            $cognitoSub = $user->sub; // Cognito user ID
+
+            // Xóa trong Cognito trước (nếu có sub)
+            if ($cognitoSub) {
+                try {
+                    $this->cognitoClient->adminDeleteUser([
+                        'UserPoolId' => env('AWS_COGNITO_USER_POOL_ID'),
+                        'Username' => $userEmail, // Cognito sử dụng email làm username
+                    ]);
+
+                    Log::info('User deleted from Cognito', [
+                        'email' => $userEmail,
+                        'cognito_sub' => $cognitoSub
+                    ]);
+                } catch (AwsException $e) {
+                    // Log lỗi nhưng vẫn tiếp tục xóa trong database
+                    Log::error('Failed to delete user from Cognito', [
+                        'email' => $userEmail,
+                        'error_code' => $e->getAwsErrorCode(),
+                        'error_message' => $e->getAwsErrorMessage()
+                    ]);
+
+                    // Nếu user không tồn tại trong Cognito, vẫn tiếp tục xóa trong database
+                    if ($e->getAwsErrorCode() !== 'UserNotFoundException') {
+                        // Nếu lỗi khác (không phải user không tồn tại), có thể throw exception
+                        // Hoặc tiếp tục xóa trong database tùy theo yêu cầu
+                    }
+                }
+            }
+
+            // Xóa trong database
+            $user->delete();
+
+            // Clear cache
+            \Cache::forget('users_list');
+
+            Log::info('User deleted from database', [
+                'user_id' => $id,
+                'email' => $userEmail,
+                'name' => $userName
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Đã xóa người dùng {$userName} khỏi hệ thống."
+                ]);
+            }
+
+            return redirect()->route('users.index')
+                ->with('success', "Đã xóa người dùng {$userName} khỏi hệ thống.");
+
+        } catch (\Exception $e) {
+            Log::error('Error deleting user', [
+                'user_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Có lỗi xảy ra khi xóa người dùng. Vui lòng thử lại sau.'
+                ], 500);
+            }
+
+            return redirect()->back()
+                ->withErrors('Có lỗi xảy ra khi xóa người dùng. Vui lòng thử lại sau.');
         }
-
-        // Không cho phép xóa chính mình
-        if ($user->user_id === Auth::id()) {
-            return redirect()->back()->withErrors('Bạn không thể xóa tài khoản của chính mình.');
-        }
-
-        $userName = $user->full_name;
-        $user->delete();
-
-        return redirect()->route('users.index')
-            ->with('success', "Đã xóa người dùng {$userName}.");
     }
 
     /**

@@ -41,7 +41,7 @@ class AdminController extends Controller
                 'full_name' => 'required|string|max:255',
                 'role_name' => 'required|in:member,manager',
                 'level' => 'required|in:unit,team',
-                'department_id' => 'nullable|exists:departments,department_id'
+                'department_id' => 'required|exists:departments,department_id'
             ]);
 
             if ($validator->fails()) {
@@ -85,7 +85,12 @@ class AdminController extends Controller
                 }
                 
                 if ($errors->has('department_id')) {
-                    $errorMessages['department_id'] = ['Phòng ban/Đội nhóm không tồn tại. Vui lòng chọn lại.'];
+                    $failedRules = $validator->failed();
+                    if (isset($failedRules['department_id']['Required'])) {
+                        $errorMessages['department_id'] = ['Phòng ban là bắt buộc. Vui lòng chọn phòng ban.'];
+                    } else {
+                        $errorMessages['department_id'] = ['Phòng ban không tồn tại. Vui lòng chọn lại.'];
+                    }
                 }
                 
                 // Nếu không có error messages tùy chỉnh, dùng mặc định
@@ -156,7 +161,7 @@ class AdminController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Email mời đã được gửi thành công đến ' . $request->email . '. Người dùng sẽ nhận được mật khẩu tạm thời qua email.'
+                'message' => 'Email mời đã được gửi thành công đến ' . $request->email . '.'
             ]);
 
         } catch (AwsException $e) {
