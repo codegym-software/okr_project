@@ -130,7 +130,7 @@ class CheckInController extends Controller
             if ($request->expectsJson()) {
                 // After the transaction, the objective's progress is updated in the DB.
                 // We fetch the fresh objective and load its relationships to send back to the frontend.
-                $updatedObjective = $keyResult->objective->fresh()->load('keyResults.user', 'user');
+                $updatedObjective = $keyResult->objective->fresh()->load('keyResults.assignedUser', 'user');
 
                 return response()->json([
                     'success' => true,
