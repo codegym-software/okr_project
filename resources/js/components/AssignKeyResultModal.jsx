@@ -50,7 +50,7 @@ export default function AssignKeyResultModal({
                             {objective.obj_title}
                         </p>
                     </div>
-                    <div className="flex items-center gap-2 pl-4">
+                    <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-amber-600">
                             <FaKey className="w-3 h-3" />
                         </div>
