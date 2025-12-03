@@ -9,6 +9,7 @@ use App\Models\Objective;
 use App\Models\OkrAssignment;
 use App\Models\OkrLink;
 use App\Models\OkrLinkEvent;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -618,18 +619,27 @@ class LinkController extends Controller
         }
 
         try {
-            Notification::create([
-                'message' => $this->buildNotificationMessage(
-                    $message,
-                    $note,
-                    $actorName,
-                    $this->getLinkSummary($link),
-                    $noteLabel
-                ),
-                'type' => 'okr_link',
-                'user_id' => $link->target_owner_id,
-                'cycle_id' => $link->targetObjective?->cycle_id ?? $link->targetKr?->objective?->cycle_id,
-            ]);
+            $notificationMessage = $this->buildNotificationMessage(
+                $message,
+                $note,
+                $actorName,
+                $this->getLinkSummary($link),
+                $noteLabel
+            );
+            $cycleId = $link->targetObjective?->cycle_id ?? $link->targetKr?->objective?->cycle_id;
+
+            // Tạo URL đến trang objective với highlight link request
+            $objectiveId = $link->target_objective_id ?? $link->targetKr?->objective_id;
+            $actionUrl = config('app.url') . "/my-objectives?highlight_link={$link->link_id}&objective_id={$objectiveId}";
+
+            NotificationService::send(
+                $link->target_owner_id,
+                $notificationMessage,
+                'link_request',
+                $cycleId,
+                $actionUrl,
+                'Xem yêu cầu liên kết'
+            );
         } catch (\Throwable $e) {
             Log::warning('Không thể tạo notification', ['error' => $e->getMessage()]);
         }
@@ -648,18 +658,27 @@ class LinkController extends Controller
         }
 
         try {
-            Notification::create([
-                'message' => $this->buildNotificationMessage(
-                    $message,
-                    $note,
-                    $actorName,
-                    $this->getLinkSummary($link),
-                    $noteLabel
-                ),
-                'type' => 'okr_link',
-                'user_id' => $link->requested_by,
-                'cycle_id' => $link->sourceObjective?->cycle_id, // Source luôn là Objective
-            ]);
+            $notificationMessage = $this->buildNotificationMessage(
+                $message,
+                $note,
+                $actorName,
+                $this->getLinkSummary($link),
+                $noteLabel
+            );
+            $cycleId = $link->sourceObjective?->cycle_id; // Source luôn là Objective
+
+            // Tạo URL đến trang objective với highlight link
+            $objectiveId = $link->source_objective_id;
+            $actionUrl = config('app.url') . "/my-objectives?highlight_link={$link->link_id}&objective_id={$objectiveId}";
+
+            NotificationService::send(
+                $link->requested_by,
+                $notificationMessage,
+                'okr_link',
+                $cycleId,
+                $actionUrl,
+                'Xem chi tiết'
+            );
         } catch (\Throwable $e) {
             Log::warning('Không thể tạo notification', ['error' => $e->getMessage()]);
         }

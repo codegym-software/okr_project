@@ -167,7 +167,7 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
     const { isAdmin } = useAuth();
     const [users, setUsers] = useState([]);
     const [selectedUsers, setSelectedUsers] = useState([]);
-    const [selectedRole, setSelectedRole] = useState("member");
+    const [selectedRole, setSelectedRole] = useState("");
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
@@ -234,10 +234,8 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 .getAttribute("content");
-            const payload = { 
-                user_ids: selectedUsers,
-                role: selectedRole || 'member'  // Mặc định là member nếu không chọn
-            };
+            const payload = { user_ids: selectedUsers };
+            if (selectedRole) payload.role = selectedRole;
 
             const res = await fetch(
                 `/departments/${department.department_id}/assign-users`,

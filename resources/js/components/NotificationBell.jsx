@@ -289,14 +289,56 @@ export default function NotificationBell() {
                                         notification.message?.includes('đề nghị liên kết') ||
                                         notification.message?.includes('yêu cầu liên kết');
                                     
+                                    // Check if this is a check-in notification
+                                    const isCheckIn = notification.type === 'check_in' || 
+                                        notification.message?.includes('đã check-in');
+                                    
+                                    // Check if this notification is clickable (has action)
+                                    const isClickable = isLinkRequest || isCheckIn || notification.action_url;
+                                    
                                     const handleNotificationClick = () => {
                                         // Mark as read first
                                         if (!notification.is_read) {
                                             markAsRead(notification.notification_id);
                                         }
-                                        // Navigate based on notification type
-                                        if (isLinkRequest) {
+                                        
+                                        // Extract URL info
+                                        let targetUrl = notification.action_url;
+                                        let targetPath = '/my-objectives';
+                                        let searchParams = '';
+                                        
+                                        if (targetUrl) {
+                                            const url = new URL(targetUrl, window.location.origin);
+                                            targetPath = url.pathname;
+                                            searchParams = url.search;
+                                        }
+                                        
+                                        // Check if already on the target page
+                                        const currentPath = window.location.pathname;
+                                        const isOnTargetPage = currentPath === targetPath || 
+                                            currentPath === '/my-objectives' && targetPath.includes('/my-objectives');
+                                        
+                                        if (isOnTargetPage && searchParams) {
+                                            // Already on the page - dispatch custom event to handle navigation without reload
                                             setIsOpen(false);
+                                            const params = new URLSearchParams(searchParams);
+                                            
+                                            // Dispatch custom event for in-page navigation
+                                            window.dispatchEvent(new CustomEvent('okr-navigate', {
+                                                detail: {
+                                                    highlight_kr: params.get('highlight_kr'),
+                                                    highlight_link: params.get('highlight_link'),
+                                                    objective_id: params.get('objective_id')
+                                                }
+                                            }));
+                                            return;
+                                        }
+                                        
+                                        // Navigate to the page
+                                        setIsOpen(false);
+                                        if (targetUrl) {
+                                            window.location.href = targetPath + searchParams;
+                                        } else if (isLinkRequest || isCheckIn) {
                                             window.location.href = '/my-objectives';
                                         }
                                     };
@@ -306,8 +348,8 @@ export default function NotificationBell() {
                                             key={notification.notification_id}
                                             className={`p-4 hover:bg-slate-50 transition-colors ${
                                                 !notification.is_read ? 'bg-blue-50' : ''
-                                            } ${isLinkRequest ? 'cursor-pointer' : ''}`}
-                                            onClick={isLinkRequest ? handleNotificationClick : undefined}
+                                            } ${isClickable ? 'cursor-pointer' : ''}`}
+                                            onClick={isClickable ? handleNotificationClick : undefined}
                                         >
                                             <div className="flex items-start gap-3">
                                                 <div className={`flex-shrink-0 w-2 h-2 rounded-full mt-2 ${
@@ -320,7 +362,7 @@ export default function NotificationBell() {
                                                             : 'text-slate-700'
                                                     }`}>
                                                         {notification.message}
-                                                        {isLinkRequest && (
+                                                        {isClickable && (
                                                             <span className="ml-2 inline-flex items-center text-xs text-blue-600">
                                                                 <svg className="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

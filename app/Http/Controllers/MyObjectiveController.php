@@ -103,8 +103,36 @@ class MyObjectiveController extends Controller
             // Dashboard: hiển thị tất cả OKR (cá nhân, phòng ban, công ty) cho mọi role
             // Không filter theo user_id
         } else {
-            // Trang my-objectives: chỉ hiển thị OKR của user
-            $query->where('user_id', $user->user_id);
+            // Trang my-objectives: 
+            // - OKR cá nhân (level=person): chỉ hiển thị cho chủ sở hữu hoặc người được giao KR
+            // - OKR phòng ban (level=unit): hiển thị cho tất cả người trong cùng phòng ban
+            $query->where(function ($q) use ($user) {
+                // 1. OKR cá nhân mà user sở hữu
+                $q->where(function ($personalQuery) use ($user) {
+                    $personalQuery->where('user_id', $user->user_id)
+                        ->where('level', 'person');
+                });
+                
+                // 2. OKR (bất kỳ level) có Key Result được giao cho user
+                $q->orWhereHas('keyResults', function ($krQuery) use ($user) {
+                    $krQuery->where('assigned_to', $user->user_id)
+                        ->whereNull('archived_at');
+                });
+                
+                // 3. OKR cấp phòng ban của cùng phòng ban (hiển thị cho tất cả người trong phòng)
+                if ($user->department_id) {
+                    $q->orWhere(function ($deptQuery) use ($user) {
+                        $deptQuery->where('department_id', $user->department_id)
+                            ->where('level', 'unit');
+                    });
+                }
+                
+                // 4. OKR khác mà user sở hữu (team, company nếu có quyền)
+                $q->orWhere(function ($otherQuery) use ($user) {
+                    $otherQuery->where('user_id', $user->user_id)
+                        ->whereIn('level', ['team', 'unit', 'company']);
+                });
+            });
         }
 
         if ($request->has('archived') && $request->archived == '1') {

@@ -16,7 +16,9 @@ export default function CheckInHistory({
     const [krInfo, setKrInfo] = useState(null);
 
     useEffect(() => {
+        console.log('🔍 CheckInHistory useEffect:', { open, keyResult, objectiveId, krId });
         if (open && (keyResult || (objectiveId && krId))) {
+            console.log('🔍 CheckInHistory: Loading history...');
             loadCheckInHistory();
         }
     }, [open, keyResult, objectiveId, krId]);
@@ -148,21 +150,25 @@ export default function CheckInHistory({
         return `${Math.round(parseFloat(checkIn.current_value || checkIn.progress_value))} ${krInfo?.unit || keyResult?.unit || ''}`;
     };
 
-    const displayKr = krInfo || keyResult;
-    if (!displayKr && !isManagerView) {
-        console.error('CheckInHistory: keyResult is null or undefined');
-        return null;
-    }
+    // Không render gì nếu modal đóng
+    if (!open) return null;
 
-    console.log('CheckInHistory rendering with:', { 
+    const displayKr = krInfo || keyResult;
+    
+    console.log('🔍 CheckInHistory rendering:', { 
+        open,
         keyResult, 
         objectiveId, 
-        open, 
+        displayKr,
         loading, 
         error, 
-        checkInsCount: checkIns.length,
-        checkIns: checkIns
+        checkInsCount: checkIns.length
     });
+    
+    if (!displayKr && !isManagerView) {
+        console.error('CheckInHistory: keyResult is null or undefined, but modal is open');
+        // Vẫn hiển thị modal với thông báo lỗi thay vì return null
+    }
 
     return (
         <Modal open={open} onClose={onClose} title="Lịch sử Check-in">

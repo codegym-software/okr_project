@@ -6,6 +6,7 @@ use App\Models\KeyResult;
 use App\Models\Notification;
 use App\Models\Objective;
 use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -139,13 +140,12 @@ class MyKeyResultController extends Controller
 
                 // Gửi thông báo cho người được giao (nếu khác người tạo)
                 if ($finalAssignedTo && $finalAssignedTo !== $user->user_id) {
-                    Notification::create([
-                        'user_id' => $finalAssignedTo,
-                        'message' => "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
-                        'type' => 'kr_assigned',
-                        'is_read' => false,
-                        'cycle_id' => $keyResult->cycle_id,
-                    ]);
+                    NotificationService::send(
+                        $finalAssignedTo,
+                        "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                        'kr_assigned',
+                        $keyResult->cycle_id
+                    );
                 }
                 
                 // Tự động cập nhật progress của Objective từ KeyResults
@@ -253,13 +253,12 @@ class MyKeyResultController extends Controller
 
                     // Gửi thông báo cho người được giao mới (nếu khác người thực hiện trước và khác người tạo)
                     if ($assignee->user_id !== $user->user_id) {
-                        Notification::create([
-                            'user_id' => $assignee->user_id,
-                            'message' => "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
-                            'type' => 'kr_assigned',
-                            'is_read' => false,
-                            'cycle_id' => $keyResult->cycle_id,
-                        ]);
+                        NotificationService::send(
+                            $assignee->user_id,
+                            "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                            'kr_assigned',
+                            $keyResult->cycle_id
+                        );
                     }
                 }
                 // Không thay đổi nếu không gửi hoặc gửi giống cũ
@@ -451,13 +450,12 @@ class MyKeyResultController extends Controller
 
         // Tạo thông báo cho người được giao
         if ($assignee->user_id !== $user->user_id) {
-            Notification::create([
-                'user_id' => $assignee->user_id,
-                'message' => "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
-                'type' => 'kr_assigned',
-                'is_read' => false,
-                'cycle_id' => $keyResult->cycle_id,
-            ]);
+            NotificationService::send(
+                $assignee->user_id,
+                "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                'kr_assigned',
+                $keyResult->cycle_id
+            );
         }
 
         return response()->json([

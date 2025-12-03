@@ -34,7 +34,10 @@ export default function ObjectiveRow({
 
     return (
         <>
-            <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
+            <tr 
+                className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
+                data-objective-id={obj.objective_id}
+            >
                 <td colSpan={colSpanForObjectiveHeader} className="px-3 py-3 border-r border-slate-200">
                     <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2">

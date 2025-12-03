@@ -6,6 +6,7 @@ use App\Models\CheckIn;
 use App\Models\KeyResult;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -324,9 +325,18 @@ class CheckInController extends Controller
      */
     private function canCheckIn($user, $keyResult): bool
     {
-        // CHỈ người sở hữu Key Result mới có quyền check-in
-        // Người sở hữu Key Result có thể check-in
+        // 1. Người sở hữu Key Result có thể check-in
         if ($keyResult->user_id == $user->user_id) {
+            return true;
+        }
+
+        // 2. Người được giao Key Result có thể check-in
+        if ($keyResult->assigned_to == $user->user_id) {
+            return true;
+        }
+
+        // 3. Người sở hữu Objective chứa Key Result có thể check-in
+        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
             return true;
         }
 
@@ -405,14 +415,20 @@ class CheckInController extends Controller
 
             $message = "{$memberName} đã check-in Key Result '{$krTitle}' trong Objective '{$objectiveTitle}' với tiến độ {$progressPercent}%";
 
+            // Tạo URL đến trang objective với KR cụ thể
+            $objectiveId = $keyResult->objective->objective_id ?? null;
+            $krId = $keyResult->kr_id ?? null;
+            $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$krId}&objective_id={$objectiveId}";
+
             foreach ($managers as $manager) {
-                Notification::create([
-                    'user_id' => $manager->user_id,
-                    'cycle_id' => $cycleId,
-                    'message' => $message,
-                    'type' => 'check_in',
-                    'is_read' => false,
-                ]);
+                NotificationService::send(
+                    $manager->user_id,
+                    $message,
+                    'check_in',
+                    $cycleId,
+                    $actionUrl,
+                    'Xem chi tiết'
+                );
             }
 
             Log::info('Manager notifications sent', [

@@ -54,6 +54,7 @@ export default function ObjectivesPage() {
     const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
     const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
     const [currentUser, setCurrentUser] = useState(null);
+    const urlParamsHandledRef = React.useRef(false);
     const [cycleFilter, setCycleFilter] = useState("");
     const [myOKRFilter, setMyOKRFilter] = useState(false);
 
@@ -333,6 +334,272 @@ export default function ObjectivesPage() {
             localStorage.removeItem('autoOpenCheckIn');
         }
     }, [items, loading]);
+
+    // Handle URL parameters for highlighting KR (from email notifications)
+    useEffect(() => {
+        if (loading || items.length === 0) return;
+        if (urlParamsHandledRef.current) return; // Đã xử lý rồi
+
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const highlightKrId = urlParams.get('highlight_kr');
+            const objectiveId = urlParams.get('objective_id');
+
+            if (!highlightKrId) return;
+
+            // Đánh dấu đã xử lý URL params
+            urlParamsHandledRef.current = true;
+
+            console.log('🔗 Highlighting KR from URL:', highlightKrId, 'in objective:', objectiveId);
+
+            // Tìm objective và KR
+            let foundObjective = null;
+            let foundKR = null;
+
+            for (const obj of items) {
+                const objId = String(obj.objective_id);
+                if (objectiveId && objId !== String(objectiveId)) continue;
+
+                const kr = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
+                if (kr) {
+                    foundObjective = obj;
+                    foundKR = {
+                        ...kr,
+                        objective_id: obj.objective_id,
+                    };
+                    break;
+                }
+            }
+
+            if (foundObjective && foundKR) {
+                console.log('🔗 Found KR for highlight:', foundKR);
+                
+                // Lưu KR vào biến để tránh stale closure
+                const krToHighlight = { ...foundKR };
+                const objIdToOpen = foundObjective.objective_id;
+                
+                // Mở accordion của objective
+                setOpenObj(prev => ({
+                    ...prev,
+                    [objIdToOpen]: true
+                }));
+
+                // Scroll đến KR và highlight
+                setTimeout(() => {
+                    const krElement = document.querySelector(`[data-kr-id="${highlightKrId}"]`);
+                    if (krElement) {
+                        krElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        krElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                        
+                        // Xóa highlight sau 5 giây
+                        setTimeout(() => {
+                            krElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                        }, 5000);
+                    }
+
+                    // Mở check-in history modal
+                    console.log('🔗 Opening check-in history for:', krToHighlight);
+                    setCheckInHistory({ open: true, keyResult: krToHighlight });
+                }, 800);
+
+                // Xóa URL parameters sau khi xử lý (delay để đảm bảo state đã được set)
+                setTimeout(() => {
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
+                }, 1500);
+            } else {
+                console.warn('🔗 KR not found for highlight:', highlightKrId);
+            }
+        } catch (error) {
+            console.error('🔗 Error handling URL highlight:', error);
+        }
+    }, [items, loading]);
+
+    // Ref để tránh xử lý highlight_link nhiều lần
+    const linkParamsHandledRef = React.useRef(false);
+
+    // Handle URL parameters for highlighting link request (from email/notification)
+    useEffect(() => {
+        if (loading || items.length === 0 || linksLoading) return;
+        if (linkParamsHandledRef.current) return; // Đã xử lý rồi
+
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const highlightLinkId = urlParams.get('highlight_link');
+            const objectiveId = urlParams.get('objective_id');
+
+            if (!highlightLinkId) return;
+
+            // Đánh dấu đã xử lý URL params
+            linkParamsHandledRef.current = true;
+
+            console.log('🔗 Highlighting link request from URL:', highlightLinkId, 'in objective:', objectiveId);
+
+            // Tìm objective
+            let foundObjective = null;
+            for (const obj of items) {
+                const objId = String(obj.objective_id);
+                if (objectiveId && objId === String(objectiveId)) {
+                    foundObjective = obj;
+                    break;
+                }
+            }
+
+            if (foundObjective) {
+                // Mở accordion của objective
+                setOpenObj(prev => ({
+                    ...prev,
+                    [foundObjective.objective_id]: true
+                }));
+
+                // Scroll đến phần "Chờ phê duyệt" và highlight link request
+                setTimeout(() => {
+                    // Scroll đến phần LinkRequestsPanel trước
+                    const linkRequestsSection = document.querySelector('[data-section="link-requests"]');
+                    if (linkRequestsSection) {
+                        linkRequestsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+
+                    // Sau đó highlight link request cụ thể
+                    setTimeout(() => {
+                        const linkElement = document.querySelector(`[data-link-id="${highlightLinkId}"]`);
+                        if (linkElement) {
+                            linkElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            linkElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                            
+                            // Xóa highlight sau 5 giây
+                            setTimeout(() => {
+                                linkElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                            }, 5000);
+                        } else {
+                            console.warn('🔗 Link element not found:', highlightLinkId);
+                        }
+                    }, 300);
+                }, 800);
+
+                // Xóa URL parameters sau khi xử lý
+                setTimeout(() => {
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
+                }, 1500);
+            } else {
+                console.warn('🔗 Objective not found for link highlight:', objectiveId);
+            }
+        } catch (error) {
+            console.error('🔗 Error handling link highlight:', error);
+        }
+    }, [items, loading, incomingLinks, linksLoading]);
+
+    // Helper function để highlight KR (dùng chung cho URL params và event)
+    const highlightKR = React.useCallback((highlightKrId, objectiveId) => {
+        if (!highlightKrId || items.length === 0) return;
+
+        console.log('🔗 Highlighting KR:', highlightKrId, 'in objective:', objectiveId);
+
+        // Tìm objective và KR
+        let foundObjective = null;
+        let foundKR = null;
+
+        for (const obj of items) {
+            const objId = String(obj.objective_id);
+            if (objectiveId && objId !== String(objectiveId)) continue;
+
+            const kr = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
+            if (kr) {
+                foundObjective = obj;
+                foundKR = {
+                    ...kr,
+                    objective_id: obj.objective_id,
+                };
+                break;
+            }
+        }
+
+        if (foundObjective && foundKR) {
+            const krToHighlight = { ...foundKR };
+            const objIdToOpen = foundObjective.objective_id;
+            
+            // Mở accordion của objective
+            setOpenObj(prev => ({
+                ...prev,
+                [objIdToOpen]: true
+            }));
+
+            // Scroll đến KR và highlight
+            setTimeout(() => {
+                const krElement = document.querySelector(`[data-kr-id="${highlightKrId}"]`);
+                if (krElement) {
+                    krElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    krElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                    
+                    // Xóa highlight sau 5 giây
+                    setTimeout(() => {
+                        krElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                    }, 5000);
+                }
+
+                // Mở check-in history modal
+                console.log('🔗 Opening check-in history for:', krToHighlight);
+                setCheckInHistory({ open: true, keyResult: krToHighlight });
+            }, 300);
+        }
+    }, [items]);
+
+    // Helper function để highlight Link Request (dùng chung cho URL params và event)
+    const highlightLinkRequest = React.useCallback((highlightLinkId, objectiveId) => {
+        if (!highlightLinkId) return;
+
+        console.log('🔗 Highlighting link request:', highlightLinkId);
+
+        // Tìm objective nếu có
+        if (objectiveId) {
+            const foundObjective = items.find(obj => String(obj.objective_id) === String(objectiveId));
+            if (foundObjective) {
+                setOpenObj(prev => ({
+                    ...prev,
+                    [foundObjective.objective_id]: true
+                }));
+            }
+        }
+
+        // Scroll đến phần "Chờ phê duyệt" và highlight link request
+        setTimeout(() => {
+            const linkRequestsSection = document.querySelector('[data-section="link-requests"]');
+            if (linkRequestsSection) {
+                linkRequestsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            setTimeout(() => {
+                const linkElement = document.querySelector(`[data-link-id="${highlightLinkId}"]`);
+                if (linkElement) {
+                    linkElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    linkElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                    
+                    setTimeout(() => {
+                        linkElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                    }, 5000);
+                }
+            }, 300);
+        }, 300);
+    }, [items]);
+
+    // Lắng nghe custom event để điều hướng trong trang (không reload)
+    useEffect(() => {
+        const handleOkrNavigate = (event) => {
+            const { highlight_kr, highlight_link, objective_id } = event.detail;
+            
+            console.log('🔔 Received okr-navigate event:', event.detail);
+            
+            if (highlight_kr) {
+                highlightKR(highlight_kr, objective_id);
+            } else if (highlight_link) {
+                highlightLinkRequest(highlight_link, objective_id);
+            }
+        };
+
+        window.addEventListener('okr-navigate', handleOkrNavigate);
+        return () => window.removeEventListener('okr-navigate', handleOkrNavigate);
+    }, [highlightKR, highlightLinkRequest]);
 
     const sortedItems = useMemo(
         () => (Array.isArray(items) ? items : []),

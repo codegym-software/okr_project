@@ -50,7 +50,7 @@ export default function LinkRequestsPanel({
     }
 
     return (
-        <div className="mt-10 space-y-6">
+        <div className="mt-10 space-y-6" data-section="link-requests">
             {incoming.length > 0 && (
                 <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
                     <div className="mb-4 flex items-center justify-between">
@@ -70,7 +70,8 @@ export default function LinkRequestsPanel({
                         {incoming.map((link) => (
                             <div
                                 key={link.link_id}
-                                className="rounded-xl bg-white/80 p-4 shadow-sm ring-1 ring-amber-100"
+                                data-link-id={link.link_id}
+                                className="rounded-xl bg-white/80 p-4 shadow-sm ring-1 ring-amber-100 transition-all duration-300"
                             >
                                 <div className="flex flex-wrap items-start justify-between gap-4">
                                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
