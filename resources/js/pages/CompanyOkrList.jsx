@@ -226,7 +226,7 @@ export default function CompanyOkrList() {
                 onOpenLinkModal={() => {}}
                 onCancelLink={() => {}}
                 hideFilters={true}
-                disableActions={!isCeo}
+                disableActions={true}
             />
 
             {/* Modals for CEO actions */}
