@@ -30,6 +30,8 @@
                 window.__USER__ = null;
             }
         })();
+        window.__FIRST_LOGIN_EMAIL__ = @json(session('first_login_email'));
+        window.__FIRST_LOGIN_NAME__ = @json(session('first_login_name'));
     </script>
 </body>
 </html>

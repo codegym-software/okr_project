@@ -25,7 +25,6 @@ class Objective extends Model
         'status',
         'progress_percent',
         'user_id',
-        'department_id',
         'cycle_id',
         'department_id',
     ];
@@ -326,4 +325,3 @@ class Objective extends Model
         return $array;
     }
 }
-

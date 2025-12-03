@@ -1,0 +1,46 @@
+Dưới đây là mô tả chi tiết về các hành động người dùng có thể thực hiện trên hai giao diện OKR.
+
+================================================
+Chức năng trên Trang "OKR của tôi"
+================================================
+
+Đây là không gian làm việc chính, nơi bạn có thể quản lý sâu các Mục tiêu (Objectives) và Kết quả chính (Key Results) của mình.
+
+**1. Xem và Lọc Danh sách OKR:**
+- **Lọc theo Chu kỳ:** Bạn có thể chọn một chu kỳ (ví dụ: Quý 1, 2025) từ danh sách thả xuống để xem các OKR thuộc về giai đoạn đó.
+- **Lọc theo Chế độ xem:**
+    - **Xem OKR cấp trên:** Xem OKR của Phòng ban hoặc Công ty mà bạn thuộc về.
+    - **Xem OKR cá nhân:** Chỉ xem những OKR do chính bạn sở hữu hoặc được giao thực hiện.
+- **Mở/Đóng Mục tiêu:** Nhấn vào mũi tên bên cạnh mỗi Mục tiêu để hiển thị hoặc ẩn danh sách các Kết quả chính bên trong.
+- **Xem OKR đã lưu trữ:** Chuyển qua tab "Lưu trữ" để xem lại các OKR đã hoàn thành hoặc không còn hoạt động.
+
+**2. Quản lý Mục tiêu (Objective):**
+- **Tạo Mục tiêu mới:** Nhấn nút "Tạo OKR mới" để mở biểu mẫu và điền thông tin cho một Mục tiêu mới.
+- **Chỉnh sửa Mục tiêu:** Thay đổi tên, mô tả, hoặc các thuộc tính khác của một Mục tiêu đã có.
+- **Lưu trữ Mục tiêu:** Đưa một Mục tiêu không còn phù hợp vào kho lưu trữ. Hành động này sẽ ẩn nó khỏi danh sách hoạt động chính.
+- **Liên kết Mục tiêu:** Tạo một liên kết phụ thuộc từ Mục tiêu của bạn đến một Mục tiêu khác (ví dụ: Mục tiêu của bạn hỗ trợ cho một Mục tiêu của công ty).
+
+**3. Quản lý Kết quả chính (Key Result):**
+- **Thêm Kết quả chính:** Thêm một hoặc nhiều Kết quả chính cho một Mục tiêu đã có.
+- **Chỉnh sửa Kết quả chính:** Thay đổi tên, chỉ số, hoặc các thuộc tính khác của một KR.
+- **Cập nhật Tiến độ (Check-in):** Cập nhật chỉ số hiện tại của một KR để phản ánh tiến độ công việc.
+- **Xem Lịch sử Check-in:** Mở cửa sổ để xem lại tất cả các lần cập nhật tiến độ trước đây của một KR.
+- **Giao việc (Assign):** Ủy quyền cho một người dùng khác chịu trách nhiệm thực hiện một Kết quả chính cụ thể.
+- **Lưu trữ Kết quả chính:** Đưa một KR vào kho lưu trữ khi nó không còn cần thiết.
+
+================================================
+Chức năng trên Trang "OKR Công ty"
+================================================
+
+Đây là trang tổng quan, cho phép bạn xem OKR ở cấp độ rộng hơn mà không thể can thiệp hay chỉnh sửa.
+
+**1. Xem và Lọc Danh sách OKR:**
+- **Lọc theo Chu kỳ:** Tương tự trang "OKR của tôi", bạn có thể chọn chu kỳ để xem dữ liệu OKR của giai đoạn đó.
+- **Lọc theo Đơn vị:**
+    - **Công ty:** Xem danh sách các Mục tiêu cấp cao nhất của toàn công ty.
+    - **Phòng ban:** Chọn một phòng ban cụ thể từ danh sách để xem OKR của riêng phòng ban đó.
+- **Mở/Đóng Mục tiêu:** Nhấn vào mũi tên bên cạnh mỗi Mục tiêu để xem các Kết quả chính và các OKR con được liên kết bên trong.
+
+**2. Chế độ "Chỉ xem":**
+- **Vô hiệu hóa hành động:** Toàn bộ các nút trong cột "Hành động" (như Thêm mới, Sửa, Check-in, Lưu trữ, Giao việc, v.v.) đều được hiển thị nhưng bị làm mờ và không thể tương tác.
+- **Mục đích:** Giao diện này được thiết kế để cung cấp cái nhìn tổng quan, giúp mọi người hiểu được các mục tiêu chung của công ty và các phòng ban mà không sợ vô tình thay đổi dữ liệu quan trọng.

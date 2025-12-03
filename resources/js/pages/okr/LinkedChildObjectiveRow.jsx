@@ -13,6 +13,7 @@ export default function LinkedChildObjectiveRow({
     getStatusText,
     getUnitText,
     colSpanForKRs,
+    disableActions = false,
 }) {
     const hasKRs = linkedObj.key_results?.length > 0;
     const expanded =
@@ -54,10 +55,11 @@ export default function LinkedChildObjectiveRow({
                                 </svg>
                             </button>
                         )}
-                        <FaKey className="h-3 w-3 text-amber-600 flex-shrink-0" title="Key Result cấp cao"/>
-                        <FaLongArrowAltLeft className="h-3 w-3 text-slate-500" />
-                        <FaBullseye className="h-3 w-3 text-indigo-500 flex-shrink-0" title="Objective được liên kết" />
-                        <span className="font-normal text-slate-900 text-sm">
+                        <FaBullseye
+                            className="h-3 w-3 text-indigo-500 flex-shrink-0"
+                            title="Objective được liên kết"
+                        />
+                        <span className="font-semibold text-slate-900 text-lg">
                             {linkedObj.obj_title}
                         </span>
                         {hasKRs && (
@@ -93,7 +95,8 @@ export default function LinkedChildObjectiveRow({
                                 );
                             }
                         }}
-                        className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                        className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={disableActions}
                     >
                         <svg
                             className="h-4 w-4"
@@ -124,7 +127,7 @@ export default function LinkedChildObjectiveRow({
                                         className="h-4 w-4 text-amber-600 flex-shrink-0"
                                         title="Key Result"
                                     />
-                                    <span className="font-normal text-slate-900 text-sm">
+                                    <span className="font-semibold text-slate-900 text-base">
                                         {kr.kr_title}
                                     </span>
                                 </div>

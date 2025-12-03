@@ -41,7 +41,7 @@ class AdminController extends Controller
                 'full_name' => 'required|string|max:255',
                 'role_name' => 'required|in:member,manager',
                 'level' => 'required|in:unit,team',
-                'department_id' => 'nullable|exists:departments,department_id'
+                'department_id' => 'required|exists:departments,department_id'
             ]);
 
             if ($validator->fails()) {
@@ -85,7 +85,12 @@ class AdminController extends Controller
                 }
                 
                 if ($errors->has('department_id')) {
-                    $errorMessages['department_id'] = ['Phòng ban/Đội nhóm không tồn tại. Vui lòng chọn lại.'];
+                    $failedRules = $validator->failed();
+                    if (isset($failedRules['department_id']['Required'])) {
+                        $errorMessages['department_id'] = ['Phòng ban là bắt buộc. Vui lòng chọn phòng ban.'];
+                    } else {
+                        $errorMessages['department_id'] = ['Phòng ban không tồn tại. Vui lòng chọn lại.'];
+                    }
                 }
                 
                 // Nếu không có error messages tùy chỉnh, dùng mặc định
@@ -156,7 +161,7 @@ class AdminController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Email mời đã được gửi thành công đến ' . $request->email . '. Người dùng sẽ nhận được mật khẩu tạm thời qua email.'
+                'message' => 'Email mời đã được gửi thành công đến ' . $request->email . '.'
             ]);
 
         } catch (AwsException $e) {
@@ -249,7 +254,25 @@ class AdminController extends Controller
                 ]);
             }
 
-            // 3. Lưu temporary password vào result để sử dụng trong email
+            // 3. Chuyển mật khẩu tạm thời thành mật khẩu chính thức
+            //    để user có thể đăng nhập trực tiếp bằng mật khẩu này
+            try {
+                $this->cognitoClient->adminSetUserPassword([
+                    'UserPoolId' => env('AWS_COGNITO_USER_POOL_ID'),
+                    'Username' => $email,
+                    'Password' => $temporaryPassword,
+                    'Permanent' => true,
+                ]);
+            } catch (AwsException $e) {
+                // Nếu không set được mật khẩu permanent, log cảnh báo nhưng vẫn tiếp tục
+                Log::warning('Could not set permanent password for invited user', [
+                    'email' => $email,
+                    'error_code' => $e->getAwsErrorCode(),
+                    'error_message' => $e->getAwsErrorMessage(),
+                ]);
+            }
+
+            // 4. Lưu temporary password vào result để sử dụng trong email
             $result['TemporaryPassword'] = $temporaryPassword;
             
             return $result;

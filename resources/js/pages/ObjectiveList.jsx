@@ -1,4 +1,3 @@
-// src/components/okr/ObjectiveList.jsx
 import React, {
     useState,
     useEffect,
@@ -6,12 +5,11 @@ import React, {
     useMemo,
     useRef,
 } from "react";
-import { CycleDropdown } from "../components/Dropdown";
+import { CycleDropdown, ViewModeDropdown } from "../components/Dropdown";
 import Tabs from "../components/Tabs";
 import ConfirmationModal from "../components/ConfirmationModal";
 import ToastNotification from "../components/ToastNotification";
 import AssignKeyResultModal from "../components/AssignKeyResultModal";
-import ObjectiveArchive from "./ObjectiveArchive";
 import ObjectiveRow from "./okr/ObjectiveRow";
 import AssigneeTooltip from "./okr/AssigneeTooltip";
 import { canCheckInKeyResult } from "../utils/checkinPermissions";
@@ -37,36 +35,39 @@ export default function ObjectiveList({
     linksLoading = false,
     cycleFilter,
     setCycleFilter,
+    viewMode,
+    setViewMode,
+    userDepartmentName,
     openCheckInModal,
     openCheckInHistory,
     currentUser,
     setItems,
     onOpenLinkModal,
     onCancelLink,
+    hideFilters = false,
+    disableActions = false,
 }) {
     const [toast, setToast] = useState(null);
-    const [showArchived, setShowArchived] = useState(false);
-    const [archivedItems, setArchivedItems] = useState([]);
-    const [archivedCount, setArchivedCount] = useState(0);
-    const [loadingArchived, setLoadingArchived] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [viewModeDropdownOpen, setViewModeDropdownOpen] = useState(false);
     const [assignModal, setAssignModal] = useState({
         show: false,
         kr: null,
         objective: null,
-        email: "",
         loading: false,
     });
     const [assigneeTooltip, setAssigneeTooltip] = useState(null);
     const [archiving, setArchiving] = useState(null);
     const [archivingKR, setArchivingKR] = useState(null);
 
+    const role = currentUser?.role?.role_name?.toLowerCase();
+    const isCeo = role === 'ceo';
+
     const openAssignModal = (kr, objective) => {
         setAssignModal({
             show: true,
             kr,
             objective,
-            email: "",
             loading: false,
         });
     };
@@ -75,20 +76,17 @@ export default function ObjectiveList({
         setAssignModal((prev) => ({ ...prev, show: false }));
     };
 
-    const handleAssignKR = async () => {
-        const { kr, objective, email } = assignModal;
+    const handleAssignKR = async (userId) => {
+        const { kr, objective } = assignModal;
 
-        // 1. Validate email
-        if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
-            setToast({ type: "error", message: "Vui lòng nhập email hợp lệ." });
+        if (!userId) {
+            setToast({ type: "error", message: "Vui lòng chọn người nhận." });
             return;
         }
 
-        // 2. Bật loading
         setAssignModal((prev) => ({ ...prev, loading: true }));
 
         try {
-            // 3. Lấy CSRF token
             const token = document
                 .querySelector('meta[name="csrf-token"]')
                 ?.getAttribute("content");
@@ -97,7 +95,6 @@ export default function ObjectiveList({
                 throw new Error("Không tìm thấy CSRF token");
             }
 
-            // 4. Gửi request
             const res = await fetch(
                 `/my-key-results/${objective.objective_id}/${kr.kr_id}/assign`,
                 {
@@ -107,11 +104,10 @@ export default function ObjectiveList({
                         "X-CSRF-TOKEN": token,
                         Accept: "application/json",
                     },
-                    body: JSON.stringify({ email }),
+                    body: JSON.stringify({ user_id: userId }),
                 }
             );
 
-            // 5. Parse JSON (có thể lỗi nếu server trả HTML)
             let json;
             try {
                 json = await res.json();
@@ -119,34 +115,18 @@ export default function ObjectiveList({
                 throw new Error("Phản hồi từ server không hợp lệ");
             }
 
-            // 6. Kiểm tra HTTP status + success
-            if (!res.ok) {
+            if (!res.ok || !json.success) {
                 throw new Error(
                     json.message || `Lỗi ${res.status}: Giao việc thất bại`
                 );
             }
 
-            if (!json.success) {
-                throw new Error(json.message || "Giao việc thất bại");
-            }
-
-            // Cập nhật giao diện ngay lập tức
-            if (json.data?.assigned_to) {
-                const assignee = json.data.assigned_to;
-
-                setItems((prevItems) =>
-                    prevItems.map((obj) => ({
-                        ...obj,
-                        key_results: obj.key_results.map((kr) =>
-                            kr.kr_id === assignModal.kr.kr_id
-                                ? {
-                                      ...kr,
-                                      assigned_to: assignee.user_id,
-                                      assignee: assignee,
-                                  }
-                                : kr
-                        ),
-                    }))
+            const updatedObjective = json.data.objective;
+            if (updatedObjective) {
+                setItems(prevItems => 
+                    prevItems.map(item => 
+                        item.objective_id === updatedObjective.objective_id ? updatedObjective : item
+                    )
                 );
             }
 
@@ -156,14 +136,12 @@ export default function ObjectiveList({
             });
             closeAssignModal();
         } catch (err) {
-            // 10. Xử lý lỗi
             console.error("Assign KR error:", err);
             setToast({
                 type: "error",
                 message: err.message || "Đã có lỗi xảy ra",
             });
         } finally {
-            // 11. Tắt loading
             setAssignModal((prev) => ({ ...prev, loading: false }));
         }
     };
@@ -438,13 +416,13 @@ export default function ObjectiveList({
         });
     }, [items, childLinks]);
 
-    // === RELOAD CẢ 2 TAB TỪ SERVER ===
-    const reloadBothTabs = useCallback(
+    // === RELOAD OBJECTIVES FROM SERVER ===
+    const reloadObjectives = useCallback(
         async (token) => {
             const baseParams = new URLSearchParams();
             if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
 
-            // Tab Hoạt động
+            // Fetch Active Objectives
             const activeRes = await fetch(`/my-objectives?${baseParams}`, {
                 headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
             });
@@ -452,30 +430,8 @@ export default function ObjectiveList({
             if (activeJson.success) {
                 setItems(activeJson.data.data || []);
             }
-
-            // Tab Lưu trữ
-            if (showArchived) {
-                const archivedParams = new URLSearchParams({
-                    archived: "1",
-                    include_archived_kr: "1",
-                });
-                if (cycleFilter) archivedParams.append("cycle_id", cycleFilter);
-                const archivedRes = await fetch(
-                    `/my-objectives?${archivedParams}`,
-                    {
-                        headers: {
-                            Accept: "application/json",
-                            "X-CSRF-TOKEN": token,
-                        },
-                    }
-                );
-                const archivedJson = await archivedRes.json();
-                if (archivedJson.success) {
-                    setArchivedItems(archivedJson.data.data || []);
-                }
-            }
         },
-        [cycleFilter, showArchived, setItems]
+        [cycleFilter, setItems]
     );
 
     // === LƯU TRỮ OKR ===
@@ -498,7 +454,7 @@ export default function ObjectiveList({
                     });
                     const json = await res.json();
                     if (json.success) {
-                        await reloadBothTabs(token);
+                        await reloadObjectives(token);
                         setToast({ type: "success", message: json.message });
                     } else {
                         throw new Error(json.message);
@@ -544,7 +500,7 @@ export default function ObjectiveList({
                     if (!json.success)
                         throw new Error(json.message || "Lưu trữ thất bại");
 
-                    await reloadBothTabs(token);
+                    await reloadObjectives(token);
                     setToast({ type: "success", message: json.message });
                 } catch (err) {
                     setToast({ type: "error", message: err.message });
@@ -567,59 +523,40 @@ export default function ObjectiveList({
     }, [cycleFilter, cyclesList, items]);
 
     // === TẢI OKR LƯU TRỮ ===
-    useEffect(() => {
-        if (showArchived) {
-            const fetchArchived = async () => {
-                setLoadingArchived(true);
-                try {
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                ?.getAttribute("content");
-                    const params = new URLSearchParams({
-                        archived: "1",
-                        include_archived_kr: "1",
-                    });
-                    if (cycleFilter) params.append("cycle_id", cycleFilter);
 
-                    const res = await fetch(`/my-objectives?${params}`, {
-                    headers: {
-                        Accept: "application/json",
-                            "X-CSRF-TOKEN": token,
-                        },
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        setArchivedItems(json.data.data || []);
-                    }
-        } catch (err) {
-                    setToast({ type: "error", message: err.message });
-        } finally {
-                    setLoadingArchived(false);
-                }
-            };
-            fetchArchived();
-        } else {
-            setArchivedItems([]);
-            setArchivedCount(0);
-        }
-    }, [showArchived, cycleFilter]);
+    // useEffect for archived items removed.
+
 
     return (
         <div className="mx-auto w-full max-w-6xl">
-            <div className="mb-4 flex w-full items-center justify-between">
-                    <CycleDropdown
-                        cyclesList={cyclesList}
-                        cycleFilter={cycleFilter}
-                        handleCycleChange={setCycleFilter}
-                        dropdownOpen={dropdownOpen}
-                        setDropdownOpen={setDropdownOpen}
+            {/* Conditional rendering for the entire filter bar */}
+            {!hideFilters && (
+                <div className="mb-4 flex w-full items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <CycleDropdown
+                            cyclesList={cyclesList}
+                            cycleFilter={cycleFilter}
+                            handleCycleChange={setCycleFilter}
+                            dropdownOpen={dropdownOpen}
+                            setDropdownOpen={setDropdownOpen}
+                        />
+                        {!isCeo && (
+                            <ViewModeDropdown
+                                viewMode={viewMode}
+                                setViewMode={setViewMode}
+                                dropdownOpen={viewModeDropdownOpen}
+                                setDropdownOpen={setViewModeDropdownOpen}
+                                currentUser={currentUser}
+                                userDepartmentName={userDepartmentName}
+                            />
+                        )}
+                    </div>
+                    <Tabs
+                        setCreatingObjective={setCreatingObjective}
                     />
-                <Tabs
-                    showArchived={showArchived}
-                    setShowArchived={setShowArchived}
-                    setCreatingObjective={setCreatingObjective}
-                />
-            </div>
+                </div>
+            )}
+
 
             {linksLoading && (
                 <div className="mb-3 flex items-center gap-2 text-xs text-indigo-600">
@@ -648,7 +585,7 @@ export default function ObjectiveList({
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {/* Loading & Empty States */}
-                        {!showArchived && loading && (
+                        {loading && (
                             <tr>
                                 <td
                                     colSpan={4}
@@ -658,7 +595,7 @@ export default function ObjectiveList({
                                 </td>
                             </tr>
                         )}
-                        {!showArchived && !loading && items.length === 0 && (
+                        {!loading && items.length === 0 && (
                             <tr>
                                 <td
                                     colSpan={4}
@@ -670,9 +607,12 @@ export default function ObjectiveList({
                         )}
 
                         {/* Active OKRs */}
-                        {!showArchived &&
-                            !loading &&
-itemsWithLinkedChildren.map((obj, index) => (
+
+ 
+
+                        {!loading &&
+                            itemsWithLinkedChildren.map((obj, index) => (
+
                                 <ObjectiveRow
                                     key={obj.objective_id}
                                     obj={obj}
@@ -708,23 +648,10 @@ itemsWithLinkedChildren.map((obj, index) => (
                                     getAssigneeInfo={getAssigneeInfo}
                                     // The ObjectiveRow itself will now handle its colSpan based on props
                                     colSpanForObjectiveHeader={3}
+                                    disableActions={disableActions}
                                 />
 
                             ))}
-
-                        {/* Archived */}
-                        {showArchived && (
-                            <ObjectiveArchive
-                                archivedItems={archivedItems}
-                                openObj={openObj}
-                                setOpenObj={setOpenObj}
-                                loadingArchived={loadingArchived}
-                                reloadBothTabs={reloadBothTabs}
-                                showArchived={showArchived}
-                                formatPercent={formatPercent}
-                                getStatusText={getStatusText}
-                            />
-                        )}
                     </tbody>
                 </table>
             </div>
@@ -740,13 +667,10 @@ itemsWithLinkedChildren.map((obj, index) => (
                 show={assignModal.show}
                 kr={assignModal.kr}
                 objective={assignModal.objective}
-                email={assignModal.email}
-                setEmail={(e) =>
-                    setAssignModal((prev) => ({ ...prev, email: e }))
-                }
                 loading={assignModal.loading}
                 onConfirm={handleAssignKR}
                 onClose={closeAssignModal}
+                currentUserRole={currentUser?.role}
             />
             {assigneeTooltip && assigneeTooltip.info && (
                 <div

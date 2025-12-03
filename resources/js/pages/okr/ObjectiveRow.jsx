@@ -29,6 +29,7 @@ export default function ObjectiveRow({
     getStatusText,
     getUnitText,
     colSpanForObjectiveHeader,
+    disableActions = false,
 }) {
     const hasKRs = obj.key_results?.length > 0;
 
@@ -74,7 +75,7 @@ export default function ObjectiveRow({
                                 )}
                             </div>
                             <FaBullseye className="h-5 w-5 text-indigo-600 flex-shrink-0" title="Objective"/>
-                            <span className="font-normal text-slate-900 truncate text-sm">
+                            <span className="font-semibold text-slate-900 truncate text-lg">
                                 {obj.obj_title}
                             </span>
                         </div>
@@ -85,30 +86,12 @@ export default function ObjectiveRow({
                     </div>
                 </td>
                 <td className="px-3 py-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                        <button
-                            onClick={() => setEditingObjective(obj)}
-                            className="p-1 text-slate-600 hover:bg-slate-100 rounded"
-                            title="Sửa"
-                        >
-                            <svg
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                />
-                            </svg>
-                        </button>
+                    <div className="flex items-center justify-end gap-1">
                         <button
                             onClick={() => setCreatingFor(obj)}
-                            className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Thêm KR"
+                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -132,15 +115,50 @@ export default function ObjectiveRow({
                                 />
                             </svg>
                         </button>
-                        <ObjectiveActionsMenu
-                            obj={obj}
-                            onOpenLinkModal={onOpenLinkModal}
-                            handleArchive={handleArchive}
-                            archiving={archiving}
-                            menuRefs={menuRefs}
-                            openObj={openObj}
-                            setOpenObj={setOpenObj}
-                        />
+                        <button
+                            onClick={() => setEditingObjective(obj)}
+                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Sửa"
+                            disabled={disableActions}
+                        >
+                            <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                />
+                            </svg>
+                        </button>
+
+                        {disableActions ? (
+                            <button
+                                onClick={() => handleArchive(obj.objective_id)}
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Lưu trữ"
+                                disabled={archiving === obj.objective_id}
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                            </button>
+                        ) : (
+                            <ObjectiveActionsMenu
+                                obj={obj}
+                                onOpenLinkModal={onOpenLinkModal}
+                                handleArchive={handleArchive}
+                                archiving={archiving}
+                                menuRefs={menuRefs}
+                                openObj={openObj}
+                                setOpenObj={setOpenObj}
+                                disableActions={disableActions}
+                            />
+                        )}
                     </div>
                 </td>
             </tr>
@@ -167,6 +185,7 @@ export default function ObjectiveRow({
                         getUnitText={getUnitText}
                         menuRefs={menuRefs}
                         colSpanForKRs={7} // NEW PROP
+                        disableActions={disableActions}
                     />
                 ))}
         </>

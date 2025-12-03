@@ -37,6 +37,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/forgot-password', [AuthController::class, 'showForgotPasswordForm'])->name('forgot-password');
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password.post');
     Route::post('/confirm-forgot-password', [AuthController::class, 'confirmForgotPassword'])->name('confirm-forgot-password');
+    Route::get('/first-login/change-password', [AuthController::class, 'showFirstLoginChangePassword'])->name('first-login.change.form');
+    Route::post('/first-login/change-password', [AuthController::class, 'handleFirstLoginChangePassword'])->name('first-login.change.submit');
     
     // Google OAuth (redirect trực tiếp đến Google, không qua Cognito Hosted UI)
     Route::get('/auth/google', [AuthController::class, 'redirectToGoogle'])->name('auth.google');
@@ -117,6 +119,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
 
     //Routes cho Department
     Route::resource('departments', DepartmentController::class);
+    Route::delete('departments/{department}/users/{user}', [DepartmentController::class, 'removeUser'])->name('departments.users.remove');
     Route::post('/departments/{department}/assign-users', [DepartmentController::class, 'storeAssignUsers'])->name('departments.assign.users.store');
 
     //Routes cho Report - chỉ Manager
@@ -151,6 +154,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         return view('app');
     })->middleware('auth')->name('change.password.form');
     Route::post('/change-password', [App\Http\Controllers\AuthController::class, 'changePassword'])->middleware('auth')->name('change.password');
+
+    // API Route cho User Search (mới)
+    Route::get('/api/users/search', [UserController::class, 'search'])->middleware('auth')->name('api.users.search');
 
     // Notifications
     Route::middleware('auth')->group(function () {
@@ -356,6 +362,11 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::post('/{link}/cancel', [LinkController::class, 'cancel'])->middleware('auth')->name('my-links.cancel');
     });
 
+    // All Links API
+    Route::prefix('api/links')->middleware('auth')->group(function () {
+        Route::get('/', [LinkController::class, 'getAllLinks'])->name('api.links.index');
+    });
+
     // OKR Tree View
     Route::prefix('api/okr-tree')->middleware('auth')->group(function () {
         Route::get('/company-objectives', [App\Http\Controllers\OkrTreeController::class, 'getCompanyObjectives'])->name('api.okr-tree.company-objectives');
@@ -367,6 +378,11 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/okr-tree', function() { return view('app'); })
         ->middleware('auth')
         ->name('okr-tree');
+
+    // Frontend page route for Archived OKRs
+    Route::get('/archived-okrs', function() { return view('app'); })
+        ->middleware('auth')
+        ->name('archived-okrs');
 
 });
 

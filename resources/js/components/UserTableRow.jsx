@@ -14,6 +14,7 @@ import { Badge } from "./ui";
  * @param {Object} props.pendingChanges - Thay đổi đang chờ xử lý
  * @param {Function} props.setPendingChanges - Hàm cập nhật thay đổi đang chờ
  * @param {Function} props.setUsers - Hàm cập nhật danh sách người dùng
+ * @param {Function} props.onDelete - Hàm xử lý xóa người dùng
  * 
  * Lưu ý: Cấp độ, vai trò và phòng ban/đội nhóm chỉ hiển thị, không cho phép chỉnh sửa
  */
@@ -28,6 +29,7 @@ export default function UserTableRow({
     pendingChanges = {},
     setPendingChanges,
     setUsers,
+    onDelete,
 }) {
     const rname = (user.role?.role_name || "").toLowerCase();
     const isAdmin = rname === "admin" || user.email === "okr.admin@company.com";
@@ -146,6 +148,30 @@ export default function UserTableRow({
                 >
                     {user.status === "active" ? "KÍCH HOẠT" : "VÔ HIỆU"}
                 </button>
+            </td>
+            <td className="px-3 py-2 w-20 text-center">
+                {!isAdmin && onDelete && (
+                    <button
+                        onClick={() => onDelete(user)}
+                        className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Xóa người dùng"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                        </svg>
+                    </button>
+                )}
             </td>
         </tr>
     );

@@ -418,8 +418,8 @@ class MyKeyResultController extends Controller
     {
         $user = Auth::user();
         $keyResult = KeyResult::where('objective_id', $objectiveId)
-            ->where('kr_id', $keyResultId)
-            ->firstOrFail();
+
+            ->findOrFail($keyResultId);
 
         $objective = Objective::findOrFail($objectiveId);
 
@@ -432,21 +432,30 @@ class MyKeyResultController extends Controller
         }
 
         $validated = $request->validate([
-            'email' => 'required|email|exists:users,email'
+            'user_id' => 'nullable|exists:users,user_id' // Changed to nullable
         ]);
 
-        $assignee = User::where('email', $validated['email'])->first();
+        $assigneeId = $validated['user_id'] ?? null;
+        $assignee = null;
+        if ($assigneeId) {
+            $assignee = User::findOrFail($assigneeId);
+        }
 
-        // (Tùy chọn) Kiểm tra cùng phòng ban
-        if ($objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
+        // Kiểm tra cùng phòng ban nếu objective là unit-level VÀ có assignee
+        if ($assignee && $objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Chỉ được giao cho người trong cùng phòng ban.'
             ], 422);
         }
 
-        $keyResult->assigned_to = $assignee->user_id;
+        $keyResult->assigned_to = $assigneeId; // Assign null if $assigneeId is null
         $keyResult->save();
+        
+        // Tải lại objective để có dữ liệu mới nhất
+        $updatedObjective = $objective->fresh()->load('keyResults.assignedUser', 'user');
+
+        $message = $assignee ? "Đã giao KR cho {$assignee->full_name}" : "Đã bỏ giao KR thành công.";
 
         // Tạo thông báo cho người được giao
         if ($assignee->user_id !== $user->user_id) {
@@ -461,9 +470,9 @@ class MyKeyResultController extends Controller
         return response()->json([
             'success' => true,
             'message' => "Đã giao KR cho {$assignee->full_name}",
+
             'data' => [
-                'kr_id' => $keyResult->kr_id,
-                'assigned_to' => $assignee->only(['user_id', 'fullName', 'email', 'avatar'])
+                'objective' => $updatedObjective
             ]
         ]);
     }

@@ -195,20 +195,34 @@ export function CycleDropdown({
 }) {
     // Đảm bảo cyclesList luôn là array
     const safeCyclesList = Array.isArray(cyclesList) ? cyclesList : [];
+    const selectedCycle = safeCyclesList.find(c => String(c.cycle_id) === String(cycleFilter));
+
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${day}/${month}`;
+    };
     
     return (
-        <div className="relative w-40">
+        <div className="relative w-52">
             <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
-                <span className="flex items-center gap-2">
-                    {safeCyclesList.find(
-                        (c) => String(c.cycle_id) === String(cycleFilter)
-                    )?.cycle_name || "Chọn chu kỳ"}
-                </span>
+                <div className="flex items-baseline flex-1 truncate mr-2">
+                    <span className="truncate font-medium text-slate-700">
+                        {selectedCycle?.cycle_name || "Chọn chu kỳ"}
+                    </span>
+                    {selectedCycle && (
+                        <span className="ml-2 text-xs text-slate-500">
+                            ({formatDate(selectedCycle.start_date)}-{formatDate(selectedCycle.end_date)})
+                        </span>
+                    )}
+                </div>
                 <svg
-                    className={`w-4 h-4 transition-transform ${
+                    className={`w-4 h-4 transition-transform flex-shrink-0 ${
                         dropdownOpen ? "rotate-180" : ""
                     }`}
                     fill="none"
@@ -282,3 +296,80 @@ export function CycleDropdown({
 }
 
 export default Dropdown;
+
+export function ViewModeDropdown({
+    viewMode,
+    setViewMode,
+    dropdownOpen,
+    setDropdownOpen,
+    currentUser,
+    userDepartmentName,
+}) {
+    const role = currentUser?.role?.role_name?.toLowerCase();
+
+    const getLevelsLabel = () => {
+        if (role === 'manager') {
+            return `${userDepartmentName || 'Phòng ban'}`;
+        }
+        if (role === 'admin' || role === 'ceo') {
+            return 'Công ty';
+        }
+        return userDepartmentName || 'Phòng ban được giao';
+    };
+
+    const options = {
+        levels: getLevelsLabel(),
+        personal: 'Cá nhân',
+    };
+
+    const handleSelect = (mode) => {
+        setViewMode(mode);
+        setDropdownOpen(false);
+    };
+
+    return (
+        <div className="relative">
+            <button
+                onClick={() => setDropdownOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            >
+                <span className="flex items-center gap-2 truncate">
+                    {options[viewMode]}
+                </span>
+                <svg
+                    className={`h-4 w-4 transform transition-transform ${
+                        dropdownOpen ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                    />
+                </svg>
+            </button>
+
+            {dropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg z-50">
+                    {Object.entries(options).map(([key, label]) => (
+                        <div
+                            key={key}
+                            onClick={() => handleSelect(key)}
+                            className={`cursor-pointer px-3 py-2 text-sm font-medium hover:bg-blue-50 ${
+                                viewMode === key
+                                    ? "text-blue-600"
+                                    : "text-slate-900"
+                            }`}
+                        >
+                            {label}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}

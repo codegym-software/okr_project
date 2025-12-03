@@ -30,6 +30,8 @@
                 window.__USER__ = null;
             }
         })();
+        window.__FIRST_LOGIN_EMAIL__ = <?php echo json_encode(session('first_login_email'), 15, 512) ?>;
+        window.__FIRST_LOGIN_NAME__ = <?php echo json_encode(session('first_login_name'), 15, 512) ?>;
     </script>
 </body>
 </html>

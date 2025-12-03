@@ -13,6 +13,7 @@ export default function KRActionsMenu({
     menuRefs,
     openObj,
     setOpenObj,
+    disableActions = false,
 }) {
     const menuKey = `menu_${kr.kr_id}`;
 
@@ -33,7 +34,8 @@ export default function KRActionsMenu({
                         return next;
                     });
                 }}
-                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={disableActions}
             >
                 <svg
                     className="h-4 w-4"
@@ -55,25 +57,6 @@ export default function KRActionsMenu({
                     className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
                     style={{ zIndex: 50 }}
                 >
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setAssignModal({
-                                show: true,
-                                kr,
-                                objective,
-                                email: "",
-                                loading: false,
-                            });
-                            setOpenObj((prev) => ({
-                                ...prev,
-                                [menuKey]: false,
-                            }));
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                        Giao việc
-                    </button>
                     {canCheckIn && openCheckInModal && (
                         <button
                             onClick={(e) => {

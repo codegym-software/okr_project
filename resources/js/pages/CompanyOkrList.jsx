@@ -2,6 +2,30 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
+import ObjectiveList from "./ObjectiveList"; // Corrected import
+import ObjectiveModal from "./ObjectiveModal.jsx"; // Import ObjectiveModal
+import KeyResultModal from "./KeyResultModal.jsx"; // Import KeyResultModal
+
+const pickRelation = (link, camel, snake) =>
+    (link && link[camel]) || (link && link[snake]) || null;
+
+const normalizeLinkData = (link) => {
+    if (!link || typeof link !== "object") return link;
+    return {
+        ...link,
+        sourceObjective: pickRelation(link, "sourceObjective", "source_objective"),
+        sourceKr: pickRelation(link, "sourceKr", "source_kr"),
+        targetObjective: pickRelation(link, "targetObjective", "target_objective"),
+        targetKr: pickRelation(link, "targetKr", "target_kr"),
+        requester: pickRelation(link, "requester", "requester"),
+        targetOwner: pickRelation(link, "targetOwner", "target_owner"),
+        approver: pickRelation(link, "approver", "approver"),
+    };
+};
+
+const normalizeLinksList = (list) =>
+    Array.isArray(list) ? list.map((item) => normalizeLinkData(item)) : [];
+
 
 export default function CompanyOkrList() {
     const [items, setItems] = useState([]);
@@ -11,81 +35,59 @@ export default function CompanyOkrList() {
     const [openObj, setOpenObj] = useState({});
     const [cyclesList, setCyclesList] = useState([]);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
+    const [childLinks, setChildLinks] = useState([]);
+    const [linksLoading, setLinksLoading] = useState(false);
+    const [creatingObjective, setCreatingObjective] = useState(false); // New state
+    const [editingObjective, setEditingObjective] = useState(null);
+    const [editingKR, setEditingKR] = useState(null);
+    const [creatingFor, setCreatingFor] = useState(null);
 
-    // ============================================================
-    // CHỌN QUÝ MẶC ĐỊNH DỰA TRÊN NGÀY (HOÀN TOÀN KHÔNG DỰA VÀO TÊN!)
-    // ============================================================
+    // New state for advanced filtering
+    const [filterType, setFilterType] = useState('company'); // 'company' or 'department'
+    const [selectedDepartment, setSelectedDepartment] = useState('');
+    const [departments, setDepartments] = useState([]);
+
+    const isCeo = currentUser?.role?.role_name?.toLowerCase() === 'ceo'; // Determine if current user is CEO
+
+    // Fetch initial data (user, cycles, departments)
     useEffect(() => {
-        (async () => {
+        const fetchInitialData = async () => {
             try {
-                const res = await fetch("/cycles", {
-                    headers: { Accept: "application/json" },
-                });
-                const json = await res.json();
+                const [userRes, cyclesRes, deptsRes] = await Promise.all([
+                    fetch("/api/profile"),
+                    fetch("/cycles", { headers: { Accept: "application/json" } }),
+                    fetch("/departments", { headers: { Accept: "application/json" } }),
+                ]);
 
-                if (!Array.isArray(json.data) || json.data.length === 0) {
-                    setToast({
-                        type: "error",
-                        message: "Không có dữ liệu quý",
-                    });
-                    setLoading(false);
-                    return;
+                if (userRes.ok) {
+                    const userJson = await userRes.json();
+                    setCurrentUser(userJson.user);
                 }
 
-                const cycles = json.data;
-                setCyclesList(cycles);
-
-                const today = new Date();
-                today.setHours(0, 0, 0, 0); // chuẩn hóa
-
-                let selectedCycle = null;
-
-                // Ưu tiên 1: Dùng start_date / end_date (nếu có) - cách tốt nhất
-                for (const c of cycles) {
-                    const start = c.start_date ? new Date(c.start_date) : null;
-                    const end = c.end_date ? new Date(c.end_date) : null;
-
-                    if (start && end) {
-                        start.setHours(0, 0, 0, 0);
-                        end.setHours(23, 59, 59, 999);
-
-                        if (today >= start && today <= end) {
-                            selectedCycle = c;
-                            break;
-                        }
-                    }
-                }
-
-                // Ưu tiên 2: Nếu không có quý nào đang active → chọn quý gần nhất với hôm nay
-                if (!selectedCycle) {
-                    selectedCycle = cycles.reduce((best, c) => {
-                        const start = c.start_date
-                            ? new Date(c.start_date)
-                            : null;
+                if (cyclesRes.ok) {
+                    const cyclesJson = await cyclesRes.json();
+                    const cycles = cyclesJson.data || [];
+                    setCyclesList(cycles);
+                    
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    let selectedCycle = cycles.find(c => {
+                        const start = c.start_date ? new Date(c.start_date) : null;
                         const end = c.end_date ? new Date(c.end_date) : null;
-
-                        let refDate = today;
-                        if (start && end) {
-                            // Dùng ngày giữa quý làm tham chiếu
-                            refDate = new Date(
-                                (start.getTime() + end.getTime()) / 2
-                            );
-                        } else if (start) {
-                            refDate = start;
-                        } else if (end) {
-                            refDate = end;
-                        } else {
-                            // Nếu không có ngày → dùng cycle_id lớn nhất (quý mới nhất)
-                            return !best || c.cycle_id > best.cycle_id
-                                ? c
-                                : best;
-                        }
-
-                        const diff = Math.abs(refDate - today);
-                        return !best || diff < best.diff
-                            ? { ...c, diff }
-                            : best;
-                    }, null);
+                        return start && end && today >= start && today <= end;
+                    });
+                    
+                    if (!selectedCycle && cycles.length > 0) {
+                        selectedCycle = cycles[0];
+                    }
+                    setCycleFilter(selectedCycle?.cycle_id || null);
+                }
+                
+                if (deptsRes.ok) {
+                    const deptsJson = await deptsRes.json();
+                    setDepartments(deptsJson.data || []);
                 }
 
                 // An toàn tuyệt đối
@@ -100,274 +102,191 @@ export default function CompanyOkrList() {
                 } else {
                     setLoading(false);
                 }
+
             } catch (err) {
-                console.error(err);
-                setToast({ type: "error", message: "Lỗi tải danh sách quý" });
-                setLoading(false);
+                console.error("Failed to fetch initial data:", err);
+                setToast({ type: "error", message: "Không thể tải dữ liệu ban đầu." });
             }
-        })();
+        };
+        fetchInitialData();
     }, []);
 
-    // Xóa cycle_id trên URL
-    useEffect(() => {
-        const url = new URL(window.location);
-        if (url.searchParams.has("cycle_id")) {
-            url.searchParams.delete("cycle_id");
-            window.history.replaceState({}, "", url);
-        }
-    }, []);
-
-    // ============================================================
-    // LẤY OKR CÔNG TY
-    // ============================================================
-    const fetchCompanyOkrs = useCallback(async () => {
-        if (!cycleFilter) {
-            setLoading(false);
-            return;
-        }
+    // Fetch OKR data when filters change
+    const fetchData = useCallback(async () => {
+        if (cycleFilter === null) return;
+        
         setLoading(true);
+        setLinksLoading(true);
         try {
-            const params = new URLSearchParams({ cycle_id: cycleFilter });
-            const res = await fetch(`/company-okrs?${params}`, {
-                headers: { Accept: "application/json" },
+            const params = new URLSearchParams({ 
+                cycle_id: cycleFilter,
+                filter_type: filterType 
             });
-            const json = await res.json();
-            if (json.success) {
-                setItems(json.data || []);
+            if (filterType === 'department' && selectedDepartment) {
+                params.append('department_id', selectedDepartment);
             }
+            
+            const linkParams = new URLSearchParams({ cycle_id: cycleFilter });
+
+            const [okrRes, linksRes] = await Promise.all([
+                fetch(`/company-okrs?${params}`, { headers: { Accept: "application/json" } }),
+                fetch(`/api/links?${linkParams}`, { headers: { Accept: "application/json" } })
+            ]);
+
+            if (okrRes.ok) {
+                const okrJson = await okrRes.json();
+                if (okrJson.success) {
+                    setItems(okrJson.data.objectives.data || []);
+                } else {
+                    throw new Error(okrJson.message || "Không tải được OKR");
+                }
+            } else {
+                 throw new Error("Lỗi mạng khi tải OKR");
+            }
+
+
+            if (linksRes.ok) {
+                const linksJson = await linksRes.json();
+                if (linksJson.success) {
+                    setChildLinks(normalizeLinksList(linksJson.data?.children || []));
+                }
+            }
+
         } catch (err) {
-            setToast({ type: "error", message: "Không tải được OKR công ty" });
+            setToast({ type: "error", message: err.message });
             setItems([]);
+            setChildLinks([]);
         } finally {
             setLoading(false);
+            setLinksLoading(false);
         }
-    }, [cycleFilter]);
+    }, [cycleFilter, filterType, selectedDepartment]);
 
     useEffect(() => {
-        fetchCompanyOkrs();
-    }, [fetchCompanyOkrs]);
+        fetchData();
+    }, [fetchData]);
 
-    // ============================================================
-    // HELPER
-    // ============================================================
-    const formatPercent = (v) =>
-        Number.isFinite(+v) ? `${(+v).toFixed(1)}%` : "0%";
-    const getStatusText = (s) => {
-        switch ((s || "").toLowerCase()) {
-            case "draft":
-                return "Bản nháp";
-            case "active":
-                return "Đang thực hiện";
-            case "completed":
-                return "Hoàn thành";
-            default:
-                return s || "";
-        }
-    };
-    const getUnitText = (u) => {
-        switch ((u || "").toLowerCase()) {
-            case "number":
-                return "Số lượng";
-            case "percent":
-                return "Phần trăm";
-            case "completion":
-                return "Hoàn thành";
-            case "bai":
-            case "bài":
-                return "Bài";
-            default:
-                return u || "";
+    const handleFilterChange = (type, value) => {
+        if (type === 'company') {
+            setFilterType('company');
+            setSelectedDepartment('');
+        } else if (type === 'department') {
+            setFilterType('department');
+            setSelectedDepartment(value);
         }
     };
 
-    const currentCycleName =
-        cyclesList.find((c) => c.cycle_id === cycleFilter)?.cycle_name ||
-        "Đang tải...";
-
-    // ============================================================
-    // RENDER
-    // ============================================================
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
-            <div className="mb-4 flex w-full items-center justify-between">
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
+                    {/* Cycle Filter Dropdown */}
                     <CycleDropdown
                         cyclesList={cyclesList}
                         cycleFilter={cycleFilter}
                         handleCycleChange={setCycleFilter}
                         dropdownOpen={dropdownOpen}
                         setDropdownOpen={setDropdownOpen}
-                        selectedLabel={currentCycleName}
                     />
+                    {/* OKR Filter Dropdown */}
+                    <div className="relative">
+                        <select 
+                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-blue-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            value={filterType === 'company' ? 'company' : selectedDepartment}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'company') {
+                                    handleFilterChange('company');
+                                } else {
+                                    handleFilterChange('department', val);
+                                }
+                            }}
+                        >
+                            <option value="company">Công ty</option>
+                            {departments.map(dept => (
+                                <option key={dept.department_id} value={dept.department_id}>
+                                    {dept.d_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
+                {isCeo && (
+                    <button
+                        onClick={() => setCreatingObjective(true)}
+                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                        Tạo Objective
+                    </button>
+                )}
             </div>
+            
+            <ObjectiveList
+                items={items}
+                loading={loading || linksLoading}
+                openObj={openObj}
+                setOpenObj={setOpenObj}
+                currentUser={currentUser}
+                setItems={setItems}
+                childLinks={childLinks}
+                linksLoading={linksLoading}
+                // Pass functional props if CEO, otherwise pass no-ops
+                setCreatingFor={isCeo ? setCreatingFor : () => {}}
+                setEditingObjective={isCeo ? setEditingObjective : () => {}}
+                setEditingKR={isCeo ? setEditingKR : () => {}}
+                setCreatingObjective={() => {}} // This is handled by the button outside ObjectiveList
+                openCheckInModal={() => {}}
+                openCheckInHistory={() => {}}
+                onOpenLinkModal={() => {}}
+                onCancelLink={() => {}}
+                hideFilters={true}
+                disableActions={true}
+            />
 
-            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-slate-50 text-left font-semibold text-slate-700">
-                        <tr>
-                            <th className="px-3 py-2 text-left w-[30%] border-r border-slate-200">
-                                Tiêu đề
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
-                                Người thực hiện
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[12%]">
-                                Trạng thái
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Đơn vị
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Thực tế
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Mục tiêu
-                            </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200 w-[10%]">
-                                Tiến độ (%)
-                            </th>
-                            <th className="px-3 py-2 text-center w-[12%]">
-                                Hành động
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr>
-                                <td
-                                    colSpan={8}
-                                    className="px-3 py-10 text-center text-slate-500"
-                                >
-                                    Đang tải...
-                                </td>
-                            </tr>
-                        ) : items.length === 0 ? (
-                            <tr>
-                                <td
-                                    colSpan={8}
-                                    className="px-3 py-10 text-center text-slate-500"
-                                >
-                                    Chưa có OKR công ty nào trong quý này.
-                                </td>
-                            </tr>
-                        ) : (
-                            items.map((obj, index) => (
-                                <React.Fragment key={obj.objective_id}>
-                                    <tr
-                                        className={`bg-gradient-to-r from-indigo-50 to-purple-50 border-t-2 border-indigo-200 ${
-                                            index > 0 ? "mt-4" : ""
-                                        }`}
-                                    >
-                                        <td
-                                            colSpan={7}
-                                            className="px-3 py-3 border-r border-slate-200"
-                                        >
-                                            <div className="flex items-center gap-1">
-                                                {obj.key_results?.length >
-                                                    0 && (
-                                                    <button
-                                                        onClick={() =>
-                                                            setOpenObj((p) => ({
-                                                                ...p,
-                                                                [obj.objective_id]:
-                                                                    !p[
-                                                                        obj
-                                                                            .objective_id
-                                                                    ],
-                                                            }))
-                                                        }
-                                                        className="p-2 rounded-lg hover:bg-slate-100 transition-all group"
-                                                    >
-                                                        <svg
-                                                            className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform ${
-                                                                openObj[
-                                                                    obj
-                                                                        .objective_id
-                                                                ]
-                                                                    ? "rotate-90"
-                                                                    : ""
-                                                            }`}
-                                                            fill="currentColor"
-                                                            viewBox="0 0 20 20"
-                                                        >
-                                                            <path
-                                                                fillRule="evenodd"
-                                                                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                                                            />
-                                                        </svg>
-                                                    </button>
-                                                )}
-                                                <span className="font-semibold text-slate-900">
-                                                    [
-                                                    {obj.level === "company"
-                                                        ? "CÔNG TY"
-                                                        : obj.department
-                                                              ?.department_name ||
-                                                          obj.level.toUpperCase()}
-                                                    ] {obj.obj_title}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-3 text-center bg-gradient-to-r from-indigo-50 to-purple-50">
-                                            —
-                                        </td>
-                                    </tr>
-
-                                    {openObj[obj.objective_id] &&
-                                        obj.key_results?.map((kr) => (
-                                            <tr key={kr.kr_id}>
-                                                <td className="px-8 py-3 border-r border-slate-200 font-medium text-slate-900">
-                                                    {kr.kr_title}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.assignee?.fullName ||
-                                                        kr.assigned_to ||
-                                                        "Chưa giao"}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    <span
-                                                        className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold ${
-                                                            kr.status ===
-                                                            "completed"
-                                                                ? "bg-emerald-100 text-emerald-700"
-                                                                : kr.status ===
-                                                                  "active"
-                                                                ? "bg-blue-100 text-blue-700"
-                                                                : "bg-slate-100 text-slate-700"
-                                                        }`}
-                                                    >
-                                                        {getStatusText(
-                                                            kr.status
-                                                        )}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {getUnitText(kr.unit)}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.current_value ?? 0}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {kr.target_value}
-                                                </td>
-                                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                                    {formatPercent(
-                                                        kr.progress_percent
-                                                    )}
-                                                </td>
-                                                <td className="px-3 py-3 text-center text-slate-400">
-                                                    —
-                                                </td>
-                                            </tr>
-                                        ))}
-                                </React.Fragment>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            {/* Modals for CEO actions */}
+            {isCeo && creatingObjective && (
+                <ObjectiveModal
+                    creatingObjective={creatingObjective}
+                    setCreatingObjective={setCreatingObjective}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                    reloadData={fetchData}
+                />
+            )}
+            {isCeo && editingObjective && (
+                <ObjectiveModal
+                    editingObjective={editingObjective}
+                    setEditingObjective={setEditingObjective}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                    reloadData={fetchData}
+                />
+            )}
+            {isCeo && editingKR && (
+                <KeyResultModal
+                    editingKR={editingKR}
+                    setEditingKR={setEditingKR}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                />
+            )}
+            {isCeo && creatingFor && (
+                <KeyResultModal
+                    creatingFor={creatingFor}
+                    setCreatingFor={setCreatingFor}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                    currentUser={currentUser}
+                />
+            )}
 
             <ToastNotification toast={toast} />
         </div>

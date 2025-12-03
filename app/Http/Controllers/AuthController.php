@@ -236,6 +236,16 @@ class AuthController extends Controller
                 'cognito_response' => $result->toArray()
             ]);
 
+            // Nếu là user được mời, đánh dấu đã kích hoạt (không còn trạng thái invited)
+            $userModel = Auth::user();
+            if ($userModel && $userModel->is_invited) {
+                $userModel->is_invited = false;
+                if (!$userModel->invited_at) {
+                    $userModel->invited_at = now();
+                }
+                $userModel->save();
+            }
+
             // Xóa token cũ sau khi đổi mật khẩu
             Session::forget('cognito_access_token');
             Session::forget('cognito_refresh_token');
@@ -393,11 +403,6 @@ class AuthController extends Controller
                 ])->withInput();
             }
 
-            // Lưu tokens vào session
-            Session::put('cognito_access_token', $authResult['AccessToken'] ?? null);
-            Session::put('cognito_refresh_token', $authResult['RefreshToken'] ?? null);
-            Session::put('cognito_id_token', $authResult['IdToken'] ?? null);
-
             // Giải mã ID token để lấy thông tin user
             $idToken = $authResult['IdToken'] ?? null;
             if (!$idToken) {
@@ -442,6 +447,29 @@ class AuthController extends Controller
                 ])->withInput();
             }
 
+            // Nếu là user được mời, bắt buộc đổi mật khẩu lần đầu tại trang ngoài
+            if ($user->is_invited) {
+                Session::put('first_login_email', $email);
+                Session::put('first_login_name', $user->full_name);
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Đăng nhập lần đầu. Vui lòng đổi mật khẩu.',
+                        'redirect' => route('first-login.change.form'),
+                        'force_change_password' => true,
+                    ]);
+                }
+
+                return redirect()->route('first-login.change.form')
+                    ->with('success', 'Vui lòng đổi mật khẩu trước khi đăng nhập lần đầu.');
+            }
+
+            // Lưu tokens vào session chỉ khi cho phép vào hệ thống
+            Session::put('cognito_access_token', $authResult['AccessToken'] ?? null);
+            Session::put('cognito_refresh_token', $authResult['RefreshToken'] ?? null);
+            Session::put('cognito_id_token', $authResult['IdToken'] ?? null);
+
             // Đăng nhập user vào Laravel
             Auth::login($user);
             $request->session()->regenerate();
@@ -450,7 +478,7 @@ class AuthController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => 'Đăng nhập thành công!',
-                    'redirect' => '/dashboard'
+                    'redirect' => '/dashboard',
                 ]);
             }
 
@@ -1248,6 +1276,102 @@ class AuthController extends Controller
             }
 
             return back()->withErrors(['code' => $errorMessage])->withInput();
+        }
+    }
+
+    /**
+     * Hiển thị trang đổi mật khẩu cho người dùng được mời (chưa vào hệ thống)
+     */
+    public function showFirstLoginChangePassword()
+    {
+        if (!Session::get('first_login_email')) {
+            return redirect()->route('login')->withErrors('Phiên đổi mật khẩu đã hết hạn. Vui lòng đăng nhập lại.');
+        }
+
+        return view('app');
+    }
+
+    /**
+     * Xử lý đổi mật khẩu lần đầu cho user được mời
+     */
+    public function handleFirstLoginChangePassword(Request $request)
+    {
+        $email = Session::get('first_login_email');
+        if (!$email) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Phiên đổi mật khẩu đã hết hạn. Vui lòng đăng nhập lại.',
+                    'redirect' => route('login'),
+                ], 400);
+            }
+            return redirect()->route('login')->withErrors('Phiên đổi mật khẩu đã hết hạn. Vui lòng đăng nhập lại.');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'password' => ['required', 'string', 'min:8', 'confirmed', new StrongPassword()],
+        ], [
+            'password.required' => 'Mật khẩu mới là bắt buộc.',
+            'password.confirmed' => 'Xác nhận mật khẩu không khớp.',
+            'password.min' => 'Mật khẩu phải có ít nhất 8 ký tự.',
+        ]);
+
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Dữ liệu không hợp lệ.',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+            return back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            $this->cognitoClient->adminSetUserPassword([
+                'UserPoolId' => env('AWS_COGNITO_USER_POOL_ID'),
+                'Username' => $email,
+                'Password' => $request->password,
+                'Permanent' => true,
+            ]);
+
+            $user = User::where('email', $email)->first();
+            if ($user) {
+                $user->is_invited = false;
+                if (!$user->invited_at) {
+                    $user->invited_at = now();
+                }
+                $user->save();
+            }
+
+            Session::forget('first_login_email');
+            Session::forget('first_login_name');
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Đổi mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.',
+                    'redirect' => route('login'),
+                ]);
+            }
+
+            return redirect()->route('login')->with('success', 'Đổi mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.');
+
+        } catch (AwsException $e) {
+            Log::error('First login change password failed', [
+                'email' => $email,
+                'error_code' => $e->getAwsErrorCode(),
+                'error_message' => $e->getAwsErrorMessage(),
+            ]);
+
+            $message = 'Không thể đổi mật khẩu. Vui lòng thử lại hoặc liên hệ quản trị viên.';
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                ], 500);
+            }
+            return back()->withErrors(['password' => $message])->withInput();
         }
     }
 

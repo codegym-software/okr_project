@@ -196,21 +196,10 @@
                 <div class="step">Truy cập vào hệ thống bằng link bên dưới</div>
                 <div class="step">Đăng nhập với email và mật khẩu tạm thời</div>
                 <div class="step">Hệ thống sẽ yêu cầu bạn đổi mật khẩu mới</div>
-                <div class="step">Hoàn tất thiết lập profile cá nhân</div>
             </div>
 
             <div style="text-align: center;">
                 <a href="{{ $loginUrl }}" class="button">🚀 Đăng nhập ngay</a>
-            </div>
-
-            <div class="warning">
-                <div class="warning-title">⚠️ Lưu ý quan trọng:</div>
-                <ul>
-                    <li>Mật khẩu tạm thời có thời hạn sử dụng 7 ngày</li>
-                    <li>Bạn sẽ được yêu cầu đổi mật khẩu ngay khi đăng nhập lần đầu</li>
-                    <li>Hãy đảm bảo mật khẩu mới đáp ứng yêu cầu bảo mật</li>
-                    <li>Nếu có vấn đề, vui lòng liên hệ Admin</li>
-                </ul>
             </div>
 
             <p>Chào mừng bạn đến với {{ $appName }}! Chúng tôi rất vui được chào đón bạn tham gia đội ngũ.</p>

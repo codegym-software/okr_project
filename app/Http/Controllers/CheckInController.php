@@ -98,16 +98,20 @@ class CheckInController extends Controller
                     'is_completed' => $request->boolean('is_completed') || $request->progress_percent >= 100,
                 ]);
 
-                // Cập nhật current_value và progress_percent của Key Result
+                // Determine the new status
+                $newStatus = $keyResult->status;
+                if ($request->boolean('is_completed') || $request->progress_percent >= 100) {
+                    $newStatus = 'completed';
+                } elseif ($keyResult->status !== 'completed') {
+                    $newStatus = 'active';
+                }
+
+                // Update the Key Result in a single call
                 $keyResult->update([
                     'current_value' => $request->progress_value,
                     'progress_percent' => $request->progress_percent,
+                    'status' => $newStatus,
                 ]);
-
-                // Nếu hoàn thành, cập nhật status
-                if ($checkIn->is_completed) {
-                    $keyResult->update(['status' => 'completed']);
-                }
 
                 // Tự động cập nhật progress của Objective từ KeyResults
                 if ($keyResult->objective) {
@@ -131,12 +135,15 @@ class CheckInController extends Controller
                 : 'Cập nhật tiến độ thành công!';
 
             if ($request->expectsJson()) {
+                // After the transaction, the objective's progress is updated in the DB.
+                // We fetch the fresh objective and load its relationships to send back to the frontend.
+                $updatedObjective = $keyResult->objective->fresh()->load('keyResults.assignedUser', 'user');
+
                 return response()->json([
                     'success' => true,
                     'message' => $message,
                     'data' => [
-                        'check_in' => $checkIn,
-                        'key_result' => $keyResult->fresh()
+                        'objective' => $updatedObjective
                     ]
                 ]);
             }
