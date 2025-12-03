@@ -104,9 +104,11 @@ export default function CompanyOkrList() {
                 params.append('department_id', selectedDepartment);
             }
             
+            const linkParams = new URLSearchParams({ cycle_id: cycleFilter });
+
             const [okrRes, linksRes] = await Promise.all([
                 fetch(`/company-okrs?${params}`, { headers: { Accept: "application/json" } }),
-                fetch(`/my-links`, { headers: { Accept: "application/json" } })
+                fetch(`/api/links?${linkParams}`, { headers: { Accept: "application/json" } })
             ]);
 
             if (okrRes.ok) {

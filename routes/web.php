@@ -319,6 +319,11 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::post('/{link}/cancel', [LinkController::class, 'cancel'])->middleware('auth')->name('my-links.cancel');
     });
 
+    // All Links API
+    Route::prefix('api/links')->middleware('auth')->group(function () {
+        Route::get('/', [LinkController::class, 'getAllLinks'])->name('api.links.index');
+    });
+
     // OKR Tree View
     Route::prefix('api/okr-tree')->middleware('auth')->group(function () {
         Route::get('/company-objectives', [App\Http\Controllers\OkrTreeController::class, 'getCompanyObjectives'])->name('api.okr-tree.company-objectives');
