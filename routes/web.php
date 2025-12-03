@@ -338,6 +338,11 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         ->middleware('auth')
         ->name('okr-tree');
 
+    // Frontend page route for Archived OKRs
+    Route::get('/archived-okrs', function() { return view('app'); })
+        ->middleware('auth')
+        ->name('archived-okrs');
+
 });
 
 // Phục vụ file trong storage khi thiếu symlink public/storage

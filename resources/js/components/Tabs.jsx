@@ -1,30 +1,14 @@
 import React from "react";
 
-const Tabs = ({ showArchived, setShowArchived, setCreatingObjective }) => {
+const Tabs = ({ setCreatingObjective }) => {
   return (
     <div className="flex items-center gap-3">
       {/* Tab Hoạt động */}
       <button
-        onClick={() => setShowArchived(false)}
-        className={`px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 ${
-          !showArchived
-            ? "bg-blue-600 text-white shadow-sm"
-            : "text-gray-600 hover:bg-gray-100"
-        }`}
+        onClick={() => {}}
+        className="px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 bg-blue-600 text-white shadow-sm"
       >
         Hoạt động
-      </button>
-
-      {/* Tab Lưu trữ */}
-      <button
-        onClick={() => setShowArchived(true)}
-        className={`px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 ${
-          showArchived
-            ? "bg-blue-600 text-white shadow-sm"
-            : "text-gray-600 hover:bg-gray-100"
-        }`}
-      >
-        Lưu trữ
       </button>
 
       {/* Nút Thêm Objective */}

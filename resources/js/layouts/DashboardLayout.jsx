@@ -818,6 +818,24 @@ export default function DashboardLayout({ children, user }) {
                                         )}
                                     </div>
 
+                                    {/* Kho Lưu Trữ */}
+                                    <SidebarItem
+                                        collapsed={!sidebarOpen}
+                                        href="/archived-okrs"
+                                        label="Kho Lưu Trữ"
+                                        icon={
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="h-6 w-6"
+                                                viewBox="0 0 24 24"
+                                                fill="currentColor"
+                                            >
+                                                <path d="M20 6H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2zM4 4h16a2 2 0 012 2v2H2V6a2 2 0 012-2z" />
+                                            </svg>
+                                        }
+                                        isActive={isActive("/archived-okrs")}
+                                    />
+
                                     {/* ==================== BÁO CÁO - GỘP THÀNH 1 DROPDOWN ==================== */}
                                     {(canSeeTeamReport || canSeeCompanyReport) && (
                                     <div className="space-y-2">
