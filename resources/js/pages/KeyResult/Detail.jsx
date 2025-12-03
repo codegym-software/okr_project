@@ -147,7 +147,7 @@ const KrProgressVisualizationSection = ({ keyResult }) => {
         datasets: [
             {
                 label: 'Giá trị Hiện tại',
-                data: [start_value, ...check_ins.map(ci => ci.current_value)],
+                data: [start_value, ...check_ins.map(ci => ci.progress_value)],
                 fill: false,
                 borderColor: 'rgb(59, 130, 246)',
                 tension: 0.1,
@@ -278,7 +278,7 @@ const CommentForm = ({ krId, parentId = null, onSubmitted }) => {
 
         try {
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            const response = await fetch(`/api/key-results/${krId}/comments`, {
+            const response = await fetch(`/api/company-okrs/detail/kr/${krId}/comments`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -370,7 +370,7 @@ const KeyResultDetailPage = () => {
 
         try {
             setLoading(true);
-            const response = await fetch(`/api/key-results/${krId}?_t=${new Date().getTime()}`, {
+            const response = await fetch(`/api/company-okrs/detail/kr/${krId}?_t=${new Date().getTime()}`, {
                 headers: { 
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
