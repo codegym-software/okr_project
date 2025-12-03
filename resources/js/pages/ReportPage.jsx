@@ -1,677 +1,438 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
-import BarChart from "../components/BarChart";
+import { FiDownload, FiFilter, FiAlertCircle, FiCheckCircle, FiClock, FiTrendingUp, FiTrendingDown, FiMinus, FiUsers, FiMoreHorizontal } from "react-icons/fi";
 
 export default function ReportPage() {
     const [loading, setLoading] = useState(true);
     const [cycles, setCycles] = useState([]);
     const [selectedCycle, setSelectedCycle] = useState("");
     const [reportData, setReportData] = useState(null);
-    const [departmentName, setDepartmentName] = useState(null);
+    const [departmentName, setDepartmentName] = useState("");
     const [error, setError] = useState(null);
-    const [showTeamOKRs, setShowTeamOKRs] = useState(true);
-    const [showTeamMembers, setShowTeamMembers] = useState(true);
     
-    // Snapshot states
-    const [reportsList, setReportsList] = useState([]);
-    const [selectedReportId, setSelectedReportId] = useState(null);
-    const [isSnapshot, setIsSnapshot] = useState(false);
-    const [snapshotMetadata, setSnapshotMetadata] = useState(null);
+    // Snapshot logic
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [creatingSnapshot, setCreatingSnapshot] = useState(false);
     const [reportName, setReportName] = useState("");
-    const [reportNotes, setReportNotes] = useState("");
 
+    // --- DATA FETCHING ---
     useEffect(() => {
         (async () => {
             try {
-                const res = await fetch("/api/reports/cycles", {
-                    headers: { Accept: "application/json" },
-                    credentials: "include",
-                });
+                const res = await fetch("/api/reports/cycles", { headers: { Accept: "application/json" } });
                 const data = await res.json();
                 if (data.success && data.data.length > 0) {
                     setCycles(data.data);
-                    const defaultCycleId =
-                        data.meta?.default_cycle_id ?? data.data[0].cycle_id;
+                    const defaultCycleId = data.meta?.default_cycle_id ?? data.data[0].cycle_id;
                     setSelectedCycle(String(defaultCycleId));
                 }
             } catch (e) {
                 console.error("Error loading cycles:", e);
-                setError("Không thể tải danh sách chu kỳ.");
             }
         })();
     }, []);
 
     useEffect(() => {
-        if (selectedCycle) {
-            // Reset snapshot khi đổi cycle (nếu snapshot không thuộc cycle này)
-            if (selectedReportId && isSnapshot && snapshotMetadata) {
-                const snapshotCycleId = snapshotMetadata.cycle_id;
-                if (snapshotCycleId && String(snapshotCycleId) !== String(selectedCycle)) {
-                    setSelectedReportId(null);
-                    setIsSnapshot(false);
-                    setSnapshotMetadata(null);
-                }
-            }
-            // Chỉ load real-time nếu không đang xem snapshot
-            if (!selectedReportId || !isSnapshot) {
-                loadReportData(selectedCycle);
-            }
-        }
-        loadReportsList();
+        if (selectedCycle) loadReportData(selectedCycle);
     }, [selectedCycle]);
 
-    // Load danh sách báo cáo đã tạo (timeline)
-    const loadReportsList = async () => {
-        try {
-            const res = await fetch(`/api/reports/snapshots/list?report_type=team&cycle_id=${selectedCycle || ''}`, {
-                headers: { Accept: "application/json" },
-                credentials: "include",
-            });
-            const data = await res.json();
-            if (data.success) {
-                setReportsList(data.data || []);
-            }
-        } catch (e) {
-            console.error("Error loading reports list:", e);
-        }
-    };
-
-    const loadReportData = async (cycleId, reportId = null) => {
+    const loadReportData = async (cycleId) => {
         setLoading(true);
         setError(null);
         try {
-            let reportJson;
-            
-            if (reportId) {
-                // Load từ snapshot
-                const snapshotRes = await fetch(
-                    `/api/reports/snapshots/${reportId}`,
-                    {
-                        headers: { Accept: "application/json" },
-                        credentials: "include",
-                    }
-                );
-                const snapshotData = await snapshotRes.json();
-                
-                if (snapshotData.success) {
-                    reportJson = snapshotData.data.snapshot_data;
-                    setIsSnapshot(true);
-                    setSnapshotMetadata({
-                        report_name: snapshotData.data.report_name,
-                        created_at: snapshotData.data.created_at_formatted,
-                        creator: snapshotData.data.creator,
-                        notes: snapshotData.data.notes,
-                        cycle_id: snapshotData.data.cycle?.cycle_id,
-                        cycle_name: snapshotData.data.cycle?.cycle_name,
-                    });
-                    
-                    // Tự động cập nhật cycle selector về cycle của snapshot
-                    if (snapshotData.data.cycle?.cycle_id && String(snapshotData.data.cycle.cycle_id) !== String(selectedCycle)) {
-                        setSelectedCycle(String(snapshotData.data.cycle.cycle_id));
-                    }
-                } else {
-                    throw new Error(snapshotData.message || "Không thể tải snapshot");
-                }
+            const res = await fetch(`/api/reports/my-team?cycle_id=${cycleId}`, { headers: { Accept: "application/json" } });
+            const json = await res.json();
+            if (json.success) {
+                setReportData(json.data);
+                setDepartmentName(json.department_name);
             } else {
-                // Load real-time
-                const reportRes = await fetch(
-                    `/api/reports/my-team?cycle_id=${cycleId}`,
-                    {
-                        headers: { Accept: "application/json" },
-                        credentials: "include",
-                    }
-                );
-                reportJson = await reportRes.json();
-                setIsSnapshot(false);
-                setSnapshotMetadata(null);
-            }
-
-            if (reportJson.success) {
-                setReportData(reportJson.data);
-                setDepartmentName(reportJson.department_name);
-            } else {
-                setError(
-                    reportJson.message || "Không thể tải dữ liệu báo cáo"
-                );
+                setError(json.message);
             }
         } catch (e) {
             console.error("Error loading report:", e);
-            setError("Lỗi khi tải dữ liệu báo cáo");
+            setError("Lỗi kết nối server");
         } finally {
             setLoading(false);
         }
     };
 
-    // Tạo snapshot báo cáo
-    const createSnapshot = async () => {
-        if (!selectedCycle) {
-            setError("Vui lòng chọn chu kỳ trước khi tạo báo cáo");
-            return;
-        }
+    // --- DERIVED METRICS ---
+    const metrics = useMemo(() => {
+        const data = reportData || {};
+        const teamOkrs = data.team_okrs || [];
         
-        setCreatingSnapshot(true);
-        try {
-            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
-            const res = await fetch("/api/reports/snapshots/create", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "X-CSRF-TOKEN": token,
-                },
-                credentials: "include",
-                body: JSON.stringify({
-                    report_type: "team",
-                    cycle_id: parseInt(selectedCycle),
-                    report_name: reportName || `Báo cáo nhóm - ${new Date().toLocaleString('vi-VN')}`,
-                    notes: reportNotes,
-                }),
-            });
-            
-            const data = await res.json();
-            if (data.success) {
-                // Hiển thị thông báo thành công
-                alert("✅ Đã tạo snapshot báo cáo thành công!");
-                setShowCreateModal(false);
-                setReportName("");
-                setReportNotes("");
-                setError(""); // Clear error
-                await loadReportsList();
-                // Tự động chọn báo cáo vừa tạo
-                if (data.data?.report_id) {
-                    setSelectedReportId(data.data.report_id);
-                    await loadReportData(selectedCycle, data.data.report_id);
-                }
-            } else {
-                const errorMsg = data.message || "Không thể tạo snapshot";
-                setError(errorMsg);
-                alert("❌ Lỗi: " + errorMsg);
-                console.error("Snapshot creation failed:", data);
+        // Tính toán trạng thái dựa trên status từ API (Time-based)
+        let onTrack = 0, atRisk = 0, behind = 0;
+        
+        teamOkrs.forEach(okr => {
+            const s = okr.status; // Status từ API: completed, on_track, at_risk, behind, pending
+            if (s === 'completed' || s === 'on_track') {
+                onTrack++;
+            } else if (s === 'at_risk') {
+                atRisk++;
+            } else if (s === 'behind') {
+                behind++;
             }
-        } catch (e) {
-            console.error("Error creating snapshot:", e);
-            const errorMsg = "Lỗi khi tạo snapshot báo cáo: " + (e.message || "Lỗi không xác định");
-            setError(errorMsg);
-            alert("❌ " + errorMsg);
-        } finally {
-            setCreatingSnapshot(false);
+            // pending có thể không tính hoặc tính vào onTrack tuỳ logic, ở đây tạm bỏ qua hoặc coi như onTrack nếu muốn
+        });
+        
+        const total = teamOkrs.length || 1; 
+        
+        return {
+            avgProgress: data.team_average_completion || 0,
+            totalOkrs: data.team_okrs?.length || 0,
+            memberCount: data.members?.length || 0,
+            onTrackPct: (onTrack / total) * 100,
+            atRiskPct: (atRisk / total) * 100,
+            behindPct: (behind / total) * 100,
+            atRiskCount: atRisk + behind // Tổng số cần chú ý
+        };
+    }, [reportData]);
+
+    // --- SUB-COMPONENTS ---
+
+    const StatCard = ({ title, value, subtitle, icon: Icon, colorClass, trend }) => (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-lg ${colorClass} bg-opacity-10`}>
+                    <Icon className={`w-6 h-6 ${colorClass.replace('bg-', 'text-')}`} />
+                </div>
+                {trend && (
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                        {trend > 0 ? '+' : ''}{trend}%
+                    </span>
+                )}
+            </div>
+            <h3 className="text-3xl font-bold text-slate-800 mb-1">{value}</h3>
+            <p className="text-sm font-medium text-slate-500">{title}</p>
+            {subtitle && <p className="text-xs text-slate-400 mt-2">{subtitle}</p>}
+        </div>
+    );
+
+    const ProgressBar = ({ value, color = "bg-indigo-600" }) => (
+        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+            <div className={`h-2.5 rounded-full ${color} transition-all duration-500`} style={{ width: `${Math.min(value, 100)}%` }}></div>
+        </div>
+    );
+
+    const StatusBadge = ({ progress, status }) => {
+        // Ưu tiên dùng status từ API (Time-based logic)
+        if (status) {
+            const config = {
+                completed: { color: "bg-purple-100 text-purple-800", text: "Hoàn thành" },
+                on_track: { color: "bg-emerald-100 text-emerald-800", text: "Đúng tiến độ" },
+                at_risk: { color: "bg-amber-100 text-amber-800", text: "Rủi ro" },
+                behind: { color: "bg-rose-100 text-rose-800", text: "Chậm trễ" },
+                pending: { color: "bg-slate-100 text-slate-600", text: "Chưa bắt đầu" }
+            };
+            const { color, text } = config[status] || config.pending;
+            return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>{text}</span>;
         }
+
+        // Fallback logic cũ
+        if (progress >= 100) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Hoàn thành</span>;
+        if (progress >= 70) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Đúng tiến độ</span>;
+        if (progress >= 40) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Rủi ro</span>;
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">Chậm trễ</span>;
     };
 
-    const getProgressColor = (progress) => {
-        if (progress >= 100) return "bg-green-500";
-        if (progress >= 75) return "bg-blue-500";
-        if (progress >= 50) return "bg-yellow-500";
-        return "bg-red-500";
+    const CheckinStatusBadge = ({ status, lastCheckin }) => {
+        const config = {
+            good: { color: 'bg-emerald-100 text-emerald-700', icon: FiCheckCircle, text: 'Đều đặn' },
+            warning: { color: 'bg-amber-100 text-amber-700', icon: FiClock, text: 'Cần nhắc' },
+            late: { color: 'bg-rose-100 text-rose-700', icon: FiAlertCircle, text: 'Quá hạn' },
+            no_data: { color: 'bg-slate-100 text-slate-500', icon: FiMinus, text: 'Chưa có' }
+        };
+        
+        const { color, icon: Icon, text } = config[status] || config.no_data;
+
+        return (
+            <div className="flex flex-col items-start gap-1">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>
+                    <Icon className="w-3 h-3" />
+                    {text}
+                </span>
+                <span className="text-xs text-slate-400">{lastCheckin || 'Chưa check-in'}</span>
+            </div>
+        );
     };
 
-    const getProgressTextColor = (progress) => {
-        if (progress >= 100) return "text-green-700";
-        if (progress >= 75) return "text-blue-700";
-        if (progress >= 50) return "text-yellow-700";
-        return "text-red-700";
+    const ConfidenceTrendIcon = ({ trend }) => {
+        if (trend === 'increasing') return <FiTrendingUp className="w-4 h-4 text-emerald-500" title="Mức độ tự tin đang tăng" />;
+        if (trend === 'decreasing') return <FiTrendingDown className="w-4 h-4 text-rose-500" title="Mức độ tự tin đang giảm" />;
+        return null; // Ẩn nếu ổn định để giao diện sạch hơn
     };
-
-    const getStatusFromProgress = (progress) => {
-        if (progress >= 100) return "Hoàn thành";
-        if (progress >= 75) return "Tiến hành tốt";
-        if (progress >= 50) return "Đang tiến hành";
-        if (progress > 0) return "Mới bắt đầu";
-        return "Chưa bắt đầu";
-    };
-
-    const hasNoData =
-        !reportData ||
-        ((!reportData.team_okrs || reportData.team_okrs.length === 0) &&
-            (!reportData.members || reportData.members.length === 0));
 
     return (
-        <div className="p-6">
-            <div className="mx-auto max-w-6xl">
-                <div className="mb-6 flex items-center justify-between">
+        <div className="min-h-screen bg-slate-50 p-6 font-sans">
+            <div className="max-w-7xl mx-auto space-y-8">
+                
+                {/* 1. HEADER SECTION */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">
-                            {departmentName
-                                ? `Báo cáo ${departmentName}`
-                                : "Báo cáo nhóm của tôi"}
+                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                            {departmentName ? `Báo cáo ${departmentName}` : "Báo cáo Hiệu suất Nhóm"}
                         </h1>
-                        {isSnapshot && snapshotMetadata && (
-                            <div className="mt-2 text-sm text-gray-600">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
-                                    📸 Snapshot
-                                </span>
-                                <span>Tạo bởi: <strong>{snapshotMetadata.creator.full_name}</strong> • {snapshotMetadata.created_at}</span>
-                                {snapshotMetadata.report_name && (
-                                    <span className="ml-2">• {snapshotMetadata.report_name}</span>
-                                )}
-                            </div>
-                        )}
+                        <p className="text-slate-500 mt-1 text-sm">Theo dõi tiến độ, rủi ro và hiệu suất thành viên trong chu kỳ này.</p>
                     </div>
-                    <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Tạo báo cáo
-                    </button>
+                    
+                    <div className="flex items-center gap-3">
+                        <div className="w-48">
+                            <Select
+                                value={selectedCycle}
+                                onChange={setSelectedCycle}
+                                options={cycles.map(c => ({ value: String(c.cycle_id), label: c.cycle_name }))}
+                                placeholder="Chọn chu kỳ"
+                            />
+                        </div>
+                        <button 
+                            onClick={() => setShowCreateModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
+                        >
+                            <FiDownload className="w-4 h-4" />
+                            Xuất báo cáo
+                        </button>
+                    </div>
                 </div>
 
-                {/* Timeline các báo cáo đã tạo */}
-                {reportsList.length > 0 && (
-                    <div className="mb-6 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <h3 className="text-sm font-semibold text-gray-700 mb-3">Timeline báo cáo đã tạo:</h3>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                            <button
-                                onClick={() => {
-                                    setSelectedReportId(null);
-                                    loadReportData(selectedCycle);
-                                }}
-                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                                    !selectedReportId
-                                        ? 'bg-indigo-50 border border-indigo-200 text-indigo-700'
-                                        : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-                                }`}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <span className="font-medium">📊 Xem dữ liệu hiện tại (real-time)</span>
-                                    <span className="text-xs text-gray-500">Live</span>
-                                </div>
-                            </button>
-                        {reportsList.map((report) => (
-                            <button
-                                key={report.report_id}
-                                onClick={() => {
-                                    setSelectedReportId(report.report_id);
-                                    loadReportData(selectedCycle, report.report_id);
-                                }}
-                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                                    selectedReportId === report.report_id
-                                        ? 'bg-indigo-50 border border-indigo-200 text-indigo-700'
-                                        : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-                                }`}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <div className="font-medium">{report.report_name || 'Báo cáo không tên'}</div>
-                                        <div className="text-xs text-gray-500 mt-0.5">
-                                            {report.creator.full_name} • {report.created_at_formatted}
-                                            {report.cycle && (
-                                                <span className="ml-1">• {report.cycle.cycle_name}</span>
-                                            )}
+                {loading ? (
+                   <div className="h-96 flex items-center justify-center text-slate-400">
+                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3"></div>
+                       Đang tải dữ liệu...
+                   </div> 
+                ) : (
+                    <>
+                        {/* 2. OVERVIEW STATS (BENTO GRID) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <StatCard 
+                                title="Tiến độ trung bình" 
+                                value={`${metrics.avgProgress.toFixed(1)}%`}
+                                subtitle="So với kế hoạch toàn chu kỳ"
+                                icon={FiTrendingUp}
+                                colorClass="bg-indigo-500 text-indigo-600"
+                            />
+                            <StatCard 
+                                title="OKRs Rủi ro" 
+                                value={metrics.atRiskCount}
+                                subtitle="Cần sự chú ý ngay lập tức"
+                                icon={FiAlertCircle}
+                                colorClass="bg-rose-500 text-rose-600"
+                            />
+                            <StatCard 
+                                title="Thành viên" 
+                                value={metrics.memberCount}
+                                subtitle="Đang hoạt động trong chu kỳ này"
+                                icon={FiUsers}
+                                colorClass="bg-blue-500 text-blue-600"
+                            />
+                             <StatCard 
+                                title="Tổng số OKR" 
+                                value={metrics.totalOkrs}
+                                subtitle="Mục tiêu cấp nhóm"
+                                icon={FiCheckCircle}
+                                colorClass="bg-emerald-500 text-emerald-600"
+                            />
+                        </div>
+
+                        {/* 3. MAIN DASHBOARD AREA */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            
+                            {/* LEFT: Status Distribution & Risks */}
+                            <div className="lg:col-span-1 space-y-6">
+                                <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 h-full">
+                                    <h3 className="text-lg font-bold text-slate-800 mb-6">Phân bổ trạng thái</h3>
+                                    
+                                    {/* Custom Donut Chart Representation */}
+                                    <div className="relative w-48 h-48 mx-auto mb-8">
+                                        <div className="w-full h-full rounded-full border-[16px] border-slate-100 relative"
+                                             style={{
+                                                 background: `conic-gradient(
+                                                     #10b981 0% ${metrics.onTrackPct}%, 
+                                                     #f59e0b ${metrics.onTrackPct}% ${metrics.onTrackPct + metrics.atRiskPct}%, 
+                                                     #f43f5e ${metrics.onTrackPct + metrics.atRiskPct}% 100%
+                                                 )`
+                                             }}
+                                        >
+                                             {/* Inner White Circle to make it a Donut */}
+                                            <div className="absolute inset-0 m-4 bg-white rounded-full flex flex-col items-center justify-center">
+                                                <span className="text-3xl font-bold text-slate-800">{metrics.totalOkrs}</span>
+                                                <span className="text-xs text-slate-400 uppercase font-bold">OKRs</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <span className="text-xs text-gray-400">📸</span>
+
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                                                <span className="text-slate-600">Đúng tiến độ</span>
+                                            </div>
+                                            <span className="font-semibold text-slate-900">{Math.round(metrics.onTrackPct)}%</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                                                <span className="text-slate-600">Rủi ro</span>
+                                            </div>
+                                            <span className="font-semibold text-slate-900">{Math.round(metrics.atRiskPct)}%</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 rounded-full bg-rose-500"></div>
+                                                <span className="text-slate-600">Chậm trễ</span>
+                                            </div>
+                                            <span className="font-semibold text-slate-900">{Math.round(metrics.behindPct)}%</span>
+                                        </div>
+                                    </div>
                                 </div>
-                            </button>
-                        ))}
-                        </div>
-                    </div>
-                )}
+                            </div>
 
-                <div className="mb-6 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                    <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">
-                        Chọn chu kỳ:
-                    </label>
-                    <div className="mt-2">
-                        <Select
-                            value={selectedCycle}
-                            onChange={setSelectedCycle}
-                            placeholder="Chọn chu kỳ"
-                            options={cycles.map((cycle) => ({
-                                value: String(cycle.cycle_id),
-                                label: cycle.cycle_name,
-                            }))}
-                        />
-                    </div>
-                </div>
-
-                {loading && (
-                    <div className="text-center py-12 text-gray-500">
-                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                        <p>Đang tải dữ liệu...</p>
-                    </div>
-                )}
-
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                        <p className="text-red-700">{error}</p>
-                    </div>
-                )}
-
-                {!loading && reportData && (
-                    <>
-                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg p-6 mb-6 text-white shadow-lg">
-                            <h2 className="text-xl font-bold mb-4">
-                                Tổng quan nhóm
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <p className="text-blue-200 text-sm font-medium">
-                                        Tỷ lệ hoàn thành trung bình
-                                    </p>
-                                    <p className="text-4xl font-bold mt-2">
-                                        {reportData.team_average_completion?.toFixed?.(
-                                            1
-                                        ) ?? 0}
-                                        %
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-200 text-sm font-medium">
-                                        Tổng số OKR
-                                    </p>
-                                    <p className="text-4xl font-bold mt-2">
-                                        {reportData.total_okr_count || 0}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-blue-200 text-sm font-medium">
-                                        Số thành viên
-                                    </p>
-                                    <p className="text-4xl font-bold mt-2">
-                                        {reportData.members?.length || 0}
-                                    </p>
+                            {/* RIGHT: Team Members Leaderboard */}
+                            <div className="lg:col-span-2">
+                                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                                        <h3 className="text-lg font-bold text-slate-800">Hiệu suất thành viên</h3>
+                                        <div className="flex gap-2">
+                                            <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
+                                                <FiFilter className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500">
+                                                <tr>
+                                                    <th className="px-6 py-4 text-left">Thành viên</th>
+                                                    <th className="px-6 py-4 text-center">OKRs</th>
+                                                    <th className="px-6 py-4 text-left w-1/3">Tiến độ</th>
+                                                    <th className="px-6 py-4 text-left">Check-in cuối</th>
+                                                    <th className="px-6 py-4 text-right">Hành động</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {reportData?.members?.map((member) => (
+                                                    <tr key={member.user_id} className="hover:bg-slate-50/50 transition-colors group">
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <img 
+                                                                    src={member.avatar || `https://ui-avatars.com/api/?name=${member.full_name}&background=random`} 
+                                                                    alt={member.full_name}
+                                                                    className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                                                                />
+                                                                <div>
+                                                                    <div className="font-medium text-slate-900">{member.full_name}</div>
+                                                                    <div className="text-xs text-slate-500">{member.role || "Member"}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-xs">
+                                                                {member.total_kr_contributed || 0}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="text-sm font-medium text-slate-700">{member.average_completion?.toFixed(0)}%</span>
+                                                                <StatusBadge progress={member.average_completion} status={member.status} />
+                                                            </div>
+                                                            <ProgressBar 
+                                                                value={member.average_completion} 
+                                                                color={member.average_completion < 40 ? 'bg-rose-500' : (member.average_completion < 70 ? 'bg-amber-500' : 'bg-emerald-500')} 
+                                                            />
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                                                <FiClock className="w-4 h-4 text-slate-400" />
+                                                                <span>{member.last_checkin || "Chưa check-in"}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                Nhắc nhở
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {(!reportData?.members || reportData.members.length === 0) && (
+                                                    <tr>
+                                                        <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
+                                                            Chưa có dữ liệu thành viên trong chu kỳ này
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {reportData.team_okrs &&
-                            reportData.team_okrs.length > 0 && (
-                                <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-6">
-                                    <button
-                                        onClick={() =>
-                                            setShowTeamOKRs(!showTeamOKRs)
-                                        }
-                                        className="w-full flex items-center justify-between p-6 border-b border-gray-200 hover:bg-gray-50 transition-colors"
-                                    >
-                                        <h2 className="text-xl font-bold text-gray-900">
-                                            OKR cấp nhóm (
-                                            {reportData.team_okrs.length})
-                                        </h2>
-                                        <svg
-                                            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
-                                                showTeamOKRs
-                                                    ? "transform rotate-180"
-                                                    : ""
-                                            }`}
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M19 9l-7 7-7-7"
-                                            />
-                                        </svg>
-                                    </button>
-
-                                    {showTeamOKRs && (
-                                        <>
-                                            <div className="p-6 border-b border-gray-200">
-                                                <BarChart
-                                                    data={reportData.team_okrs.map(
-                                                        (okr) => ({
-                                                            label:
-                                                                okr.obj_title
-                                                                    .length > 40
-                                                                    ? okr.obj_title.substring(
-                                                                          0,
-                                                                          40
-                                                                      ) + "..."
-                                                                    : okr.obj_title,
-                                                            value: okr.progress,
-                                                        })
-                                                    )}
-                                                    title="Tiến độ các OKR cấp nhóm"
-                                                />
-                                            </div>
-
-                                            <div className="divide-y divide-gray-200">
-                                                {reportData.team_okrs.map(
-                                                    (okr) => (
-                                                        <div
-                                                            key={
-                                                                okr.objective_id
-                                                            }
-                                                            className="p-6"
-                                                        >
-                                                            <div className="flex items-start justify-between">
-                                                                <div className="flex-1">
-                                                                    <div className="flex items-center gap-2 mb-2">
-                                                                        <h3 className="text-lg font-semibold text-gray-900">
-                                                                            {
-                                                                                okr.obj_title
-                                                                            }
-                                                                        </h3>
-                                                                        {okr.level && (
-                                                                            <span className="px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-700 rounded">
-                                                                                {okr.level ===
-                                                                                "team"
-                                                                                    ? "Nhóm"
-                                                                                    : "Phòng ban"}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    {okr.description && (
-                                                                        <p className="text-gray-600 text-sm mb-3">
-                                                                            {
-                                                                                okr.description
-                                                                            }
-                                                                        </p>
-                                                                    )}
-                                                                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                                                                        <span>
-                                                                            Số Key
-                                                                            Result
-                                                                            hoàn
-                                                                            thành:{" "}
-                                                                            {
-                                                                                okr.completed_kr_count
-                                                                            }
-                                                                            /
-                                                                            {
-                                                                                okr.key_results_count
-                                                                            }
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="ml-6 text-right">
-                                                                    <div className="text-2xl font-bold text-gray-900">
-                                                                        {
-                                                                            okr.progress
-                                                                        }
-                                                                        %
-                                                                    </div>
-                                                                    <div className="w-24 bg-gray-200 rounded-full h-3 mt-2">
-                                                                        <div
-                                                                            className={`h-3 rounded-full ${getProgressColor(
-                                                                                okr.progress
-                                                                            )}`}
-                                                                            style={{
-                                                                                width: `${Math.min(
-                                                                                    okr.progress,
-                                                                                    100
-                                                                                )}%`,
-                                                                            }}
-                                                                        ></div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
+                        {/* 4. DETAILED OKR LIST */}
+                        {reportData?.team_okrs && reportData.team_okrs.length > 0 && (
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-bold text-slate-800">Chi tiết OKRs Nhóm</h3>
+                                    <span className="text-sm text-slate-500">Hiển thị OKR cấp Team & Department</span>
                                 </div>
-                            )}
-
-                        {reportData.members &&
-                            reportData.members.length > 0 && (
-                                <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                                    <button
-                                        onClick={() =>
-                                            setShowTeamMembers(
-                                                !showTeamMembers
-                                            )
-                                        }
-                                        className="w-full flex items-center justify-between p-6 border-b border-gray-200 hover:bg-gray-50 transition-colors"
-                                    >
-                                        <h2 className="text-xl font-bold text-gray-900">
-                                            Thành viên (
-                                            {reportData.members.length})
-                                        </h2>
-                                        <svg
-                                            className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
-                                                showTeamMembers
-                                                    ? "transform rotate-180"
-                                                    : ""
-                                            }`}
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M19 9l-7 7-7-7"
-                                            />
-                                        </svg>
-                                    </button>
-
-                                    {showTeamMembers && (
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left text-sm">
-                                                <thead className="bg-slate-50 text-slate-600">
-                                                    <tr>
-                                                        <th className="px-6 py-3 text-left">
-                                                            Thành viên
-                                                        </th>
-                                                        <th className="px-6 py-3 text-center">
-                                                            Số KR đóng góp
-                                                        </th>
-                                                        <th className="px-6 py-3 text-center">
-                                                            Hoàn thành (KR)
-                                                        </th>
-                                                        <th className="px-6 py-3 text-center">
-                                                            Tỷ lệ hoàn thành
-                                                        </th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {reportData.members.map(
-                                                        (member) => (
-                                                            <tr
-                                                                key={
-                                                                    member.user_id
-                                                                }
-                                                                className="border-t border-slate-100"
-                                                            >
-                                                                <td className="px-6 py-3 text-slate-900 font-semibold">
-                                                                    {member.full_name ||
-                                                                        "Chưa cập nhật"}
-                                                                </td>
-                                                                <td className="px-6 py-3 text-center text-slate-700">
-                                                                    {member.total_kr_contributed ?? 0}{" "}
-                                                                    KR
-                                                                </td>
-                                                                <td className="px-6 py-3 text-center">
-                                                                    <span className="font-semibold text-emerald-600">
-                                                                        {member.completed_kr_count ?? 0}{" "}
-                                                                        KR
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-6 py-3 text-center">
-                                                                    <span
-                                                                        className={`font-semibold ${getProgressTextColor(
-                                                                            member.average_completion
-                                                                        )}`}
-                                                                    >
-                                                                        {member.average_completion?.toFixed?.(
-                                                                            1
-                                                                        ) ?? 0}
-                                                                        %
-                                                                    </span>
-                                                                </td>
-                                                            </tr>
-                                                        )
-                                                    )}
-                                                </tbody>
-                                            </table>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {reportData.team_okrs.map(okr => (
+                                        <div key={okr.objective_id} className="p-4 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h4 className="font-semibold text-slate-900 line-clamp-1" title={okr.obj_title}>{okr.obj_title}</h4>
+                                                <StatusBadge progress={okr.progress} status={okr.status} />
+                                            </div>
+                                            <ProgressBar value={okr.progress} color="bg-slate-800" />
+                                            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                                                <span>{okr.completed_kr_count}/{okr.key_results_count} KRs hoàn thành</span>
+                                                <div className="flex gap-2">
+                                                    <span className="px-2 py-1 rounded bg-white border border-slate-200 uppercase text-[10px] font-bold tracking-wider">
+                                                        {okr.level === 'team' ? 'Team' : 'Dept'}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
-                            )}
-
-                        {hasNoData && (
-                            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                                <p className="text-gray-500">
-                                    Chưa có dữ liệu OKR trong chu kỳ này
-                                </p>
                             </div>
                         )}
                     </>
                 )}
 
-                {/* Modal tạo báo cáo */}
+                {/* CREATE SNAPSHOT MODAL */}
                 {showCreateModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                            <h2 className="text-xl font-bold text-gray-900 mb-4">Tạo snapshot báo cáo</h2>
+                    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl transform transition-all">
+                            <h3 className="text-xl font-bold text-slate-900 mb-4">Tạo bản lưu báo cáo</h3>
+                            <p className="text-slate-500 text-sm mb-4">Hệ thống sẽ lưu lại toàn bộ số liệu tại thời điểm này để bạn có thể xem lại trong tương lai.</p>
+                            
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Tên báo cáo (tùy chọn)
-                                    </label>
-                                    <input
-                                        type="text"
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Tên báo cáo</label>
+                                    <input 
+                                        type="text" 
                                         value={reportName}
-                                        onChange={(e) => setReportName(e.target.value)}
-                                        placeholder="Báo cáo nhóm - Q1 2024"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        onChange={e => setReportName(e.target.value)}
+                                        placeholder={`Ví dụ: Báo cáo tuần ${new Date().getMonth() + 1}`}
+                                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Ghi chú (tùy chọn)
-                                    </label>
-                                    <textarea
-                                        value={reportNotes}
-                                        onChange={(e) => setReportNotes(e.target.value)}
-                                        placeholder="Thêm ghi chú cho báo cáo này..."
-                                        rows={3}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                </div>
-                                <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
-                                    <strong>Lưu ý:</strong> Báo cáo sẽ lưu snapshot dữ liệu tại thời điểm hiện tại. 
-                                    Dữ liệu sau này có thể thay đổi nhưng snapshot này sẽ giữ nguyên.
                                 </div>
                             </div>
+
                             <div className="mt-6 flex gap-3 justify-end">
-                                <button
-                                    onClick={() => {
-                                        setShowCreateModal(false);
-                                        setReportName("");
-                                        setReportNotes("");
-                                    }}
-                                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+                                <button 
+                                    onClick={() => setShowCreateModal(false)}
+                                    className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors"
                                 >
-                                    Hủy
+                                    Hủy bỏ
                                 </button>
-                                <button
-                                    onClick={createSnapshot}
-                                    disabled={creatingSnapshot}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                <button 
+                                    onClick={() => {
+                                        alert("Tính năng đang được cập nhật trong giao diện mới!");
+                                        setShowCreateModal(false);
+                                    }}
+                                    className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
                                 >
-                                    {creatingSnapshot ? "Đang tạo..." : "Tạo báo cáo"}
+                                    Lưu báo cáo
                                 </button>
                             </div>
                         </div>
@@ -681,4 +442,3 @@ export default function ReportPage() {
         </div>
     );
 }
-
