@@ -514,6 +514,84 @@ export default function ObjectivesPage() {
         [items]
     );
 
+    // Lọc dữ liệu hiển thị cho bảng (không ảnh hưởng tree)
+    // - Manager/Admin/CEO: giữ nguyên
+    // - Member ở chế độ "levels": chỉ thấy các KR/O có liên quan tới mình
+    const displayItems = useMemo(() => {
+        if (!Array.isArray(sortedItems)) return [];
+        if (!currentUser) return sortedItems;
+
+        const roleName = currentUser.role?.role_name?.toLowerCase();
+        const userId = currentUser.user_id;
+
+        // Chỉ giới hạn cho member khi xem theo cấp độ (levels)
+        if (roleName !== "member" || viewMode !== "levels") {
+            return sortedItems;
+        }
+
+        const isKrRelatedToUser = (kr) => {
+            const assignedId =
+                kr.assigned_to ||
+                kr.assigned_user?.user_id ||
+                kr.assignedUser?.user_id;
+
+            if (String(assignedId) === String(userId)) return true;
+
+            // Nếu KR có linked_objectives, check xem có objective/KR nào của user không
+            if (Array.isArray(kr.linked_objectives)) {
+                return kr.linked_objectives.some((linkedObj) => {
+                    if (
+                        String(linkedObj.user_id) === String(userId) ||
+                        String(linkedObj.user?.user_id) === String(userId)
+                    ) {
+                        return true;
+                    }
+
+                    if (Array.isArray(linkedObj.key_results)) {
+                        return linkedObj.key_results.some((linkedKr) => {
+                            const linkedAssignedId =
+                                linkedKr.assigned_to ||
+                                linkedKr.assigned_user?.user_id ||
+                                linkedKr.assignedUser?.user_id;
+                            return (
+                                String(linkedAssignedId) === String(userId)
+                            );
+                        });
+                    }
+
+                    return false;
+                });
+            }
+
+            return false;
+        };
+
+        return sortedItems
+            .map((obj) => {
+                const isPersonLevel = obj.level === "person";
+
+                // Luôn giữ lại Objective cấp cao hơn làm context (company/unit/team),
+                // nhưng chỉ hiển thị các KR liên quan tới user.
+                const filteredKRs = (obj.key_results || []).filter((kr) =>
+                    isKrRelatedToUser(kr)
+                );
+
+                const hasRelevantKR = filteredKRs.length > 0;
+
+                // Với objective cấp cá nhân: chỉ giữ nếu chính user liên quan,
+                // còn không thì ẩn khỏi bảng.
+                if (isPersonLevel && !hasRelevantKR) {
+                    return null;
+                }
+
+                return {
+                    ...obj,
+                    key_results: filteredKRs,
+                };
+            })
+            .filter(Boolean);
+    }, [sortedItems, currentUser, viewMode]);
+
     const handleCheckInSuccess = (responseData) => {
         const updatedObjective = responseData.objective;
 
@@ -616,7 +694,7 @@ export default function ObjectivesPage() {
                 onClose={() => setToast((prev) => ({ ...prev, message: "" }))}
             />
             <ObjectiveList
-                items={sortedItems}
+                items={displayItems}
                 setItems={setItems}
                 departments={departments}
                 cyclesList={cyclesList}
