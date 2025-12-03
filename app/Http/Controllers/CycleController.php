@@ -32,6 +32,29 @@ class CycleController extends Controller
             'description' => 'nullable|string',
         ]);
 
+        // Không cho phép tạo chu kỳ có khoảng thời gian trùng với chu kỳ khác
+        $start = Carbon::parse($request->input('start_date'))->startOfDay();
+        $end = Carbon::parse($request->input('end_date'))->endOfDay();
+
+        $hasOverlap = Cycle::where(function ($q) use ($start, $end) {
+                // start hoặc end nằm trong khoảng của chu kỳ khác
+                $q->whereBetween('start_date', [$start, $end])
+                  ->orWhereBetween('end_date', [$start, $end])
+                  // hoặc chu kỳ mới bao trùm chu kỳ cũ
+                  ->orWhere(function ($q2) use ($start, $end) {
+                      $q2->where('start_date', '<=', $start)
+                         ->where('end_date', '>=', $end);
+                  });
+            })->exists();
+
+        if ($hasOverlap) {
+            $message = 'Khoảng thời gian của chu kỳ bị trùng với một chu kỳ khác. Vui lòng chọn khoảng thời gian không trùng.';
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+            return back()->withErrors(['date_range' => $message])->withInput();
+        }
+
         $cycle = Cycle::create($request->all());
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => $cycle, 'message' => 'Tạo chu kỳ thành công!']);
@@ -40,8 +63,8 @@ class CycleController extends Controller
     }
 
     public function show(Request $request, Cycle $cycle) {
-        // Eager load objectives, user và keyResults để FE không phải gọi thêm
-        $cycle->load(['objectives.user', 'objectives.keyResults']);
+        // Eager load objectives, user và keyResults với assignedUser để FE không phải gọi thêm
+        $cycle->load(['objectives.user', 'objectives.department', 'objectives.keyResults.assignee']);
         $objectives = $cycle->objectives;
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => compact('cycle','objectives')]);
@@ -74,6 +97,29 @@ class CycleController extends Controller
         if (isset($data['start_date']) && isset($data['end_date'])) {
             if ($data['start_date'] > $data['end_date']) {
                 return response()->json(['success' => false, 'message' => 'Ngày kết thúc phải sau hoặc bằng ngày bắt đầu'], 422);
+            }
+
+            // Kiểm tra trùng khoảng thời gian với các chu kỳ khác (bỏ qua chính nó)
+            $start = Carbon::parse($data['start_date'])->startOfDay();
+            $end = Carbon::parse($data['end_date'])->endOfDay();
+
+            $hasOverlap = Cycle::where('cycle_id', '!=', $cycle->cycle_id)
+                ->where(function ($q) use ($start, $end) {
+                    $q->whereBetween('start_date', [$start, $end])
+                      ->orWhereBetween('end_date', [$start, $end])
+                      ->orWhere(function ($q2) use ($start, $end) {
+                          $q2->where('start_date', '<=', $start)
+                             ->where('end_date', '>=', $end);
+                      });
+                })
+                ->exists();
+
+            if ($hasOverlap) {
+                $message = 'Khoảng thời gian của chu kỳ bị trùng với một chu kỳ khác. Vui lòng chọn khoảng thời gian không trùng.';
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => $message], 422);
+                }
+                return back()->withErrors(['date_range' => $message])->withInput();
             }
         }
 

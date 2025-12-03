@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Badge, Modal, Toast } from "../components/ui";
 import DateInputComponent from "../components/DateInput";
+import ObjectiveDetailModal from "../components/ObjectiveDetailModal";
 import { useAuth } from "../hooks/useAuth";
 import { AdminOnly } from "../components/AdminOnly";
 import { 
@@ -16,7 +17,8 @@ import {
     FiCheckCircle,
     FiActivity,
     FiPieChart,
-    FiTarget
+    FiTarget,
+    FiUser
 } from "react-icons/fi";
 
 // --- Helper Functions ---
@@ -54,7 +56,7 @@ const toInputDate = (v) => {
 
 // --- Components ---
 
-function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
+function CycleFormModal({ open, onClose, onSubmit, initialData, title, existingCycles = [] }) {
     const [form, setForm] = useState({
         cycle_name: "",
         start_date: "",
@@ -109,6 +111,17 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                         required
                     />
                 </div>
+                <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Mô tả (tuỳ chọn)
+                    </label>
+                    <textarea
+                        value={form.description}
+                        onChange={(e) => setForm({ ...form, description: e.target.value })}
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all resize-none"
+                        style={{ minHeight: '46px' }}
+                    />
+                </div>
                 <div className="grid gap-6 md:grid-cols-2">
                     <div>
                         <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -117,7 +130,34 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                         <DateInputComponent
                             name="start_date"
                             value={form.start_date}
-                            onChange={(val) => setForm({...form, start_date: val})}
+                            onChange={(val) => setForm({ ...form, start_date: val })}
+                            isDateDisabled={(date) => {
+                                // Disable ngày thuộc các chu kỳ khác (tránh trùng khoảng)
+                                const currentId = initialData?.cycle_id || initialData?.id || null;
+                                const d = new Date(
+                                    date.getFullYear(),
+                                    date.getMonth(),
+                                    date.getDate()
+                                ).getTime();
+                                return existingCycles.some((c) => {
+                                    const cid = c.cycle_id || c.id;
+                                    if (currentId && cid === currentId) return false;
+                                    const start = parseDateSafe(c.start_date);
+                                    const end = parseDateSafe(c.end_date);
+                                    if (!start || !end) return false;
+                                    const s = new Date(
+                                        start.getFullYear(),
+                                        start.getMonth(),
+                                        start.getDate()
+                                    ).getTime();
+                                    const e = new Date(
+                                        end.getFullYear(),
+                                        end.getMonth(),
+                                        end.getDate()
+                                    ).getTime();
+                                    return d >= s && d <= e;
+                                });
+                            }}
                             required
                         />
                     </div>
@@ -128,40 +168,34 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                         <DateInputComponent
                             name="end_date"
                             value={form.end_date}
-                            onChange={(val) => setForm({...form, end_date: val})}
+                            onChange={(val) => setForm({ ...form, end_date: val })}
+                            isDateDisabled={(date) => {
+                                const currentId = initialData?.cycle_id || initialData?.id || null;
+                                const d = new Date(
+                                    date.getFullYear(),
+                                    date.getMonth(),
+                                    date.getDate()
+                                ).getTime();
+                                return existingCycles.some((c) => {
+                                    const cid = c.cycle_id || c.id;
+                                    if (currentId && cid === currentId) return false;
+                                    const start = parseDateSafe(c.start_date);
+                                    const end = parseDateSafe(c.end_date);
+                                    if (!start || !end) return false;
+                                    const s = new Date(
+                                        start.getFullYear(),
+                                        start.getMonth(),
+                                        start.getDate()
+                                    ).getTime();
+                                    const e = new Date(
+                                        end.getFullYear(),
+                                        end.getMonth(),
+                                        end.getDate()
+                                    ).getTime();
+                                    return d >= s && d <= e;
+                                });
+                            }}
                             required
-                        />
-                    </div>
-                </div>
-                <div className="grid gap-6 md:grid-cols-2">
-                    <div>
-                        <label className="mb-2 block text-sm font-semibold text-slate-700">
-                            Trạng thái
-                        </label>
-                        <div className="relative">
-                            <select
-                                value={form.status}
-                                onChange={(e) => setForm({...form, status: e.target.value})}
-                                className="w-full appearance-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all"
-                            >
-                                {/* CHỈ CÒN ACTIVE VÀ INACTIVE */}
-                                <option value="active">Hoạt động (Active)</option>
-                                <option value="inactive">Đóng (Inactive)</option>
-                            </select>
-                            <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="mb-2 block text-sm font-semibold text-slate-700">
-                            Mô tả (tuỳ chọn)
-                        </label>
-                        <textarea
-                            value={form.description}
-                            onChange={(e) => setForm({...form, description: e.target.value})}
-                            className="h-[46px] w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all resize-none"
-                            style={{ minHeight: '46px' }}
                         />
                     </div>
                 </div>
@@ -175,9 +209,9 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                     </button>
                     <button
                         type="submit"
-                        className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 transition-colors shadow-none"
+                        className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors shadow-none"
                     >
-                        Lưu thay đổi
+                        {title && title.toLowerCase().includes("tạo") ? "Tạo" : "Lưu thay đổi"}
                     </button>
                 </div>
             </form>
@@ -334,7 +368,7 @@ export default function CyclesPanel() {
     const [krs, setKrs] = useState({});
     const [isDetail, setIsDetail] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
-    const [activeTab, setActiveTab] = useState('current');
+    const [activeTab, setActiveTab] = useState("current");
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editingCycle, setEditingCycle] = useState(null);
@@ -361,7 +395,17 @@ export default function CyclesPanel() {
         }
     };
 
+    // Đọc tab từ query khi mount
     useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get("tab");
+            if (tab === "history" || tab === "current") {
+                setActiveTab(tab);
+            }
+        } catch (e) {
+            console.error("Failed to read cycles tab from query", e);
+        }
         fetchCycles();
     }, []);
 
@@ -420,6 +464,17 @@ export default function CyclesPanel() {
         window.history.pushState({}, "", "/cycles");
         window.dispatchEvent(new Event("popstate"));
     };
+
+    // Đồng bộ activeTab -> query ?tab=
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set("tab", activeTab);
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            console.error("Failed to sync cycles tab", e);
+        }
+    }, [activeTab]);
 
     const handleCreate = async (data) => {
         try {
@@ -564,6 +619,7 @@ export default function CyclesPanel() {
                 onClose={() => setCreateModalOpen(false)} 
                 onSubmit={handleCreate} 
                 title="Tạo chu kỳ mới"
+                existingCycles={cycles}
             />
             <CycleFormModal 
                 open={editModalOpen} 
@@ -571,6 +627,7 @@ export default function CyclesPanel() {
                 onSubmit={handleUpdate} 
                 initialData={editingCycle}
                 title="Chỉnh sửa chu kỳ"
+                existingCycles={cycles}
             />
 
             <div className="mx-auto max-w-6xl px-4 py-6">
@@ -588,9 +645,9 @@ export default function CyclesPanel() {
                             <AdminOnly permission="canManageCycles">
                                 <button 
                                     onClick={() => setCreateModalOpen(true)}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm flex items-center gap-2"
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm"
                                 >
-                                    <FiPlus /> Tạo chu kỳ
+                                    Tạo chu kỳ
                                 </button>
                             </AdminOnly>
                         )}
@@ -601,21 +658,21 @@ export default function CyclesPanel() {
                     <div className="mb-6 w-full border-b border-slate-200">
                         <div className="flex items-center gap-6">
                             <button
-                                onClick={() => setActiveTab('current')}
+                                onClick={() => setActiveTab("current")}
                                 className={`relative pb-3 text-sm font-medium transition-all ${
-                                    activeTab === 'current' 
-                                    ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
-                                    : 'text-slate-500 hover:text-slate-700'
+                                    activeTab === "current"
+                                        ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600"
+                                        : "text-slate-500 hover:text-slate-700"
                                 }`}
                             >
                                 Hiện tại ({currentCycles.length})
                             </button>
                             <button
-                                onClick={() => setActiveTab('history')}
+                                onClick={() => setActiveTab("history")}
                                 className={`relative pb-3 text-sm font-medium transition-all ${
-                                    activeTab === 'history' 
-                                    ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
-                                    : 'text-slate-500 hover:text-slate-700'
+                                    activeTab === "history"
+                                        ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600"
+                                        : "text-slate-500 hover:text-slate-700"
                                 }`}
                             >
                                 Lịch sử ({historyCycles.length})
@@ -686,19 +743,72 @@ export default function CyclesPanel() {
 function CycleDetailView({ detail, krs, formatDate }) {
     const [openObj, setOpenObj] = useState({});
     const [activeObjTab, setActiveObjTab] = useState('company'); // 'company', 'department', 'personal'
+    const [selectedObjective, setSelectedObjective] = useState(null);
     const toggleObj = (id) => setOpenObj(prev => ({ ...prev, [id]: !prev[id] }));
+    
+    const formatPercent = (value) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? `${n.toFixed(1)}%` : "0%";
+    };
 
     // Safe check cho list objectives
     const objectives = detail?.objectives || [];
+    
+    // Đọc query parameter khi component mount hoặc detail thay đổi
+    useEffect(() => {
+        if (!objectives.length) return;
+        
+        try {
+            const url = new URL(window.location.href);
+            const objectiveId = url.searchParams.get('objective_id');
+            
+            if (objectiveId) {
+                const obj = objectives.find(o => String(o.objective_id) === String(objectiveId));
+                if (obj) {
+                    const objWithKRs = {
+                        ...obj,
+                        key_results: krs[obj.objective_id] || []
+                    };
+                    setSelectedObjective(objWithKRs);
+                    
+                    // Tự động chuyển tab phù hợp
+                    if (obj.level === 'unit') {
+                        setActiveObjTab('department');
+                    } else if (obj.level === 'person') {
+                        setActiveObjTab('personal');
+                    } else {
+                        setActiveObjTab('company');
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Failed to read objective_id from URL", e);
+        }
+    }, [objectives, krs]);
+    
+    // Đồng bộ selectedObjective với URL query parameter
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (selectedObjective) {
+                url.searchParams.set('objective_id', String(selectedObjective.objective_id));
+            } else {
+                url.searchParams.delete('objective_id');
+            }
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            console.error("Failed to sync objective_id to URL", e);
+        }
+    }, [selectedObjective]);
     
     // Tính toán thống kê đơn giản
     const totalObjectives = objectives.length;
     const totalKRs = objectives.reduce((acc, obj) => acc + (krs[obj.objective_id]?.length || 0), 0);
 
-    // Phân loại Objectives
+    // Phân loại Objectives - chỉ dựa trên trường level
     const companyObjs = objectives.filter(o => !o.level || o.level === 'company');
-    const deptObjs = objectives.filter(o => o.level === 'department' || (o.department_id && !o.user_id));
-    const personalObjs = objectives.filter(o => o.level === 'personal' || o.user_id);
+    const deptObjs = objectives.filter(o => o.level === 'unit');
+    const personalObjs = objectives.filter(o => o.level === 'person');
 
     const renderObjectivesList = (list, emptyMsg) => {
         if (list.length === 0) {
@@ -718,38 +828,39 @@ function CycleDetailView({ detail, krs, formatDate }) {
             return (
                 <div key={obj.objective_id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md hover:border-blue-200 mb-4">
                     {/* Objective Header */}
-                    <div 
-                        onClick={() => toggleObj(obj.objective_id)}
-                        className="flex cursor-pointer items-center justify-between px-6 py-5 bg-white select-none"
-                    >
-                        <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-between px-6 py-5 bg-white select-none">
+                        <div 
+                            onClick={() => toggleObj(obj.objective_id)}
+                            className="flex items-center gap-4 flex-1 cursor-pointer"
+                        >
                             <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-bold text-lg transition-colors ${isOpen ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100'}`}>
                                 {(obj.obj_title || "O")[0].toUpperCase()}
                             </div>
                             <div>
                                 <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-1">{obj.obj_title}</h4>
-                                <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 flex-wrap">
-                                    <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-600 border border-slate-200 uppercase tracking-wider text-[10px]">
-                                        {obj.level || 'Company'}
-                                    </span>
-                                    
-                                    {/* Hiển thị thông tin User/Department nếu có */}
-                                    {obj.user && (
-                                        <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-blue-700 border border-blue-100">
-                                            <span className="font-medium">{obj.user.full_name}</span>
-                                        </span>
-                                    )}
-                                    
-                                    {obj.department && (
-                                        <span className="flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-purple-700 border border-purple-100">
-                                            <span className="font-medium">{obj.department.d_name}</span>
-                                        </span>
-                                    )}
-                                </div>
                             </div>
                         </div>
-                        <div className={`text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
-                            <FiChevronDown size={20} />
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const objWithKRs = {
+                                        ...obj,
+                                        key_results: krs[obj.objective_id] || []
+                                    };
+                                    setSelectedObjective(objWithKRs);
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Xem chi tiết"
+                            >
+                                Chi tiết
+                            </button>
+                            <div 
+                                onClick={() => toggleObj(obj.objective_id)}
+                                className={`cursor-pointer text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}
+                            >
+                                <FiChevronDown size={20} />
+                            </div>
                         </div>
                     </div>
                     
@@ -757,24 +868,60 @@ function CycleDetailView({ detail, krs, formatDate }) {
                     {isOpen && (
                         <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-4 animate-in slide-in-from-top-2 duration-200">
                             <div className="space-y-3 pl-0 sm:pl-16">
-                                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
                                     <span>Key Results</span>
-                                    <span>Trạng thái</span>
                                 </div>
                                 
-                                {(krs[obj.objective_id] || []).map(kr => (
-                                    <div key={kr.kr_id || kr.id} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-blue-300 hover:shadow-sm">
-                                        <div className="mt-0.5 text-slate-400">
-                                            <FiCheckCircle size={16} className={kr.status === 'completed' ? 'text-emerald-500' : ''} />
+                                {(krs[obj.objective_id] || []).map(kr => {
+                                    const progress = Number(kr.progress_percent) || 0;
+                                    const progressColor = progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-blue-500' : 'bg-amber-500';
+                                    
+                                    return (
+                                        <div 
+                                            key={kr.kr_id || kr.id} 
+                                            onClick={() => {
+                                                const objWithKRs = {
+                                                    ...obj,
+                                                    key_results: krs[obj.objective_id] || []
+                                                };
+                                                setSelectedObjective(objWithKRs);
+                                            }}
+                                            className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-all hover:border-blue-300 hover:shadow-sm cursor-pointer"
+                                        >
+                                            <div className="mt-0.5 text-slate-400">
+                                                <FiCheckCircle size={16} className={kr.status === 'completed' ? 'text-emerald-500' : ''} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-slate-800 leading-snug mb-2">{kr.kr_title}</p>
+                                                
+                                                {/* Progress Bar */}
+                                                <div className="relative w-full bg-slate-200 rounded-full h-2 mb-2">
+                                                    <div
+                                                        className={`${progressColor} h-2 rounded-full transition-all`}
+                                                        style={{
+                                                            width: `${Math.min(100, Math.max(0, progress))}%`
+                                                        }}
+                                                    />
+                                                    {progress > 0 && (
+                                                        <span className="absolute left-1 top-0 text-white text-[10px] font-semibold z-10 leading-tight">
+                                                            {formatPercent(progress)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* Assigned User */}
+                                                {(kr.assignee || kr.assigned_to_user) && (
+                                                    <div className="flex items-center gap-1.5 text-xs text-slate-600 mt-1.5">
+                                                        <FiUser size={12} className="text-slate-400" />
+                                                        <span className="truncate">
+                                                            {(kr.assignee || kr.assigned_to_user)?.full_name || (kr.assignee || kr.assigned_to_user)?.name}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-slate-800 leading-snug">{kr.kr_title}</p>
-                                        </div>
-                                        <Badge color={kr.status === 'completed' ? 'emerald' : 'slate'}>
-                                            {kr.status || 'active'}
-                                        </Badge>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 
                                 {(krs[obj.objective_id] || []).length === 0 && (
                                     <div className="flex items-center gap-2 text-sm italic text-slate-400 px-2 py-2 border border-dashed border-slate-300 rounded-lg justify-center">
@@ -910,6 +1057,14 @@ function CycleDetailView({ detail, krs, formatDate }) {
                     {activeObjTab === 'personal' && renderObjectivesList(personalObjs, "Chưa có mục tiêu cấp Cá nhân nào.")}
                 </div>
             </div>
+            
+            {/* Objective Detail Modal */}
+            {selectedObjective && (
+                <ObjectiveDetailModal
+                    objective={selectedObjective}
+                    onClose={() => setSelectedObjective(null)}
+                />
+            )}
         </div>
     );
 }
