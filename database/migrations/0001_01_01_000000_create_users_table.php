@@ -32,11 +32,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // ✅ Thêm Foreign Key Constraints SAU khi tạo bảng
-        Schema::table('users', function (Blueprint $table) {
-            $table->foreign('department_id')->references('department_id')->on('departments')->nullOnDelete();
-            $table->foreign('role_id')->references('role_id')->on('roles')->nullOnDelete();
-        });
+
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->string('email')->primary();

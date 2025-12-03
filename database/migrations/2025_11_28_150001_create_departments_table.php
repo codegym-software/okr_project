@@ -12,7 +12,15 @@ return new class extends Migration
             $table->id('department_id');
             $table->string('d_name');
             $table->text('d_description')->nullable();
+            $table->string('type')->nullable(); // 'phòng ban' or 'đội nhóm'
+            $table->unsignedBigInteger('parent_department_id')->nullable(); // For sub-teams
             $table->timestamps();
+
+            // Foreign key for parent department
+            $table->foreign('parent_department_id')
+                ->references('department_id')
+                ->on('departments')
+                ->onDelete('cascade');
         });
     }
 

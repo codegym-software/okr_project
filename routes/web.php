@@ -300,6 +300,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.okr-company');
         Route::get('/okr-company/export.csv', [\App\Http\Controllers\ReportController::class, 'exportCompanyOkrCsv'])
             ->name('api.reports.okr-company.export.csv');
+        Route::post('/snapshot', [\App\Http\Controllers\ReportSnapshotController::class, 'store'])
+            ->name('api.reports.snapshot.store');
+        Route::get('/snapshots', [\App\Http\Controllers\ReportSnapshotController::class, 'index'])
+            ->name('api.reports.snapshots.index');
+        Route::get('/snapshots/{id}', [\App\Http\Controllers\ReportSnapshotController::class, 'show'])
+            ->name('api.reports.snapshots.show');
     });
 
     // Frontend page route for Reports (SPA) - Admin hoặc CEO
