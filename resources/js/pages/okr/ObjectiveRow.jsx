@@ -1,5 +1,6 @@
 // src/components/okr/ObjectiveRow.jsx
 import React from "react";
+import { Link } from '@inertiajs/react';
 import { FaBullseye } from "react-icons/fa";
 import AlignmentBadge from "./AlignmentBadge";
 import KeyResultRow from "./KeyResultRow";
@@ -75,9 +76,12 @@ export default function ObjectiveRow({
                                 )}
                             </div>
                             <FaBullseye className="h-5 w-5 text-indigo-600 flex-shrink-0" title="Objective"/>
-                            <span className="font-semibold text-slate-900 truncate text-lg">
+                            <a 
+                                href={`/company-okrs/detail/${obj.objective_id}`}
+                                className="font-semibold text-slate-900 truncate text-lg hover:text-blue-600 hover:underline"
+                            >
                                 {obj.obj_title}
-                            </span>
+                            </a>
                         </div>
                         <AlignmentBadge
                             link={linkBadge}

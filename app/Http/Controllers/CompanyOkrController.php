@@ -103,30 +103,26 @@ class CompanyOkrController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        try {
-            $objective = Objective::with([
-                    'keyResults' => fn($q) => $q->active()->with('assignedUser'),
-                    'department',
-                    'cycle',
-                    'user',
-                    'assignments.user'
-                ])
-                ->findOrFail($id);
+        $objective = Objective::with([
+            'user',
+            'department',
+            'cycle',
+            'keyResults' => fn ($q) => $q->with(['assignedUser', 'checkIns.user'])->orderBy('created_at'),
+            'childObjectives.sourceObjective.user',
+            'childObjectives.sourceObjective.department',
+            'sourceLinks.targetObjective.user',
+            'sourceLinks.targetObjective.department',
+            'comments'
+        ])->findOrFail($id);
 
-            $user = Auth::user();
-            if (!$user->isAdmin() && $objective->level !== 'company' 
-                && ($objective->level === 'unit' && $objective->department_id !== $user->department_id)) {
-                return response()->json(['success' => false, 'message' => 'Không có quyền xem'], 403);
-            }
-
-            return response()->json(['success' => true, 'data' => $objective]);
-
-        } catch (\Exception $e) {
-            Log::error('CompanyOkrController::show error', ['id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Lỗi tải chi tiết'], 500);
+        $user = Auth::user();
+        if (!$user->isAdmin() && $objective->level !== 'company' 
+            && ($objective->level === 'unit' && $objective->department_id !== $user->department_id)) {
+            return response()->json(['success' => false, 'message' => 'Không có quyền xem'], 403);
         }
-    }
 
+        return response()->json(['success' => true, 'data' => $objective]);
+    }
     // Helper methods (giữ nguyên)
     private function getCurrentCycle($request)
     {

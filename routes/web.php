@@ -367,11 +367,22 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/', [LinkController::class, 'getAllLinks'])->name('api.links.index');
     });
 
+    // Comment Routes
+    Route::prefix('api')->middleware('auth')->group(function () {
+        Route::post('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'store'])->name('api.comments.store');
+        Route::get('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'index'])->name('api.comments.index');
+    });
+
 
     // Frontend page route for Archived OKRs
     Route::get('/archived-okrs', function() { return view('app'); })
         ->middleware('auth')
         ->name('archived-okrs');
+
+    // Catch-all route for frontend routing (must be last)
+    Route::get('/{any}', function () {
+        return view('app');
+    })->where('any', '.*')->middleware('auth');
 
 });
 

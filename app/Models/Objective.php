@@ -75,6 +75,15 @@ class Objective extends Model
     }
 
     /**
+     * Get the comments for the objective.
+     * Only retrieve top-level comments (not replies).
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(Comment::class, 'objective_id', 'objective_id')->whereNull('parent_id');
+    }
+
+    /**
      * Get OKR links where this objective is the source
      */
     public function sourceLinks()
