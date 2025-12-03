@@ -407,20 +407,16 @@ export default function KeyResultRow({
                                     />
                                 </svg>
                             </button>
-                            <KRActionsMenu
-                                kr={kr}
-                                objective={objective}
-                                setEditingKR={setEditingKR}
-                                handleArchiveKR={handleArchiveKR}
-                                canCheckIn={canCheckInKR(kr)}
-                                openCheckInModal={openCheckInModal}
-                                openCheckInHistory={openCheckInHistory}
-                                setAssignModal={setAssignModal}
-                                menuRefs={menuRefs}
-                                openObj={openObj}
-                                setOpenObj={setOpenObj}
-                                disableActions={disableActions}
-                            />
+                            <button
+                                onClick={() => handleArchiveKR(kr.kr_id)}
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Lưu trữ"
+                                disabled={disableActions}
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                            </button>
                         </div>
                     )}
                 </td>
