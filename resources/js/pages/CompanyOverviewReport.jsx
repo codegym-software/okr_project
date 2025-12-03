@@ -1,19 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import GroupedBarChart from '../components/GroupedBarChart';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
-import html2canvas from 'html2canvas';
-
-function StatCard({ title, value, suffix = '%', hint }) {
-    return (
-        <div className="rounded-xl border border-slate-200 bg-white p-6">
-            <div className="text-sm font-semibold text-slate-500">{title}</div>
-            <div className="mt-2 text-4xl font-extrabold text-slate-900">{value}{suffix}</div>
-            {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
-        </div>
-    );
-}
+import ToastNotification from '../components/ToastNotification';
+import StatCard from '../components/reports/StatCard';
+import TrendIcon from '../components/reports/TrendIcon';
+import Pagination from '../components/reports/Pagination';
+import ObjectivesTable from '../components/reports/ObjectivesTable';
+import KeyResultsTable from '../components/reports/KeyResultsTable';
+import OwnersTable from '../components/reports/OwnersTable';
+import CheckInsTable from '../components/reports/CheckInsTable';
+import SnapshotModal from '../components/reports/SnapshotModal';
+import OverviewCards from '../components/reports/OverviewCards';
+import ChartSection from '../components/reports/ChartSection';
+import DepartmentTable from '../components/reports/DepartmentTable';
+import { fetchDetailedData, fetchDetailedDataForSnapshot } from '../utils/reports/dataFetchers';
+import { loadSnapshots as loadSnapshotsUtil, loadSnapshot as loadSnapshotUtil } from '../utils/reports/snapshotHelpers';
+import { exportToExcel as exportToExcelUtil } from '../utils/reports/exportHelpers';
 
 export default function CompanyOverviewReport() {
     const [cycles, setCycles] = useState([]);
@@ -25,9 +26,16 @@ export default function CompanyOverviewReport() {
     const [snapshots, setSnapshots] = useState([]);
     const [showSnapshots, setShowSnapshots] = useState(false);
     const [selectedSnapshot, setSelectedSnapshot] = useState(null);
+    const [snapshotLevelFilter, setSnapshotLevelFilter] = useState('all'); // 'all', 'company', 'departments'
+    const [snapshotPage, setSnapshotPage] = useState(1);
+    const [snapshotPagination, setSnapshotPagination] = useState({
+        current_page: 1,
+        last_page: 1,
+        total: 0,
+    });
     const [showSnapshotModal, setShowSnapshotModal] = useState(false);
     const [snapshotTitleInput, setSnapshotTitleInput] = useState('');
-    const [notification, setNotification] = useState({ type: '', message: '', visible: false });
+    const [toast, setToast] = useState(null);
     const [isReportReady, setIsReportReady] = useState(false);
 
     const [filters, setFilters] = useState({
@@ -53,25 +61,6 @@ export default function CompanyOverviewReport() {
         checkIns: [],
     });
 
-    const TrendIcon = ({ delta }) => {
-        if (delta === null || delta === undefined) return <span className="text-slate-400">—</span>;
-        const up = delta > 0; const down = delta < 0;
-        const color = up ? 'text-emerald-600' : (down ? 'text-red-600' : 'text-slate-500');
-        return (
-            <span className={`inline-flex items-center gap-1 ${color}`} title={`${delta > 0 ? '+' : ''}${delta.toFixed(2)}%`}>
-                {up && (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M3 12l5-5 4 4 5-5v8H3z"/></svg>
-                )}
-                {down && (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17 8l-5 5-4-4-5 5V6h14z"/></svg>
-                )}
-                {!up && !down && (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 10h12v2H4z"/></svg>
-                )}
-                <span>{Math.abs(delta).toFixed(2)}%</span>
-            </span>
-        );
-    };
 
     useEffect(() => {
         (async () => {
@@ -134,6 +123,7 @@ export default function CompanyOverviewReport() {
                 if (filters.departmentId) params.set('department_id', filters.departmentId);
                 if (filters.status) params.set('status', filters.status);
                 if (filters.ownerId) params.set('owner_id', filters.ownerId);
+                if (level) params.set('level', level); // Add level filter
                 const url = `/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`;
                 const res = await fetch(url, { headers: { Accept: 'application/json' } });
                 const json = await res.json();
@@ -141,7 +131,8 @@ export default function CompanyOverviewReport() {
                 setReport(json.data);
                 
                 // Fetch detailed data based on current level
-                await fetchDetailedData(filters.cycleId, filters.departmentId, filters.ownerId, level);
+                const detailedDataResult = await fetchDetailedData(filters.cycleId, filters.departmentId, filters.ownerId, level);
+                setDetailedData(detailedDataResult);
             } catch (e) {
                 setError(e.message || 'Có lỗi xảy ra');
             } finally {
@@ -150,213 +141,7 @@ export default function CompanyOverviewReport() {
         })();
     }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId, level]);
     
-    // Fetch detailed data for Objectives, Key Results, Owners, Check-ins
-    const fetchDetailedData = async (cycleId, departmentId, ownerId, currentLevel) => {
-        try {
-            const params = new URLSearchParams();
-            if (cycleId) params.set('cycle_id', cycleId);
-            if (departmentId) params.set('department_id', departmentId);
-            if (ownerId) params.set('owner_id', ownerId);
-            params.set('per_page', '1000');
-            
-            let objectives = [];
-            
-            // Fetch objectives based on selected level
-            if (currentLevel === 'company') {
-                // Only fetch company level objectives
-                const companyParams = new URLSearchParams(params);
-                companyParams.set('filter_type', 'company');
-                const objRes = await fetch(`/company-okrs?${companyParams.toString()}`, { headers: { Accept: 'application/json' } });
-                const objData = await objRes.json();
-                objectives = objData.data?.objectives?.data || objData.data?.objectives || objData.data?.data || objData.data || [];
-            } else if (currentLevel === 'departments') {
-                // Only fetch department level objectives
-                const deptParams = new URLSearchParams(params);
-                deptParams.set('filter_type', 'department');
-                const deptRes = await fetch(`/company-okrs?${deptParams.toString()}`, { headers: { Accept: 'application/json' } });
-                const deptData = await deptRes.json();
-                objectives = deptData.data?.objectives?.data || deptData.data?.objectives || [];
-            }
-            
-            // Remove console.log to reduce noise
-            
-            // Fetch key results from objectives
-            const keyResults = [];
-            objectives.forEach(obj => {
-                // API returns keyResults (camelCase) not key_results
-                const krs = obj.keyResults || obj.key_results || [];
-                if (Array.isArray(krs)) {
-                    krs.forEach(kr => {
-                        keyResults.push({
-                            ...kr,
-                            objective_id: obj.objective_id,
-                            objective_title: obj.obj_title,
-                            objective_owner: obj.user, // Current owner of the Objective (can be reassigned)
-                            objective_owner_id: obj.user_id,
-                        });
-                    });
-                }
-            });
-            
-            // Fetch check-ins - collect from keyResults if available
-            // Note: There's no general /api/check-ins endpoint, check-ins are per KR
-            let checkIns = [];
-            try {
-                // Try to get check-ins from keyResults if they have check_in_history
-                keyResults.forEach(kr => {
-                    if (kr.check_in_history && Array.isArray(kr.check_in_history)) {
-                        kr.check_in_history.forEach(ci => {
-                            checkIns.push({
-                                ...ci,
-                                kr_id: kr.kr_id,
-                                kr_title: kr.kr_title,
-                                objective_id: kr.objective_id,
-                                objective_title: kr.objective_title,
-                            });
-                        });
-                    }
-                });
-                
-                // If no check-ins from keyResults, try fetching for each KR (but limit to avoid too many requests)
-                if (checkIns.length === 0 && keyResults.length > 0 && keyResults.length <= 50) {
-                    const checkInPromises = keyResults.slice(0, 20).map(async (kr) => {
-                        try {
-                            const res = await fetch(`/api/check-in/${kr.objective_id}/${kr.kr_id}/history`, { 
-                                headers: { Accept: 'application/json' } 
-                            });
-                            if (res.ok) {
-                                const data = await res.json();
-                                const history = data.data || data || [];
-                                return history.map(ci => ({
-                                    ...ci,
-                                    kr_id: kr.kr_id,
-                                    kr_title: kr.kr_title,
-                                    objective_id: kr.objective_id,
-                                    objective_title: kr.objective_title,
-                                }));
-                            }
-                        } catch (e) {
-                            // Silently fail for individual KR check-ins
-                        }
-                        return [];
-                    });
-                    
-                    const results = await Promise.all(checkInPromises);
-                    checkIns = results.flat();
-                }
-            } catch (e) {
-                console.warn('Could not fetch check-ins:', e);
-            }
-            
-            // Calculate owner statistics
-            // Use a consistent key format to avoid duplicates
-            const ownerStats = {};
-            
-            // Helper function to get consistent owner key
-            const getOwnerKey = (userId) => {
-                if (!userId) return 'unassigned';
-                return String(userId); // Convert to string for consistency
-            };
-            
-            // Process Objectives first
-            objectives.forEach(obj => {
-                const ownerId = obj.user_id || obj.user?.user_id;
-                const ownerName = obj.user?.full_name || obj.user?.name || 'Chưa gán';
-                const ownerKey = getOwnerKey(ownerId);
-                
-                if (!ownerStats[ownerKey]) {
-                    ownerStats[ownerKey] = {
-                        owner_id: ownerId,
-                        owner_name: ownerName,
-                        objectives: [],
-                        keyResults: [],
-                        totalObjectiveProgress: 0,
-                        totalKrProgress: 0,
-                        onTrack: 0,
-                        atRisk: 0,
-                        offTrack: 0,
-                    };
-                }
-                ownerStats[ownerKey].objectives.push(obj);
-                const progress = parseFloat(obj.progress_percent) || 0;
-                ownerStats[ownerKey].totalObjectiveProgress += progress;
-                
-                // Count status for Objectives
-                if (progress >= 70) ownerStats[ownerKey].onTrack++;
-                else if (progress >= 40) ownerStats[ownerKey].atRisk++;
-                else ownerStats[ownerKey].offTrack++;
-            });
-            
-            // Process Key Results
-            // Priority: assignee of KR first, if not then owner of Objective
-            keyResults.forEach(kr => {
-                // Try to get assignee of KR first
-                const assigneeId = kr.assigned_to || kr.assignee?.user_id || kr.assigned_to_user?.user_id;
-                const assigneeName = kr.assignee?.full_name || kr.assigned_to_user?.full_name;
-                
-                // If no assignee, use owner of Objective
-                const ownerId = assigneeId || kr.objective_owner_id || kr.objective_owner?.user_id;
-                const ownerName = assigneeName || kr.objective_owner?.full_name || kr.objective_owner?.name || 'Chưa gán';
-                const ownerKey = getOwnerKey(ownerId);
-                
-                if (!ownerStats[ownerKey]) {
-                    ownerStats[ownerKey] = {
-                        owner_id: ownerId,
-                        owner_name: ownerName,
-                        objectives: [],
-                        keyResults: [],
-                        totalObjectiveProgress: 0,
-                        totalKrProgress: 0,
-                        onTrack: 0,
-                        atRisk: 0,
-                        offTrack: 0,
-                    };
-                }
-                ownerStats[ownerKey].keyResults.push(kr);
-                
-                // Calculate progress and status for KR
-                const krProgress = parseFloat(kr.progress_percent) || 0;
-                ownerStats[ownerKey].totalKrProgress += krProgress;
-                
-                // Count status for Key Results
-                if (krProgress >= 70) ownerStats[ownerKey].onTrack++;
-                else if (krProgress >= 40) ownerStats[ownerKey].atRisk++;
-                else ownerStats[ownerKey].offTrack++;
-            });
-            
-            // Calculate average progress (combining Objectives and Key Results)
-            const owners = Object.values(ownerStats).map(owner => {
-                const totalItems = owner.objectives.length + owner.keyResults.length;
-                const totalProgress = owner.totalObjectiveProgress + owner.totalKrProgress;
-                const averageProgress = totalItems > 0 
-                    ? parseFloat((totalProgress / totalItems).toFixed(2))
-                    : 0;
-                
-                return {
-                    ...owner,
-                    averageProgress,
-                    totalObjectives: owner.objectives.length,
-                    totalKeyResults: owner.keyResults.length,
-                };
-            });
-            
-            setDetailedData({
-                objectives,
-                keyResults,
-                owners,
-                checkIns,
-            });
-        } catch (e) {
-            console.error('Failed to fetch detailed data:', e);
-            // Set empty data on error
-            setDetailedData({
-                objectives: [],
-                keyResults: [],
-                owners: [],
-                checkIns: [],
-            });
-        }
-    };
+    // fetchDetailedData and fetchDetailedDataForSnapshot are now imported from utils/reports/dataFetchers
 
     useEffect(() => {
         if (!filters.cycleId) return;
@@ -366,6 +151,7 @@ export default function CompanyOverviewReport() {
             if (filters.departmentId) params.set('department_id', filters.departmentId);
             if (filters.status) params.set('status', filters.status);
             if (filters.ownerId) params.set('owner_id', filters.ownerId);
+            if (level) params.set('level', level); // Add level filter to auto-refresh
             const url = `/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`;
             fetch(url, { headers: { Accept: 'application/json', 'Cache-Control': 'no-store' }})
                 .then(r => r.json().then(j => ({ ok: r.ok, j })))
@@ -373,51 +159,9 @@ export default function CompanyOverviewReport() {
                 .catch(() => {});
         }, 60000); 
         return () => clearInterval(timer);
-    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId]);
+    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId, level]); // Add level to dependencies
 
-    const pieData = useMemo(() => {
-        const counts = report?.overall?.statusCounts || {};
-        return [
-            { label: 'On track', value: counts.onTrack || 0, color: '#22c55e' },
-            { label: 'At risk', value: counts.atRisk || 0, color: '#f59e0b' },
-            { label: 'Off track', value: counts.offTrack || 0, color: '#ef4444' },
-        ];
-    }, [report]);
-
-    const groupedChartData = useMemo(() => {
-        if (level === 'company') {
-            const ov = report?.overall || { statusCounts: {} };
-            return {
-                categories: ['Công ty'],
-                series: [
-                    { name: 'On Track', color: '#22c55e', data: [ov.statusCounts?.onTrack || 0] },
-                    { name: 'At Risk', color: '#f59e0b', data: [ov.statusCounts?.atRisk || 0] },
-                    { name: 'Off Track', color: '#ef4444', data: [ov.statusCounts?.offTrack || 0] },
-                ],
-            };
-        }
-        if (level === 'departments') {
-            const list = (report.departmentsHierarchy || report.departments || [])
-              .filter(d => d.departmentId && (d.departmentName || '').toLowerCase() !== 'công ty');
-            return {
-                categories: list.map(d => d.departmentName),
-                series: [
-                    { name: 'On Track', color: '#22c55e', data: list.map(d => d.onTrack || 0) },
-                    { name: 'At Risk', color: '#f59e0b', data: list.map(d => d.atRisk || 0) },
-                    { name: 'Off Track', color: '#ef4444', data: list.map(d => d.offTrack || 0) },
-                ],
-            };
-        }
-        const list = [];
-        return {
-            categories: list.map(t => t.departmentName),
-            series: [
-                { name: 'On Track', color: '#22c55e', data: list.map(t => t.onTrack || 0) },
-                { name: 'At Risk', color: '#f59e0b', data: list.map(t => t.atRisk || 0) },
-                { name: 'Off Track', color: '#ef4444', data: list.map(t => t.offTrack || 0) },
-            ],
-        };
-    }, [report, level]);
+    // pieData and groupedChartData are now handled in ChartSection component
 
     useEffect(() => {
         const handler = (e) => {
@@ -454,11 +198,8 @@ export default function CompanyOverviewReport() {
     };
 
     // Show notification
-    const showNotification = (type, message, duration = 3000) => {
-        setNotification({ type, message, visible: true });
-        setTimeout(() => {
-            setNotification(prev => ({ ...prev, visible: false }));
-        }, duration);
+    const showNotification = (type, message) => {
+        setToast({ type, message });
     };
 
     // Mở modal Chốt kỳ + nhập tên
@@ -467,8 +208,7 @@ export default function CompanyOverviewReport() {
             showNotification('error', '⚠ Vui lòng chọn chu kỳ trước khi Chốt kỳ');
             return;
         }
-        const defaultTitle = `Báo cáo OKR: ${currentCycleMeta?.name || 'Chu kỳ hiện tại'}`;
-        setSnapshotTitleInput(defaultTitle);
+        setSnapshotTitleInput('');
         setShowSnapshotModal(true);
     };
 
@@ -480,37 +220,125 @@ export default function CompanyOverviewReport() {
 
         setIsCreatingSnapshot(true);
         try {
-            const cleanSnapshotData = {
-                overall: report.overall,
-                departments: report.departmentsHierarchy?.length > 0 
-                    ? report.departmentsHierarchy 
-                    : (report.departments || []),
-                trend: report.trend || [],
-                risks: report.risks || [],
+            const baseTitle = snapshotTitleInput.trim();
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+            // Fetch dữ liệu cho cả hai level
+            const fetchDataForLevel = async (levelToFetch) => {
+                // Fetch report data
+                const params = new URLSearchParams();
+                if (filters.cycleId) params.set('cycle_id', filters.cycleId);
+                if (filters.departmentId) params.set('department_id', filters.departmentId);
+                if (filters.status) params.set('status', filters.status);
+                if (filters.ownerId) params.set('owner_id', filters.ownerId);
+                params.set('level', levelToFetch);
+                
+                const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
+                    headers: { Accept: 'application/json' }
+                });
+                const reportJson = await reportRes.json();
+                if (!reportRes.ok || !reportJson.success) {
+                    throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
+                }
+
+                // Fetch detailed data
+                const detailedDataForLevel = await fetchDetailedDataForSnapshot(
+                    filters.cycleId,
+                    filters.departmentId,
+                    filters.ownerId,
+                    levelToFetch
+                );
+
+                return {
+                    report: reportJson.data,
+                    detailedData: detailedDataForLevel,
+                };
             };
 
-            const response = await fetch('/api/reports/snapshot', {
+            // Tạo snapshot cho cả hai level
+            const [companyData, departmentsData] = await Promise.all([
+                fetchDataForLevel('company'),
+                fetchDataForLevel('departments'),
+            ]);
+
+            // Tạo snapshot cho công ty
+            const companySnapshotData = {
+                overall: companyData.report.overall,
+                departments: companyData.report.departmentsHierarchy?.length > 0 
+                    ? companyData.report.departmentsHierarchy 
+                    : (companyData.report.departments || []),
+                trend: companyData.report.trend || [],
+                risks: companyData.report.risks || [],
+                detailedData: {
+                    objectives: companyData.detailedData.objectives || [],
+                    keyResults: companyData.detailedData.keyResults || [],
+                    owners: companyData.detailedData.owners || [],
+                    checkIns: companyData.detailedData.checkIns || [],
+                },
+                level: 'company',
+            };
+
+            // Tạo snapshot cho phòng ban
+            const departmentsSnapshotData = {
+                overall: departmentsData.report.overall,
+                departments: departmentsData.report.departmentsHierarchy?.length > 0 
+                    ? departmentsData.report.departmentsHierarchy 
+                    : (departmentsData.report.departments || []),
+                trend: departmentsData.report.trend || [],
+                risks: departmentsData.report.risks || [],
+                detailedData: {
+                    objectives: departmentsData.detailedData.objectives || [],
+                    keyResults: departmentsData.detailedData.keyResults || [],
+                    owners: departmentsData.detailedData.owners || [],
+                    checkIns: departmentsData.detailedData.checkIns || [],
+                },
+                level: 'departments',
+            };
+
+            // Tạo cả hai snapshot
+            const [companyResponse, departmentsResponse] = await Promise.all([
+                fetch('/api/reports/snapshot', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-CSRF-TOKEN': csrfToken,
                 },
                 body: JSON.stringify({
                     cycle_id: filters.cycleId,
-                    title: snapshotTitleInput.trim(),
-                    data_snapshot: cleanSnapshotData,
+                        title: baseTitle,
+                        data_snapshot: companySnapshotData,
+                    }),
                 }),
-            });
+                fetch('/api/reports/snapshot', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    body: JSON.stringify({
+                        cycle_id: filters.cycleId,
+                        title: baseTitle,
+                        data_snapshot: departmentsSnapshotData,
+                    }),
+                }),
+            ]);
 
-            const data = await response.json();
+            const companyDataResult = await companyResponse.json();
+            const departmentsDataResult = await departmentsResponse.json();
 
-            if (!response.ok || !data.success) {
-                throw new Error(data.message || 'Không thể tạo snapshot');
+            if (!companyResponse.ok || !companyDataResult.success) {
+                throw new Error(companyDataResult.message || 'Không thể tạo snapshot cho công ty');
             }
 
-            showNotification('success', 'Checkmark Chốt kỳ thành công!');
-            loadSnapshots();
+            if (!departmentsResponse.ok || !departmentsDataResult.success) {
+                throw new Error(departmentsDataResult.message || 'Không thể tạo snapshot cho phòng ban');
+            }
+
+            showNotification('success', 'Chốt kỳ thành công!');
+            setSnapshotPage(1);
+            loadSnapshots(1);
 
             setIsReportReady(true);
 
@@ -518,403 +346,108 @@ export default function CompanyOverviewReport() {
             setSnapshotTitleInput('');
         } catch (error) {
             console.error('Lỗi khi Chốt kỳ:', error);
-            showNotification('error', 'Crossmark ' + (error.message || 'Đã có lỗi xảy ra'));
+            showNotification('error', '✗ ' + (error.message || 'Đã có lỗi xảy ra'));
         } finally {
             setIsCreatingSnapshot(false);
         }
     };
 
-    const loadSnapshots = async () => {
-        try {
-            const cycleId = filters.cycleId ? `?cycle_id=${filters.cycleId}` : '';
-            const response = await fetch(`/api/reports/snapshots${cycleId}`, {
-                headers: { Accept: 'application/json' }
-            });
-            const data = await response.json();
-            if (data.success) {
-                setSnapshots(data.data.data || []);
-            }
-        } catch (error) {
-            console.error('Lỗi khi tải snapshots:', error);
-        }
+    const loadSnapshots = async (page = 1) => {
+        const result = await loadSnapshotsUtil(filters.cycleId, page);
+        setSnapshots(result.snapshots);
+        setSnapshotPagination(result.pagination);
     };
 
     const loadSnapshot = async (snapshotId) => {
-        try {
-            const response = await fetch(`/api/reports/snapshots/${snapshotId}`, {
-                headers: { Accept: 'application/json' }
-            });
-            const data = await response.json();
-            if (data.success) {
-                setSelectedSnapshot(data.data);
-            }
-        } catch (error) {
-            console.error('Lỗi khi tải snapshot:', error);
+        const snapshot = await loadSnapshotUtil(snapshotId);
+        if (snapshot) {
+            setSelectedSnapshot(snapshot);
         }
     };
 
     const handleViewSnapshots = () => {
         setShowSnapshots(!showSnapshots);
         if (!showSnapshots) {
-            loadSnapshots();
-        }
-    };
-
-    // State for export menu
-    const [exportMenuOpen, setExportMenuOpen] = useState(false);
-
-    // Export to PDF with professional UI-matching design
-    const exportToPDF = async () => {
-        try {
-            setExportMenuOpen(false);
-
-            const pdf = new jsPDF('p', 'mm', 'a4');
-
-            // === THÊM FONT TIẾNG VIỆT (nếu có) ===
-            let usedFont = 'helvetica';
-            try {
-                if (typeof robotoNormal !== 'undefined' && typeof robotoBold !== 'undefined') {
-                    pdf.addFileToVFS('Roboto-Regular.ttf', robotoNormal);
-                    pdf.addFileToVFS('Roboto-Bold.ttf', robotoBold);
-                    pdf.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
-                    pdf.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
-                    usedFont = 'Roboto';
-                } else {
-                    // If base64 variables are not injected, attempt to fetch TTF files from /fonts
-                    const toBase64 = async (url) => {
-                        const res = await fetch(url);
-                        if (!res.ok) throw new Error(`Font not found: ${url}`);
-                        const ab = await res.arrayBuffer();
-                        const u8 = new Uint8Array(ab);
-                        let binary = '';
-                        const chunk = 0x8000;
-                        for (let i = 0; i < u8.length; i += chunk) {
-                            binary += String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + chunk)));
-                        }
-                        return btoa(binary);
-                    };
-
-                    try {
-                        const normalB64 = await toBase64('/fonts/Roboto-Regular.ttf');
-                        const boldB64 = await toBase64('/fonts/Roboto-Bold.ttf');
-                        pdf.addFileToVFS('Roboto-Regular.ttf', normalB64);
-                        pdf.addFileToVFS('Roboto-Bold.ttf', boldB64);
-                        pdf.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
-                        pdf.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
-                        usedFont = 'Roboto';
-                    } catch (err) {
-                        // fallback to a built-in font (may not cover full Vietnamese glyphs)
-                        usedFont = 'helvetica';
-                        // eslint-disable-next-line no-console
-                        console.warn('Roboto fonts not available in base64 or /fonts, falling back to built-in font', err);
-                    }
-                }
-            } catch (e) {
-                usedFont = 'helvetica';
-                // eslint-disable-next-line no-console
-                console.warn('Error loading fonts for PDF export, using fallback font', e);
-            }
-            pdf.setFont(usedFont);
-
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            const margin = 14;
-            let yPosition = margin;
-
-            // ============ HEADER ============
-            pdf.setFontSize(24);
-            pdf.setFont(usedFont, 'bold');
-            pdf.setTextColor(15, 23, 42);
-            pdf.text('BÁO CÁO OKR TỔNG QUAN', margin, yPosition);
-            yPosition += 11;
-
-            pdf.setFontSize(11);
-            pdf.setFont(usedFont, 'normal');
-            pdf.setTextColor(100, 100, 100);
-            pdf.text(`Chu kỳ: ${currentCycleMeta?.name || 'Chưa chọn chu kỳ'}`, margin, yPosition);
-            pdf.text(`Ngày xuất báo cáo: ${new Date().toLocaleDateString('vi-VN')}`, pageWidth - margin, yPosition, { align: 'right' });
-            yPosition += 10;
-
-            // Đường kẻ ngang
-            pdf.setDrawColor(220, 220, 220);
-            pdf.setLineWidth(0.5);
-            pdf.line(margin, yPosition, pageWidth - margin, yPosition);
-            yPosition += 15;
-
-            // ============ TÓM TẮT ĐIỀU HÀNH (nội dung cố định hoặc để bạn tự viết) =========
-            pdf.setFontSize(13);
-            pdf.setFont(usedFont, 'bold');
-            pdf.setTextColor(37, 99, 235);
-            pdf.text('Tóm tắt điều hành', margin, yPosition);
-            yPosition += 8;
-
-            pdf.setFontSize(10);
-            pdf.setFont(usedFont, 'normal');
-            pdf.setTextColor(51, 51, 51);
-
-            // Build a safe summary text (use existing summary if available, otherwise generate brief overview)
-            const summaryText = (
-                report.overall?.summary || report.overall?.executiveSummary ||
-                `Chu kỳ: ${currentCycleMeta?.name || 'Chưa chọn chu kỳ'}. Tổng OKR: ${report.overall?.totalObjectives || 0}. Tiến độ trung bình: ${(report.overall?.averageProgress ?? 0).toFixed(1)}%. On Track: ${report.overall?.statusCounts?.onTrack || 0}, At Risk: ${report.overall?.statusCounts?.atRisk || 0}, Off Track: ${report.overall?.statusCounts?.offTrack || 0}.`
-            );
-
-            const splitSummary = pdf.splitTextToSize(summaryText, pageWidth - 2 * margin - 10);
-            const boxHeight = splitSummary.length * 5 + 12;
-
-            // Hộp nền xanh nhạt
-            pdf.setFillColor(240, 248, 255);
-            pdf.setDrawColor(180, 200, 255);
-            pdf.setLineWidth(0.4);
-            pdf.rect(margin, yPosition - 6, pageWidth - 2 * margin, boxHeight, 'FD');
-
-            pdf.text(splitSummary, margin + 6, yPosition + 6);
-            yPosition += boxHeight + 12;
-
-            // ============ STAT CARDS ============
-            pdf.setFontSize(12);
-            pdf.setFont(usedFont, 'bold');
-            pdf.setTextColor(37, 99, 235);
-            pdf.text('Thống kê tổng quan', margin, yPosition);
-            yPosition += 10;
-
-            const stats = [
-                { label: 'Tổng OKR', value: report.overall?.totalObjectives || 0, bg: [248, 250, 255], color: [15, 23, 42] },
-                { label: 'Tiến độ trung bình', value: `${(report.overall?.averageProgress ?? 0).toFixed(1)}%`, bg: [248, 250,255], color: [15, 23, 42] },
-                { label: 'On Track', value: report.overall?.statusCounts?.onTrack || 0, perc: report.overall?.statusDistribution?.onTrack, bg: [236, 253, 245], color: [22, 163, 74] },
-                { label: 'At Risk', value: report.overall?.statusCounts?.atRisk || 0, perc: report.overall?.statusDistribution?.atRisk, bg: [255, 251, 235], color: [180, 83, 9] },
-                { label: 'Off Track', value: report.overall?.statusCounts?.offTrack || 0, perc: report.overall?.statusDistribution?.offTrack, bg: [254, 242, 242], color: [185, 28, 28] },
-            ];
-
-            const cardWidth = (pageWidth - 2 * margin - 8) / 5;
-            const cardHeight = 22;
-            const startCardY = yPosition;
-
-            stats.forEach((stat, index) => {
-                const x = margin + index * (cardWidth + 2);
-
-                pdf.setFillColor(...stat.bg);
-                pdf.setDrawColor(200, 200, 200);
-                pdf.roundedRect(x, startCardY, cardWidth, cardHeight, 2, 2, 'FD');
-
-                pdf.setFontSize(8);
-                pdf.setTextColor(80, 80, 80);
-                pdf.text(stat.label, x + 4, startCardY + 6);
-
-                pdf.setFontSize(16);
-                pdf.setFont(usedFont, 'bold');
-                pdf.setTextColor(...stat.color);
-                pdf.text(String(stat.value), x + 4, startCardY + 14);
-
-                if (stat.perc !== undefined) {
-                    pdf.setFontSize(8);
-                    pdf.setTextColor(100, 100, 100);
-                    pdf.text(`(${stat.perc}%)`, x + 4, startCardY + 19);
-                }
-            });
-
-            yPosition = startCardY + cardHeight + 15;
-
-            // ============ BẢNG PHÒNG BAN ============
-            const deptBody = (report.departmentsHierarchy || report.departments || [])
-                .filter(d => d.departmentName && !['công ty', 'company'].includes(d.departmentName.toLowerCase()))
-                .slice(0, 30)
-                .map(d => [
-                    d.departmentName || 'Chưa xác định',
-                    String(d.count || 0),
-                    `${(d.averageProgress ?? 0).toFixed(1)}%`,
-                    String(d.onTrack || 0),
-                    String(d.atRisk || 0),
-                    String(d.offTrack || 0),
-                ]);
-
-            if (deptBody.length > 0) {
-                autoTable(pdf, {
-                    head: [['Đơn vị', 'Số OKR', 'Tiến độ TB', 'On Track', 'At Risk', 'Off Track']],
-                    body: deptBody,
-                    startY: yPosition,
-                    margin: { left: margin, right: margin },
-                    styles: { font: usedFont, fontSize: 9.5, cellPadding: 5, valign: 'middle' },
-                    headStyles: { fillColor: [37, 99, 235], textColor: '#ffffff', fontStyle: 'bold', fontSize: 10.5 },
-                    alternateRowStyles: { fillColor: [248, 250, 255] },
-                    columnStyles: {
-                        0: { cellWidth: 60 },
-                        1: { halign: 'center' },
-                        2: { halign: 'center' },
-                        3: { halign: 'center' },
-                        4: { halign: 'center' },
-                        5: { halign: 'center' },
-                    },
-                    didDrawPage: data => {
-                        yPosition = data.cursor.y + 12;
-                    }
-                });
-            } else {
-                yPosition += 20;
-            }
-
-            // ============ CẢNH BÁO RỦI RO ============
-            const risks = (report.risks || []).filter(r => r.status === 'at_risk' || r.status === 'off_track');
-
-            if (risks.length > 0) {
-                if (yPosition > pageHeight - 100) {
-                    pdf.addPage();
-                    yPosition = margin;
-                }
-
-                pdf.setFontSize(13);
-                pdf.setFont(usedFont, 'bold');
-                pdf.setTextColor(220, 38, 38);
-                pdf.text('CẢNH BÁO RỦI RO', margin, yPosition);
-                yPosition += 9;
-
-                const riskRows = risks.slice(0, 20).map(r => [
-                    (r.objective_title || 'Không có tiêu đề').substring(0, 55) + '...',
-                    (report.departments || []).find(d => d.departmentId === r.department_id)?.departmentName || '—',
-                    `${(r.progress ?? 0).toFixed(1)}%`,
-                    r.status === 'off_track' ? 'OFF TRACK' : 'AT RISK',
-                ]);
-
-                autoTable(pdf, {
-                    head: [['Mục tiêu (Objective)', 'Phòng ban', 'Tiến độ', 'Trạng thái']],
-                    body: riskRows,
-                    startY: yPosition,
-                    margin: { left: margin, right: margin },
-                    styles: { font: usedFont, fontSize: 9, cellPadding: 4 },
-                    headStyles: { fillColor: [220, 38, 38], textColor: '#fff', fontStyle: 'bold' },
-                    alternateRowStyles: { fillColor: [254, 242, 242] },
-                    columnStyles: {
-                        0: { cellWidth: 'auto' },
-                        3: { fontStyle: 'bold', textColor: [220, 38, 38], halign: 'center' }
-                    },
-                    didDrawPage: data => {
-                        yPosition = data.cursor.y + 10;
-                    }
-                });
-            }
-
-            // ============ FOOTER MỌI TRANG ============
-            const totalPages = pdf.getNumberOfPages();
-            for (let i = 1; i <= totalPages; i++) {
-                pdf.setPage(i);
-
-                // Nền footer
-                pdf.setFillColor(248, 250, 255);
-                pdf.rect(0, pageHeight - 18, pageWidth, 18, 'F');
-
-                pdf.setFontSize(9);
-                pdf.setTextColor(100, 100, 100);
-                pdf.setFont(usedFont, 'normal');
-
-                pdf.text(`Xuất báo cáo lúc: ${new Date().toLocaleString('vi-VN')}`, margin, pageHeight - 8);
-                pdf.text(`Trang ${i} / ${totalPages}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
-            }
-
-            // ============ LƯU FILE ============
-            const safeCycleName = (currentCycleMeta?.name || 'TongQuan')
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/đ/g, 'd')
-            .replace(/Đ/g, 'D')
-            .trim()
-            .replace(/[^a-zA-Z0-9\s-]/g, '')
-            .replace(/\s+/g, '_')
-            .replace(/-+/g, '_')
-            .replace(/_+$/, '')
-            .replace(/^_+/g, '')
-            || 'TongQuan';
-
-            const fileName = `OKR_BaoCao_${safeCycleName}_${new Date().toISOString().slice(0,10)}.pdf`;
-            pdf.save(fileName);
-
-
-            showNotification('success', 'Xuất PDF thành công!');
-
-        } catch (error) {
-            console.error('Lỗi xuất PDF:', error);
-            showNotification('error', 'Xuất PDF thất bại: ' + (error.message || 'Lỗi không xác định'));
+            setSnapshotPage(1);
+            loadSnapshots(1);
         }
     };
 
     // Export to Excel
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
+        // Kiểm tra đã tạo snapshot chưa
+        if (!isReportReady || snapshots.length === 0) {
+            showNotification('error', '⚠ Vui lòng tạo snapshot (Chốt kỳ) trước khi xuất file');
+            return;
+        }
+
         try {
-            setExportMenuOpen(false);
-            const workbook = XLSX.utils.book_new();
-
-            // Sheet 1: Overall Stats
-            const overallSheet = [
-                ['Báo cáo OKR Tổng quan'],
-                ['Chu kỳ', currentCycleMeta?.name || 'N/A'],
-                ['Ngày xuất', new Date().toLocaleDateString('vi-VN')],
-                [],
-                ['Thống kê Tổng quan'],
-                ['Chỉ số', 'Giá trị'],
-                ['Tổng OKR', report.overall?.totalObjectives || 0],
-                ['Tiến độ trung bình', (report.overall?.averageProgress ?? 0).toFixed(2) + '%'],
-                ['On Track', `${report.overall?.statusCounts?.onTrack || 0} (${report.overall?.statusDistribution?.onTrack || 0}%)`],
-                ['At Risk', `${report.overall?.statusCounts?.atRisk || 0} (${report.overall?.statusDistribution?.atRisk || 0}%)`],
-                ['Off Track', `${report.overall?.statusCounts?.offTrack || 0} (${report.overall?.statusDistribution?.offTrack || 0}%)`],
-            ];
-
-            XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(overallSheet), 'Tổng quan');
-
-            // Sheet 2: Department Details
-            const deptSheet = [
-                ['Chi tiết theo đơn vị'],
-                [],
-                ['đơn vị', 'Số OKR', 'Tiến độ (%)', 'On Track', 'At Risk', 'Off Track'],
-            ];
-
-            (report.departmentsHierarchy || report.departments || [])
-                .filter(d => d.departmentName?.toLowerCase() !== 'công ty')
-                .forEach(d => {
-                    deptSheet.push([
-                        d.departmentName || 'N/A',
-                        d.count || 0,
-                        (d.averageProgress ?? 0).toFixed(2),
-                        d.onTrack || 0,
-                        d.atRisk || 0,
-                        d.offTrack || 0,
-                    ]);
+            // Fetch dữ liệu cho cả hai level (giống như khi tạo snapshot)
+            const fetchDataForLevel = async (levelToFetch) => {
+                // Fetch report data
+                const params = new URLSearchParams();
+                if (filters.cycleId) params.set('cycle_id', filters.cycleId);
+                if (filters.departmentId) params.set('department_id', filters.departmentId);
+                if (filters.status) params.set('status', filters.status);
+                if (filters.ownerId) params.set('owner_id', filters.ownerId);
+                params.set('level', levelToFetch);
+                
+                const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
+                    headers: { Accept: 'application/json' }
                 });
+                const reportJson = await reportRes.json();
+                if (!reportRes.ok || !reportJson.success) {
+                    throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
+                }
 
-            XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(deptSheet), 'Phòng ban');
+                // Fetch detailed data
+                const detailedData = await fetchDetailedDataForSnapshot(
+                    filters.cycleId,
+                    filters.departmentId,
+                    filters.ownerId,
+                    levelToFetch
+                );
 
-            // Sheet 3: Risk alerts
-            const risks = (report.risks || []).filter(r => r.status === 'at_risk' || r.status === 'off_track');
-            if (risks.length > 0) {
-                const risksSheet = [
-                    ['Cảnh báo rủi ro'],
-                    [],
-                    ['Objective', 'Phòng ban', 'Tiến độ (%)', 'Trạng thái'],
-                ];
+                return {
+                    report: reportJson.data,
+                    detailedData: detailedData,
+                };
+            };
 
-                risks.forEach(r => {
-                    risksSheet.push([
-                        r.objective_title || 'N/A',
-                        (report.departments || []).find(d => d.departmentId === r.department_id)?.departmentName || '—',
-                        (r.progress ?? 0).toFixed(2),
-                        r.status === 'off_track' ? 'OFF TRACK' : 'AT RISK',
-                    ]);
-                });
+            // Fetch cả hai level
+            const [companyData, departmentsData] = await Promise.all([
+                fetchDataForLevel('company'),
+                fetchDataForLevel('departments'),
+            ]);
 
-                XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(risksSheet), 'Rủi ro');
+            // Lấy tên báo cáo chốt kỳ từ snapshot mới nhất của chu kỳ hiện tại
+            let snapshotTitle = null;
+            try {
+                if (filters.cycleId && snapshots.length > 0) {
+                    // Tìm snapshot mới nhất của chu kỳ hiện tại
+                    const latestSnapshot = snapshots
+                        .filter(s => s.cycle_id === parseInt(filters.cycleId))
+                        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+                    if (latestSnapshot) {
+                        snapshotTitle = latestSnapshot.title;
+                    }
+                }
+            } catch (e) {
+                console.warn('Không thể lấy tên snapshot:', e);
             }
 
-            // Set column widths
-            const overallWs = workbook.Sheets['Tổng quan'];
-            overallWs['!cols'] = [{ wch: 25 }, { wch: 20 }];
-
-            const deptWs = workbook.Sheets['Phòng ban'];
-            deptWs['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
-
-            // Save Excel
-            const filename = `OKR_Report_${currentCycleMeta?.name || 'Report'}_${new Date().getTime()}.xlsx`;
-            XLSX.writeFile(workbook, filename);
-            showNotification('success', '✓ Xuất Excel thành công!');
+            // Xuất Excel với cả 2 report và detailed data
+            exportToExcelUtil(
+                companyData,
+                departmentsData,
+                currentCycleMeta,
+                snapshotTitle, // Truyền tên snapshot
+                (message) => showNotification('success', message),
+                (message) => showNotification('error', message)
+            );
         } catch (error) {
             console.error('Lỗi khi xuất Excel:', error);
-            showNotification('error', '✕ Xuất Excel thất bại. Vui lòng thử lại.');
+            showNotification('error', 'Xuất Excel thất bại: ' + (error.message || 'Lỗi không xác định'));
         }
     };
     
@@ -975,9 +508,9 @@ export default function CompanyOverviewReport() {
                                     className="pl-10 pr-9 py-2.5 text-sm font-semibold text-gray-800 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
                                 >
                                     <option value="">Tất cả trạng thái</option>
-                                    <option value="on_track">On Track</option>
-                                    <option value="at_risk">At Risk</option>
-                                    <option value="off_track">Off Track</option>
+                                    <option value="on_track">Đúng tiến độ</option>
+                                    <option value="at_risk">Có nguy cơ</option>
+                                    <option value="off_track">Chậm tiến độ</option>
                                 </select>
                                 <svg className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
@@ -1005,618 +538,69 @@ export default function CompanyOverviewReport() {
                             </div>
                         </div>
 
-                        {/* Nút Export - Đã ẩn */}
-                        {/* <div className="relative">
-                            <button
-                                onClick={() => setExportMenuOpen(prev => !prev)}
-                                className="p-2.5 rounded-lg hover:bg-slate-100 transition-colors"
-                                title="Xuất báo cáo"
+                        {/* Nút Export Excel - Chỉ cho phép sau khi đã tạo snapshot */}
+                        <button
+                            onClick={exportToExcel}
+                            disabled={!isReportReady || snapshots.length === 0}
+                            className={`p-2.5 rounded-lg transition-colors ${
+                                !isReportReady || snapshots.length === 0
+                                    ? 'opacity-50 cursor-not-allowed'
+                                    : 'hover:bg-slate-100 cursor-pointer'
+                            }`}
+                            title={
+                                !isReportReady || snapshots.length === 0
+                                    ? 'Vui lòng tạo snapshot (Chốt kỳ) trước khi xuất file'
+                                    : 'Xuất báo cáo Excel'
+                            }
+                        >
+                            <svg 
+                                className={`h-5 w-5 ${
+                                    !isReportReady || snapshots.length === 0
+                                        ? 'text-slate-400'
+                                        : 'text-slate-600'
+                                }`} 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
                             >
-                                <svg className="h-5 w-5 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                            </button>
-
-                            {exportMenuOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setExportMenuOpen(false)} />
-                                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-20 overflow-hidden">
-                                        <div className="py-1">
-                                            <button onClick={exportToPDF} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition border-t border-slate-100 first:border-t-0">
-                                                <svg className="h-5 w-5 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                                    <polyline points="14 2 14 8 20 8"/>
-                                                    <line x1="16" y1="13" x2="8" y2="13"/>
-                                                    <line x1="16" y1="17" x2="8" y2="17"/>
-                                                    <polyline points="10 9 9 9 8 9"/>
-                                                </svg>
-                                                <span className="text-sm font-medium text-slate-700">Xuất sang PDF</span>
-                                            </button>
-                                            <button onClick={exportToExcel} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition border-t border-slate-100">
-                                                <svg className="h-5 w-5 text-green-600" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                                    <polyline points="14 2 14 8 20 8"/>
-                                                    <path d="M9 13h6v6H9z"/>
-                                                    <path d="M12 10v9"/>
-                                                </svg>
-                                                <span className="text-sm font-medium text-slate-700">Xuất sang XLS</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div> */}
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
 
             {/* ===================== NOTIFICATION TOAST ===================== */}
-            {notification.visible && (
-                <div className={`fixed top-4 right-4 px-5 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-300 z-50 ${
-                    notification.type === 'success' 
-                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' 
-                        : 'bg-red-50 border border-red-200 text-red-700'
-                }`}>
-                    {notification.message}
-                </div>
-            )}
+            <ToastNotification toast={toast} onClose={() => setToast(null)} />
 
             {/* ===================== NỘI DUNG BÁO CÁO - CHỈ HIỂN THỊ SAU KHI Chốt kỳ ===================== */}
             {isReportReady ? (
                 <>
                     {/* 5 Cards Tổng quan */}
-                    <div className="grid gap-6 md:grid-cols-5">
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-slate-500">Tổng số mục tiêu</div>
-                            <div className="mt-2 flex items-baseline gap-2">
-                                <div className="text-2xl font-bold text-slate-900">{report.overall.totalObjectives}</div>
-                                {report.overall.totalObjectivesDelta && <TrendIcon delta={report.overall.totalObjectivesDelta} />}
-                            </div>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-slate-500">Tiến độ trung bình</div>
-                            <div className="mt-2 flex items-baseline gap-2">
-                                <div className="text-2xl font-bold text-slate-900">
-                                    {(report.overall.averageProgress || 0).toFixed(2)}%
-                                </div>
-                                {report.overall.averageProgressDelta && <TrendIcon delta={report.overall.averageProgressDelta} />}
-                            </div>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-emerald-600">On Track</div>
-                            <div className="mt-2 text-2xl font-extrabold text-slate-900">
-                                {report.overall.statusCounts?.onTrack || 0}
-                                <span className="ml-2 text-base text-slate-500">({report.overall.statusDistribution?.onTrack || 0}%)</span>
-                            </div>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-amber-600">At Risk</div>
-                            <div className="mt-2 text-2xl font-extrabold text-slate-900">
-                                {report.overall.statusCounts?.atRisk || 0}
-                                <span className="ml-2 text-base text-slate-500">({report.overall.statusDistribution?.atRisk || 0}%)</span>
-                            </div>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-red-600">Off Track</div>
-                            <div className="mt-2 text-2xl font-extrabold text-slate-900">
-                                {report.overall.statusCounts?.offTrack || 0}
-                                <span className="ml-2 text-base text-slate-500">({report.overall.statusDistribution?.offTrack || 0}%)</span>
-                            </div>
-                        </div>
-                    </div>
+                    <OverviewCards report={report} />
 
                     {/* Biểu đồ */}
-                    <div className="mt-6 space-y-6">
-                        <div>
-                            <div className="mb-4 flex items-center justify-between">
-                                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-sm font-semibold text-slate-700">
-                                    <button onClick={() => setLevel('company')} className={`px-3 py-1.5 rounded-md ${level === 'company' ? 'bg-slate-100' : ''}`}>Công ty</button>
-                                    <button onClick={() => setLevel('departments')} className={`px-3 py-1.5 rounded-md ${level === 'departments' ? 'bg-slate-100' : ''}`}>Phòng ban</button>
-                                </div>
-                            </div>
-                            <GroupedBarChart
-                                categories={groupedChartData.categories}
-                                series={groupedChartData.series}
-                                label={`Phân bổ trạng thái theo ${level === 'company' ? 'công ty' : 'phòng ban'}`}
-                            />
-                        </div>
-                    </div>
+                    <ChartSection report={report} level={level} onLevelChange={setLevel} />
 
                     {/* Bảng chi tiết theo cấp độ */}
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
-                    <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">
-                        {level === 'company' ? 'Chi tiết công ty' : 'Chi tiết theo đơn vị'}
-                    </div>
-
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-600">
-                            <tr>
-                            <th className="px-6 py-3 text-left">
-                                {level === 'company' ? 'Đơn vị' : 'Đơn vị'}
-                            </th>
-                            <th className="px-6 py-3 text-center">Số OKR</th>
-                            <th className="px-6 py-3 text-center">Tiến độ TB</th>
-                            <th className="px-6 py-3 text-center">On Track</th>
-                            <th className="px-6 py-3 text-center">At Risk</th>
-                            <th className="px-6 py-3 text-center">Off Track</th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            {(level === 'company'
-                            ? [
-                                {
-                                    departmentName: 'Công ty',
-                                    count: report.overall?.totalObjectives || 0,
-                                    averageProgress: report.overall?.averageProgress || 0,
-                                    onTrack: report.overall?.statusCounts?.onTrack || 0,
-                                    atRisk: report.overall?.statusCounts?.atRisk || 0,
-                                    offTrack: report.overall?.statusCounts?.offTrack || 0,
-                                    onTrackPct: report.overall?.statusDistribution?.onTrack || 0,
-                                    atRiskPct: report.overall?.statusDistribution?.atRisk || 0,
-                                    offTrackPct: report.overall?.statusDistribution?.offTrack || 0,
-                                },
-                                ]
-                            : (report.departmentsHierarchy || report.departments || []).filter(
-                                (d) =>
-                                    d.departmentId &&
-                                    (d.departmentName || '').toLowerCase() !== 'công ty'
-                                )
-                            ).map((d, i) => (
-                            <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                {/* Cột Đơn vị - căn trái */}
-                                <td className="px-6 py-3 font-medium text-slate-900">
-                                {d.departmentName || 'N/A'}
-                                </td>
-
-                                {/* Số OKR - căn giữa */}
-                                <td className="px-6 py-3 text-center font-semibold text-slate-900">
-                                {d.count ?? d.totalObjectives ?? 0}
-                                </td>
-
-                                {/* Tiến độ TB - căn giữa */}
-                                <td className="px-6 py-3 text-center">
-                                <div className="flex items-center justify-center gap-3">
-                                    <div className="w-32 bg-slate-200 rounded-full h-2.5">
-                                    <div
-                                        className={`h-2.5 rounded-full transition-all duration-300 ${
-                                        (d.averageProgress ?? 0) >= 80
-                                            ? 'bg-emerald-500'
-                                            : (d.averageProgress ?? 0) >= 50
-                                            ? 'bg-amber-500'
-                                            : 'bg-red-500'
-                                        }`}
-                                        style={{ width: `${Math.min(d.averageProgress ?? 0, 100)}%` }}
-                                    />
-                                    </div>
-                                    <span className="text-sm font-bold tabular-nums text-slate-700">
-                                    {(d.averageProgress ?? 0).toFixed(0)}%
-                                    </span>
-                                </div>
-                                </td>
-
-                                {/* On Track - căn giữa + màu xanh */}
-                                <td className="px-6 py-3 text-center">
-                                <div className="font-semibold text-emerald-700">
-                                    {d.onTrack ?? 0}
-                                </div>
-                                <div className="text-xs text-slate-500">
-                                    ({d.onTrackPct ?? d.onTrackPercent ?? 0}%)
-                                </div>
-                                </td>
-
-                                {/* At Risk - căn giữa + màu vàng cam */}
-                                <td className="px-6 py-3 text-center">
-                                <div className="font-semibold text-amber-700">
-                                    {d.atRisk ?? 0}
-                                </div>
-                                <div className="text-xs text-slate-500">
-                                    ({d.atRiskPct ?? d.atRiskPercent ?? 0}%)
-                                </div>
-                                </td>
-
-                                {/* Off Track - căn giữa + màu đỏ */}
-                                <td className="px-6 py-3 text-center">
-                                <div className="font-semibold text-red-700">
-                                    {d.offTrack ?? 0}
-                                </div>
-                                <div className="text-xs text-slate-500">
-                                    ({d.offTrackPct ?? d.offTrackPercent ?? 0}%)
-                                </div>
-                                </td>
-                            </tr>
-                            ))}
-                        </tbody>
-                        </table>
-                    </div>
-                    </div>
-
-                    {/* Cảnh báo rủi ro */}
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
-                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Cảnh báo rủi ro</div>
-                        <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 text-slate-600">
-                            <tr>
-                                <th className="px-6 py-3">Objective</th>
-                                <th className="px-6 py-3">Đơn vị</th>
-                                <th className="px-6 py-3 text-center">Tiến độ</th>
-                                <th className="px-6 py-3 text-center">Trạng thái</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {(() => {
-                                const filteredRisks = (report.risks || [])
-                                    .filter(r => {
-                                        // Filter by status
-                                        if (r.status !== 'at_risk' && r.status !== 'off_track') return false;
-                                        // Filter by level
-                                        if (level === 'company') {
-                                            // Only show company-level objectives (no department_id)
-                                            return r.department_id === null || r.department_id === undefined;
-                                        } else if (level === 'departments') {
-                                            // Only show department-level objectives (has department_id)
-                                            return r.department_id !== null && r.department_id !== undefined;
-                                        }
-                                        return true;
-                                    })
-                                    .sort((a, b) => (a.status === 'off_track' ? -1 : 1));
-                                
-                                if (filteredRisks.length === 0) {
-                                    return (
-                                        <tr>
-                                            <td colSpan="4" className="px-6 py-8 text-center text-slate-500">
-                                                Chưa có dữ liệu
-                                            </td>
-                                        </tr>
-                                    );
-                                }
-                                
-                                return filteredRisks.map((r, i) => (
-                                <tr key={i} className="border-t border-slate-100">
-                                    <td className="px-6 py-3 font-semibold text-slate-900">
-                                    {r.objective_title || `#${r.objective_id}`}
-                                    </td>
-                                    <td className="px-6 py-3">
-                                    {(report.departments || []).find(d => d.departmentId === r.department_id)?.departmentName || '—'}
-                                    </td>
-
-                                    {/* Cột Tiến độ - căn giữa */}
-                                    <td className="px-6 py-3 text-center">
-                                    <div className="flex items-center justify-center gap-3">
-                                        <div className="w-32 bg-slate-200 rounded-full h-2">
-                                        <div
-                                            className={`h-2 rounded-full transition-all duration-300 ${
-                                            r.progress >= 80
-                                                ? 'bg-emerald-500'
-                                                : r.progress >= 50
-                                                ? 'bg-amber-500'
-                                                : 'bg-red-500'
-                                            }`}
-                                            style={{ width: `${Math.min(r.progress ?? 0, 100)}%` }}
-                                        />
-                                        </div>
-                                        <span className="text-sm font-semibold tabular-nums">
-                                        {(r.progress ?? 0).toFixed(0)}%
-                                        </span>
-                                    </div>
-                                    </td>
-
-                                    {/* Cột Trạng thái - căn giữa */}
-                                    <td className="px-6 py-3 text-center">
-                                    {r.status === 'on_track' && (
-                                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                        On Track
-                                        </span>
-                                    )}
-                                    {r.status === 'at_risk' && (
-                                        <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                                        At Risk
-                                        </span>
-                                    )}
-                                    {r.status === 'off_track' && (
-                                        <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-                                        Off Track
-                                        </span>
-                                    )}
-                                    </td>
-                                </tr>
-                                ));
-                            })()}
-                            </tbody>
-                        </table>
-                        </div>
-                    </div>
+                    <DepartmentTable report={report} level={level} />
 
                     {/* 1. Chi tiết Objectives */}
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
-                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Chi tiết Objectives</div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-slate-600">
-                                    <tr>
-                                        <th className="px-6 py-3">Tên Objective</th>
-                                        <th className="px-6 py-3">Cấp độ</th>
-                                        <th className="px-6 py-3">Người chịu trách nhiệm</th>
-                                        {level !== 'company' && <th className="px-6 py-3">Phòng ban</th>}
-                                        <th className="px-6 py-3 text-center">Số KR</th>
-                                        <th className="px-6 py-3 text-center">Tiến độ</th>
-                                        <th className="px-6 py-3 text-center">Trạng thái</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {detailedData.objectives.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={level === 'company' ? 6 : 7} className="px-6 py-8 text-center text-slate-500">
-                                                Chưa có dữ liệu
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        detailedData.objectives.map((obj, i) => {
-                                            const progress = obj.progress_percent || 0;
-                                            const status = progress >= 70 ? 'on_track' : (progress >= 40 ? 'at_risk' : 'off_track');
-                                            const levelText = obj.level === 'company' ? 'Công ty' : obj.level === 'unit' ? 'Phòng ban' : obj.level === 'person' ? 'Cá nhân' : 'N/A';
-                                            return (
-                                                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                                    <td className="px-6 py-3 font-semibold text-slate-900">{obj.obj_title || 'N/A'}</td>
-                                                    <td className="px-6 py-3">
-                                                        <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                                                            {levelText}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-3">{obj.user?.full_name || obj.user?.name || 'Chưa gán'}</td>
-                                                    {level !== 'company' && (
-                                                        <td className="px-6 py-3">{obj.department?.d_name || obj.department?.departmentName || '—'}</td>
-                                                    )}
-                                                    <td className="px-6 py-3 text-center font-semibold">{obj.key_results?.length || 0}</td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        <div className="flex items-center justify-center gap-3">
-                                                            <div className="w-32 bg-slate-200 rounded-full h-2">
-                                                                <div
-                                                                    className={`h-2 rounded-full transition-all ${
-                                                                        progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                                                                    }`}
-                                                                    style={{ width: `${Math.min(progress, 100)}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-sm font-semibold tabular-nums">{progress.toFixed(1)}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        {status === 'on_track' && (
-                                                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                                                On Track
-                                                            </span>
-                                                        )}
-                                                        {status === 'at_risk' && (
-                                                            <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                                                                At Risk
-                                                            </span>
-                                                        )}
-                                                        {status === 'off_track' && (
-                                                            <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-                                                                Off Track
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <ObjectivesTable objectives={detailedData.objectives} level={level} />
 
                     {/* 2. Chi tiết Key Results */}
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
-                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Chi tiết Key Results</div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-slate-600">
-                                    <tr>
-                                        <th className="px-6 py-3">Tên Key Result</th>
-                                        <th className="px-6 py-3">Objective</th>
-                                        <th className="px-6 py-3">Người chịu trách nhiệm</th>
-                                        <th className="px-6 py-3 text-center">Tiến độ</th>
-                                        <th className="px-6 py-3 text-center">Trạng thái</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {detailedData.keyResults.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
-                                                Chưa có dữ liệu
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        detailedData.keyResults.map((kr, i) => {
-                                            const progress = kr.progress_percent || 0;
-                                            const status = progress >= 70 ? 'on_track' : (progress >= 40 ? 'at_risk' : 'off_track');
-                                            return (
-                                                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                                    <td className="px-6 py-3 font-medium text-slate-900">{kr.kr_title || 'N/A'}</td>
-                                                    <td className="px-6 py-3 text-slate-600">{kr.objective_title || 'N/A'}</td>
-                                                    <td className="px-6 py-3">
-                                                        {kr.assignee?.full_name || kr.assigned_to_user?.full_name || 
-                                                         kr.objective_owner?.full_name || kr.objective_owner?.name || 
-                                                         'Chưa gán'}
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        <div className="flex items-center justify-center gap-3">
-                                                            <div className="w-32 bg-slate-200 rounded-full h-2">
-                                                                <div
-                                                                    className={`h-2 rounded-full transition-all ${
-                                                                        progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                                                                    }`}
-                                                                    style={{ width: `${Math.min(progress, 100)}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-sm font-semibold tabular-nums">{progress.toFixed(1)}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        {status === 'on_track' && (
-                                                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                                                On Track
-                                                            </span>
-                                                        )}
-                                                        {status === 'at_risk' && (
-                                                            <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                                                                At Risk
-                                                            </span>
-                                                        )}
-                                                        {status === 'off_track' && (
-                                                            <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
-                                                                Off Track
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <KeyResultsTable keyResults={detailedData.keyResults} />
 
                     {/* 3. Phân tích theo Owner */}
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
-                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Phân tích theo Người chịu trách nhiệm</div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-slate-600">
-                                    <tr>
-                                        <th className="px-6 py-3">Người chịu trách nhiệm</th>
-                                        <th className="px-6 py-3 text-center">Số Objectives</th>
-                                        <th className="px-6 py-3 text-center">Số Key Results</th>
-                                        <th className="px-6 py-3 text-center">Tiến độ TB</th>
-                                        <th className="px-6 py-3 text-center">On Track</th>
-                                        <th className="px-6 py-3 text-center">At Risk</th>
-                                        <th className="px-6 py-3 text-center">Off Track</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {detailedData.owners.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="7" className="px-6 py-8 text-center text-slate-500">
-                                                Chưa có dữ liệu
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        detailedData.owners.map((owner, i) => (
-                                            <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                                <td className="px-6 py-3 font-semibold text-slate-900">{owner.owner_name || 'Chưa gán'}</td>
-                                                <td className="px-6 py-3 text-center font-semibold">{owner.objectives.length}</td>
-                                                <td className="px-6 py-3 text-center font-semibold">{owner.keyResults.length}</td>
-                                                <td className="px-6 py-3 text-center">
-                                                    <div className="flex items-center justify-center gap-3">
-                                                        <div className="w-32 bg-slate-200 rounded-full h-2">
-                                                            <div
-                                                                className={`h-2 rounded-full transition-all ${
-                                                                    owner.averageProgress >= 80 ? 'bg-emerald-500' : owner.averageProgress >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                                                                }`}
-                                                                style={{ width: `${Math.min(owner.averageProgress, 100)}%` }}
-                                                            />
-                                                        </div>
-                                                        <span className="text-sm font-semibold tabular-nums">{owner.averageProgress}%</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-3 text-center">
-                                                    <span className="font-semibold text-emerald-700">{owner.onTrack}</span>
-                                                </td>
-                                                <td className="px-6 py-3 text-center">
-                                                    <span className="font-semibold text-amber-700">{owner.atRisk}</span>
-                                                </td>
-                                                <td className="px-6 py-3 text-center">
-                                                    <span className="font-semibold text-red-700">{owner.offTrack}</span>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <OwnersTable owners={detailedData.owners} />
 
                     {/* 4. Lịch sử Check-in */}
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
-                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Lịch sử Check-in</div>
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Tổng số Check-in</div>
-                                    <div className="text-2xl font-bold text-slate-900">{detailedData.checkIns.length}</div>
-                                </div>
-                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Check-in trung bình/Objective</div>
-                                    <div className="text-2xl font-bold text-slate-900">
-                                        {detailedData.objectives.length > 0 
-                                            ? (detailedData.checkIns.length / detailedData.objectives.length).toFixed(1)
-                                            : 0}
-                                    </div>
-                                </div>
-                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Check-in gần nhất</div>
-                                    <div className="text-sm font-semibold text-slate-900">
-                                        {detailedData.checkIns.length > 0 
-                                            ? new Date(Math.max(...detailedData.checkIns.map(ci => new Date(ci.created_at || ci.createdAt).getTime()))).toLocaleDateString('vi-VN')
-                                            : 'Chưa có'}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-slate-50 text-slate-600">
-                                        <tr>
-                                            <th className="px-6 py-3">Key Result</th>
-                                            <th className="px-6 py-3">Objective</th>
-                                            <th className="px-6 py-3">Người check-in</th>
-                                            <th className="px-6 py-3 text-center">Tiến độ</th>
-                                            <th className="px-6 py-3 text-center">Ngày check-in</th>
-                                            <th className="px-6 py-3">Ghi chú</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {detailedData.checkIns.length === 0 ? (
-                                            <tr>
-                                                <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
-                                                    Chưa có check-in nào
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            detailedData.checkIns.slice(0, 20).map((checkIn, i) => (
-                                                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                                    <td className="px-6 py-3 font-medium text-slate-900">
-                                                        {checkIn.key_result?.kr_title || checkIn.kr_title || 'N/A'}
-                                                    </td>
-                                                    <td className="px-6 py-3 text-slate-600">
-                                                        {checkIn.objective?.obj_title || checkIn.objective_title || 'N/A'}
-                                                    </td>
-                                                    <td className="px-6 py-3">{checkIn.user?.full_name || checkIn.user_name || 'N/A'}</td>
-                                                    <td className="px-6 py-3 text-center">
-                                                        <span className="font-semibold">{checkIn.progress_percent || 0}%</span>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-center text-slate-600">
-                                                        {checkIn.created_at 
-                                                            ? new Date(checkIn.created_at).toLocaleDateString('vi-VN')
-                                                            : 'N/A'}
-                                                    </td>
-                                                    <td className="px-6 py-3 text-slate-600 max-w-xs truncate">
-                                                        {checkIn.notes || checkIn.note || '—'}
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+                    <CheckInsTable checkIns={detailedData.checkIns} objectives={detailedData.objectives} />
                 </>
             ) : (
                 /* ===================== TRƯỚC KHI Chốt kỳ - CHỈ HIỂN THỊ THÔNG BÁO ===================== */
@@ -1641,88 +625,17 @@ export default function CompanyOverviewReport() {
             )}
 
             {/* Modal Chốt kỳ */}
-            {showSnapshotModal && (
-            <>
-                {/* Backdrop + cố định trang + click ngoài để đóng */}
-                <div 
-                className="fixed inset-0 bg-black/30 bg-opacity-70 flex items-center justify-center z-50 p-4"
-                onClick={(e) => {
-                    if (e.target === e.currentTarget) {
+            <SnapshotModal
+                isOpen={showSnapshotModal}
+                onClose={() => {
                     setShowSnapshotModal(false);
                     setSnapshotTitleInput('');
-                    }
                 }}
-                >
-                {/* Modal chính */}
-                <div 
-                    className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-in fade-in zoom-in duration-200"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {/* Header */}
-                    <div className="flex justify-between items-center mb-5 p-6 border-b border-gray-100">
-                    <h3 className="text-xl font-bold text-slate-900">Chốt kỳ</h3>
-                    <button 
-                        onClick={() => {
-                        setShowSnapshotModal(false);
-                        setSnapshotTitleInput('');
-                        }} 
-                        className="text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg p-2 transition"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                    </div>
-
-                    {/* Body */}
-                    <div className="p-6 pt-0 space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Tên báo cáo chốt kỳ <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                        type="text"
-                        onChange={(e) => setSnapshotTitleInput(e.target.value)}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                        placeholder="VD: Báo cáo Tuần 42/2025"
-                        autoFocus
-                        />
-                    </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
-                    <button
-                        onClick={() => {
-                        setShowSnapshotModal(false);
-                        setSnapshotTitleInput('');
-                        }}
-                        className="px-5 py-2.5 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition font-medium"
-                    >
-                        Hủy
-                    </button>
-                    <button
-                        onClick={confirmCreateSnapshot}
-                        disabled={isCreatingSnapshot || !snapshotTitleInput.trim()}
-                        className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg shadow hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                        {isCreatingSnapshot ? (
-                        <>
-                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                            </svg>
-                            Đang chốt...
-                        </>
-                        ) : (
-                        'Xác nhận'
-                        )}
-                    </button>
-                    </div>
-                </div>
-                </div>
-            </>
-            )}
+                title={snapshotTitleInput}
+                onTitleChange={setSnapshotTitleInput}
+                onSubmit={confirmCreateSnapshot}
+                isSubmitting={isCreatingSnapshot}
+            />
 
             {/* Snapshots Modal */}
             {showSnapshots && (
@@ -1739,7 +652,7 @@ export default function CompanyOverviewReport() {
                 >
                 {/* Modal chính - ngăn sự kiện click lan ra ngoài */}
                 <div 
-                    className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+                    className="bg-white rounded-xl shadow-2xl max-w-[80vw] w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()} 
                 >
                     {/* Header */}
@@ -1813,9 +726,9 @@ export default function CompanyOverviewReport() {
                                 {[
                                 { label: "Tổng OKR", value: selectedSnapshot.data_snapshot.overall?.totalObjectives || 0, color: "gray" },
                                 { label: "Tiến độ TB", value: `${(selectedSnapshot.data_snapshot.overall?.averageProgress ?? 0).toFixed(1)}%`, color: "blue" },
-                                { label: "On Track", value: selectedSnapshot.data_snapshot.overall?.statusCounts?.onTrack || 0, percent: selectedSnapshot.data_snapshot.overall?.statusDistribution?.onTrack || 0, color: "emerald" },
-                                { label: "At Risk", value: selectedSnapshot.data_snapshot.overall?.statusCounts?.atRisk || 0, percent: selectedSnapshot.data_snapshot.overall?.statusDistribution?.atRisk || 0, color: "amber" },
-                                { label: "Off Track", value: selectedSnapshot.data_snapshot.overall?.statusCounts?.offTrack || 0, percent: selectedSnapshot.data_snapshot.overall?.statusDistribution?.offTrack || 0, color: "red" },
+                                { label: "Đúng tiến độ", value: selectedSnapshot.data_snapshot.overall?.statusCounts?.onTrack || 0, percent: selectedSnapshot.data_snapshot.overall?.statusDistribution?.onTrack || 0, color: "emerald" },
+                                { label: "Có nguy cơ", value: selectedSnapshot.data_snapshot.overall?.statusCounts?.atRisk || 0, percent: selectedSnapshot.data_snapshot.overall?.statusDistribution?.atRisk || 0, color: "amber" },
+                                { label: "Chậm tiến độ", value: selectedSnapshot.data_snapshot.overall?.statusCounts?.offTrack || 0, percent: selectedSnapshot.data_snapshot.overall?.statusDistribution?.offTrack || 0, color: "red" },
                                 ].map((item, i) => (
                                 <div 
                                     key={i} 
@@ -1855,6 +768,139 @@ export default function CompanyOverviewReport() {
                             </div>
                             </div>
 
+                            {/* Biểu đồ phân bổ trạng thái */}
+                            <div>
+                                <h4 className="text-lg font-bold text-gray-900 mb-4">Phân bổ trạng thái</h4>
+                                {(() => {
+                                    const snapshotLevel = selectedSnapshot.data_snapshot.level || 'departments';
+                                    let chartData;
+                                    if (snapshotLevel === 'company') {
+                                        const ov = selectedSnapshot.data_snapshot.overall || { statusCounts: {} };
+                                        chartData = {
+                                            categories: ['Công ty'],
+                                            series: [
+                                                { name: 'Đúng tiến độ', color: '#22c55e', data: [ov.statusCounts?.onTrack || 0] },
+                                                { name: 'Có nguy cơ', color: '#f59e0b', data: [ov.statusCounts?.atRisk || 0] },
+                                                { name: 'Chậm tiến độ', color: '#ef4444', data: [ov.statusCounts?.offTrack || 0] },
+                                            ],
+                                        };
+                                    } else {
+                                        const list = (selectedSnapshot.data_snapshot.departments || [])
+                                            .filter(d => d.departmentId && (d.departmentName || '').toLowerCase() !== 'công ty');
+                                        chartData = {
+                                            categories: list.map(d => d.departmentName),
+                                            series: [
+                                                { name: 'Đúng tiến độ', color: '#22c55e', data: list.map(d => d.onTrack || 0) },
+                                                { name: 'Có nguy cơ', color: '#f59e0b', data: list.map(d => d.atRisk || 0) },
+                                                { name: 'Chậm tiến độ', color: '#ef4444', data: list.map(d => d.offTrack || 0) },
+                                            ],
+                                        };
+                                    }
+                                    return (
+                                        <GroupedBarChart
+                                            categories={chartData.categories}
+                                            series={chartData.series}
+                                            label={`Phân bổ trạng thái theo ${snapshotLevel === 'company' ? 'công ty' : 'phòng ban'}`}
+                                        />
+                                    );
+                                })()}
+                            </div>
+
+                            {/* Bảng chi tiết theo cấp độ */}
+                            <div className="rounded-xl border border-slate-200 bg-white">
+                                <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">
+                                    {selectedSnapshot.data_snapshot.level === 'company' ? 'Chi tiết công ty' : 'Chi tiết theo đơn vị'}
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left">Đơn vị</th>
+                                                <th className="px-6 py-3 text-center">Số OKR</th>
+                                                <th className="px-6 py-3 text-center">Tiến độ TB</th>
+                                                <th className="px-6 py-3 text-center">Đúng tiến độ</th>
+                                                <th className="px-6 py-3 text-center">Có nguy cơ</th>
+                                                <th className="px-6 py-3 text-center">Chậm tiến độ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(selectedSnapshot.data_snapshot.level === 'company'
+                                                ? [
+                                                    {
+                                                        departmentName: 'Công ty',
+                                                        count: selectedSnapshot.data_snapshot.overall?.totalObjectives || 0,
+                                                        averageProgress: selectedSnapshot.data_snapshot.overall?.averageProgress || 0,
+                                                        onTrack: selectedSnapshot.data_snapshot.overall?.statusCounts?.onTrack || 0,
+                                                        atRisk: selectedSnapshot.data_snapshot.overall?.statusCounts?.atRisk || 0,
+                                                        offTrack: selectedSnapshot.data_snapshot.overall?.statusCounts?.offTrack || 0,
+                                                        onTrackPct: selectedSnapshot.data_snapshot.overall?.statusDistribution?.onTrack || 0,
+                                                        atRiskPct: selectedSnapshot.data_snapshot.overall?.statusDistribution?.atRisk || 0,
+                                                        offTrackPct: selectedSnapshot.data_snapshot.overall?.statusDistribution?.offTrack || 0,
+                                                    },
+                                                ]
+                                                : (selectedSnapshot.data_snapshot.departments || []).filter(
+                                                    (d) =>
+                                                        d.departmentId &&
+                                                        (d.departmentName || '').toLowerCase() !== 'công ty'
+                                                )
+                                            ).map((d, i) => (
+                                                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                                    <td className="px-6 py-3 font-medium text-slate-900">
+                                                        {d.departmentName || 'N/A'}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center font-semibold text-slate-900">
+                                                        {d.count ?? d.totalObjectives ?? 0}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        <div className="flex items-center justify-center gap-3" style={{ width: '180px', margin: '0 auto' }}>
+                                                            <div className="w-32 bg-slate-200 rounded-full h-2 flex-shrink-0">
+                                                                <div
+                                                                    className={`h-2 rounded-full transition-all duration-300 ${
+                                                                        (d.averageProgress ?? 0) >= 80
+                                                                            ? 'bg-emerald-500'
+                                                                            : (d.averageProgress ?? 0) >= 50
+                                                                            ? 'bg-amber-500'
+                                                                            : 'bg-red-500'
+                                                                    }`}
+                                                                    style={{ width: `${Math.min(d.averageProgress ?? 0, 100)}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="text-sm font-semibold tabular-nums whitespace-nowrap w-12 text-right">
+                                                                {(d.averageProgress ?? 0).toFixed(1)}%
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        <div className="font-semibold text-emerald-700">
+                                                            {d.onTrack ?? 0}
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            ({d.onTrackPct ?? d.onTrackPercent ?? 0}%)
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        <div className="font-semibold text-amber-700">
+                                                            {d.atRisk ?? 0}
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            ({d.atRiskPct ?? d.atRiskPercent ?? 0}%)
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        <div className="font-semibold text-red-700">
+                                                            {d.offTrack ?? 0}
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            ({d.offTrackPct ?? d.offTrackPercent ?? 0}%)
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                            </div>
+                            </div>
+
                             {/* Chi tiết theo đơn vị - giữ nguyên, đã có At Risk rồi */}
                             {selectedSnapshot.data_snapshot.departments?.length > 0 && (
                             <div>
@@ -1866,9 +912,9 @@ export default function CompanyOverviewReport() {
                                         <th className="text-left p-4 font-semibold text-gray-700">Đơn vị</th>
                                         <th className="text-center p-4 font-semibold text-gray-700">OKR</th>
                                         <th className="text-center p-4 font-semibold text-gray-700">Tiến độ</th>
-                                        <th className="text-center p-4 font-semibold text-green-600">On Track</th>
-                                        <th className="text-center p-4 font-semibold text-yellow-600">At Risk</th>
-                                        <th className="text-center p-4 font-semibold text-red-600">Off Track</th>
+                                        <th className="text-center p-4 font-semibold text-green-600">Đúng tiến độ</th>
+                                        <th className="text-center p-4 font-semibold text-yellow-600">Có nguy cơ</th>
+                                        <th className="text-center p-4 font-semibold text-red-600">Chậm tiến độ</th>
                                     </tr>
                                     </thead>
                                     <tbody>
@@ -1964,13 +1010,321 @@ export default function CompanyOverviewReport() {
                             </div>
                             )}
 
+                            {/* Chi tiết Objectives */}
+                            {selectedSnapshot.data_snapshot.detailedData?.objectives && selectedSnapshot.data_snapshot.detailedData.objectives.length > 0 && (
+                                <div className="rounded-xl border border-slate-200 bg-white">
+                                    <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">Chi tiết Objectives</div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
+                                                <tr>
+                                                    <th className="px-6 py-3">Tên Objective</th>
+                                                    <th className="px-6 py-3">Cấp độ</th>
+                                                    {selectedSnapshot.data_snapshot.level !== 'company' && <th className="px-6 py-3">Phòng ban</th>}
+                                                    <th className="px-6 py-3 text-center">Số KR</th>
+                                                    <th className="px-6 py-3 text-center">Tiến độ</th>
+                                                    <th className="px-6 py-3 text-center">Trạng thái</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedSnapshot.data_snapshot.detailedData.objectives.map((obj, i) => {
+                                                    const krs = obj.keyResults || obj.key_results || [];
+                                                    let progress = 0;
+                                                    
+                                                    if (krs.length > 0) {
+                                                        const totalProgress = krs.reduce((sum, kr) => {
+                                                            const krProgress = parseFloat(kr.progress_percent) || 0;
+                                                            return sum + krProgress;
+                                                        }, 0);
+                                                        progress = totalProgress / krs.length;
+                                                    } else {
+                                                        progress = parseFloat(obj.progress_percent) || 0;
+                                                    }
+                                                    
+                                                    const status = progress >= 70 ? 'on_track' : (progress >= 40 ? 'at_risk' : 'off_track');
+                                                    const levelText = obj.level === 'company' ? 'Công ty' : obj.level === 'unit' ? 'Phòng ban' : obj.level === 'person' ? 'Cá nhân' : 'N/A';
+                                                    return (
+                                                        <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                                            <td className="px-6 py-3 font-semibold text-slate-900">{obj.obj_title || 'N/A'}</td>
+                                                            <td className="px-6 py-3">
+                                                                <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                                                                    {levelText}
+                                                                </span>
+                                                            </td>
+                                                            {selectedSnapshot.data_snapshot.level !== 'company' && (
+                                                                <td className="px-6 py-3">{obj.department?.d_name || obj.department?.departmentName || '—'}</td>
+                                                            )}
+                                                            <td className="px-6 py-3 text-center font-semibold">{obj.key_results?.length || krs.length || 0}</td>
+                                                            <td className="px-6 py-3 text-center">
+                                                                <div className="flex items-center justify-center gap-3" style={{ width: '180px', margin: '0 auto' }}>
+                                                                    <div className="w-32 bg-slate-200 rounded-full h-2 flex-shrink-0">
+                                                                        <div
+                                                                            className={`h-2 rounded-full transition-all ${
+                                                                                progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                                                            }`}
+                                                                            style={{ width: `${Math.min(progress, 100)}%` }}
+                                                                        />
+                        </div>
+                                                                    <span className="text-sm font-semibold tabular-nums whitespace-nowrap w-12 text-right">{progress.toFixed(1)}%</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-3 text-center">
+                                                                {status === 'on_track' && (
+                                                                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                                                        Đúng tiến độ
+                                                                    </span>
+                                                                )}
+                                                                {status === 'at_risk' && (
+                                                                    <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                                                        Có nguy cơ
+                                                                    </span>
+                                                                )}
+                                                                {status === 'off_track' && (
+                                                                    <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                                                                        Chậm tiến độ
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Chi tiết Key Results */}
+                            {selectedSnapshot.data_snapshot.detailedData?.keyResults && selectedSnapshot.data_snapshot.detailedData.keyResults.length > 0 && (
+                                <div className="rounded-xl border border-slate-200 bg-white">
+                                    <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">Chi tiết Key Results</div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
+                                                <tr>
+                                                    <th className="px-6 py-3">Tên Key Result</th>
+                                                    <th className="px-6 py-3">Objective</th>
+                                                    <th className="px-6 py-3">Người được giao</th>
+                                                    <th className="px-6 py-3 text-center">Tiến độ</th>
+                                                    <th className="px-6 py-3 text-center">Trạng thái</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedSnapshot.data_snapshot.detailedData.keyResults.map((kr, i) => {
+                                                    const progress = kr.progress_percent || 0;
+                                                    const status = progress >= 70 ? 'on_track' : (progress >= 40 ? 'at_risk' : 'off_track');
+                                                    return (
+                                                        <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                                            <td className="px-6 py-3 font-medium text-slate-900">{kr.kr_title || 'N/A'}</td>
+                                                            <td className="px-6 py-3 text-slate-600">{kr.objective_title || 'N/A'}</td>
+                                                            <td className="px-6 py-3">
+                                                                {(() => {
+                                                                    const assigneeName = kr.assignedUser?.full_name;
+                                                                    if (assigneeName) return assigneeName;
+                                                                    const ownerName = kr.objective_owner?.full_name || kr.objective_owner?.name;
+                                                                    return ownerName || 'Chưa gán';
+                                                                })()}
+                                                            </td>
+                                                            <td className="px-6 py-3 text-center">
+                                                                <div className="flex items-center justify-center gap-3" style={{ width: '180px', margin: '0 auto' }}>
+                                                                    <div className="w-32 bg-slate-200 rounded-full h-2 flex-shrink-0">
+                                                                        <div
+                                                                            className={`h-2 rounded-full transition-all ${
+                                                                                progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                                                            }`}
+                                                                            style={{ width: `${Math.min(progress, 100)}%` }}
+                                                                        />
+                                                                    </div>
+                                                                    <span className="text-sm font-semibold tabular-nums whitespace-nowrap w-12 text-right">{progress.toFixed(1)}%</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-3 text-center">
+                                                                {status === 'on_track' && (
+                                                                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                                                        Đúng tiến độ
+                                                                    </span>
+                                                                )}
+                                                                {status === 'at_risk' && (
+                                                                    <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                                                        Có nguy cơ
+                                                                    </span>
+                                                                )}
+                                                                {status === 'off_track' && (
+                                                                    <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                                                                        Chậm tiến độ
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Phân tích theo Người chịu trách nhiệm */}
+                            {selectedSnapshot.data_snapshot.detailedData?.owners && selectedSnapshot.data_snapshot.detailedData.owners.length > 0 && (
+                                <div className="rounded-xl border border-slate-200 bg-white">
+                                    <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">Phân tích theo Người chịu trách nhiệm</div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
+                                                <tr>
+                                                    <th className="px-6 py-3">Người chịu trách nhiệm</th>
+                                                    <th className="px-6 py-3 text-center">Số Key Results</th>
+                                                    <th className="px-6 py-3 text-center">Tiến độ TB</th>
+                                                    <th className="px-6 py-3 text-center">Đúng tiến độ</th>
+                                                    <th className="px-6 py-3 text-center">Có nguy cơ</th>
+                                                    <th className="px-6 py-3 text-center">Chậm tiến độ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedSnapshot.data_snapshot.detailedData.owners.map((owner, i) => (
+                                                    <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                                        <td className="px-6 py-3 font-semibold text-slate-900">{owner.owner_name || 'Chưa gán'}</td>
+                                                        <td className="px-6 py-3 text-center font-semibold">{owner.keyResults?.length || 0}</td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            <div className="flex items-center justify-center gap-3" style={{ width: '180px', margin: '0 auto' }}>
+                                                                <div className="w-32 bg-slate-200 rounded-full h-2 flex-shrink-0">
+                                                                    <div
+                                                                        className={`h-2 rounded-full transition-all ${
+                                                                            owner.averageProgress >= 80 ? 'bg-emerald-500' : owner.averageProgress >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                                                        }`}
+                                                                        style={{ width: `${Math.min(owner.averageProgress, 100)}%` }}
+                                                                    />
+                                                                </div>
+                                                                <span className="text-sm font-semibold tabular-nums whitespace-nowrap w-12 text-right">{owner.averageProgress}%</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            <span className="font-semibold text-emerald-700">{owner.onTrack || 0}</span>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            <span className="font-semibold text-amber-700">{owner.atRisk || 0}</span>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            <span className="font-semibold text-red-700">{owner.offTrack || 0}</span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Lịch sử Check-in */}
+                            {selectedSnapshot.data_snapshot.detailedData?.checkIns && (
+                                <div className="rounded-xl border border-slate-200 bg-white">
+                                    <div className="bg-blue-50 border-b-2 border-blue-200 px-6 py-4 text-sm font-bold text-slate-800">Lịch sử Check-in</div>
+                                    <div className="p-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Tổng số Check-in</div>
+                                                <div className="text-2xl font-bold text-slate-900">{selectedSnapshot.data_snapshot.detailedData.checkIns.length || 0}</div>
+                                            </div>
+                                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Check-in trung bình/Objective</div>
+                                                <div className="text-2xl font-bold text-slate-900">
+                                                    {selectedSnapshot.data_snapshot.detailedData.objectives?.length > 0 
+                                                        ? (selectedSnapshot.data_snapshot.detailedData.checkIns.length / selectedSnapshot.data_snapshot.detailedData.objectives.length).toFixed(1)
+                                                        : 0}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Check-in gần nhất</div>
+                                                <div className="text-sm font-semibold text-slate-900">
+                                                    {selectedSnapshot.data_snapshot.detailedData.checkIns.length > 0 
+                                                        ? new Date(Math.max(...selectedSnapshot.data_snapshot.detailedData.checkIns.map(ci => new Date(ci.created_at || ci.createdAt).getTime()))).toLocaleDateString('vi-VN')
+                                                        : 'Chưa có'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-sm">
+                                                <thead className="bg-white text-slate-700 font-semibold border-b-2 border-slate-200">
+                                                    <tr>
+                                                        <th className="px-6 py-3">Key Result</th>
+                                                        <th className="px-6 py-3">Objective</th>
+                                                        <th className="px-6 py-3">Người check-in</th>
+                                                        <th className="px-6 py-3 text-center">Tiến độ</th>
+                                                        <th className="px-6 py-3 text-center">Ngày check-in</th>
+                                                        <th className="px-6 py-3">Ghi chú</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {selectedSnapshot.data_snapshot.detailedData.checkIns.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
+                                                                Chưa có check-in nào
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        selectedSnapshot.data_snapshot.detailedData.checkIns.slice(0, 20).map((checkIn, i) => (
+                                                            <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                                                <td className="px-6 py-3 font-medium text-slate-900">
+                                                                    {checkIn.key_result?.kr_title || checkIn.kr_title || 'N/A'}
+                                                                </td>
+                                                                <td className="px-6 py-3 text-slate-600">
+                                                                    {checkIn.objective?.obj_title || checkIn.objective_title || 'N/A'}
+                                                                </td>
+                                                                <td className="px-6 py-3">{checkIn.user?.full_name || checkIn.user_name || 'N/A'}</td>
+                                                                <td className="px-6 py-3 text-center">
+                                                                    <span className="font-semibold">{checkIn.progress_percent || 0}%</span>
+                                                                </td>
+                                                                <td className="px-6 py-3 text-center text-slate-600">
+                                                                    {checkIn.created_at 
+                                                                        ? new Date(checkIn.created_at).toLocaleDateString('vi-VN')
+                                                                        : 'N/A'}
+                                                                </td>
+                                                                <td className="px-6 py-3 text-slate-600 max-w-xs truncate">
+                                                                    {checkIn.notes || checkIn.note || '—'}
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                         )}
                         </div>
                     ) : (
                         /* ==================== DANH SÁCH SNAPSHOT ==================== */
                         <div>
-                        {snapshots.length === 0 ? (
+                        {/* Filter theo level */}
+                        <div className="mb-4 flex items-center gap-4">
+                            <label className="text-sm font-medium text-gray-700">Lọc theo cấp độ:</label>
+                            <select
+                                value={snapshotLevelFilter}
+                                onChange={(e) => {
+                                    setSnapshotLevelFilter(e.target.value);
+                                    setSnapshotPage(1);
+                                }}
+                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                            >
+                                <option value="all">Tất cả</option>
+                                <option value="company">Công ty</option>
+                                <option value="departments">Phòng ban</option>
+                            </select>
+                        </div>
+
+                        {(() => {
+                            // Filter snapshots theo level
+                            const filteredSnapshots = snapshots.filter((snap) => {
+                                if (snapshotLevelFilter === 'all') return true;
+                                const snapLevel = snap.data_snapshot?.level || 'departments';
+                                return snapLevel === snapshotLevelFilter;
+                            });
+
+                            if (filteredSnapshots.length === 0) {
+                                return (
                             <div className="text-center py-16">
                             <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1978,11 +1332,22 @@ export default function CompanyOverviewReport() {
                                 </svg>
                             </div>
                             <p className="text-gray-600 font-semibold text-lg">Chưa có Chốt kỳ nào</p>
-                            <p className="text-gray-400 text-sm mt-2">Nhấn nút "Chốt kỳ" để tạo bản sao đầu tiên</p>
+                                        <p className="text-gray-400 text-sm mt-2">
+                                            {snapshotLevelFilter === 'all' 
+                                                ? 'Nhấn nút "Chốt kỳ" để tạo bản sao đầu tiên'
+                                                : `Chưa có Chốt kỳ nào cho cấp độ ${snapshotLevelFilter === 'company' ? 'Công ty' : 'Phòng ban'}`
+                                            }
+                                        </p>
                             </div>
-                        ) : (
+                                );
+                            }
+
+                            return (
                             <div className="grid gap-4">
-                            {snapshots.map((snap) => (
+                                    {filteredSnapshots.map((snap) => {
+                                        const snapLevel = snap.data_snapshot?.level || 'departments';
+                                        const levelText = snapLevel === 'company' ? 'Công ty' : 'Phòng ban';
+                                        return (
                                 <button
                                 key={snap.id}
                                 onClick={() => loadSnapshot(snap.id)}
@@ -1990,9 +1355,14 @@ export default function CompanyOverviewReport() {
                                 >
                                 <div className="flex items-center justify-between">
                                     <div className="flex-1">
+                                                        <div className="flex items-center gap-3 mb-1">
                                     <h3 className="font-bold text-gray-900 text-lg group-hover:text-blue-600 transition">
                                         {snap.title}
                                     </h3>
+                                                            <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                                                                {levelText}
+                                                            </span>
+                                                        </div>
                                     <div className="flex items-center gap-6 text-sm text-gray-500 mt-2">
                                         <span className="flex items-center gap-1">
                                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -2009,7 +1379,118 @@ export default function CompanyOverviewReport() {
                                     </svg>
                                 </div>
                                 </button>
-                            ))}
+                                        );
+                                    })}
+                            </div>
+                            );
+                        })()}
+
+                        {/* Pagination */}
+                        {snapshotPagination.total > 0 && snapshotPagination.last_page > 1 && (
+                            <div className="mt-6 flex items-center justify-center">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            const newPage = Math.max(1, snapshotPage - 1);
+                                            setSnapshotPage(newPage);
+                                            loadSnapshots(newPage);
+                                        }}
+                                        disabled={snapshotPage === 1}
+                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                            snapshotPage === 1
+                                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                        }`}
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M15 19l-7-7 7-7"
+                                            />
+                                        </svg>
+                                    </button>
+
+                                    <div className="flex items-center gap-1">
+                                        {Array.from(
+                                            { length: snapshotPagination.last_page },
+                                            (_, i) => i + 1
+                                        ).map((pageNumber) => {
+                                            if (
+                                                pageNumber === 1 ||
+                                                pageNumber === snapshotPagination.last_page ||
+                                                (pageNumber >= snapshotPage - 1 &&
+                                                    pageNumber <= snapshotPage + 1)
+                                            ) {
+                                                return (
+                                                    <button
+                                                        key={pageNumber}
+                                                        onClick={() => {
+                                                            setSnapshotPage(pageNumber);
+                                                            loadSnapshots(pageNumber);
+                                                        }}
+                                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                                            snapshotPage === pageNumber
+                                                                ? "bg-blue-600 text-white"
+                                                                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                        }`}
+                                                    >
+                                                        {pageNumber}
+                                                    </button>
+                                                );
+                                            } else if (
+                                                pageNumber === snapshotPage - 2 ||
+                                                pageNumber === snapshotPage + 2
+                                            ) {
+                                                return (
+                                                    <span
+                                                        key={pageNumber}
+                                                        className="px-2 text-gray-400"
+                                                    >
+                                                        ...
+                                                    </span>
+                                                );
+                                            }
+                                            return null;
+                                        })}
+                                    </div>
+
+                                    <button
+                                        onClick={() => {
+                                            const newPage = Math.min(snapshotPagination.last_page, snapshotPage + 1);
+                                            setSnapshotPage(newPage);
+                                            loadSnapshots(newPage);
+                                        }}
+                                        disabled={snapshotPage === snapshotPagination.last_page}
+                                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                            snapshotPage === snapshotPagination.last_page
+                                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                        }`}
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M9 5l7 7-7 7"
+                                            />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                         )}
                         </div>

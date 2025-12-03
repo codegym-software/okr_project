@@ -201,6 +201,7 @@ class ReportController extends Controller
                 $krs = DB::table('key_results')
                     ->select(['progress_percent','current_value','target_value'])
                     ->where('objective_id', $obj->objective_id)
+                    ->whereNull('archived_at') // Only count non-archived KeyResults
                     ->get();
                 if ($krs->count() === 0) {
                     $progress = 0.0;
@@ -296,6 +297,7 @@ class ReportController extends Controller
         $departmentId = $request->integer('department_id');
         $status = $request->string('status')->toString(); // on_track | at_risk | off_track
         $ownerId = $request->integer('owner_id');
+        $level = $request->input('level'); // company | departments
 
         // Determine current cycle if missing
         if (!$cycleId) {
@@ -310,10 +312,21 @@ class ReportController extends Controller
 
         // Base objectives with optional filters
         $objectivesQuery = Objective::query()
-            ->select(['objective_id','obj_title','department_id','cycle_id','progress_percent','user_id'])
+            ->select(['objective_id','obj_title','department_id','cycle_id','progress_percent','user_id', 'level'])
+            ->whereNull('archived_at') // Only count active objectives
             ->when($cycleId, fn ($q) => $q->where('cycle_id', $cycleId))
             ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
             ->when($ownerId, fn ($q) => $q->where('user_id', $ownerId));
+        
+        // Filter by level - must be explicit
+        if ($level === 'company') {
+            $objectivesQuery->where('level', 'company');
+        } elseif ($level === 'departments') {
+            $objectivesQuery->where('level', 'unit');
+        } else {
+            // Default: exclude person level, include both company and unit
+            $objectivesQuery->whereIn('level', ['company', 'unit']);
+        }
 
         $objectives = $objectivesQuery->get();
 
@@ -324,6 +337,7 @@ class ReportController extends Controller
                 DB::raw('AVG(CASE WHEN progress_percent IS NOT NULL THEN progress_percent ELSE CASE WHEN target_value IS NOT NULL AND target_value > 0 THEN LEAST(100, GREATEST(0, (current_value/target_value)*100)) ELSE 0 END END) as avg_progress')
             )
             ->whereIn('objective_id', $objectiveIds)
+            ->whereNull('archived_at') // Only count non-archived KeyResults
             ->groupBy('objective_id')
             ->pluck('avg_progress', 'objective_id');
 
