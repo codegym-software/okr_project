@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
 import ObjectiveList from "./ObjectiveList"; // Corrected import
+import ObjectiveModal from "./ObjectiveModal.jsx"; // Import ObjectiveModal
 
 const pickRelation = (link, camel, snake) =>
     (link && link[camel]) || (link && link[snake]) || null;
