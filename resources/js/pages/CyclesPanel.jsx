@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Badge, Modal, Toast } from "../components/ui";
 import DateInputComponent from "../components/DateInput";
+import ObjectiveDetailModal from "../components/ObjectiveDetailModal";
 import { useAuth } from "../hooks/useAuth";
 import { AdminOnly } from "../components/AdminOnly";
 import { 
@@ -16,7 +17,8 @@ import {
     FiCheckCircle,
     FiActivity,
     FiPieChart,
-    FiTarget
+    FiTarget,
+    FiUser
 } from "react-icons/fi";
 
 // --- Helper Functions ---
@@ -741,7 +743,13 @@ export default function CyclesPanel() {
 function CycleDetailView({ detail, krs, formatDate }) {
     const [openObj, setOpenObj] = useState({});
     const [activeObjTab, setActiveObjTab] = useState('company'); // 'company', 'department', 'personal'
+    const [selectedObjective, setSelectedObjective] = useState(null);
     const toggleObj = (id) => setOpenObj(prev => ({ ...prev, [id]: !prev[id] }));
+    
+    const formatPercent = (value) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? `${n.toFixed(1)}%` : "0%";
+    };
 
     // Safe check cho list objectives
     const objectives = detail?.objectives || [];
@@ -773,38 +781,39 @@ function CycleDetailView({ detail, krs, formatDate }) {
             return (
                 <div key={obj.objective_id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md hover:border-blue-200 mb-4">
                     {/* Objective Header */}
-                    <div 
-                        onClick={() => toggleObj(obj.objective_id)}
-                        className="flex cursor-pointer items-center justify-between px-6 py-5 bg-white select-none"
-                    >
-                        <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-between px-6 py-5 bg-white select-none">
+                        <div 
+                            onClick={() => toggleObj(obj.objective_id)}
+                            className="flex items-center gap-4 flex-1 cursor-pointer"
+                        >
                             <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-bold text-lg transition-colors ${isOpen ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100'}`}>
                                 {(obj.obj_title || "O")[0].toUpperCase()}
                             </div>
                             <div>
                                 <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-1">{obj.obj_title}</h4>
-                                <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 flex-wrap">
-                                    <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-600 border border-slate-200 uppercase tracking-wider text-[10px]">
-                                        {obj.level || 'Company'}
-                                    </span>
-                                    
-                                    {/* Hiển thị thông tin User/Department nếu có */}
-                                    {obj.user && (
-                                        <span className="flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-blue-700 border border-blue-100">
-                                            <span className="font-medium">{obj.user.full_name}</span>
-                                        </span>
-                                    )}
-                                    
-                                    {obj.department && (
-                                        <span className="flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-purple-700 border border-purple-100">
-                                            <span className="font-medium">{obj.department.d_name}</span>
-                                        </span>
-                                    )}
-                                </div>
                             </div>
                         </div>
-                        <div className={`text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}>
-                            <FiChevronDown size={20} />
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const objWithKRs = {
+                                        ...obj,
+                                        key_results: krs[obj.objective_id] || []
+                                    };
+                                    setSelectedObjective(objWithKRs);
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Xem chi tiết"
+                            >
+                                Chi tiết
+                            </button>
+                            <div 
+                                onClick={() => toggleObj(obj.objective_id)}
+                                className={`cursor-pointer text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}
+                            >
+                                <FiChevronDown size={20} />
+                            </div>
                         </div>
                     </div>
                     
@@ -812,24 +821,60 @@ function CycleDetailView({ detail, krs, formatDate }) {
                     {isOpen && (
                         <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-4 animate-in slide-in-from-top-2 duration-200">
                             <div className="space-y-3 pl-0 sm:pl-16">
-                                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
                                     <span>Key Results</span>
-                                    <span>Trạng thái</span>
                                 </div>
                                 
-                                {(krs[obj.objective_id] || []).map(kr => (
-                                    <div key={kr.kr_id || kr.id} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-colors hover:border-blue-300 hover:shadow-sm">
-                                        <div className="mt-0.5 text-slate-400">
-                                            <FiCheckCircle size={16} className={kr.status === 'completed' ? 'text-emerald-500' : ''} />
+                                {(krs[obj.objective_id] || []).map(kr => {
+                                    const progress = Number(kr.progress_percent) || 0;
+                                    const progressColor = progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-blue-500' : 'bg-amber-500';
+                                    
+                                    return (
+                                        <div 
+                                            key={kr.kr_id || kr.id} 
+                                            onClick={() => {
+                                                const objWithKRs = {
+                                                    ...obj,
+                                                    key_results: krs[obj.objective_id] || []
+                                                };
+                                                setSelectedObjective(objWithKRs);
+                                            }}
+                                            className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-all hover:border-blue-300 hover:shadow-sm cursor-pointer"
+                                        >
+                                            <div className="mt-0.5 text-slate-400">
+                                                <FiCheckCircle size={16} className={kr.status === 'completed' ? 'text-emerald-500' : ''} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-slate-800 leading-snug mb-2">{kr.kr_title}</p>
+                                                
+                                                {/* Progress Bar */}
+                                                <div className="relative w-full bg-slate-200 rounded-full h-2 mb-2">
+                                                    <div
+                                                        className={`${progressColor} h-2 rounded-full transition-all`}
+                                                        style={{
+                                                            width: `${Math.min(100, Math.max(0, progress))}%`
+                                                        }}
+                                                    />
+                                                    {progress > 0 && (
+                                                        <span className="absolute left-1 top-0 text-white text-[10px] font-semibold z-10 leading-tight">
+                                                            {formatPercent(progress)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* Assigned User */}
+                                                {(kr.assignee || kr.assigned_to_user) && (
+                                                    <div className="flex items-center gap-1.5 text-xs text-slate-600 mt-1.5">
+                                                        <FiUser size={12} className="text-slate-400" />
+                                                        <span className="truncate">
+                                                            {(kr.assignee || kr.assigned_to_user)?.full_name || (kr.assignee || kr.assigned_to_user)?.name}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-slate-800 leading-snug">{kr.kr_title}</p>
-                                        </div>
-                                        <Badge color={kr.status === 'completed' ? 'emerald' : 'slate'}>
-                                            {kr.status || 'active'}
-                                        </Badge>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 
                                 {(krs[obj.objective_id] || []).length === 0 && (
                                     <div className="flex items-center gap-2 text-sm italic text-slate-400 px-2 py-2 border border-dashed border-slate-300 rounded-lg justify-center">
@@ -965,6 +1010,14 @@ function CycleDetailView({ detail, krs, formatDate }) {
                     {activeObjTab === 'personal' && renderObjectivesList(personalObjs, "Chưa có mục tiêu cấp Cá nhân nào.")}
                 </div>
             </div>
+            
+            {/* Objective Detail Modal */}
+            {selectedObjective && (
+                <ObjectiveDetailModal
+                    objective={selectedObjective}
+                    onClose={() => setSelectedObjective(null)}
+                />
+            )}
         </div>
     );
 }

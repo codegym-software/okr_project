@@ -63,8 +63,8 @@ class CycleController extends Controller
     }
 
     public function show(Request $request, Cycle $cycle) {
-        // Eager load objectives, user và keyResults để FE không phải gọi thêm
-        $cycle->load(['objectives.user', 'objectives.keyResults']);
+        // Eager load objectives, user và keyResults với assignedUser để FE không phải gọi thêm
+        $cycle->load(['objectives.user', 'objectives.department', 'objectives.keyResults.assignee']);
         $objectives = $cycle->objectives;
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => compact('cycle','objectives')]);

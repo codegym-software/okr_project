@@ -92,12 +92,6 @@ export default function ObjectiveDetailModal({ objective, onClose }) {
                                 {getStatusText(objective.status)}
                             </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-600">Tiến độ:</span>
-                            <span className="text-sm font-medium text-slate-900">
-                                {formatPercent(objective.progress_percent)}
-                            </span>
-                        </div>
                         {objective.description && (
                             <div>
                                 <span className="text-sm text-slate-600 block mb-1">
