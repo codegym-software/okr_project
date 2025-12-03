@@ -4,6 +4,7 @@ import { CycleDropdown } from "../components/Dropdown";
 import ToastNotification from "../components/ToastNotification";
 import ObjectiveList from "./ObjectiveList"; // Corrected import
 import ObjectiveModal from "./ObjectiveModal.jsx"; // Import ObjectiveModal
+import KeyResultModal from "./KeyResultModal.jsx"; // Import KeyResultModal
 
 const pickRelation = (link, camel, snake) =>
     (link && link[camel]) || (link && link[snake]) || null;
@@ -38,6 +39,9 @@ export default function CompanyOkrList() {
     const [childLinks, setChildLinks] = useState([]);
     const [linksLoading, setLinksLoading] = useState(false);
     const [creatingObjective, setCreatingObjective] = useState(false); // New state
+    const [editingObjective, setEditingObjective] = useState(null);
+    const [editingKR, setEditingKR] = useState(null);
+    const [creatingFor, setCreatingFor] = useState(null);
 
     // New state for advanced filtering
     const [filterType, setFilterType] = useState('company'); // 'company' or 'department'
@@ -212,11 +216,11 @@ export default function CompanyOkrList() {
                 setItems={setItems}
                 childLinks={childLinks}
                 linksLoading={linksLoading}
-                // Revert to read-only props as creation is handled above
-                setCreatingFor={() => {}}
-                setEditingObjective={() => {}}
-                setEditingKR={() => {}}
-                setCreatingObjective={() => {}}
+                // Pass functional props if CEO, otherwise pass no-ops
+                setCreatingFor={isCeo ? setCreatingFor : () => {}}
+                setEditingObjective={isCeo ? setEditingObjective : () => {}}
+                setEditingKR={isCeo ? setEditingKR : () => {}}
+                setCreatingObjective={() => {}} // This is handled by the button outside ObjectiveList
                 openCheckInModal={() => {}}
                 openCheckInHistory={() => {}}
                 onOpenLinkModal={() => {}}
@@ -225,7 +229,7 @@ export default function CompanyOkrList() {
                 disableActions={!isCeo}
             />
 
-            {/* Objective Modal for CEO */}
+            {/* Modals for CEO actions */}
             {isCeo && creatingObjective && (
                 <ObjectiveModal
                     creatingObjective={creatingObjective}
@@ -235,6 +239,38 @@ export default function CompanyOkrList() {
                     setItems={setItems}
                     setToast={setToast}
                     reloadData={fetchData}
+                />
+            )}
+            {isCeo && editingObjective && (
+                <ObjectiveModal
+                    editingObjective={editingObjective}
+                    setEditingObjective={setEditingObjective}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                    reloadData={fetchData}
+                />
+            )}
+            {isCeo && editingKR && (
+                <KeyResultModal
+                    editingKR={editingKR}
+                    setEditingKR={setEditingKR}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                />
+            )}
+            {isCeo && creatingFor && (
+                <KeyResultModal
+                    creatingFor={creatingFor}
+                    setCreatingFor={setCreatingFor}
+                    departments={departments}
+                    cyclesList={cyclesList}
+                    setItems={setItems}
+                    setToast={setToast}
+                    currentUser={currentUser}
                 />
             )}
 
