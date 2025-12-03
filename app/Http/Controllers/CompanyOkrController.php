@@ -107,12 +107,16 @@ class CompanyOkrController extends Controller
             'user',
             'department',
             'cycle',
-            'keyResults' => fn ($q) => $q->with(['assignedUser', 'checkIns.user'])->orderBy('created_at'),
-            'childObjectives.sourceObjective.user',
-            'childObjectives.sourceObjective.department',
-            'sourceLinks.targetObjective.user',
-            'sourceLinks.targetObjective.department',
-            'comments'
+            'comments',
+            'keyResults' => function ($query) {
+                $query->with(['assignedUser', 'checkIns.user'])->orderBy('created_at');
+            },
+            'childObjectives' => function ($query) {
+                $query->with(['sourceObjective.user', 'sourceObjective.department']);
+            },
+            'sourceLinks' => function ($query) {
+                $query->with(['targetObjective.user', 'targetObjective.department']);
+            }
         ])->findOrFail($id);
 
         $user = Auth::user();
@@ -121,7 +125,20 @@ class CompanyOkrController extends Controller
             return response()->json(['success' => false, 'message' => 'Không có quyền xem'], 403);
         }
 
-        return response()->json(['success' => true, 'data' => $objective]);
+        // Manually construct the response to ensure all data is included
+        $data = $objective->attributesToArray();
+        $data['user'] = $objective->user;
+        $data['department'] = $objective->department;
+        $data['cycle'] = $objective->cycle;
+        $data['key_results'] = $objective->keyResults->map(function($kr) { return $kr->toArray(); })->values()->all();
+        $data['child_objectives'] = $objective->childObjectives->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['source_links'] = $objective->sourceLinks->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['comments'] = $objective->comments->map(function($comment) { return $comment->toArray(); })->values()->all();
+        // The progress_percent is an accessor, let's make sure it's included
+        $data['progress_percent'] = $objective->progress_percent;
+
+
+        return response()->json(['success' => true, 'data' => $data]);
     }
     // Helper methods (giữ nguyên)
     private function getCurrentCycle($request)
