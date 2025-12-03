@@ -132,16 +132,16 @@ export default function ObjectiveRow({
                                 />
                             </svg>
                         </button>
-                        <ObjectiveActionsMenu
-                            obj={obj}
-                            onOpenLinkModal={onOpenLinkModal}
-                            handleArchive={handleArchive}
-                            archiving={archiving}
-                            menuRefs={menuRefs}
-                            openObj={openObj}
-                            setOpenObj={setOpenObj}
-                            disableActions={disableActions}
-                        />
+                        <button
+                            onClick={() => handleArchive(obj.objective_id)}
+                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Lưu trữ"
+                            disabled={disableActions || archiving === obj.objective_id}
+                        >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                            </svg>
+                        </button>
                     </div>
                 </td>
             </tr>
