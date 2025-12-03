@@ -328,7 +328,7 @@ export function ViewModeDropdown({
     };
 
     return (
-        <div className="relative w-48">
+        <div className="relative">
             <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
                 className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
