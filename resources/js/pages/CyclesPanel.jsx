@@ -109,6 +109,17 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                         required
                     />
                 </div>
+                <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Mô tả (tuỳ chọn)
+                    </label>
+                    <textarea
+                        value={form.description}
+                        onChange={(e) => setForm({ ...form, description: e.target.value })}
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all resize-none"
+                        style={{ minHeight: '46px' }}
+                    />
+                </div>
                 <div className="grid gap-6 md:grid-cols-2">
                     <div>
                         <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -117,7 +128,7 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                         <DateInputComponent
                             name="start_date"
                             value={form.start_date}
-                            onChange={(val) => setForm({...form, start_date: val})}
+                            onChange={(val) => setForm({ ...form, start_date: val })}
                             required
                         />
                     </div>
@@ -128,40 +139,8 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                         <DateInputComponent
                             name="end_date"
                             value={form.end_date}
-                            onChange={(val) => setForm({...form, end_date: val})}
+                            onChange={(val) => setForm({ ...form, end_date: val })}
                             required
-                        />
-                    </div>
-                </div>
-                <div className="grid gap-6 md:grid-cols-2">
-                    <div>
-                        <label className="mb-2 block text-sm font-semibold text-slate-700">
-                            Trạng thái
-                        </label>
-                        <div className="relative">
-                            <select
-                                value={form.status}
-                                onChange={(e) => setForm({...form, status: e.target.value})}
-                                className="w-full appearance-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all"
-                            >
-                                {/* CHỈ CÒN ACTIVE VÀ INACTIVE */}
-                                <option value="active">Hoạt động (Active)</option>
-                                <option value="inactive">Đóng (Inactive)</option>
-                            </select>
-                            <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="mb-2 block text-sm font-semibold text-slate-700">
-                            Mô tả (tuỳ chọn)
-                        </label>
-                        <textarea
-                            value={form.description}
-                            onChange={(e) => setForm({...form, description: e.target.value})}
-                            className="h-[46px] w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all resize-none"
-                            style={{ minHeight: '46px' }}
                         />
                     </div>
                 </div>
@@ -175,9 +154,9 @@ function CycleFormModal({ open, onClose, onSubmit, initialData, title }) {
                     </button>
                     <button
                         type="submit"
-                        className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 transition-colors shadow-none"
+                        className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors shadow-none"
                     >
-                        Lưu thay đổi
+                        {title && title.toLowerCase().includes("tạo") ? "Tạo" : "Lưu thay đổi"}
                     </button>
                 </div>
             </form>
