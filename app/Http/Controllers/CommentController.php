@@ -50,4 +50,32 @@ class CommentController extends Controller
 
         return response()->json($comment, 201);
     }
+
+    /**
+     * Store a newly created comment for a Key Result.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  string $krId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function storeForKr(Request $request, $krId)
+    {
+        $request->validate([
+            'content' => 'required|string|max:2000',
+            'parent_id' => 'nullable|exists:comments,id',
+        ]);
+
+        $keyResult = \App\Models\KeyResult::findOrFail($krId);
+
+        $comment = $keyResult->comments()->create([
+            'content' => $request->content,
+            'parent_id' => $request->parent_id,
+            'user_id' => Auth::id(),
+        ]);
+
+        // Eager load the user relationship for the frontend
+        $comment->load('user');
+
+        return response()->json($comment, 201);
+    }
 }

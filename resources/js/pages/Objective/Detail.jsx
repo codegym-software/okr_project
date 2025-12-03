@@ -66,7 +66,7 @@ const KeyResultsSection = ({ keyResults }) => (
         {keyResults?.length > 0 ? keyResults.map(kr => (
             <div key={kr.kr_id} className="p-3 border rounded-md">
                 <div className="flex justify-between items-start">
-                    <a href={`#`} className="font-semibold text-blue-600 hover:underline">{kr.kr_title}</a>
+                    <a href={`/company-okrs/detail/kr/${kr.kr_id}`} className="font-semibold text-blue-600 hover:underline">{kr.kr_title}</a>
                     <span className="text-sm font-bold">{kr.progress_percent}%</span>
                 </div>
                 <div className="text-xs text-gray-500 mt-1">Owner: {kr.assigned_user?.full_name || 'N/A'}</div>

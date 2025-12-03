@@ -371,6 +371,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::prefix('api')->middleware('auth')->group(function () {
         Route::post('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'store'])->name('api.comments.store');
         Route::get('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'index'])->name('api.comments.index');
+        Route::post('/key-results/{kr_id}/comments', [App\Http\Controllers\CommentController::class, 'storeForKr'])->name('api.kr-comments.store');
+        Route::get('/company-okrs/detail/kr/{id}', [App\Http\Controllers\KeyResultController::class, 'getDetails'])->name('api.key-results.details');
     });
 
 

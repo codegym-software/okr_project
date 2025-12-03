@@ -21,6 +21,7 @@ class Comment extends Model
         'user_id',
         'objective_id',
         'parent_id',
+        'kr_id',
     ];
 
     /**
@@ -45,6 +46,14 @@ class Comment extends Model
     public function objective(): BelongsTo
     {
         return $this->belongsTo(Objective::class, 'objective_id', 'objective_id');
+    }
+
+    /**
+     * Get the key result that the comment belongs to.
+     */
+    public function keyResult(): BelongsTo
+    {
+        return $this->belongsTo(KeyResult::class, 'kr_id', 'kr_id');
     }
 
     /**

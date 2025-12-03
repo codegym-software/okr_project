@@ -179,8 +179,30 @@ class KeyResult extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function assignedUser()
-    {
-        return $this->belongsTo(User::class, 'assigned_to', 'user_id');
+        public function assignedUser()
+
+        {
+
+            return $this->belongsTo(User::class, 'assigned_to', 'user_id');
+
+        }
+
+    
+
+        /**
+
+         * Get the comments for the key result.
+
+         */
+
+        public function comments(): HasMany
+
+        {
+
+            return $this->hasMany(Comment::class, 'kr_id', 'kr_id')->whereNull('parent_id');
+
+        }
+
     }
-}
+
+    

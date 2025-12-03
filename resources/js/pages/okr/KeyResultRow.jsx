@@ -274,9 +274,9 @@ export default function KeyResultRow({
                             title="Key Result"
                         />
 
-                        <span className="font-semibold text-slate-900 text-base">
+                        <a href={`/company-okrs/detail/kr/${kr.kr_id}`} className="font-semibold text-slate-900 text-base hover:text-blue-600 hover:underline">
                             {kr.kr_title}
-                        </span>
+                        </a>
                     </div>
                 </td>
 
