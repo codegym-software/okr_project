@@ -46,6 +46,12 @@ export default function CompanyOverviewReport() {
         risks: [],
     });
     const [currentCycleMeta, setCurrentCycleMeta] = useState(null);
+    const [detailedData, setDetailedData] = useState({
+        objectives: [],
+        keyResults: [],
+        owners: [],
+        checkIns: [],
+    });
 
     const TrendIcon = ({ delta }) => {
         if (delta === null || delta === undefined) return <span className="text-slate-400">—</span>;
@@ -133,13 +139,224 @@ export default function CompanyOverviewReport() {
                 const json = await res.json();
                 if (!res.ok || !json.success) throw new Error(json.message || 'Load report failed');
                 setReport(json.data);
+                
+                // Fetch detailed data based on current level
+                await fetchDetailedData(filters.cycleId, filters.departmentId, filters.ownerId, level);
             } catch (e) {
                 setError(e.message || 'Có lỗi xảy ra');
             } finally {
                 setLoading(false);
             }
         })();
-    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId]);
+    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId, level]);
+    
+    // Fetch detailed data for Objectives, Key Results, Owners, Check-ins
+    const fetchDetailedData = async (cycleId, departmentId, ownerId, currentLevel) => {
+        try {
+            const params = new URLSearchParams();
+            if (cycleId) params.set('cycle_id', cycleId);
+            if (departmentId) params.set('department_id', departmentId);
+            if (ownerId) params.set('owner_id', ownerId);
+            params.set('per_page', '1000');
+            
+            let objectives = [];
+            
+            // Fetch objectives based on selected level
+            if (currentLevel === 'company') {
+                // Only fetch company level objectives
+                const companyParams = new URLSearchParams(params);
+                companyParams.set('filter_type', 'company');
+                const objRes = await fetch(`/company-okrs?${companyParams.toString()}`, { headers: { Accept: 'application/json' } });
+                const objData = await objRes.json();
+                objectives = objData.data?.objectives?.data || objData.data?.objectives || objData.data?.data || objData.data || [];
+            } else if (currentLevel === 'departments') {
+                // Only fetch department level objectives
+                const deptParams = new URLSearchParams(params);
+                deptParams.set('filter_type', 'department');
+                const deptRes = await fetch(`/company-okrs?${deptParams.toString()}`, { headers: { Accept: 'application/json' } });
+                const deptData = await deptRes.json();
+                objectives = deptData.data?.objectives?.data || deptData.data?.objectives || [];
+            }
+            
+            // Remove console.log to reduce noise
+            
+            // Fetch key results from objectives
+            const keyResults = [];
+            objectives.forEach(obj => {
+                // API returns keyResults (camelCase) not key_results
+                const krs = obj.keyResults || obj.key_results || [];
+                if (Array.isArray(krs)) {
+                    krs.forEach(kr => {
+                        keyResults.push({
+                            ...kr,
+                            objective_id: obj.objective_id,
+                            objective_title: obj.obj_title,
+                            objective_owner: obj.user, // Current owner of the Objective (can be reassigned)
+                            objective_owner_id: obj.user_id,
+                        });
+                    });
+                }
+            });
+            
+            // Fetch check-ins - collect from keyResults if available
+            // Note: There's no general /api/check-ins endpoint, check-ins are per KR
+            let checkIns = [];
+            try {
+                // Try to get check-ins from keyResults if they have check_in_history
+                keyResults.forEach(kr => {
+                    if (kr.check_in_history && Array.isArray(kr.check_in_history)) {
+                        kr.check_in_history.forEach(ci => {
+                            checkIns.push({
+                                ...ci,
+                                kr_id: kr.kr_id,
+                                kr_title: kr.kr_title,
+                                objective_id: kr.objective_id,
+                                objective_title: kr.objective_title,
+                            });
+                        });
+                    }
+                });
+                
+                // If no check-ins from keyResults, try fetching for each KR (but limit to avoid too many requests)
+                if (checkIns.length === 0 && keyResults.length > 0 && keyResults.length <= 50) {
+                    const checkInPromises = keyResults.slice(0, 20).map(async (kr) => {
+                        try {
+                            const res = await fetch(`/api/check-in/${kr.objective_id}/${kr.kr_id}/history`, { 
+                                headers: { Accept: 'application/json' } 
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                const history = data.data || data || [];
+                                return history.map(ci => ({
+                                    ...ci,
+                                    kr_id: kr.kr_id,
+                                    kr_title: kr.kr_title,
+                                    objective_id: kr.objective_id,
+                                    objective_title: kr.objective_title,
+                                }));
+                            }
+                        } catch (e) {
+                            // Silently fail for individual KR check-ins
+                        }
+                        return [];
+                    });
+                    
+                    const results = await Promise.all(checkInPromises);
+                    checkIns = results.flat();
+                }
+            } catch (e) {
+                console.warn('Could not fetch check-ins:', e);
+            }
+            
+            // Calculate owner statistics
+            // Use a consistent key format to avoid duplicates
+            const ownerStats = {};
+            
+            // Helper function to get consistent owner key
+            const getOwnerKey = (userId) => {
+                if (!userId) return 'unassigned';
+                return String(userId); // Convert to string for consistency
+            };
+            
+            // Process Objectives first
+            objectives.forEach(obj => {
+                const ownerId = obj.user_id || obj.user?.user_id;
+                const ownerName = obj.user?.full_name || obj.user?.name || 'Chưa gán';
+                const ownerKey = getOwnerKey(ownerId);
+                
+                if (!ownerStats[ownerKey]) {
+                    ownerStats[ownerKey] = {
+                        owner_id: ownerId,
+                        owner_name: ownerName,
+                        objectives: [],
+                        keyResults: [],
+                        totalObjectiveProgress: 0,
+                        totalKrProgress: 0,
+                        onTrack: 0,
+                        atRisk: 0,
+                        offTrack: 0,
+                    };
+                }
+                ownerStats[ownerKey].objectives.push(obj);
+                const progress = parseFloat(obj.progress_percent) || 0;
+                ownerStats[ownerKey].totalObjectiveProgress += progress;
+                
+                // Count status for Objectives
+                if (progress >= 70) ownerStats[ownerKey].onTrack++;
+                else if (progress >= 40) ownerStats[ownerKey].atRisk++;
+                else ownerStats[ownerKey].offTrack++;
+            });
+            
+            // Process Key Results
+            // Priority: assignee of KR first, if not then owner of Objective
+            keyResults.forEach(kr => {
+                // Try to get assignee of KR first
+                const assigneeId = kr.assigned_to || kr.assignee?.user_id || kr.assigned_to_user?.user_id;
+                const assigneeName = kr.assignee?.full_name || kr.assigned_to_user?.full_name;
+                
+                // If no assignee, use owner of Objective
+                const ownerId = assigneeId || kr.objective_owner_id || kr.objective_owner?.user_id;
+                const ownerName = assigneeName || kr.objective_owner?.full_name || kr.objective_owner?.name || 'Chưa gán';
+                const ownerKey = getOwnerKey(ownerId);
+                
+                if (!ownerStats[ownerKey]) {
+                    ownerStats[ownerKey] = {
+                        owner_id: ownerId,
+                        owner_name: ownerName,
+                        objectives: [],
+                        keyResults: [],
+                        totalObjectiveProgress: 0,
+                        totalKrProgress: 0,
+                        onTrack: 0,
+                        atRisk: 0,
+                        offTrack: 0,
+                    };
+                }
+                ownerStats[ownerKey].keyResults.push(kr);
+                
+                // Calculate progress and status for KR
+                const krProgress = parseFloat(kr.progress_percent) || 0;
+                ownerStats[ownerKey].totalKrProgress += krProgress;
+                
+                // Count status for Key Results
+                if (krProgress >= 70) ownerStats[ownerKey].onTrack++;
+                else if (krProgress >= 40) ownerStats[ownerKey].atRisk++;
+                else ownerStats[ownerKey].offTrack++;
+            });
+            
+            // Calculate average progress (combining Objectives and Key Results)
+            const owners = Object.values(ownerStats).map(owner => {
+                const totalItems = owner.objectives.length + owner.keyResults.length;
+                const totalProgress = owner.totalObjectiveProgress + owner.totalKrProgress;
+                const averageProgress = totalItems > 0 
+                    ? parseFloat((totalProgress / totalItems).toFixed(2))
+                    : 0;
+                
+                return {
+                    ...owner,
+                    averageProgress,
+                    totalObjectives: owner.objectives.length,
+                    totalKeyResults: owner.keyResults.length,
+                };
+            });
+            
+            setDetailedData({
+                objectives,
+                keyResults,
+                owners,
+                checkIns,
+            });
+        } catch (e) {
+            console.error('Failed to fetch detailed data:', e);
+            // Set empty data on error
+            setDetailedData({
+                objectives: [],
+                keyResults: [],
+                owners: [],
+                checkIns: [],
+            });
+        }
+    };
 
     useEffect(() => {
         if (!filters.cycleId) return;
@@ -852,7 +1069,7 @@ export default function CompanyOverviewReport() {
                     {/* 5 Cards Tổng quan */}
                     <div className="grid gap-6 md:grid-cols-5">
                         <div className="rounded-xl border border-slate-200 bg-white p-6">
-                            <div className="text-sm font-semibold text-slate-500">Tổng OKR</div>
+                            <div className="text-sm font-semibold text-slate-500">Tổng số mục tiêu</div>
                             <div className="mt-2 flex items-baseline gap-2">
                                 <div className="text-2xl font-bold text-slate-900">{report.overall.totalObjectives}</div>
                                 {report.overall.totalObjectivesDelta && <TrendIcon delta={report.overall.totalObjectivesDelta} />}
@@ -1031,10 +1248,34 @@ export default function CompanyOverviewReport() {
                             </tr>
                             </thead>
                             <tbody>
-                            {(report.risks || [])
-                                .filter(r => r.status === 'at_risk' || r.status === 'off_track')
-                                .sort((a, b) => (a.status === 'off_track' ? -1 : 1))
-                                .map((r, i) => (
+                            {(() => {
+                                const filteredRisks = (report.risks || [])
+                                    .filter(r => {
+                                        // Filter by status
+                                        if (r.status !== 'at_risk' && r.status !== 'off_track') return false;
+                                        // Filter by level
+                                        if (level === 'company') {
+                                            // Only show company-level objectives (no department_id)
+                                            return r.department_id === null || r.department_id === undefined;
+                                        } else if (level === 'departments') {
+                                            // Only show department-level objectives (has department_id)
+                                            return r.department_id !== null && r.department_id !== undefined;
+                                        }
+                                        return true;
+                                    })
+                                    .sort((a, b) => (a.status === 'off_track' ? -1 : 1));
+                                
+                                if (filteredRisks.length === 0) {
+                                    return (
+                                        <tr>
+                                            <td colSpan="4" className="px-6 py-8 text-center text-slate-500">
+                                                Chưa có dữ liệu
+                                            </td>
+                                        </tr>
+                                    );
+                                }
+                                
+                                return filteredRisks.map((r, i) => (
                                 <tr key={i} className="border-t border-slate-100">
                                     <td className="px-6 py-3 font-semibold text-slate-900">
                                     {r.objective_title || `#${r.objective_id}`}
@@ -1083,23 +1324,311 @@ export default function CompanyOverviewReport() {
                                     )}
                                     </td>
                                 </tr>
-                                ))}
+                                ));
+                            })()}
                             </tbody>
                         </table>
+                        </div>
+                    </div>
+
+                    {/* 1. Chi tiết Objectives */}
+                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
+                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Chi tiết Objectives</div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-50 text-slate-600">
+                                    <tr>
+                                        <th className="px-6 py-3">Tên Objective</th>
+                                        <th className="px-6 py-3">Cấp độ</th>
+                                        <th className="px-6 py-3">Người chịu trách nhiệm</th>
+                                        {level !== 'company' && <th className="px-6 py-3">Phòng ban</th>}
+                                        <th className="px-6 py-3 text-center">Số KR</th>
+                                        <th className="px-6 py-3 text-center">Tiến độ</th>
+                                        <th className="px-6 py-3 text-center">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {detailedData.objectives.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={level === 'company' ? 6 : 7} className="px-6 py-8 text-center text-slate-500">
+                                                Chưa có dữ liệu
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        detailedData.objectives.map((obj, i) => {
+                                            const progress = obj.progress_percent || 0;
+                                            const status = progress >= 70 ? 'on_track' : (progress >= 40 ? 'at_risk' : 'off_track');
+                                            const levelText = obj.level === 'company' ? 'Công ty' : obj.level === 'unit' ? 'Phòng ban' : obj.level === 'person' ? 'Cá nhân' : 'N/A';
+                                            return (
+                                                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                                    <td className="px-6 py-3 font-semibold text-slate-900">{obj.obj_title || 'N/A'}</td>
+                                                    <td className="px-6 py-3">
+                                                        <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                                                            {levelText}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-3">{obj.user?.full_name || obj.user?.name || 'Chưa gán'}</td>
+                                                    {level !== 'company' && (
+                                                        <td className="px-6 py-3">{obj.department?.d_name || obj.department?.departmentName || '—'}</td>
+                                                    )}
+                                                    <td className="px-6 py-3 text-center font-semibold">{obj.key_results?.length || 0}</td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        <div className="flex items-center justify-center gap-3">
+                                                            <div className="w-32 bg-slate-200 rounded-full h-2">
+                                                                <div
+                                                                    className={`h-2 rounded-full transition-all ${
+                                                                        progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                                                    }`}
+                                                                    style={{ width: `${Math.min(progress, 100)}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="text-sm font-semibold tabular-nums">{progress.toFixed(1)}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        {status === 'on_track' && (
+                                                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                                                On Track
+                                                            </span>
+                                                        )}
+                                                        {status === 'at_risk' && (
+                                                            <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                                                At Risk
+                                                            </span>
+                                                        )}
+                                                        {status === 'off_track' && (
+                                                            <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                                                                Off Track
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* 2. Chi tiết Key Results */}
+                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
+                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Chi tiết Key Results</div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-50 text-slate-600">
+                                    <tr>
+                                        <th className="px-6 py-3">Tên Key Result</th>
+                                        <th className="px-6 py-3">Objective</th>
+                                        <th className="px-6 py-3">Người chịu trách nhiệm</th>
+                                        <th className="px-6 py-3 text-center">Tiến độ</th>
+                                        <th className="px-6 py-3 text-center">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {detailedData.keyResults.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
+                                                Chưa có dữ liệu
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        detailedData.keyResults.map((kr, i) => {
+                                            const progress = kr.progress_percent || 0;
+                                            const status = progress >= 70 ? 'on_track' : (progress >= 40 ? 'at_risk' : 'off_track');
+                                            return (
+                                                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                                    <td className="px-6 py-3 font-medium text-slate-900">{kr.kr_title || 'N/A'}</td>
+                                                    <td className="px-6 py-3 text-slate-600">{kr.objective_title || 'N/A'}</td>
+                                                    <td className="px-6 py-3">
+                                                        {kr.assignee?.full_name || kr.assigned_to_user?.full_name || 
+                                                         kr.objective_owner?.full_name || kr.objective_owner?.name || 
+                                                         'Chưa gán'}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        <div className="flex items-center justify-center gap-3">
+                                                            <div className="w-32 bg-slate-200 rounded-full h-2">
+                                                                <div
+                                                                    className={`h-2 rounded-full transition-all ${
+                                                                        progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                                                    }`}
+                                                                    style={{ width: `${Math.min(progress, 100)}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="text-sm font-semibold tabular-nums">{progress.toFixed(1)}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        {status === 'on_track' && (
+                                                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                                                On Track
+                                                            </span>
+                                                        )}
+                                                        {status === 'at_risk' && (
+                                                            <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                                                At Risk
+                                                            </span>
+                                                        )}
+                                                        {status === 'off_track' && (
+                                                            <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                                                                Off Track
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* 3. Phân tích theo Owner */}
+                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
+                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Phân tích theo Người chịu trách nhiệm</div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-50 text-slate-600">
+                                    <tr>
+                                        <th className="px-6 py-3">Người chịu trách nhiệm</th>
+                                        <th className="px-6 py-3 text-center">Số Objectives</th>
+                                        <th className="px-6 py-3 text-center">Số Key Results</th>
+                                        <th className="px-6 py-3 text-center">Tiến độ TB</th>
+                                        <th className="px-6 py-3 text-center">On Track</th>
+                                        <th className="px-6 py-3 text-center">At Risk</th>
+                                        <th className="px-6 py-3 text-center">Off Track</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {detailedData.owners.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="7" className="px-6 py-8 text-center text-slate-500">
+                                                Chưa có dữ liệu
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        detailedData.owners.map((owner, i) => (
+                                            <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                                <td className="px-6 py-3 font-semibold text-slate-900">{owner.owner_name || 'Chưa gán'}</td>
+                                                <td className="px-6 py-3 text-center font-semibold">{owner.objectives.length}</td>
+                                                <td className="px-6 py-3 text-center font-semibold">{owner.keyResults.length}</td>
+                                                <td className="px-6 py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-3">
+                                                        <div className="w-32 bg-slate-200 rounded-full h-2">
+                                                            <div
+                                                                className={`h-2 rounded-full transition-all ${
+                                                                    owner.averageProgress >= 80 ? 'bg-emerald-500' : owner.averageProgress >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                                                }`}
+                                                                style={{ width: `${Math.min(owner.averageProgress, 100)}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-sm font-semibold tabular-nums">{owner.averageProgress}%</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3 text-center">
+                                                    <span className="font-semibold text-emerald-700">{owner.onTrack}</span>
+                                                </td>
+                                                <td className="px-6 py-3 text-center">
+                                                    <span className="font-semibold text-amber-700">{owner.atRisk}</span>
+                                                </td>
+                                                <td className="px-6 py-3 text-center">
+                                                    <span className="font-semibold text-red-700">{owner.offTrack}</span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* 4. Lịch sử Check-in */}
+                    <div className="mt-6 rounded-xl border border-slate-200 bg-white">
+                        <div className="border-b border-slate-200 px-6 py-4 text-sm font-semibold text-slate-700">Lịch sử Check-in</div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Tổng số Check-in</div>
+                                    <div className="text-2xl font-bold text-slate-900">{detailedData.checkIns.length}</div>
+                                </div>
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Check-in trung bình/Objective</div>
+                                    <div className="text-2xl font-bold text-slate-900">
+                                        {detailedData.objectives.length > 0 
+                                            ? (detailedData.checkIns.length / detailedData.objectives.length).toFixed(1)
+                                            : 0}
+                                    </div>
+                                </div>
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Check-in gần nhất</div>
+                                    <div className="text-sm font-semibold text-slate-900">
+                                        {detailedData.checkIns.length > 0 
+                                            ? new Date(Math.max(...detailedData.checkIns.map(ci => new Date(ci.created_at || ci.createdAt).getTime()))).toLocaleDateString('vi-VN')
+                                            : 'Chưa có'}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-slate-50 text-slate-600">
+                                        <tr>
+                                            <th className="px-6 py-3">Key Result</th>
+                                            <th className="px-6 py-3">Objective</th>
+                                            <th className="px-6 py-3">Người check-in</th>
+                                            <th className="px-6 py-3 text-center">Tiến độ</th>
+                                            <th className="px-6 py-3 text-center">Ngày check-in</th>
+                                            <th className="px-6 py-3">Ghi chú</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {detailedData.checkIns.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
+                                                    Chưa có check-in nào
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            detailedData.checkIns.slice(0, 20).map((checkIn, i) => (
+                                                <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                                    <td className="px-6 py-3 font-medium text-slate-900">
+                                                        {checkIn.key_result?.kr_title || checkIn.kr_title || 'N/A'}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-slate-600">
+                                                        {checkIn.objective?.obj_title || checkIn.objective_title || 'N/A'}
+                                                    </td>
+                                                    <td className="px-6 py-3">{checkIn.user?.full_name || checkIn.user_name || 'N/A'}</td>
+                                                    <td className="px-6 py-3 text-center">
+                                                        <span className="font-semibold">{checkIn.progress_percent || 0}%</span>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-center text-slate-600">
+                                                        {checkIn.created_at 
+                                                            ? new Date(checkIn.created_at).toLocaleDateString('vi-VN')
+                                                            : 'N/A'}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-slate-600 max-w-xs truncate">
+                                                        {checkIn.notes || checkIn.note || '—'}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </>
             ) : (
                 /* ===================== TRƯỚC KHI Chốt kỳ - CHỈ HIỂN THỊ THÔNG BÁO ===================== */
                 <div className="flex flex-col items-center justify-center py-32 text-center">
-                    <div class="w-32 h-32 flex items-center justify-center mb-8 rounded-xl border-2 border-gray-300 bg-gray-50">
+                    <div className="w-32 h-32 flex items-center justify-center mb-8 rounded-xl border-2 border-gray-300 bg-gray-50">
                         <svg xmlns="http://www.w3.org/2000/svg"
-                            class="w-20 h-20 text-gray-500"
+                            className="w-20 h-20 text-gray-500"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
-                            stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round"
+                            strokeWidth="1.8">
+                            <path strokeLinecap="round" strokeLinejoin="round"
                                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                     </div>

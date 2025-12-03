@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 export default function NotificationBell() {
-    console.log('🔔 NotificationBell: Component rendering');
-    
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const dropdownRef = useRef(null);
 
-    // Debug: Log when component mounts
+    // Fetch unread count on mount
     useEffect(() => {
-        console.log('🔔 NotificationBell: Component mounted, fetching unread count');
         fetchUnreadCount();
     }, []);
 
@@ -41,33 +38,27 @@ export default function NotificationBell() {
         }
     };
 
-    // Fetch unread count only
+    // Fetch unread count only - use /api/notifications endpoint which returns unread_count
     const fetchUnreadCount = async () => {
         try {
-            console.log('🔔 NotificationBell: Fetching unread count');
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            if (!token) {
-                console.warn('🔔 NotificationBell: No CSRF token found');
-            }
-            const response = await fetch('/api/notifications/unread-count', {
+            // Use /api/notifications with per_page=1 to minimize data transfer
+            const response = await fetch('/api/notifications?per_page=1', {
                 headers: {
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': token || '',
                 },
             });
 
-            console.log('🔔 NotificationBell: Unread count response status:', response.status);
             if (response.ok) {
                 const data = await response.json();
-                console.log('🔔 NotificationBell: Unread count data:', data);
-                if (data.success) {
+                if (data.success && data.data?.unread_count !== undefined) {
                     setUnreadCount(data.data.unread_count);
                 }
-            } else {
-                console.error('🔔 NotificationBell: Failed to fetch unread count:', response.status, response.statusText);
             }
         } catch (error) {
-            console.error('🔔 NotificationBell: Error fetching unread count:', error);
+            // Silently fail - don't spam console with errors
+            console.warn('🔔 NotificationBell: Could not fetch unread count:', error);
         }
     };
 
@@ -213,10 +204,7 @@ export default function NotificationBell() {
     return (
         <div className="relative" ref={dropdownRef} style={{ display: 'block' }}>
             <button
-                onClick={() => {
-                    console.log('Notification bell clicked, isOpen:', isOpen);
-                    setIsOpen(!isOpen);
-                }}
+                onClick={() => setIsOpen(!isOpen)}
                 className="relative flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
                 aria-label="Thông báo"
                 type="button"
