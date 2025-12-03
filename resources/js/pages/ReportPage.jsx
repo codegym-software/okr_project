@@ -1,22 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
-import { FiDownload, FiFilter, FiAlertCircle, FiCheckCircle, FiClock, FiTrendingUp, FiUsers, FiMoreHorizontal } from "react-icons/fi";
-
-// --- MOCK DATA FOR UI DEVELOPMENT ---
-// Dữ liệu giả lập để hiển thị khi chưa có API hoặc API lỗi, giúp UI luôn đẹp.
-const MOCK_DATA = {
-    team_average_completion: 68,
-    total_okr_count: 12,
-    at_risk_count: 3,
-    check_in_rate: 85,
-    progress_trend: [20, 35, 45, 50, 60, 65, 68], // 7 tuần gần nhất
-    status_distribution: { on_track: 60, at_risk: 30, behind: 10 },
-    members: [
-        { user_id: 1, full_name: "Nguyễn Văn A", role: "Product Owner", average_completion: 75, last_checkin: "2023-10-25", okr_count: 3, avatar: "https://ui-avatars.com/api/?name=Nguyen+Van+A&background=0D8ABC&color=fff" },
-        { user_id: 2, full_name: "Trần Thị B", role: "Senior Dev", average_completion: 45, last_checkin: "2023-10-20", okr_count: 4, avatar: "https://ui-avatars.com/api/?name=Tran+Thi+B&background=FC5C7D&color=fff" },
-        { user_id: 3, full_name: "Lê Hoàng C", role: "Designer", average_completion: 90, last_checkin: "2023-10-26", okr_count: 2, avatar: "https://ui-avatars.com/api/?name=Le+Hoang+C&background=6A9113&color=fff" },
-    ]
-};
+import { FiDownload, FiFilter, FiAlertCircle, FiCheckCircle, FiClock, FiTrendingUp, FiTrendingDown, FiMinus, FiUsers, FiMoreHorizontal } from "react-icons/fi";
 
 export default function ReportPage() {
     const [loading, setLoading] = useState(true);
@@ -29,7 +13,6 @@ export default function ReportPage() {
     // Snapshot logic
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [reportName, setReportName] = useState("");
-    const [creatingSnapshot, setCreatingSnapshot] = useState(false);
 
     // --- DATA FETCHING ---
     useEffect(() => {
@@ -72,20 +55,27 @@ export default function ReportPage() {
         }
     };
 
-    // --- DERIVED METRICS (Tính toán chỉ số từ dữ liệu thật) ---
+    // --- DERIVED METRICS ---
     const metrics = useMemo(() => {
         const data = reportData || {};
         const teamOkrs = data.team_okrs || [];
         
-        // Tính toán trạng thái
+        // Tính toán trạng thái dựa trên status từ API (Time-based)
         let onTrack = 0, atRisk = 0, behind = 0;
+        
         teamOkrs.forEach(okr => {
-            if (okr.progress >= 70) onTrack++;
-            else if (okr.progress >= 40) atRisk++;
-            else behind++;
+            const s = okr.status; // Status từ API: completed, on_track, at_risk, behind, pending
+            if (s === 'completed' || s === 'on_track') {
+                onTrack++;
+            } else if (s === 'at_risk') {
+                atRisk++;
+            } else if (s === 'behind') {
+                behind++;
+            }
+            // pending có thể không tính hoặc tính vào onTrack tuỳ logic, ở đây tạm bỏ qua hoặc coi như onTrack nếu muốn
         });
         
-        const total = teamOkrs.length || 1;
+        const total = teamOkrs.length || 1; 
         
         return {
             avgProgress: data.team_average_completion || 0,
@@ -94,7 +84,7 @@ export default function ReportPage() {
             onTrackPct: (onTrack / total) * 100,
             atRiskPct: (atRisk / total) * 100,
             behindPct: (behind / total) * 100,
-            atRiskCount: atRisk + behind
+            atRiskCount: atRisk + behind // Tổng số cần chú ý
         };
     }, [reportData]);
 
@@ -120,15 +110,56 @@ export default function ReportPage() {
 
     const ProgressBar = ({ value, color = "bg-indigo-600" }) => (
         <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-            <div className={`h-2.5 rounded-full ${color} transition-all duration-500`} style={{ width: `${value}%` }}></div>
+            <div className={`h-2.5 rounded-full ${color} transition-all duration-500`} style={{ width: `${Math.min(value, 100)}%` }}></div>
         </div>
     );
 
-    const StatusBadge = ({ progress }) => {
-        if (progress >= 75) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Xuất sắc</span>;
-        if (progress >= 50) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Ổn định</span>;
-        if (progress >= 25) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Cần lưu ý</span>;
+    const StatusBadge = ({ progress, status }) => {
+        // Ưu tiên dùng status từ API (Time-based logic)
+        if (status) {
+            const config = {
+                completed: { color: "bg-purple-100 text-purple-800", text: "Hoàn thành" },
+                on_track: { color: "bg-emerald-100 text-emerald-800", text: "Đúng tiến độ" },
+                at_risk: { color: "bg-amber-100 text-amber-800", text: "Rủi ro" },
+                behind: { color: "bg-rose-100 text-rose-800", text: "Chậm trễ" },
+                pending: { color: "bg-slate-100 text-slate-600", text: "Chưa bắt đầu" }
+            };
+            const { color, text } = config[status] || config.pending;
+            return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>{text}</span>;
+        }
+
+        // Fallback logic cũ
+        if (progress >= 100) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Hoàn thành</span>;
+        if (progress >= 70) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Đúng tiến độ</span>;
+        if (progress >= 40) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Rủi ro</span>;
         return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">Chậm trễ</span>;
+    };
+
+    const CheckinStatusBadge = ({ status, lastCheckin }) => {
+        const config = {
+            good: { color: 'bg-emerald-100 text-emerald-700', icon: FiCheckCircle, text: 'Đều đặn' },
+            warning: { color: 'bg-amber-100 text-amber-700', icon: FiClock, text: 'Cần nhắc' },
+            late: { color: 'bg-rose-100 text-rose-700', icon: FiAlertCircle, text: 'Quá hạn' },
+            no_data: { color: 'bg-slate-100 text-slate-500', icon: FiMinus, text: 'Chưa có' }
+        };
+        
+        const { color, icon: Icon, text } = config[status] || config.no_data;
+
+        return (
+            <div className="flex flex-col items-start gap-1">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>
+                    <Icon className="w-3 h-3" />
+                    {text}
+                </span>
+                <span className="text-xs text-slate-400">{lastCheckin || 'Chưa check-in'}</span>
+            </div>
+        );
+    };
+
+    const ConfidenceTrendIcon = ({ trend }) => {
+        if (trend === 'increasing') return <FiTrendingUp className="w-4 h-4 text-emerald-500" title="Mức độ tự tin đang tăng" />;
+        if (trend === 'decreasing') return <FiTrendingDown className="w-4 h-4 text-rose-500" title="Mức độ tự tin đang giảm" />;
+        return null; // Ẩn nếu ổn định để giao diện sạch hơn
     };
 
     return (
@@ -178,7 +209,6 @@ export default function ReportPage() {
                                 subtitle="So với kế hoạch toàn chu kỳ"
                                 icon={FiTrendingUp}
                                 colorClass="bg-indigo-500 text-indigo-600"
-                                trend={2.5}
                             />
                             <StatCard 
                                 title="OKRs Rủi ro" 
@@ -265,9 +295,6 @@ export default function ReportPage() {
                                             <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
                                                 <FiFilter className="w-4 h-4" />
                                             </button>
-                                            <button className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
-                                                <FiMoreHorizontal className="w-4 h-4" />
-                                            </button>
                                         </div>
                                     </div>
                                     
@@ -306,11 +333,11 @@ export default function ReportPage() {
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center justify-between mb-1">
                                                                 <span className="text-sm font-medium text-slate-700">{member.average_completion?.toFixed(0)}%</span>
-                                                                <StatusBadge progress={member.average_completion} />
+                                                                <StatusBadge progress={member.average_completion} status={member.status} />
                                                             </div>
                                                             <ProgressBar 
                                                                 value={member.average_completion} 
-                                                                color={member.average_completion < 50 ? 'bg-rose-500' : (member.average_completion < 80 ? 'bg-indigo-500' : 'bg-emerald-500')} 
+                                                                color={member.average_completion < 40 ? 'bg-rose-500' : (member.average_completion < 70 ? 'bg-amber-500' : 'bg-emerald-500')} 
                                                             />
                                                         </td>
                                                         <td className="px-6 py-4">
@@ -340,23 +367,28 @@ export default function ReportPage() {
                             </div>
                         </div>
 
-                        {/* 4. DETAILED OKR LIST (OPTIONAL EXPANSION) */}
+                        {/* 4. DETAILED OKR LIST */}
                         {reportData?.team_okrs && reportData.team_okrs.length > 0 && (
                             <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-                                <h3 className="text-lg font-bold text-slate-800 mb-4">Chi tiết OKRs Nhóm</h3>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-bold text-slate-800">Chi tiết OKRs Nhóm</h3>
+                                    <span className="text-sm text-slate-500">Hiển thị OKR cấp Team & Department</span>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {reportData.team_okrs.map(okr => (
                                         <div key={okr.objective_id} className="p-4 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all">
                                             <div className="flex justify-between items-start mb-2">
                                                 <h4 className="font-semibold text-slate-900 line-clamp-1" title={okr.obj_title}>{okr.obj_title}</h4>
-                                                <span className={`text-sm font-bold ${okr.progress >= 70 ? 'text-emerald-600' : 'text-slate-600'}`}>{okr.progress}%</span>
+                                                <StatusBadge progress={okr.progress} status={okr.status} />
                                             </div>
                                             <ProgressBar value={okr.progress} color="bg-slate-800" />
                                             <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
                                                 <span>{okr.completed_kr_count}/{okr.key_results_count} KRs hoàn thành</span>
-                                                <span className="px-2 py-1 rounded bg-white border border-slate-200">
-                                                    {okr.level === 'team' ? 'Team' : 'Department'}
-                                                </span>
+                                                <div className="flex gap-2">
+                                                    <span className="px-2 py-1 rounded bg-white border border-slate-200 uppercase text-[10px] font-bold tracking-wider">
+                                                        {okr.level === 'team' ? 'Team' : 'Dept'}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -410,4 +442,3 @@ export default function ReportPage() {
         </div>
     );
 }
-
