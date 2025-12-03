@@ -839,35 +839,35 @@ export default function ObjectivesPage() {
             </div>
 
             {displayMode === "table" ? (
-                <ObjectiveList
+            <ObjectiveList
                     items={displayItems}
-                    setItems={setItems}
-                    departments={departments}
-                    cyclesList={cyclesList}
-                    loading={loading}
-                    openObj={openObj}
-                    setOpenObj={setOpenObj}
-                    setCreatingFor={setCreatingFor}
-                    setEditingObjective={setEditingObjective}
-                    setEditingKR={setEditingKR}
-                    setCreatingObjective={setCreatingObjective}
-                    links={links}
-                    childLinks={childLinks}
-                    linksLoading={linksLoading}
-                    openCheckInModal={openCheckInModal}
-                    openCheckInHistory={openCheckInHistory}
-                    currentUser={currentUser}
-                    userDepartmentName={userDepartmentName}
-                    cycleFilter={cycleFilter}
-                    setCycleFilter={setCycleFilter}
-                    myOKRFilter={myOKRFilter}
-                    setMyOKRFilter={setMyOKRFilter}
-                    viewMode={viewMode}
-                    setViewMode={setViewMode}
-                    onOpenLinkModal={handleOpenLinkModal}
-                    onCancelLink={handleCancelLink}
-                    reloadData={load}
-                />
+                setItems={setItems}
+                departments={departments}
+                cyclesList={cyclesList}
+                loading={loading}
+                openObj={openObj}
+                setOpenObj={setOpenObj}
+                setCreatingFor={setCreatingFor}
+                setEditingObjective={setEditingObjective}
+                setEditingKR={setEditingKR}
+                setCreatingObjective={setCreatingObjective}
+                links={links}
+                childLinks={childLinks}
+                linksLoading={linksLoading}
+                openCheckInModal={openCheckInModal}
+                openCheckInHistory={openCheckInHistory}
+                currentUser={currentUser}
+                userDepartmentName={userDepartmentName}
+                cycleFilter={cycleFilter}
+                setCycleFilter={setCycleFilter}
+                myOKRFilter={myOKRFilter}
+                setMyOKRFilter={setMyOKRFilter}
+                viewMode={viewMode}
+                setViewMode={setViewMode}
+                onOpenLinkModal={handleOpenLinkModal}
+                onCancelLink={handleCancelLink}
+                reloadData={load}
+            />
             ) : (
                 <OkrTreeCanvas
                     data={treeDataForRender}
@@ -883,9 +883,9 @@ export default function ObjectivesPage() {
             {totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-center">
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => handlePageChange(page - 1)}
-                            disabled={page === 1}
+                <button
+                    onClick={() => handlePageChange(page - 1)}
+                    disabled={page === 1}
                             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                                 page === 1
                                     ? "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -906,7 +906,7 @@ export default function ObjectivesPage() {
                                     d="M15 19l-7-7 7-7"
                                 />
                             </svg>
-                        </button>
+                </button>
 
                         <div className="flex items-center gap-1">
                             {Array.from({ length: totalPages }, (_, i) => i + 1).map(
@@ -936,7 +936,7 @@ export default function ObjectivesPage() {
                                         return (
                                             <span key={pageNumber} className="px-2 text-gray-400">
                                                 ...
-                                            </span>
+                </span>
                                         );
                                     }
                                     return null;
@@ -944,9 +944,9 @@ export default function ObjectivesPage() {
                             )}
                         </div>
 
-                        <button
-                            onClick={() => handlePageChange(page + 1)}
-                            disabled={page === totalPages}
+                <button
+                    onClick={() => handlePageChange(page + 1)}
+                    disabled={page === totalPages}
                             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                                 page === totalPages
                                     ? "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -967,8 +967,8 @@ export default function ObjectivesPage() {
                                     d="M9 5l7 7-7 7"
                                 />
                             </svg>
-                        </button>
-                    </div>
+                </button>
+            </div>
                 </div>
             )}
             {editingKR && (

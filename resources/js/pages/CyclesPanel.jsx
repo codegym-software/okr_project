@@ -334,7 +334,7 @@ export default function CyclesPanel() {
     const [krs, setKrs] = useState({});
     const [isDetail, setIsDetail] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
-    const [activeTab, setActiveTab] = useState('current');
+    const [activeTab, setActiveTab] = useState("current");
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editingCycle, setEditingCycle] = useState(null);
@@ -361,7 +361,17 @@ export default function CyclesPanel() {
         }
     };
 
+    // Đọc tab từ query khi mount
     useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get("tab");
+            if (tab === "history" || tab === "current") {
+                setActiveTab(tab);
+            }
+        } catch (e) {
+            console.error("Failed to read cycles tab from query", e);
+        }
         fetchCycles();
     }, []);
 
@@ -420,6 +430,17 @@ export default function CyclesPanel() {
         window.history.pushState({}, "", "/cycles");
         window.dispatchEvent(new Event("popstate"));
     };
+
+    // Đồng bộ activeTab -> query ?tab=
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set("tab", activeTab);
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            console.error("Failed to sync cycles tab", e);
+        }
+    }, [activeTab]);
 
     const handleCreate = async (data) => {
         try {
@@ -588,9 +609,9 @@ export default function CyclesPanel() {
                             <AdminOnly permission="canManageCycles">
                                 <button 
                                     onClick={() => setCreateModalOpen(true)}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm flex items-center gap-2"
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm"
                                 >
-                                    <FiPlus /> Tạo chu kỳ
+                                    Tạo chu kỳ
                                 </button>
                             </AdminOnly>
                         )}
@@ -601,21 +622,21 @@ export default function CyclesPanel() {
                     <div className="mb-6 w-full border-b border-slate-200">
                         <div className="flex items-center gap-6">
                             <button
-                                onClick={() => setActiveTab('current')}
+                                onClick={() => setActiveTab("current")}
                                 className={`relative pb-3 text-sm font-medium transition-all ${
-                                    activeTab === 'current' 
-                                    ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
-                                    : 'text-slate-500 hover:text-slate-700'
+                                    activeTab === "current"
+                                        ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600"
+                                        : "text-slate-500 hover:text-slate-700"
                                 }`}
                             >
                                 Hiện tại ({currentCycles.length})
                             </button>
                             <button
-                                onClick={() => setActiveTab('history')}
+                                onClick={() => setActiveTab("history")}
                                 className={`relative pb-3 text-sm font-medium transition-all ${
-                                    activeTab === 'history' 
-                                    ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
-                                    : 'text-slate-500 hover:text-slate-700'
+                                    activeTab === "history"
+                                        ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600"
+                                        : "text-slate-500 hover:text-slate-700"
                                 }`}
                             >
                                 Lịch sử ({historyCycles.length})
