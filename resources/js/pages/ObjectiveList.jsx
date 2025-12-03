@@ -1,4 +1,3 @@
-// src/components/okr/ObjectiveList.jsx
 import React, {
     useState,
     useEffect,
@@ -11,7 +10,6 @@ import Tabs from "../components/Tabs";
 import ConfirmationModal from "../components/ConfirmationModal";
 import ToastNotification from "../components/ToastNotification";
 import AssignKeyResultModal from "../components/AssignKeyResultModal";
-import ObjectiveArchive from "./ObjectiveArchive";
 import ObjectiveRow from "./okr/ObjectiveRow";
 import AssigneeTooltip from "./okr/AssigneeTooltip";
 import { canCheckInKeyResult } from "../utils/checkinPermissions";
@@ -21,6 +19,7 @@ import {
     getUnitText,
     getAssigneeInfo,
 } from "./okr/utils/formatters";
+import { mergeChildLinksIntoObjectives } from "../utils/okrHierarchy";
 
 export default function ObjectiveList({
     items,
@@ -46,13 +45,10 @@ export default function ObjectiveList({
     setItems,
     onOpenLinkModal,
     onCancelLink,
-    hideFilters = false, // Add this prop with a default value
+    hideFilters = false,
+    disableActions = false,
 }) {
     const [toast, setToast] = useState(null);
-    const [showArchived, setShowArchived] = useState(false);
-    const [archivedItems, setArchivedItems] = useState([]);
-    const [archivedCount, setArchivedCount] = useState(0);
-    const [loadingArchived, setLoadingArchived] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [viewModeDropdownOpen, setViewModeDropdownOpen] = useState(false);
     const [assignModal, setAssignModal] = useState({
@@ -245,189 +241,18 @@ export default function ObjectiveList({
         return { byObjective, byKeyResult };
     }, [links]);
 
-    const itemsWithLinkedChildren = useMemo(() => {
-        if (!Array.isArray(childLinks) || childLinks.length === 0) {
-            if (!Array.isArray(items)) return [];
-            return items;
-        }
-        if (!Array.isArray(items)) return [];
+    const itemsWithLinkedChildren = useMemo(
+        () => mergeChildLinksIntoObjectives(items, childLinks),
+        [items, childLinks]
+    );
 
-        return items.map((obj) => {
-            // Tìm các childLinks trỏ tới Objective này (O->O)
-            const linkedChildren = childLinks.filter((link) => {
-                const targetArchived =
-                    (link.targetObjective &&
-                        (link.targetObjective.archived_at ||
-                            link.targetObjective.archivedAt)) ||
-                    (link.targetKr &&
-                        (link.targetKr.archived_at ||
-                            link.targetKr.archivedAt));
-
-                if (targetArchived) {
-                    return false;
-                }
-
-                const targetObjectiveId =
-                    link.targetObjective?.objective_id ||
-                    link.target_objective_id;
-                const targetKrId = link.targetKr?.kr_id || link.target_kr_id;
-
-                if (targetObjectiveId === obj.objective_id && !targetKrId) {
-                    return true;
-                }
-                return false;
-            });
-
-            // Tìm các childLinks trỏ tới các KR của Objective này (O->KR)
-            const krLinkedObjectives = {};
-            childLinks.forEach((link) => {
-                const targetArchived =
-                    (link.targetObjective &&
-                        (link.targetObjective.archived_at ||
-                            link.targetObjective.archivedAt)) ||
-                    (link.targetKr &&
-                        (link.targetKr.archived_at ||
-                            link.targetKr.archivedAt));
-
-                if (targetArchived) {
-                    return;
-                }
-
-                const targetKrId = link.targetKr?.kr_id || link.target_kr_id;
-                const targetObjectiveId =
-                    link.targetObjective?.objective_id ||
-                    link.target_objective_id;
-
-                if (targetKrId && targetObjectiveId === obj.objective_id) {
-                    if (!krLinkedObjectives[targetKrId]) {
-                        krLinkedObjectives[targetKrId] = [];
-                    }
-                    krLinkedObjectives[targetKrId].push(link);
-                }
-            });
-
-            // Chuyển đổi childLinks thành virtual Key Results (O->O)
-            const virtualKRs = linkedChildren.map((link) => {
-                const sourceObjective =
-                    link.sourceObjective || link.source_objective;
-                const sourceKr = link.sourceKr || link.source_kr;
-                const ownerUser =
-                    sourceKr?.assigned_user ||
-                    sourceKr?.assignedUser ||
-                    sourceObjective?.user ||
-                    null;
-                const keyResults =
-                    sourceObjective?.keyResults ||
-                    sourceObjective?.key_results ||
-                    [];
-
-                return {
-                    kr_id: `linked_${link.link_id}`,
-                    kr_title: sourceKr
-                        ? `${sourceObjective?.obj_title || "Objective"} › ${
-                              sourceKr.kr_title || "Key Result"
-                          }`
-                        : sourceObjective?.obj_title || "Linked Objective",
-                    target_value: sourceKr?.target_value || 0,
-                    current_value: sourceKr?.current_value || 0,
-                    unit: sourceKr?.unit || "number",
-                    status:
-                        sourceKr?.status ||
-                        sourceObjective?.status ||
-                        "active",
-                    weight: sourceKr?.weight || 0,
-                    progress_percent:
-                        sourceKr?.progress_percent ||
-                        sourceObjective?.progress_percent ||
-                        0,
-                    assigned_to:
-                        sourceKr?.assigned_to ||
-                        sourceObjective?.user_id ||
-                        null,
-                    assigned_user: ownerUser,
-                    isLinked: true,
-                    isLinkedObjective: true,
-                    link: link,
-                    key_results: keyResults.map((kr) => ({
-                        kr_id: kr.kr_id,
-                        kr_title: kr.kr_title,
-                        target_value: kr.target_value,
-                        current_value: kr.current_value,
-                        unit: kr.unit,
-                        status: kr.status,
-                        progress_percent: kr.progress_percent,
-                        assigned_to: kr.assigned_to,
-                        assigned_user:
-                            kr.assigned_user ||
-                            kr.assignedUser ||
-                            kr.assignedUser,
-                    })),
-                };
-            });
-
-            // Thêm linkedObjectives vào các KR (O->KR)
-            const updatedKeyResults = (obj.key_results || []).map((kr) => {
-                const linkedObjs = krLinkedObjectives[kr.kr_id] || [];
-                if (linkedObjs.length === 0) {
-                    return kr;
-                }
-
-                return {
-                    ...kr,
-                    linked_objectives: linkedObjs.map((link) => {
-                        const sourceObjective =
-                            link.sourceObjective || link.source_objective;
-                        const keyResults =
-                            sourceObjective?.keyResults ||
-                            sourceObjective?.key_results ||
-                            [];
-                        return {
-                            objective_id: sourceObjective?.objective_id,
-                            obj_title:
-                                sourceObjective?.obj_title ||
-                                "Linked Objective",
-                            description: sourceObjective?.description,
-                            status: sourceObjective?.status,
-                            progress_percent:
-                                sourceObjective?.progress_percent || 0,
-                            level: sourceObjective?.level,
-                            user_id: sourceObjective?.user_id,
-                            user: sourceObjective?.user,
-                            key_results: keyResults.map((kr) => ({
-                                kr_id: kr.kr_id,
-                                kr_title: kr.kr_title,
-                                target_value: kr.target_value,
-                                current_value: kr.current_value,
-                                unit: kr.unit,
-                                status: kr.status,
-                                progress_percent: kr.progress_percent,
-                                assigned_to: kr.assigned_to,
-                                assigned_user:
-                                    kr.assigned_user ||
-                                    kr.assignedUser ||
-                                    kr.assignedUser,
-                            })),
-                            is_linked: true,
-                            link: link,
-                        };
-                    }),
-                };
-            });
-
-            return {
-                ...obj,
-                key_results: [...updatedKeyResults, ...virtualKRs],
-            };
-        });
-    }, [items, childLinks]);
-
-    // === RELOAD CẢ 2 TAB TỪ SERVER ===
-    const reloadBothTabs = useCallback(
+    // === RELOAD OBJECTIVES FROM SERVER ===
+    const reloadObjectives = useCallback(
         async (token) => {
             const baseParams = new URLSearchParams();
             if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
 
-            // Tab Hoạt động
+            // Fetch Active Objectives
             const activeRes = await fetch(`/my-objectives?${baseParams}`, {
                 headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
             });
@@ -435,30 +260,8 @@ export default function ObjectiveList({
             if (activeJson.success) {
                 setItems(activeJson.data.data || []);
             }
-
-            // Tab Lưu trữ
-            if (showArchived) {
-                const archivedParams = new URLSearchParams({
-                    archived: "1",
-                    include_archived_kr: "1",
-                });
-                if (cycleFilter) archivedParams.append("cycle_id", cycleFilter);
-                const archivedRes = await fetch(
-                    `/my-objectives?${archivedParams}`,
-                    {
-                        headers: {
-                            Accept: "application/json",
-                            "X-CSRF-TOKEN": token,
-                        },
-                    }
-                );
-                const archivedJson = await archivedRes.json();
-                if (archivedJson.success) {
-                    setArchivedItems(archivedJson.data.data || []);
-                }
-            }
         },
-        [cycleFilter, showArchived, setItems]
+        [cycleFilter, setItems]
     );
 
     // === LƯU TRỮ OKR ===
@@ -481,7 +284,7 @@ export default function ObjectiveList({
                     });
                     const json = await res.json();
                     if (json.success) {
-                        await reloadBothTabs(token);
+                        await reloadObjectives(token);
                         setToast({ type: "success", message: json.message });
                     } else {
                         throw new Error(json.message);
@@ -527,7 +330,7 @@ export default function ObjectiveList({
                     if (!json.success)
                         throw new Error(json.message || "Lưu trữ thất bại");
 
-                    await reloadBothTabs(token);
+                    await reloadObjectives(token);
                     setToast({ type: "success", message: json.message });
                 } catch (err) {
                     setToast({ type: "error", message: err.message });
@@ -550,74 +353,50 @@ export default function ObjectiveList({
     }, [cycleFilter, cyclesList, items]);
 
     // === TẢI OKR LƯU TRỮ ===
-    useEffect(() => {
-        if (showArchived) {
-            const fetchArchived = async () => {
-                setLoadingArchived(true);
-                try {
-                    const token = document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute("content");
-                    const params = new URLSearchParams({
-                        archived: "1",
-                        include_archived_kr: "1",
-                    });
-                    if (cycleFilter) params.append("cycle_id", cycleFilter);
 
-                    const res = await fetch(`/my-objectives?${params}`, {
-                        headers: {
-                            Accept: "application/json",
-                            "X-CSRF-TOKEN": token,
-                        },
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        setArchivedItems(json.data.data || []);
-                    }
-                } catch (err) {
-                    setToast({ type: "error", message: err.message });
-                } finally {
-                    setLoadingArchived(false);
-                }
-            };
-            fetchArchived();
-        } else {
-            setArchivedItems([]);
-            setArchivedCount(0);
-        }
-    }, [showArchived, cycleFilter]);
+    // useEffect for archived items removed.
+
 
     return (
         <div className="mx-auto w-full max-w-6xl">
             {/* Conditional rendering for the entire filter bar */}
             {!hideFilters && (
                 <div className="mb-4 flex w-full items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <CycleDropdown
-                            cyclesList={cyclesList}
-                            cycleFilter={cycleFilter}
-                            handleCycleChange={setCycleFilter}
-                            dropdownOpen={dropdownOpen}
-                            setDropdownOpen={setDropdownOpen}
-                        />
-                        {!isCeo && (
-                            <ViewModeDropdown
-                                viewMode={viewMode}
-                                setViewMode={setViewMode}
-                                dropdownOpen={viewModeDropdownOpen}
-                                setDropdownOpen={setViewModeDropdownOpen}
-                                currentUser={currentUser}
-                                userDepartmentName={userDepartmentName}
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-slate-600 leading-none">
+                                Chu kỳ OKR
+                            </span>
+                            <CycleDropdown
+                                cyclesList={cyclesList}
+                                cycleFilter={cycleFilter}
+                                handleCycleChange={setCycleFilter}
+                                dropdownOpen={dropdownOpen}
+                                setDropdownOpen={setDropdownOpen}
                             />
+                        </div>
+                        {role !== 'ceo' && role !== 'admin' && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs font-semibold text-slate-600 leading-none">
+                                    Phạm vi OKR
+                                </span>
+                                <ViewModeDropdown
+                                    viewMode={viewMode}
+                                    setViewMode={setViewMode}
+                                    dropdownOpen={viewModeDropdownOpen}
+                                    setDropdownOpen={setViewModeDropdownOpen}
+                                    currentUser={currentUser}
+                                    userDepartmentName={userDepartmentName}
+                                />
+                            </div>
                         )}
                     </div>
                     <Tabs
-                        showArchived={showArchived}
-                        setShowArchived={setShowArchived}
                         setCreatingObjective={setCreatingObjective}
                     />
                 </div>
             )}
+
 
             {linksLoading && (
                 <div className="mb-3 flex items-center gap-2 text-xs text-indigo-600">
@@ -646,7 +425,7 @@ export default function ObjectiveList({
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {/* Loading & Empty States */}
-                        {!showArchived && loading && (
+                        {loading && (
                             <tr>
                                 <td
                                     colSpan={4}
@@ -656,7 +435,7 @@ export default function ObjectiveList({
                                 </td>
                             </tr>
                         )}
-                        {!showArchived && !loading && items.length === 0 && (
+                        {!loading && items.length === 0 && (
                             <tr>
                                 <td
                                     colSpan={4}
@@ -668,9 +447,12 @@ export default function ObjectiveList({
                         )}
 
                         {/* Active OKRs */}
-                        {!showArchived &&
-                            !loading &&
+
+ 
+
+                        {!loading &&
                             itemsWithLinkedChildren.map((obj, index) => (
+
                                 <ObjectiveRow
                                     key={obj.objective_id}
                                     obj={obj}
@@ -696,8 +478,8 @@ export default function ObjectiveList({
                                     canCheckInKR={(kr) =>
                                         canCheckInKeyResult(
                                             currentUser,
-                                            kr,
-                                            obj
+                                                                kr,
+                                                                obj
                                         )
                                     }
                                     formatPercent={formatPercent}
@@ -706,22 +488,10 @@ export default function ObjectiveList({
                                     getAssigneeInfo={getAssigneeInfo}
                                     // The ObjectiveRow itself will now handle its colSpan based on props
                                     colSpanForObjectiveHeader={3}
+                                    disableActions={disableActions}
                                 />
-                            ))}
 
-                        {/* Archived */}
-                        {showArchived && (
-                            <ObjectiveArchive
-                                archivedItems={archivedItems}
-                                openObj={openObj}
-                                setOpenObj={setOpenObj}
-                                loadingArchived={loadingArchived}
-                                reloadBothTabs={reloadBothTabs}
-                                showArchived={showArchived}
-                                formatPercent={formatPercent}
-                                getStatusText={getStatusText}
-                            />
-                        )}
+                            ))}
                     </tbody>
                 </table>
             </div>
@@ -732,7 +502,7 @@ export default function ObjectiveList({
                     setConfirmModal((prev) => ({ ...prev, show: false }))
                 }
             />
-            <ToastNotification toast={toast} />
+            <ToastNotification toast={toast} onClose={() => setToast(null)} />
             <AssignKeyResultModal
                 show={assignModal.show}
                 kr={assignModal.kr}

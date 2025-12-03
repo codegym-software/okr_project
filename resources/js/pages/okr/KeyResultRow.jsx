@@ -25,6 +25,7 @@ export default function KeyResultRow({
     openCheckInModal,
     openCheckInHistory,
     colSpanForKRs,
+    disableActions = false,
 }) {
     const isLinkedKR = kr.isLinked;
     const isLinkedObjective = kr.isLinkedObjective; // O→O
@@ -107,8 +108,9 @@ export default function KeyResultRow({
                                     onCancelLink?.(kr.link.link_id, "", keep);
                                 }
                             }}
-                            className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                            className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Hủy liên kết"
+                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -231,7 +233,10 @@ export default function KeyResultRow({
 
     return (
         <>
-            <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
+            <tr 
+                className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
+                data-kr-id={kr.kr_id}
+            >
                 <td className="px-8 py-3 border-r border-slate-200">
                     <div className="flex items-center gap-2">
                         <div className="w-6 flex-shrink-0">
@@ -310,7 +315,19 @@ export default function KeyResultRow({
                     )}
                 </td>
 
-                <td className="px-3 py-3 text-center border-r border-slate-200">
+                <td 
+                    className={`px-3 py-3 text-center border-r border-slate-200 ${canCheckInKR && canCheckInKR(kr) ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                    onClick={(e) => {
+                        if (canCheckInKR && canCheckInKR(kr) && openCheckInModal) {
+                            e.stopPropagation();
+                            openCheckInModal({
+                                ...kr,
+                                objective_id: objective.objective_id,
+                            });
+                        }
+                    }}
+                    title={canCheckInKR && canCheckInKR(kr) ? "Click để check-in" : ""}
+                >
                     <div className="flex flex-col items-center">
                         <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
                             <div
@@ -356,7 +373,8 @@ export default function KeyResultRow({
                                     onCancelLink?.(kr.link.link_id, "", keep);
                                 }
                             }}
-                            className="p-1 text-rose-600 hover:bg-rose-50 rounded"
+                            className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -372,12 +390,13 @@ export default function KeyResultRow({
                                 />
                             </svg>
                         </button>
-                    ) : (
+                    ) : disableActions ? (
                         <div className="flex items-center justify-end gap-1">
                             <button
                                 onClick={() => setAssignModal({ show: true, kr, objective, email: "", loading: false })}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Giao việc"
+                                disabled={disableActions}
                             >
                                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" />
@@ -385,8 +404,51 @@ export default function KeyResultRow({
                             </button>
                             <button
                                 onClick={() => setEditingKR(kr)}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Sửa"
+                                disabled={disableActions}
+                            >
+                                <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                    />
+                                </svg>
+                            </button>
+                            <button
+                                onClick={() => handleArchiveKR(kr.kr_id)}
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Lưu trữ"
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-end gap-1">
+                            <button
+                                onClick={() => setAssignModal({ show: true, kr, objective, email: "", loading: false })}
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Giao việc"
+                                disabled={disableActions}
+                            >
+                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" />
+                                </svg>
+                            </button>
+                            <button
+                                onClick={() => setEditingKR(kr)}
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Sửa"
+                                disabled={disableActions}
                             >
                                 <svg
                                     className="h-4 w-4"
@@ -414,6 +476,7 @@ export default function KeyResultRow({
                                 menuRefs={menuRefs}
                                 openObj={openObj}
                                 setOpenObj={setOpenObj}
+                                disableActions={disableActions}
                             />
                         </div>
                     )}
@@ -436,6 +499,7 @@ export default function KeyResultRow({
                         formatPercent={formatPercent}
                         getStatusText={getStatusText}
                         getUnitText={getUnitText}
+                        disableActions={disableActions}
                     />
                 ))}
         </>

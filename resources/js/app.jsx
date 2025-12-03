@@ -10,13 +10,14 @@ import ProfileSettings from "./pages/ProfileSettings";
 import ProfilePage from "./pages/ProfilePage";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
 import CompanyOverviewReport from "./pages/CompanyOverviewReport";
+import ReportManager from "./pages/ReportManager";
 import { GradientText } from "./components/ui";
 import CompanyOkrList from "./pages/CompanyOkrList";
-import OKRTreePage from "./pages/OKRTreePage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import FirstLoginChangePasswordPage from "./pages/FirstLoginChangePasswordPage";
+import ArchivedOkrsPage from "./pages/ArchivedOkrsPage";
 
 function NavBar({ activeTab, onChangeTab }) {
     const go = (tab) => {
@@ -362,16 +363,16 @@ export default function App() {
     const [path, setPath] = useState(
         window.location.pathname + window.location.hash
     );
-    
+
     // Listen for pathname changes
     useEffect(() => {
         const handler = () => {
             setPath(window.location.pathname + window.location.hash);
         };
-        
+
         // Listen for popstate (back/forward buttons)
         window.addEventListener("popstate", handler);
-        
+
         // Also check on mount and when path might change
         const checkInterval = setInterval(() => {
             const currentPath = window.location.pathname + window.location.hash;
@@ -379,7 +380,7 @@ export default function App() {
                 setPath(currentPath);
             }
         }, 50);
-        
+
         return () => {
             window.removeEventListener("popstate", handler);
             clearInterval(checkInterval);
@@ -387,22 +388,22 @@ export default function App() {
     }, []);
 
     const p = window.location.pathname;
-    
+
     // Render login page
     if (p === "/login" || p.startsWith("/login")) {
         return <LoginPage />;
     }
-    
+
     // Render signup page
     if (p === "/signup" || p.startsWith("/signup")) {
         return <SignupPage />;
     }
-    
+
     // Render forgot password page
     if (p === "/forgot-password" || p.startsWith("/forgot-password")) {
         return <ForgotPasswordPage />;
     }
-    
+
     // Render first login change password page
     if (
         p === "/first-login/change-password" ||
@@ -410,7 +411,7 @@ export default function App() {
     ) {
         return <FirstLoginChangePasswordPage />;
     }
-    
+
     const isAdminArea =
         p.startsWith("/dashboard") ||
         p.startsWith("/users") ||
@@ -419,7 +420,7 @@ export default function App() {
         p.startsWith("/reports") ||
         p.startsWith("/my-objectives") ||
         p.startsWith("/company-okrs") ||
-        p.startsWith("/okr-tree") ||
+        p.startsWith("/archived-okrs") ||
         p.startsWith("/profile") ||
         p.startsWith("/change-password") ||
         p.startsWith("/reports");
@@ -433,14 +434,14 @@ export default function App() {
         else if (p.startsWith("/my-objectives")) content = <ObjectivesPage />;
         else if (p.startsWith("/company-okrs"))
             content = <CompanyOkrList currentUser={user} />;
-        else if (p.startsWith("/okr-tree"))
-            content = <OKRTreePage />;
         else if (p.startsWith("/profile")) content = <ProfilePage />;
         else if (p.startsWith("/change-password"))
             content = <ChangePasswordPage />;
         else if (p.startsWith("/reports/company-overview"))
             content = <CompanyOverviewReport />;
+        else if (p.startsWith("/reports/manager")) content = <ReportManager />;
         else if (p.startsWith("/reports")) content = <ReportPage />;
+        else if (p.startsWith("/archived-okrs")) content = <ArchivedOkrsPage />;
         else if (p.startsWith("/dashboard")) content = <Dashboard />;
         return <DashboardLayout user={user}>{content}</DashboardLayout>;
     }

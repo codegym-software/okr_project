@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -64,6 +65,9 @@ class MyObjectiveController extends Controller
 
         $currentCycleId = null;
         $currentCycleName = null;
+        
+        // Kiểm tra nếu là request từ dashboard
+        $isDashboard = $request->boolean('dashboard') || $request->has('dashboard');
 
         if (!$request->filled('cycle_id')) {
             $now = Carbon::now('Asia/Ho_Chi_Minh');
@@ -119,9 +123,13 @@ class MyObjectiveController extends Controller
             $query->whereNull('archived_at');
         }
 
-
         if ($request->filled('cycle_id')) {
             $query->where('cycle_id', $request->cycle_id);
+        }
+        
+        // Filter my_okr nếu có (chỉ cho dashboard)
+        if ($isDashboard && $request->boolean('my_okr')) {
+            $query->where('user_id', $user->user_id);
         }
 
         if ($request->boolean('include_archived_kr')) {
@@ -136,7 +144,9 @@ class MyObjectiveController extends Controller
             ]);
         }
 
-        $objectives = $query->paginate(10);
+        // Dashboard có thể cần per_page lớn hơn
+        $perPage = $isDashboard ? ($request->integer('per_page') ?: 1000) : 10;
+        $objectives = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -618,5 +628,136 @@ class MyObjectiveController extends Controller
             return $assignedUser->department_id === $objective->department_id;
         }
         return true;
+    }
+
+    /**
+     * Lấy danh sách OKR cần check-in (chưa check-in > 7 ngày hoặc chưa check-in lần nào)
+     */
+    public function getCheckInReminders(): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+            }
+
+            $now = Carbon::now();
+
+            // Lấy OKR cá nhân của user trong chu kỳ active
+            $objectives = Objective::where('user_id', $user->user_id)
+                ->where('level', 'person')
+                ->whereHas('cycle', function ($query) {
+                    $query->where('status', 'active');
+                })
+                ->with(['keyResults' => function ($query) {
+                    $query->where('status', '!=', 'completed')
+                        ->whereNull('archived_at')
+                        ->with(['checkIns' => function ($q) {
+                            $q->latest('created_at')->limit(1);
+                        }]);
+                }])
+                ->get();
+
+            Log::info('Check-in reminders: Found objectives', [
+                'user_id' => $user->user_id,
+                'objectives_count' => $objectives->count(),
+            ]);
+
+            $reminders = [];
+            
+            foreach ($objectives as $objective) {
+                // Sử dụng keyResults (camelCase) thay vì key_results
+                $keyResults = $objective->keyResults ?? $objective->key_results ?? collect();
+                
+                if (!$keyResults || $keyResults->isEmpty()) {
+                    continue;
+                }
+
+                $krsNeedingCheckIn = [];
+                
+                foreach ($keyResults as $kr) {
+                    $needsReminder = false;
+                    $lastCheckInDate = null;
+                    $daysSinceLastCheckIn = null;
+
+                    // Lấy check-in mới nhất
+                    $checkIns = $kr->checkIns ?? collect();
+                    $latestCheckIn = $checkIns->isNotEmpty() 
+                        ? $checkIns->first() 
+                        : null;
+                    
+                    if ($latestCheckIn) {
+                        $lastCheckInDate = Carbon::parse($latestCheckIn->created_at);
+                        $daysSinceLastCheckIn = $now->diffInDays($lastCheckInDate);
+                        
+                        // Nhắc nhở nếu chưa check-in trong tuần này (>= 7 ngày)
+                        // Hoặc nếu chưa check-in trong 1 ngày để nhắc nhở sớm hơn (hiển thị ngay khi đăng nhập)
+                        if ($daysSinceLastCheckIn >= 1) {
+                            $needsReminder = true;
+                        }
+                    } else {
+                        // Chưa check-in lần nào - luôn nhắc nhở ngay
+                        $krCreatedAt = $kr->created_at ? Carbon::parse($kr->created_at) : Carbon::parse($objective->created_at);
+                        $daysSinceCreation = $now->diffInDays($krCreatedAt);
+                        
+                        // Nhắc nhở ngay nếu chưa check-in lần nào (không cần grace period)
+                        $needsReminder = true;
+                        $daysSinceLastCheckIn = $daysSinceCreation;
+                    }
+
+                    if ($needsReminder) {
+                        $krsNeedingCheckIn[] = [
+                            'kr_id' => $kr->kr_id,
+                            'kr_title' => $kr->kr_title,
+                            'progress_percent' => $kr->progress_percent ?? 0,
+                            'current_value' => $kr->current_value ?? 0,
+                            'target_value' => $kr->target_value ?? 0,
+                            'unit' => $kr->unit ?? '',
+                            'days_since_last_checkin' => $daysSinceLastCheckIn,
+                            'last_checkin_date' => $lastCheckInDate ? $lastCheckInDate->format('Y-m-d H:i:s') : null,
+                        ];
+                    }
+                }
+
+                if (!empty($krsNeedingCheckIn)) {
+                    $reminders[] = [
+                        'objective_id' => $objective->objective_id,
+                        'objective_title' => $objective->obj_title,
+                        'key_results' => $krsNeedingCheckIn,
+                        'total_krs_needing_checkin' => count($krsNeedingCheckIn),
+                    ];
+                }
+            }
+
+            $totalObjectives = count($reminders);
+            $totalKeyResults = array_sum(array_column($reminders, 'total_krs_needing_checkin'));
+
+            Log::info('Check-in reminders: Summary', [
+                'user_id' => $user->user_id,
+                'total_objectives' => $totalObjectives,
+                'total_key_results' => $totalKeyResults,
+                'has_reminders' => $totalKeyResults > 0,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'reminders' => $reminders,
+                    'total_objectives' => $totalObjectives,
+                    'total_key_results' => $totalKeyResults,
+                    'has_reminders' => $totalKeyResults > 0,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in getCheckInReminders: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'user_id' => Auth::id(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi lấy thông báo nhắc nhở: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

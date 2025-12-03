@@ -11,6 +11,13 @@ export default function OKRTable({
     onViewCheckInHistory,
     currentUser,
     viewMode = 'my',
+    // Props cho quản trị
+    canManage = false,
+    onEditObjective,
+    onDeleteObjective,
+    onEditKeyResult,
+    onDeleteKeyResult,
+    onAddKeyResult,
 }) {
     const [expandedObjectives, setExpandedObjectives] = useState({});
 
@@ -224,7 +231,7 @@ export default function OKRTable({
                                         <div className="hidden lg:block text-sm text-gray-600">
                                             {lastCheckInDisplay}
                                         </div>
-                                        <div className="hidden lg:block text-sm">
+                                        <div className="hidden lg:block text-sm flex items-center gap-2">
                                             {item.status && (
                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                                     item.status === 'completed'
@@ -240,6 +247,29 @@ export default function OKRTable({
                                                      item.status === 'upcoming' ? 'Sắp Hết Hạn' : 
                                                      'Đang Tiến Hành'}
                                                 </span>
+                                            )}
+                                            {/* Nút quản trị Objective */}
+                                            {canManage && !isPersonalView && (
+                                                <div className="flex items-center space-x-1 ml-2">
+                                                    <button
+                                                        onClick={() => onEditObjective?.(item)}
+                                                        className="p-1.5 rounded hover:bg-blue-50 transition-colors"
+                                                        title="Sửa Objective"
+                                                    >
+                                                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onDeleteObjective?.(item)}
+                                                        className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                                                        title="Xóa Objective"
+                                                    >
+                                                        <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -279,7 +309,20 @@ export default function OKRTable({
                                 {isExpanded && item.key_results && item.key_results.length > 0 && (
                                     <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
                                         <div className="ml-8 space-y-3">
-                                            <h4 className="text-sm font-semibold text-gray-700 mb-3">Kết Quả Chính (Key Results):</h4>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h4 className="text-sm font-semibold text-gray-700">Kết Quả Chính (Key Results):</h4>
+                                                {canManage && !isPersonalView && (
+                                                    <button
+                                                        onClick={() => onAddKeyResult?.(item)}
+                                                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                        </svg>
+                                                        Thêm Key Result
+                                                    </button>
+                                                )}
+                                            </div>
                                             {item.key_results.map((kr, krIndex) => {
                                                 // Tính phần trăm: ưu tiên progress_percent, nếu không có thì tính từ current_value/target_value
                                                 let calculatedPercentage = 0;
@@ -324,6 +367,29 @@ export default function OKRTable({
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                                 </svg>
                                                             </button>
+                                                            {/* Nút quản trị Key Result */}
+                                                            {canManage && !isPersonalView && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => onEditKeyResult?.(kr, item)}
+                                                                        className="p-1 rounded hover:bg-blue-50 transition-colors"
+                                                                        title="Sửa Key Result"
+                                                                    >
+                                                                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                        </svg>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => onDeleteKeyResult?.(kr, item)}
+                                                                        className="p-1 rounded hover:bg-red-50 transition-colors"
+                                                                        title="Xóa Key Result"
+                                                                    >
+                                                                        <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                        </svg>
+                                                                    </button>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     {/* Thanh tiến độ với nhãn phần trăm */}

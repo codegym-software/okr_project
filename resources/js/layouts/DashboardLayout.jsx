@@ -1,10 +1,10 @@
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import React, { useState } from "react";
 import Dropdown, {
     DropdownItem,
     DropdownHeader,
     DropdownContent,
 } from "../components/Dropdown";
-import { navigateTo } from "../utils/navigation";
+import NotificationBell from "../components/NotificationBell";
 
 function SidebarItem({ icon, label, href, collapsed, isActive = false }) {
     return (
@@ -29,235 +29,6 @@ function SidebarItem({ icon, label, href, collapsed, isActive = false }) {
             </span>
             {!collapsed && <span className="truncate">{label}</span>}
         </a>
-    );
-}
-
-function NotificationBell() {
-    const [notifications, setNotifications] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const [unreadCount, setUnreadCount] = useState(0);
-
-    const fetchNotifications = useCallback(async () => {
-        try {
-            setLoading(true);
-            setError("");
-            const res = await fetch("/api/notifications", {
-                headers: { Accept: "application/json" },
-            });
-            const json = await res.json();
-            if (!res.ok || json.success === false) {
-                throw new Error(json.message || "Không thể tải thông báo");
-            }
-            setNotifications(json.data?.items || []);
-            setUnreadCount(json.data?.unread ?? 0);
-        } catch (err) {
-            setError(err.message || "Không thể tải thông báo");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchNotifications();
-        const interval = setInterval(fetchNotifications, 60000);
-        return () => clearInterval(interval);
-    }, [fetchNotifications]);
-
-    const csrfToken =
-        typeof document !== "undefined"
-            ? document
-                  .querySelector('meta[name="csrf-token"]')
-                  ?.getAttribute("content") || ""
-            : "";
-
-    const updateLocalReadState = (ids) => {
-        const map = new Set(ids);
-        setNotifications((prev) =>
-            prev.map((item) =>
-                map.has(item.notification_id)
-                    ? { ...item, is_read: true }
-                    : item
-            )
-        );
-    };
-
-    const markAsRead = async (notificationId) => {
-        if (!notificationId) return;
-
-        if (!csrfToken) {
-            setError("Thiếu CSRF token. Vui lòng tải lại trang.");
-            return;
-        }
-
-        try {
-            const res = await fetch(
-                `/api/notifications/${notificationId}/read`,
-                {
-                    method: "POST",
-                    headers: {
-                        "X-CSRF-TOKEN": csrfToken,
-                        Accept: "application/json",
-                    },
-                }
-            );
-            if (!res.ok) {
-                throw new Error("Không thể cập nhật thông báo");
-            }
-            updateLocalReadState([notificationId]);
-            setUnreadCount((prev) => Math.max(0, prev - 1));
-        } catch (err) {
-            setError(err.message || "Không thể cập nhật thông báo");
-            fetchNotifications();
-        }
-    };
-
-    const markAllAsRead = async () => {
-        if (unreadCount === 0) return;
-
-        if (!csrfToken) {
-            setError("Thiếu CSRF token. Vui lòng tải lại trang.");
-            return;
-        }
-
-        try {
-            const res = await fetch("/api/notifications/mark-all-read", {
-                method: "POST",
-                headers: {
-                    "X-CSRF-TOKEN": csrfToken,
-                    Accept: "application/json",
-                },
-            });
-            if (!res.ok) {
-                throw new Error("Không thể cập nhật thông báo");
-            }
-            updateLocalReadState(
-                notifications.map((item) => item.notification_id)
-            );
-            setUnreadCount(0);
-        } catch (err) {
-            setError(err.message || "Không thể cập nhật thông báo");
-            fetchNotifications();
-        }
-    };
-
-    const formatTimestamp = (value) => {
-        if (!value) return "";
-        try {
-            return new Date(value).toLocaleString("vi-VN", {
-                hour: "2-digit",
-                minute: "2-digit",
-                day: "2-digit",
-                month: "2-digit",
-            });
-        } catch (e) {
-            return value;
-        }
-    };
-
-    const formatTypeLabel = (type) => {
-        if (!type) return "THÔNG BÁO";
-        const map = {
-            okr_link: "OKR LINK",
-        };
-        return map[type] || type.replace(/_/g, " ").toUpperCase();
-    };
-
-    return (
-        <Dropdown
-            position="right"
-            zIndex={10000}
-            className="min-w-[320px]"
-            trigger={
-                <button
-                    className="relative rounded-full border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 transition"
-                    aria-label="Thông báo"
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                    >
-                        <path d="M12 2a7 7 0 00-7 7v4.09l-.94 1.88A1 1 0 005 16h14a1 1 0 00.88-1.45L19 13.09V9a7 7 0 00-7-7zm0 20a3 3 0 01-2.995-2.824L9 19h6a3 3 0 01-2.824 2.995L12 22z" />
-                    </svg>
-                    {unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white">
-                            {unreadCount > 9 ? "9+" : unreadCount}
-                        </span>
-                    )}
-                </button>
-            }
-        >
-            <DropdownHeader>
-                <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-slate-900">Thông báo</p>
-                    <button
-                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:text-slate-400"
-                        onClick={markAllAsRead}
-                        disabled={unreadCount === 0}
-                    >
-                        Đánh dấu đã đọc
-                    </button>
-                </div>
-            </DropdownHeader>
-            <DropdownContent>
-                <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto">
-                    {loading && (
-                        <div className="px-4 py-6 text-center text-sm text-slate-500">
-                            Đang tải thông báo...
-                        </div>
-                    )}
-                    {!loading && notifications.length === 0 && (
-                        <div className="px-4 py-6 text-center text-sm text-slate-500">
-                            Bạn chưa có thông báo mới
-                        </div>
-                    )}
-                    {!loading &&
-                        notifications.map((item) => (
-                            <button
-                                key={item.notification_id}
-                                onClick={() => markAsRead(item.notification_id)}
-                                className={`w-full text-left px-4 py-3 text-sm transition ${
-                                    item.is_read
-                                        ? "bg-white hover:bg-slate-50"
-                                        : "bg-indigo-50/80 hover:bg-indigo-100"
-                                }`}
-                            >
-                                <div className="flex items-start gap-3">
-                                    <span
-                                        className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                                            item.is_read
-                                                ? "bg-slate-300"
-                                                : "bg-indigo-500"
-                                        }`}
-                                    />
-                                    <div className="flex-1">
-                                        <p className="font-semibold text-slate-900 whitespace-pre-line leading-snug">
-                                            {item.message}
-                                        </p>
-                                        <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-                                            <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-600">
-                                                {formatTypeLabel(item.type)}
-                                            </span>
-                                            <span className="tabular-nums">
-                                                {formatTimestamp(
-                                                    item.created_at
-                                                )}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
-                </div>
-                {error && (
-                    <div className="px-4 py-2 text-xs text-rose-600">
-                        {error}
-                    </div>
-                )}
-            </DropdownContent>
-        </Dropdown>
     );
 }
 
@@ -374,21 +145,6 @@ function DashboardSidebar({ open, user }) {
                             fill="currentColor"
                         >
                             <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
-                        </svg>
-                    }
-                />
-                <SidebarItem
-                    collapsed={collapsed}
-                    href="/okr-tree"
-                    label="Tree View OKR"
-                    icon={
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-6 w-6"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                        >
-                            <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z" />
                         </svg>
                     }
                 />
@@ -598,6 +354,15 @@ export default function DashboardLayout({ children, user }) {
         window.location.href = "/change-password";
     };
 
+    // Helper: kiểm tra trang hiện tại
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+    const isActive = (paths) =>
+        Array.isArray(paths)
+            ? paths.some((p) => currentPath.startsWith(p))
+            : currentPath.startsWith(paths);
+    const isTeamReportActive = currentPath === "/reports" || currentPath === "/reports/manager";
+    const isCompanyReportActive = currentPath.startsWith("/reports/company-overview");
+
     return (
         <div className="min-h-screen bg-white">
             {/* Sidebar */}
@@ -636,6 +401,7 @@ export default function DashboardLayout({ children, user }) {
                         )}
                     </div>
                     <nav className="space-y-2">
+
                         {/* Helper: kiểm tra trang hiện tại */}
                         {(() => {
                             const currentPath =
@@ -683,7 +449,6 @@ export default function DashboardLayout({ children, user }) {
                                                 open={isActive([
                                                     "/my-objectives",
                                                     "/company-okrs",
-                                                    "/okr-tree",
                                                 ])}
                                             >
                                                 <summary
@@ -692,7 +457,6 @@ export default function DashboardLayout({ children, user }) {
                                                         isActive([
                                                             "/my-objectives",
                                                             "/company-okrs",
-                                                            "/okr-tree",
                                                         ])
                                                             ? "bg-slate-100 text-blue-700"
                                                             : "text-slate-700 hover:bg-slate-50"
@@ -764,31 +528,17 @@ export default function DashboardLayout({ children, user }) {
                                                     >
                                                         OKR công ty
                                                     </a>
-                                                    <a
-                                                        href="/okr-tree"
-                                                        className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
-                                                        ${
-                                                            isActive(
-                                                                "/okr-tree"
-                                                            )
-                                                                ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
-                                                                : "text-slate-700 hover:bg-slate-50"
-                                                        }`}
-                                                    >
-                                                        Tree View OKR
-                                                    </a>
-                                                </div>
+                                                 </div>
                                             </details>
                                         ) : (
                                             <a
                                                 href="/my-objectives"
                                                 className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
-                                                ${
-                                                    isActive([
-                                                        "/my-objectives",
-                                                        "/company-okrs",
-                                                        "/okr-tree",
-                                                    ])
+                                                    ${
+                                                        isActive([
+                                                            "/my-objectives",
+                                                            "/company-okrs",
+                                                        ])
                                                         ? "bg-slate-100 text-blue-700"
                                                         : "text-slate-700 hover:bg-slate-50"
                                                 }`}
@@ -817,6 +567,24 @@ export default function DashboardLayout({ children, user }) {
                                             </a>
                                         )}
                                     </div>
+
+                                    {/* Kho Lưu Trữ */}
+                                    <SidebarItem
+                                        collapsed={!sidebarOpen}
+                                        href="/archived-okrs"
+                                        label="Kho Lưu Trữ"
+                                        icon={
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="h-6 w-6"
+                                                viewBox="0 0 24 24"
+                                                fill="currentColor"
+                                            >
+                                                <path d="M20 6H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2zM4 4h16a2 2 0 012 2v2H2V6a2 2 0 012-2z" />
+                                            </svg>
+                                        }
+                                        isActive={isActive("/archived-okrs")}
+                                    />
 
                                     {/* ==================== BÁO CÁO - GỘP THÀNH 1 DROPDOWN ==================== */}
                                     {(canSeeTeamReport || canSeeCompanyReport) && (
@@ -1059,6 +827,7 @@ export default function DashboardLayout({ children, user }) {
                             );
                         })()}
                     </nav>
+
                 </div>
             </div>
 
@@ -1094,10 +863,7 @@ export default function DashboardLayout({ children, user }) {
                             trigger={
                                 <button className="flex items-center gap-3 rounded-full border border-slate-200 bg-white pl-3 pr-4 py-2 hover:bg-slate-50">
                                     <img
-                                        src={
-                                            user?.avatar ||
-                                            "/images/default.png"
-                                        }
+                                        src={user?.avatar || "/images/default.png"}
                                         alt="avatar"
                                         className="h-10 w-10 rounded-full object-cover"
                                     />

@@ -13,6 +13,7 @@ export default function KRActionsMenu({
     menuRefs,
     openObj,
     setOpenObj,
+    disableActions = false,
 }) {
     const menuKey = `menu_${kr.kr_id}`;
 
@@ -33,7 +34,8 @@ export default function KRActionsMenu({
                         return next;
                     });
                 }}
-                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={disableActions}
             >
                 <svg
                     className="h-4 w-4"

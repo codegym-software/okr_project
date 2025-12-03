@@ -11,6 +11,16 @@ export default function ReportPage() {
     const [error, setError] = useState(null);
     const [showTeamOKRs, setShowTeamOKRs] = useState(true);
     const [showTeamMembers, setShowTeamMembers] = useState(true);
+    
+    // Snapshot states
+    const [reportsList, setReportsList] = useState([]);
+    const [selectedReportId, setSelectedReportId] = useState(null);
+    const [isSnapshot, setIsSnapshot] = useState(false);
+    const [snapshotMetadata, setSnapshotMetadata] = useState(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [creatingSnapshot, setCreatingSnapshot] = useState(false);
+    const [reportName, setReportName] = useState("");
+    const [reportNotes, setReportNotes] = useState("");
 
     useEffect(() => {
         (async () => {
@@ -35,22 +45,88 @@ export default function ReportPage() {
 
     useEffect(() => {
         if (selectedCycle) {
-            loadReportData(selectedCycle);
+            // Reset snapshot khi đổi cycle (nếu snapshot không thuộc cycle này)
+            if (selectedReportId && isSnapshot && snapshotMetadata) {
+                const snapshotCycleId = snapshotMetadata.cycle_id;
+                if (snapshotCycleId && String(snapshotCycleId) !== String(selectedCycle)) {
+                    setSelectedReportId(null);
+                    setIsSnapshot(false);
+                    setSnapshotMetadata(null);
+                }
+            }
+            // Chỉ load real-time nếu không đang xem snapshot
+            if (!selectedReportId || !isSnapshot) {
+                loadReportData(selectedCycle);
+            }
         }
+        loadReportsList();
     }, [selectedCycle]);
 
-    const loadReportData = async (cycleId) => {
+    // Load danh sách báo cáo đã tạo (timeline)
+    const loadReportsList = async () => {
+        try {
+            const res = await fetch(`/api/reports/snapshots/list?report_type=team&cycle_id=${selectedCycle || ''}`, {
+                headers: { Accept: "application/json" },
+                credentials: "include",
+            });
+            const data = await res.json();
+            if (data.success) {
+                setReportsList(data.data || []);
+            }
+        } catch (e) {
+            console.error("Error loading reports list:", e);
+        }
+    };
+
+    const loadReportData = async (cycleId, reportId = null) => {
         setLoading(true);
         setError(null);
         try {
-            const reportRes = await fetch(
-                `/api/reports/my-team?cycle_id=${cycleId}`,
-                {
-                    headers: { Accept: "application/json" },
-                    credentials: "include",
+            let reportJson;
+            
+            if (reportId) {
+                // Load từ snapshot
+                const snapshotRes = await fetch(
+                    `/api/reports/snapshots/${reportId}`,
+                    {
+                        headers: { Accept: "application/json" },
+                        credentials: "include",
+                    }
+                );
+                const snapshotData = await snapshotRes.json();
+                
+                if (snapshotData.success) {
+                    reportJson = snapshotData.data.snapshot_data;
+                    setIsSnapshot(true);
+                    setSnapshotMetadata({
+                        report_name: snapshotData.data.report_name,
+                        created_at: snapshotData.data.created_at_formatted,
+                        creator: snapshotData.data.creator,
+                        notes: snapshotData.data.notes,
+                        cycle_id: snapshotData.data.cycle?.cycle_id,
+                        cycle_name: snapshotData.data.cycle?.cycle_name,
+                    });
+                    
+                    // Tự động cập nhật cycle selector về cycle của snapshot
+                    if (snapshotData.data.cycle?.cycle_id && String(snapshotData.data.cycle.cycle_id) !== String(selectedCycle)) {
+                        setSelectedCycle(String(snapshotData.data.cycle.cycle_id));
+                    }
+                } else {
+                    throw new Error(snapshotData.message || "Không thể tải snapshot");
                 }
-            );
-            const reportJson = await reportRes.json();
+            } else {
+                // Load real-time
+                const reportRes = await fetch(
+                    `/api/reports/my-team?cycle_id=${cycleId}`,
+                    {
+                        headers: { Accept: "application/json" },
+                        credentials: "include",
+                    }
+                );
+                reportJson = await reportRes.json();
+                setIsSnapshot(false);
+                setSnapshotMetadata(null);
+            }
 
             if (reportJson.success) {
                 setReportData(reportJson.data);
@@ -65,6 +141,62 @@ export default function ReportPage() {
             setError("Lỗi khi tải dữ liệu báo cáo");
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Tạo snapshot báo cáo
+    const createSnapshot = async () => {
+        if (!selectedCycle) {
+            setError("Vui lòng chọn chu kỳ trước khi tạo báo cáo");
+            return;
+        }
+        
+        setCreatingSnapshot(true);
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+            const res = await fetch("/api/reports/snapshots/create", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "X-CSRF-TOKEN": token,
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                    report_type: "team",
+                    cycle_id: parseInt(selectedCycle),
+                    report_name: reportName || `Báo cáo nhóm - ${new Date().toLocaleString('vi-VN')}`,
+                    notes: reportNotes,
+                }),
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                // Hiển thị thông báo thành công
+                alert("✅ Đã tạo snapshot báo cáo thành công!");
+                setShowCreateModal(false);
+                setReportName("");
+                setReportNotes("");
+                setError(""); // Clear error
+                await loadReportsList();
+                // Tự động chọn báo cáo vừa tạo
+                if (data.data?.report_id) {
+                    setSelectedReportId(data.data.report_id);
+                    await loadReportData(selectedCycle, data.data.report_id);
+                }
+            } else {
+                const errorMsg = data.message || "Không thể tạo snapshot";
+                setError(errorMsg);
+                alert("❌ Lỗi: " + errorMsg);
+                console.error("Snapshot creation failed:", data);
+            }
+        } catch (e) {
+            console.error("Error creating snapshot:", e);
+            const errorMsg = "Lỗi khi tạo snapshot báo cáo: " + (e.message || "Lỗi không xác định");
+            setError(errorMsg);
+            alert("❌ " + errorMsg);
+        } finally {
+            setCreatingSnapshot(false);
         }
     };
 
@@ -98,13 +230,87 @@ export default function ReportPage() {
     return (
         <div className="p-6">
             <div className="mx-auto max-w-6xl">
-                <div className="mb-6">
-                    <h1 className="text-3xl font-bold text-gray-900">
-                        {departmentName
-                            ? `Báo cáo ${departmentName}`
-                            : "Báo cáo nhóm của tôi"}
-                    </h1>
+                <div className="mb-6 flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">
+                            {departmentName
+                                ? `Báo cáo ${departmentName}`
+                                : "Báo cáo nhóm của tôi"}
+                        </h1>
+                        {isSnapshot && snapshotMetadata && (
+                            <div className="mt-2 text-sm text-gray-600">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
+                                    📸 Snapshot
+                                </span>
+                                <span>Tạo bởi: <strong>{snapshotMetadata.creator.full_name}</strong> • {snapshotMetadata.created_at}</span>
+                                {snapshotMetadata.report_name && (
+                                    <span className="ml-2">• {snapshotMetadata.report_name}</span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Tạo báo cáo
+                    </button>
                 </div>
+
+                {/* Timeline các báo cáo đã tạo */}
+                {reportsList.length > 0 && (
+                    <div className="mb-6 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <h3 className="text-sm font-semibold text-gray-700 mb-3">Timeline báo cáo đã tạo:</h3>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            <button
+                                onClick={() => {
+                                    setSelectedReportId(null);
+                                    loadReportData(selectedCycle);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                                    !selectedReportId
+                                        ? 'bg-indigo-50 border border-indigo-200 text-indigo-700'
+                                        : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="font-medium">📊 Xem dữ liệu hiện tại (real-time)</span>
+                                    <span className="text-xs text-gray-500">Live</span>
+                                </div>
+                            </button>
+                        {reportsList.map((report) => (
+                            <button
+                                key={report.report_id}
+                                onClick={() => {
+                                    setSelectedReportId(report.report_id);
+                                    loadReportData(selectedCycle, report.report_id);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                                    selectedReportId === report.report_id
+                                        ? 'bg-indigo-50 border border-indigo-200 text-indigo-700'
+                                        : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="font-medium">{report.report_name || 'Báo cáo không tên'}</div>
+                                        <div className="text-xs text-gray-500 mt-0.5">
+                                            {report.creator.full_name} • {report.created_at_formatted}
+                                            {report.cycle && (
+                                                <span className="ml-1">• {report.cycle.cycle_name}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <span className="text-xs text-gray-400">📸</span>
+                                </div>
+                            </button>
+                        ))}
+                        </div>
+                    </div>
+                )}
 
                 <div className="mb-6 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                     <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">
@@ -412,6 +618,64 @@ export default function ReportPage() {
                             </div>
                         )}
                     </>
+                )}
+
+                {/* Modal tạo báo cáo */}
+                {showCreateModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                            <h2 className="text-xl font-bold text-gray-900 mb-4">Tạo snapshot báo cáo</h2>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Tên báo cáo (tùy chọn)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={reportName}
+                                        onChange={(e) => setReportName(e.target.value)}
+                                        placeholder="Báo cáo nhóm - Q1 2024"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Ghi chú (tùy chọn)
+                                    </label>
+                                    <textarea
+                                        value={reportNotes}
+                                        onChange={(e) => setReportNotes(e.target.value)}
+                                        placeholder="Thêm ghi chú cho báo cáo này..."
+                                        rows={3}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
+                                    <strong>Lưu ý:</strong> Báo cáo sẽ lưu snapshot dữ liệu tại thời điểm hiện tại. 
+                                    Dữ liệu sau này có thể thay đổi nhưng snapshot này sẽ giữ nguyên.
+                                </div>
+                            </div>
+                            <div className="mt-6 flex gap-3 justify-end">
+                                <button
+                                    onClick={() => {
+                                        setShowCreateModal(false);
+                                        setReportName("");
+                                        setReportNotes("");
+                                    }}
+                                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                    Hủy
+                                </button>
+                                <button
+                                    onClick={createSnapshot}
+                                    disabled={creatingSnapshot}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {creatingSnapshot ? "Đang tạo..." : "Tạo báo cáo"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

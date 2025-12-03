@@ -8,8 +8,10 @@ export default function ObjectiveActionsMenu({
     menuRefs,
     openObj,
     setOpenObj,
+    disableActions = false,
 }) {
     const menuKey = `menu_obj_${obj.objective_id}`;
+    const isCompanyLevel = obj.level === "company";
 
     return (
         <div
@@ -28,8 +30,9 @@ export default function ObjectiveActionsMenu({
                         return next;
                     });
                 }}
-                className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Thêm tùy chọn"
+                disabled={disableActions}
             >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -45,10 +48,29 @@ export default function ObjectiveActionsMenu({
                          <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onOpenLinkModal({ sourceType: "objective", source: obj });
-                                setOpenObj((prev) => ({ ...prev, [menuKey]: false }));
+                                if (disableActions || isCompanyLevel) {
+                                    return;
+                                }
+                                onOpenLinkModal({
+                                    sourceType: "objective",
+                                    source: obj,
+                                });
+                                setOpenObj((prev) => ({
+                                    ...prev,
+                                    [menuKey]: false,
+                                }));
                             }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                            disabled={disableActions || isCompanyLevel}
+                            title={
+                                isCompanyLevel
+                                    ? "OKR cấp công ty không thể làm mục tiêu liên kết."
+                                    : "Liên kết OKR"
+                            }
+                            className={`flex items-center gap-2 w-full px-3 py-2 text-sm ${
+                                disableActions || isCompanyLevel
+                                    ? "text-slate-400 cursor-not-allowed"
+                                    : "text-slate-700 hover:bg-slate-50"
+                            }`}
                          >
                             Liên kết OKR
                         </button>

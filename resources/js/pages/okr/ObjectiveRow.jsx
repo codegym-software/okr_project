@@ -29,12 +29,16 @@ export default function ObjectiveRow({
     getStatusText,
     getUnitText,
     colSpanForObjectiveHeader,
+    disableActions = false,
 }) {
     const hasKRs = obj.key_results?.length > 0;
 
     return (
         <>
-            <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
+            <tr 
+                className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
+                data-objective-id={obj.objective_id}
+            >
                 <td colSpan={colSpanForObjectiveHeader} className="px-3 py-3 border-r border-slate-200">
                     <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2">
@@ -85,8 +89,9 @@ export default function ObjectiveRow({
                     <div className="flex items-center justify-end gap-1">
                         <button
                             onClick={() => setCreatingFor(obj)}
-                            className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Thêm KR"
+                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -112,8 +117,9 @@ export default function ObjectiveRow({
                         </button>
                         <button
                             onClick={() => setEditingObjective(obj)}
-                            className="p-1 text-slate-600 hover:bg-slate-100 rounded"
+                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Sửa"
+                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -129,15 +135,30 @@ export default function ObjectiveRow({
                                 />
                             </svg>
                         </button>
-                        <ObjectiveActionsMenu
-                            obj={obj}
-                            onOpenLinkModal={onOpenLinkModal}
-                            handleArchive={handleArchive}
-                            archiving={archiving}
-                            menuRefs={menuRefs}
-                            openObj={openObj}
-                            setOpenObj={setOpenObj}
-                        />
+
+                        {disableActions ? (
+                            <button
+                                onClick={() => handleArchive(obj.objective_id)}
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Lưu trữ"
+                                disabled={archiving === obj.objective_id}
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                            </button>
+                        ) : (
+                            <ObjectiveActionsMenu
+                                obj={obj}
+                                onOpenLinkModal={onOpenLinkModal}
+                                handleArchive={handleArchive}
+                                archiving={archiving}
+                                menuRefs={menuRefs}
+                                openObj={openObj}
+                                setOpenObj={setOpenObj}
+                                disableActions={disableActions}
+                            />
+                        )}
                     </div>
                 </td>
             </tr>
@@ -164,6 +185,7 @@ export default function ObjectiveRow({
                         getUnitText={getUnitText}
                         menuRefs={menuRefs}
                         colSpanForKRs={7} // NEW PROP
+                        disableActions={disableActions}
                     />
                 ))}
         </>

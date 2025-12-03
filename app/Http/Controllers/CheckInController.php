@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\CheckIn;
 use App\Models\KeyResult;
+use App\Models\Notification;
+use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -47,7 +50,7 @@ class CheckInController extends Controller
     public function store(Request $request, $objectiveId, $krId)
     {
         $user = Auth::user();
-    $keyResult = KeyResult::with(['objective.cycle', 'cycle'])->findOrFail($krId);
+        $keyResult = KeyResult::with(['objective.cycle', 'cycle'])->findOrFail($krId);
 
         // Load user relationship nếu chưa có
         if (!$user->relationLoaded('role')) {
@@ -122,6 +125,10 @@ class CheckInController extends Controller
                     'progress_percent' => $request->progress_percent,
                 ]);
             });
+
+            // Gửi thông báo cho quản lý trong cùng phòng ban (sau khi check-in đã được lưu)
+            // Gọi ngoài transaction để đảm bảo check-in vẫn được lưu dù thông báo có lỗi
+            $this->notifyManagers($user, $keyResult, $checkIn);
 
             $message = $request->progress_percent >= 100 
                 ? 'Chúc mừng! Key Result đã hoàn thành 100%.' 
@@ -325,9 +332,18 @@ class CheckInController extends Controller
      */
     private function canCheckIn($user, $keyResult): bool
     {
-        // CHỈ người sở hữu Key Result mới có quyền check-in
-        // Người sở hữu Key Result có thể check-in
+        // 1. Người sở hữu Key Result có thể check-in
         if ($keyResult->user_id == $user->user_id) {
+            return true;
+        }
+
+        // 2. Người được giao Key Result có thể check-in
+        if ($keyResult->assigned_to == $user->user_id) {
+            return true;
+        }
+
+        // 3. Người sở hữu Objective chứa Key Result có thể check-in
+        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
             return true;
         }
 
@@ -347,5 +363,95 @@ class CheckInController extends Controller
 
         // Tất cả user đều có quyền xem lịch sử check-in
         return true;
+    }
+
+    /**
+     * Gửi thông báo cho tất cả quản lý trong cùng phòng ban khi có check-in
+     */
+    private function notifyManagers(User $user, KeyResult $keyResult, CheckIn $checkIn): void
+    {
+        try {
+            // Load objective nếu chưa có
+            if (!$keyResult->relationLoaded('objective')) {
+                $keyResult->load('objective');
+            }
+
+            // Ưu tiên lấy department_id từ KeyResult hoặc Objective, nếu không có thì dùng của user
+            $departmentId = $keyResult->department_id 
+                ?? $keyResult->objective->department_id 
+                ?? $user->department_id;
+            
+            if (!$departmentId) {
+                Log::info('No department found for notification', [
+                    'user_id' => $user->user_id,
+                    'kr_id' => $keyResult->kr_id,
+                ]);
+                return;
+            }
+
+            // Lấy cycle_id từ KeyResult hoặc Objective
+            $cycleId = $keyResult->cycle_id ?? $keyResult->objective->cycle_id ?? null;
+            
+            if (!$cycleId) {
+                Log::warning('No cycle_id found for notification', [
+                    'kr_id' => $keyResult->kr_id,
+                ]);
+                return;
+            }
+
+            // Tìm tất cả quản lý trong cùng phòng ban (trừ chính user đã check-in)
+            $managers = User::where('department_id', $departmentId)
+                ->where('user_id', '!=', $user->user_id) // Không gửi thông báo cho chính người check-in
+                ->whereHas('role', function($query) {
+                    $query->whereRaw('LOWER(role_name) = ?', ['manager']);
+                })
+                ->get();
+
+            if ($managers->isEmpty()) {
+                Log::info('No managers found in department', [
+                    'department_id' => $departmentId,
+                ]);
+                return;
+            }
+
+            // Tạo thông báo cho từng quản lý
+            $objectiveTitle = $keyResult->objective->obj_title ?? 'N/A';
+            $krTitle = $keyResult->kr_title ?? 'N/A';
+            $progressPercent = $checkIn->progress_percent;
+            $memberName = $user->full_name ?? $user->email;
+
+            $message = "{$memberName} đã check-in Key Result '{$krTitle}' trong Objective '{$objectiveTitle}' với tiến độ {$progressPercent}%";
+
+            // Tạo URL đến trang objective với KR cụ thể
+            $objectiveId = $keyResult->objective->objective_id ?? null;
+            $krId = $keyResult->kr_id ?? null;
+            $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$krId}&objective_id={$objectiveId}";
+
+            foreach ($managers as $manager) {
+                NotificationService::send(
+                    $manager->user_id,
+                    $message,
+                    'check_in',
+                    $cycleId,
+                    $actionUrl,
+                    'Xem chi tiết'
+                );
+            }
+
+            Log::info('Manager notifications sent', [
+                'check_in_id' => $checkIn->check_in_id,
+                'user_id' => $user->user_id,
+                'department_id' => $departmentId,
+                'managers_count' => $managers->count(),
+            ]);
+
+        } catch (\Exception $e) {
+            // Log lỗi nhưng không làm gián đoạn quá trình check-in
+            Log::error('Error sending manager notifications', [
+                'error' => $e->getMessage(),
+                'check_in_id' => $checkIn->check_in_id ?? null,
+                'user_id' => $user->user_id,
+            ]);
+        }
     }
 }

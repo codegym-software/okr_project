@@ -72,7 +72,7 @@ class CompanyOkrController extends Controller
             $query->where('level', 'company');
         }
 
-        $objectives = $query->orderBy('created_at', 'desc')->paginate(20);
+        $objectives = $query->orderBy('created_at', 'desc')->paginate(10);
 
         // === 3. TRẢ VỀ RESPONSE ===
         if ($request->expectsJson()) {

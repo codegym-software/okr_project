@@ -9,6 +9,7 @@ use App\Models\Objective;
 use App\Models\OkrAssignment;
 use App\Models\OkrLink;
 use App\Models\OkrLinkEvent;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -422,6 +423,55 @@ class LinkController extends Controller
     }
 
     /**
+     * Lấy tất cả các liên kết đã được phê duyệt trong hệ thống, có thể lọc theo chu kỳ.
+     */
+    public function getAllLinks(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'cycle_id' => ['nullable', 'integer'],
+        ]);
+
+        $query = OkrLink::with($this->defaultRelations())
+            ->where('status', OkrLink::STATUS_APPROVED);
+
+        if (isset($validated['cycle_id']) && $validated['cycle_id']) {
+            $cycleId = $validated['cycle_id'];
+            $query->where(function ($q) use ($cycleId) {
+                $q->whereHas('sourceObjective', function ($sq) use ($cycleId) {
+                    $sq->where('cycle_id', $cycleId);
+                })->orWhereHas('targetObjective', function ($tq) use ($cycleId) {
+                    $tq->where('cycle_id', $cycleId);
+                });
+            });
+        }
+        
+        $links = $query->orderByDesc('created_at')
+            ->get()
+            ->filter(function ($link) {
+                // Loại bỏ link có source hoặc target đã bị archived
+                if ($link->targetObjective && $link->targetObjective->archived_at) {
+                    return false;
+                }
+                if ($link->targetKr && $link->targetKr->archived_at) {
+                    return false;
+                }
+                if ($link->sourceObjective && $link->sourceObjective->archived_at) {
+                    return false;
+                }
+                return true;
+            })
+            ->values();
+
+        // Frontend component (ObjectiveList) mong đợi dữ liệu trong key 'children'
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'children' => $links,
+            ],
+        ]);
+    }
+
+    /**
      * Helper: danh sách quan hệ mặc định.
      */
     private function defaultRelations(): array
@@ -618,18 +668,27 @@ class LinkController extends Controller
         }
 
         try {
-            Notification::create([
-                'message' => $this->buildNotificationMessage(
-                    $message,
-                    $note,
-                    $actorName,
-                    $this->getLinkSummary($link),
-                    $noteLabel
-                ),
-                'type' => 'okr_link',
-                'user_id' => $link->target_owner_id,
-                'cycle_id' => $link->targetObjective?->cycle_id ?? $link->targetKr?->objective?->cycle_id,
-            ]);
+            $notificationMessage = $this->buildNotificationMessage(
+                $message,
+                $note,
+                $actorName,
+                $this->getLinkSummary($link),
+                $noteLabel
+            );
+            $cycleId = $link->targetObjective?->cycle_id ?? $link->targetKr?->objective?->cycle_id;
+
+            // Tạo URL đến trang objective với highlight link request
+            $objectiveId = $link->target_objective_id ?? $link->targetKr?->objective_id;
+            $actionUrl = config('app.url') . "/my-objectives?highlight_link={$link->link_id}&objective_id={$objectiveId}";
+
+            NotificationService::send(
+                $link->target_owner_id,
+                $notificationMessage,
+                'link_request',
+                $cycleId,
+                $actionUrl,
+                'Xem yêu cầu liên kết'
+            );
         } catch (\Throwable $e) {
             Log::warning('Không thể tạo notification', ['error' => $e->getMessage()]);
         }
@@ -648,18 +707,27 @@ class LinkController extends Controller
         }
 
         try {
-            Notification::create([
-                'message' => $this->buildNotificationMessage(
-                    $message,
-                    $note,
-                    $actorName,
-                    $this->getLinkSummary($link),
-                    $noteLabel
-                ),
-                'type' => 'okr_link',
-                'user_id' => $link->requested_by,
-                'cycle_id' => $link->sourceObjective?->cycle_id, // Source luôn là Objective
-            ]);
+            $notificationMessage = $this->buildNotificationMessage(
+                $message,
+                $note,
+                $actorName,
+                $this->getLinkSummary($link),
+                $noteLabel
+            );
+            $cycleId = $link->sourceObjective?->cycle_id; // Source luôn là Objective
+
+            // Tạo URL đến trang objective với highlight link
+            $objectiveId = $link->source_objective_id;
+            $actionUrl = config('app.url') . "/my-objectives?highlight_link={$link->link_id}&objective_id={$objectiveId}";
+
+            NotificationService::send(
+                $link->requested_by,
+                $notificationMessage,
+                'okr_link',
+                $cycleId,
+                $actionUrl,
+                'Xem chi tiết'
+            );
         } catch (\Throwable $e) {
             Log::warning('Không thể tạo notification', ['error' => $e->getMessage()]);
         }

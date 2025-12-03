@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class KeyResult extends Model
@@ -14,8 +15,22 @@ class KeyResult extends Model
 
     public $timestamps = true;
     protected $primaryKey = 'kr_id';
-    public $incrementing = true;
-    protected $keyType = 'int';
+    public $incrementing = false;
+    protected $keyType = 'string';
+
+    /**
+     * Boot function để tự động tạo UUID
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (empty($model->kr_id)) {
+                $model->kr_id = (string) Str::uuid();
+            }
+        });
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -86,7 +101,9 @@ class KeyResult extends Model
 
     public function latestCheckIn()
     {
-        return $this->hasOne(CheckIn::class, 'kr_id', 'kr_id')->latestOfMany();
+        return $this->hasOne(CheckIn::class, 'kr_id', 'kr_id')
+            ->orderBy('check_in_id', 'desc')
+            ->limit(1);
     }
 
     /**
