@@ -75,7 +75,8 @@ export default function CompanyOverviewReport() {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    const role = data.role?.role_name?.toLowerCase() || '';
+                    // API trả về data.user.role, không phải data.role
+                    const role = data.user?.role?.role_name?.toLowerCase() || '';
                     setUserRole(role);
                     setIsAdminOrCeo(role === 'admin' || role === 'ceo');
                 }
@@ -83,6 +84,57 @@ export default function CompanyOverviewReport() {
                 console.error('Lỗi khi tải thông tin user:', error);
             }
         })();
+    }, []);
+
+    // Đọc query params khi component mount
+    useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            
+            // Đọc các query params
+            const cycleId = params.get('cycle_id');
+            const departmentId = params.get('department_id');
+            const ownerId = params.get('owner_id');
+            const status = params.get('status');
+            const levelParam = params.get('level');
+            const snapshotLevel = params.get('snapshot_level');
+            const showSnapshotsParam = params.get('show_snapshots');
+            
+            // Khôi phục state từ query params
+            if (cycleId) {
+                setFilters(f => ({ ...f, cycleId }));
+            }
+            if (departmentId) {
+                setFilters(f => ({ ...f, departmentId }));
+            }
+            if (ownerId) {
+                setFilters(f => ({ ...f, ownerId }));
+            }
+            if (status) {
+                setFilters(f => ({ ...f, status }));
+            }
+            if (levelParam === 'company' || levelParam === 'departments') {
+                setLevel(levelParam);
+            }
+            if (snapshotLevel === 'all' || snapshotLevel === 'company' || snapshotLevel === 'departments') {
+                setSnapshotLevelFilter(snapshotLevel);
+            }
+            // show_snapshots = số trang (1, 2, 3...) khi modal mở
+            if (showSnapshotsParam) {
+                const pageNum = parseInt(showSnapshotsParam, 10);
+                if (!isNaN(pageNum) && pageNum > 0) {
+                    // Nếu là số hợp lệ, đó là số trang
+                    setShowSnapshots(true);
+                    setSnapshotPage(pageNum);
+                } else if (showSnapshotsParam === 'true' || showSnapshotsParam === '1') {
+                    // Tương thích với format cũ (boolean), mở modal ở trang 1
+                    setShowSnapshots(true);
+                    setSnapshotPage(1);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to read query params:', e);
+        }
     }, []);
 
     useEffect(() => {
@@ -105,6 +157,9 @@ export default function CompanyOverviewReport() {
                 if (listCycles.length) {
                     const now = new Date();
                     const parse = (s) => (s ? new Date(s) : null);
+                    // Chỉ set cycle mặc định nếu chưa có trong query params
+                    const params = new URLSearchParams(window.location.search);
+                    if (!params.get('cycle_id')) {
                     const current = listCycles.find(c => {
                         const start = parse(c.start_date || c.startDate);
                         const end = parse(c.end_date || c.endDate);
@@ -117,6 +172,7 @@ export default function CompanyOverviewReport() {
                         start: current.start_date || current.startDate,
                         end: current.end_date || current.endDate,
                     });
+                    }
                 }
             } catch (e) { /* ignore */ }
         })();
@@ -183,6 +239,88 @@ export default function CompanyOverviewReport() {
         }, 60000); 
         return () => clearInterval(timer);
     }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId, level]); // Add level to dependencies
+
+    // Đồng bộ filters với query params
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (filters.cycleId) {
+                url.searchParams.set('cycle_id', filters.cycleId);
+            } else {
+                url.searchParams.delete('cycle_id');
+            }
+            if (filters.departmentId) {
+                url.searchParams.set('department_id', filters.departmentId);
+            } else {
+                url.searchParams.delete('department_id');
+            }
+            if (filters.ownerId) {
+                url.searchParams.set('owner_id', filters.ownerId);
+            } else {
+                url.searchParams.delete('owner_id');
+            }
+            if (filters.status) {
+                url.searchParams.set('status', filters.status);
+            } else {
+                url.searchParams.delete('status');
+            }
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.error('Failed to sync filters to URL', e);
+        }
+    }, [filters.cycleId, filters.departmentId, filters.ownerId, filters.status]);
+
+    // Đồng bộ level với query params - chỉ thêm vào URL nếu khác mặc định
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            // Chỉ thêm level vào URL nếu khác với giá trị mặc định 'departments'
+            if (level && level !== 'departments') {
+                url.searchParams.set('level', level);
+            } else {
+                // Xóa level khỏi URL nếu là giá trị mặc định
+                url.searchParams.delete('level');
+            }
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.error('Failed to sync level to URL', e);
+        }
+    }, [level]);
+
+    // Đồng bộ snapshotLevelFilter với query params
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (snapshotLevelFilter && snapshotLevelFilter !== 'all') {
+                url.searchParams.set('snapshot_level', snapshotLevelFilter);
+            } else {
+                url.searchParams.delete('snapshot_level');
+            }
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.error('Failed to sync snapshotLevelFilter to URL', e);
+        }
+    }, [snapshotLevelFilter]);
+
+    // Đồng bộ showSnapshots và snapshotPage với query params
+    // show_snapshots = số trang (1, 2, 3...) khi modal mở, xóa khi đóng
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (showSnapshots) {
+                // Khi modal mở, show_snapshots = số trang hiện tại
+                url.searchParams.set('show_snapshots', String(snapshotPage));
+            } else {
+                // Khi modal đóng, xóa show_snapshots
+                url.searchParams.delete('show_snapshots');
+            }
+            // Xóa snapshot_page cũ nếu có (để tương thích ngược)
+            url.searchParams.delete('snapshot_page');
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.error('Failed to sync showSnapshots to URL', e);
+        }
+    }, [showSnapshots, snapshotPage]);
 
     // pieData and groupedChartData are now handled in ChartSection component
 
@@ -389,10 +527,16 @@ export default function CompanyOverviewReport() {
     };
 
     const handleViewSnapshots = () => {
-        setShowSnapshots(!showSnapshots);
         if (!showSnapshots) {
+            // Mở modal
+            setShowSnapshots(true);
             setSnapshotPage(1);
             loadSnapshots(1);
+        } else {
+            // Đóng modal - reset về trang 1 và xóa query params
+            setShowSnapshots(false);
+            setSelectedSnapshot(null);
+            setSnapshotPage(1);
         }
     };
 
@@ -484,11 +628,11 @@ export default function CompanyOverviewReport() {
                     <div className="flex items-center gap-3">
                     {/* Nút Tạo kết chuyển / Lập báo cáo cuối kỳ - Chỉ Admin và CEO */}
                     {isAdminOrCeo && (
-                        <button
-                            onClick={openSnapshotModal}
-                            disabled={isCreatingSnapshot}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 active:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                        >
+                    <button
+                        onClick={openSnapshotModal}
+                        disabled={isCreatingSnapshot}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 active:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    >
                         {isCreatingSnapshot ? (
                             <>
                                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -506,7 +650,7 @@ export default function CompanyOverviewReport() {
                                 Chốt kỳ
                             </>
                         )}
-                        </button>
+                    </button>
                     )}
 
                     {/* Nút Xem lịch sử kết chuyển */}
@@ -670,8 +814,9 @@ export default function CompanyOverviewReport() {
                 className="fixed inset-0 absolute inset-0 bg-black/30 bg-opacity-70 flex items-center justify-center z-50 p-4"
                 onClick={(e) => {
                     if (e.target === e.currentTarget) {
-                    setShowSnapshots(false);
-                    setSelectedSnapshot(null);
+                        setShowSnapshots(false);
+                        setSelectedSnapshot(null);
+                        setSnapshotPage(1); // Reset về trang 1 khi đóng modal
                     }
                 }}
                 >
@@ -685,8 +830,9 @@ export default function CompanyOverviewReport() {
                     <h2 className="text-xl font-bold text-gray-900">Lịch sử chốt kỳ</h2>
                     <button 
                         onClick={() => { 
-                        setShowSnapshots(false); 
-                        setSelectedSnapshot(null); 
+                            setShowSnapshots(false); 
+                            setSelectedSnapshot(null);
+                            setSnapshotPage(1); // Reset về trang 1 khi đóng modal
                         }} 
                         className="text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg p-2 transition"
                     >
