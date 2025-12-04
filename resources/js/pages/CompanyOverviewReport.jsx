@@ -61,6 +61,29 @@ export default function CompanyOverviewReport() {
         checkIns: [],
     });
 
+    // User role state
+    const [userRole, setUserRole] = useState(null);
+    const [isAdminOrCeo, setIsAdminOrCeo] = useState(false);
+
+    // Fetch user profile to check role
+    useEffect(() => {
+        (async () => {
+            try {
+                const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const res = await fetch('/api/profile', {
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const role = data.role?.role_name?.toLowerCase() || '';
+                    setUserRole(role);
+                    setIsAdminOrCeo(role === 'admin' || role === 'ceo');
+                }
+            } catch (error) {
+                console.error('Lỗi khi tải thông tin user:', error);
+            }
+        })();
+    }, []);
 
     useEffect(() => {
         (async () => {
@@ -459,12 +482,13 @@ export default function CompanyOverviewReport() {
                     <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo tổng quan</h1>
 
                     <div className="flex items-center gap-3">
-                    {/* Nút Tạo kết chuyển / Lập báo cáo cuối kỳ */}
-                    <button
-                        onClick={openSnapshotModal}
-                        disabled={isCreatingSnapshot}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 active:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    >
+                    {/* Nút Tạo kết chuyển / Lập báo cáo cuối kỳ - Chỉ Admin và CEO */}
+                    {isAdminOrCeo && (
+                        <button
+                            onClick={openSnapshotModal}
+                            disabled={isCreatingSnapshot}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 active:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                        >
                         {isCreatingSnapshot ? (
                             <>
                                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -482,7 +506,8 @@ export default function CompanyOverviewReport() {
                                 Chốt kỳ
                             </>
                         )}
-                    </button>
+                        </button>
+                    )}
 
                     {/* Nút Xem lịch sử kết chuyển */}
                     <button
@@ -539,7 +564,7 @@ export default function CompanyOverviewReport() {
                         </div>
 
                         {/* Nút Export Excel - Chỉ cho phép sau khi đã tạo snapshot */}
-                        <button
+                            <button
                             onClick={exportToExcel}
                             disabled={!isReportReady || snapshots.length === 0}
                             className={`p-2.5 rounded-lg transition-colors ${
@@ -566,11 +591,11 @@ export default function CompanyOverviewReport() {
                                 strokeLinecap="round" 
                                 strokeLinejoin="round"
                             >
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="7 10 12 15 17 10"/>
-                                <line x1="12" y1="15" x2="12" y2="3"/>
-                            </svg>
-                        </button>
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                            </button>
                     </div>
                 </div>
             </div>
