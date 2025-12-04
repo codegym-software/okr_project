@@ -15,22 +15,8 @@ class KeyResult extends Model
 
     public $timestamps = true;
     protected $primaryKey = 'kr_id';
-    public $incrementing = false;
-    protected $keyType = 'string';
-
-    /**
-     * Boot function để tự động tạo UUID
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($model) {
-            if (empty($model->kr_id)) {
-                $model->kr_id = (string) Str::uuid();
-            }
-        });
-    }
+    public $incrementing = true;
+    protected $keyType = 'int';
 
     /**
      * The attributes that are mass assignable.

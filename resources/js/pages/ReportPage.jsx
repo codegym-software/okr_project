@@ -93,6 +93,11 @@ export default function ReportPage() {
         };
     }, [reportData]);
 
+    const activeOkrs = useMemo(() => {
+        if (!reportData?.team_okrs) return [];
+        return reportData.team_okrs.filter(okr => okr.status !== 'archived');
+    }, [reportData]);
+
     const filteredMembers = useMemo(() => {
         if (!reportData?.members) return [];
         return reportData.members.filter(member => {
@@ -328,7 +333,7 @@ export default function ReportPage() {
 
                             {/* RIGHT: Detailed OKR List (Moved Up) */}
                             <div className="lg:col-span-2">
-                                {reportData?.team_okrs && reportData.team_okrs.length > 0 ? (
+                                {activeOkrs && activeOkrs.length > 0 ? (
                                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden h-full flex flex-col">
                                         <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                                             <div className="flex items-center gap-2">
@@ -338,11 +343,11 @@ export default function ReportPage() {
                                                 <h3 className="text-lg font-bold text-slate-800">Chi tiết OKRs Nhóm</h3>
                                             </div>
                                             <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
-                                                {reportData.team_okrs.length} Mục tiêu
+                                                {activeOkrs.length} Mục tiêu
                                             </span>
                                         </div>
                                         <div className="divide-y divide-slate-50 overflow-y-auto max-h-[500px] scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                                            {reportData.team_okrs.map((okr, index) => (
+                                            {activeOkrs.map((okr, index) => (
                                                 <div key={okr.objective_id || index} className="p-6 hover:bg-slate-50 transition-colors group">
                                                     <div className="flex flex-col gap-4">
                                                         {/* Top Row: Title & Meta */}

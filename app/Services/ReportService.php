@@ -38,6 +38,7 @@ class ReportService
         $objectives = Objective::query()
             ->where('department_id', $departmentId)
             ->where('cycle_id', $cycleId)
+            ->whereNull('archived_at')
             ->with(['keyResults.checkIns' => function ($query) {
                 $query->orderByDesc('created_at')->limit(2);
             }])
