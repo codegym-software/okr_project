@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 /**
  * Export report to PDF with both company and departments data
@@ -518,67 +518,203 @@ export async function exportToPDF(companyData, departmentsData, currentCycleMeta
  * @param {Function} onSuccess
  * @param {Function} onError
  */
-export function exportToExcel(companyData, departmentsData, currentCycleMeta, snapshotTitle, onSuccess, onError) {
+export async function exportToExcel(companyData, departmentsData, currentCycleMeta, snapshotTitle, onSuccess, onError) {
     try {
-        const workbook = XLSX.utils.book_new();
+        const workbook = new ExcelJS.Workbook();
+
+        // Helper function to apply styling to cells
+        const applyHeaderStyle = (cell) => {
+            cell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF2563EB' } // Blue
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FF1E40AF' } },
+                left: { style: 'thin', color: { argb: 'FF1E40AF' } },
+                bottom: { style: 'thin', color: { argb: 'FF1E40AF' } },
+                right: { style: 'thin', color: { argb: 'FF1E40AF' } }
+            };
+        };
+
+        const applySectionTitleStyle = (cell) => {
+            cell.font = { bold: true, size: 13, color: { argb: 'FF1E40AF' } };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFEFF6FF' } // Light blue
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'left' };
+        };
+
+        const applyDataCellStyle = (cell) => {
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        };
+
+        const applyStatusStyle = (cell, status) => {
+            applyDataCellStyle(cell);
+            if (status === 'Đúng tiến độ') {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFD1FAE5' } // Light green
+                };
+                cell.font = { color: { argb: 'FF059669' }, bold: true };
+            } else if (status === 'Có nguy cơ') {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFFEF3C7' } // Light yellow
+                };
+                cell.font = { color: { argb: 'FFD97706' }, bold: true };
+            } else if (status === 'Chậm tiến độ') {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFFEE2E2' } // Light red
+                };
+                cell.font = { color: { argb: 'FFDC2626' }, bold: true };
+            }
+        };
 
         // Helper function to create a sheet for a level
-        const createLevelSheet = (reportData, detailedData, levelName, isCompany = false) => {
-            const sheetData = [];
+        const createLevelSheet = async (reportData, detailedData, levelName, isCompany = false) => {
+            const worksheet = workbook.addWorksheet(levelName);
+            let currentRow = 1;
 
-            // Header
-            sheetData.push(['BÁO CÁO OKR TỔNG QUAN']);
-            sheetData.push(['Cấp độ', levelName]);
-            sheetData.push(['Chu kỳ', currentCycleMeta?.name || 'N/A']);
-            sheetData.push(['Ngày xuất', new Date().toLocaleDateString('vi-VN')]);
-            sheetData.push([]);
+            // Header - Title
+            const titleCell = worksheet.getCell(currentRow, 1);
+            titleCell.value = 'BÁO CÁO OKR TỔNG QUAN';
+            titleCell.font = { bold: true, size: 16, color: { argb: 'FF1E40AF' } };
+            worksheet.mergeCells(currentRow, 1, currentRow, 7);
+            currentRow++;
 
-            // Thống kê tổng quan
-            sheetData.push(['THỐNG KÊ TỔNG QUAN']);
-            sheetData.push(['Chỉ số', 'Giá trị']);
-            sheetData.push(['Tổng số mục tiêu', reportData.overall?.totalObjectives || 0]);
-            sheetData.push(['Tiến độ trung bình', (reportData.overall?.averageProgress ?? 0).toFixed(2) + '%']);
-            sheetData.push(['Đúng tiến độ', `${reportData.overall?.statusCounts?.onTrack || 0} (${reportData.overall?.statusDistribution?.onTrack || 0}%)`]);
-            sheetData.push(['Có nguy cơ', `${reportData.overall?.statusCounts?.atRisk || 0} (${reportData.overall?.statusDistribution?.atRisk || 0}%)`]);
-            sheetData.push(['Chậm tiến độ', `${reportData.overall?.statusCounts?.offTrack || 0} (${reportData.overall?.statusDistribution?.offTrack || 0}%)`]);
-            sheetData.push([]);
+            // Info rows
+            worksheet.getCell(currentRow, 1).value = 'Cấp độ';
+            worksheet.getCell(currentRow, 2).value = levelName;
+            worksheet.getCell(currentRow, 1).font = { bold: true };
+            currentRow++;
+            worksheet.getCell(currentRow, 1).value = 'Chu kỳ';
+            worksheet.getCell(currentRow, 2).value = currentCycleMeta?.name || 'N/A';
+            worksheet.getCell(currentRow, 1).font = { bold: true };
+            currentRow++;
+            worksheet.getCell(currentRow, 1).value = 'Ngày xuất';
+            worksheet.getCell(currentRow, 2).value = new Date().toLocaleDateString('vi-VN');
+            worksheet.getCell(currentRow, 1).font = { bold: true };
+            currentRow += 2;
 
-            // Chi tiết theo đơn vị
-            sheetData.push(['CHI TIẾT THEO ĐƠN VỊ']);
-            sheetData.push(['Đơn vị', 'Số OKR', 'Tiến độ (%)', 'Đúng tiến độ', 'Có nguy cơ', 'Chậm tiến độ']);
-            
+            // THỐNG KÊ TỔNG QUAN
+            const statsTitleRow = currentRow;
+            worksheet.getCell(currentRow, 1).value = 'THỐNG KÊ TỔNG QUAN';
+            applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+            worksheet.mergeCells(currentRow, 1, currentRow, 2);
+            currentRow++;
+
+            // Stats header
+            worksheet.getCell(currentRow, 1).value = 'Chỉ số';
+            worksheet.getCell(currentRow, 2).value = 'Giá trị';
+            applyHeaderStyle(worksheet.getCell(currentRow, 1));
+            applyHeaderStyle(worksheet.getCell(currentRow, 2));
+            currentRow++;
+
+            // Stats data
+            const stats = [
+                ['Tổng số mục tiêu', reportData.overall?.totalObjectives || 0],
+                ['Tiến độ trung bình', (reportData.overall?.averageProgress ?? 0).toFixed(2) + '%'],
+                ['Đúng tiến độ', `${reportData.overall?.statusCounts?.onTrack || 0} (${reportData.overall?.statusDistribution?.onTrack || 0}%)`],
+                ['Có nguy cơ', `${reportData.overall?.statusCounts?.atRisk || 0} (${reportData.overall?.statusDistribution?.atRisk || 0}%)`],
+                ['Chậm tiến độ', `${reportData.overall?.statusCounts?.offTrack || 0} (${reportData.overall?.statusDistribution?.offTrack || 0}%)`],
+            ];
+
+            stats.forEach(([label, value]) => {
+                worksheet.getCell(currentRow, 1).value = label;
+                worksheet.getCell(currentRow, 2).value = value;
+                applyDataCellStyle(worksheet.getCell(currentRow, 1));
+                applyDataCellStyle(worksheet.getCell(currentRow, 2));
+                currentRow++;
+            });
+            currentRow++;
+
+            // CHI TIẾT THEO ĐƠN VỊ
+            worksheet.getCell(currentRow, 1).value = 'CHI TIẾT THEO ĐƠN VỊ';
+            applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+            worksheet.mergeCells(currentRow, 1, currentRow, 6);
+            currentRow++;
+
+            const deptHeaders = ['Đơn vị', 'Số OKR', 'Tiến độ (%)', 'Đúng tiến độ', 'Có nguy cơ', 'Chậm tiến độ'];
+            deptHeaders.forEach((header, idx) => {
+                const cell = worksheet.getCell(currentRow, idx + 1);
+                cell.value = header;
+                applyHeaderStyle(cell);
+            });
+            currentRow++;
+
             if (isCompany) {
-                sheetData.push([
+                const deptData = [
                     'Công ty',
                     reportData.overall?.totalObjectives || 0,
                     (reportData.overall?.averageProgress ?? 0).toFixed(2),
                     reportData.overall?.statusCounts?.onTrack || 0,
                     reportData.overall?.statusCounts?.atRisk || 0,
                     reportData.overall?.statusCounts?.offTrack || 0,
-                ]);
+                ];
+                deptData.forEach((value, idx) => {
+                    const cell = worksheet.getCell(currentRow, idx + 1);
+                    cell.value = value;
+                    applyDataCellStyle(cell);
+                    if (idx === 0) cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                    else cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                });
+                currentRow++;
             } else {
                 (reportData.departmentsHierarchy || reportData.departments || [])
                     .filter(d => d.departmentName && !['công ty', 'company'].includes(d.departmentName.toLowerCase()))
                     .forEach(d => {
-                        sheetData.push([
+                        const deptData = [
                             d.departmentName || 'N/A',
                             d.count || 0,
                             (d.averageProgress ?? 0).toFixed(2),
                             d.onTrack || 0,
                             d.atRisk || 0,
                             d.offTrack || 0,
-                        ]);
+                        ];
+                        deptData.forEach((value, idx) => {
+                            const cell = worksheet.getCell(currentRow, idx + 1);
+                            cell.value = value;
+                            applyDataCellStyle(cell);
+                            if (idx === 0) cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                            else cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                        });
+                        currentRow++;
                     });
             }
-            sheetData.push([]);
+            currentRow++;
 
-            // Chi tiết Objectives
+            // CHI TIẾT OBJECTIVES
             if (detailedData?.objectives && detailedData.objectives.length > 0) {
-                sheetData.push(['CHI TIẾT OBJECTIVES']);
+                worksheet.getCell(currentRow, 1).value = 'CHI TIẾT OBJECTIVES';
+                applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+                const objHeaderCount = isCompany ? 5 : 6;
+                worksheet.mergeCells(currentRow, 1, currentRow, objHeaderCount);
+                currentRow++;
+
                 const objHeaders = isCompany 
                     ? ['Tên Objective', 'Cấp độ', 'Số KR', 'Tiến độ (%)', 'Trạng thái']
                     : ['Tên Objective', 'Cấp độ', 'Phòng ban', 'Số KR', 'Tiến độ (%)', 'Trạng thái'];
-                sheetData.push(objHeaders);
+                objHeaders.forEach((header, idx) => {
+                    const cell = worksheet.getCell(currentRow, idx + 1);
+                    cell.value = header;
+                    applyHeaderStyle(cell);
+                });
+                currentRow++;
 
                 detailedData.objectives.forEach(obj => {
                     const krs = obj.keyResults || obj.key_results || [];
@@ -595,7 +731,7 @@ export function exportToExcel(companyData, departmentsData, currentCycleMeta, sn
                     const status = progress >= 70 ? 'Đúng tiến độ' : (progress >= 40 ? 'Có nguy cơ' : 'Chậm tiến độ');
                     const levelText = obj.level === 'company' ? 'Công ty' : obj.level === 'unit' ? 'Phòng ban' : obj.level === 'person' ? 'Cá nhân' : 'N/A';
                     
-                    const row = [
+                    const rowData = [
                         obj.obj_title || 'N/A',
                         levelText,
                         obj.key_results?.length || 0,
@@ -604,114 +740,185 @@ export function exportToExcel(companyData, departmentsData, currentCycleMeta, sn
                     ];
                     
                     if (!isCompany) {
-                        row.splice(2, 0, obj.department?.d_name || obj.department?.departmentName || '—');
+                        rowData.splice(2, 0, obj.department?.d_name || obj.department?.departmentName || '—');
                     }
                     
-                    sheetData.push(row);
+                    rowData.forEach((value, idx) => {
+                        const cell = worksheet.getCell(currentRow, idx + 1);
+                        cell.value = value;
+                        if (idx === rowData.length - 1) {
+                            // Status column
+                            applyStatusStyle(cell, value);
+                        } else {
+                            applyDataCellStyle(cell);
+                            if (idx === 0) {
+                                cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                            } else if (idx === rowData.length - 2) {
+                                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                            } else {
+                                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                            }
+                        }
+                    });
+                    currentRow++;
                 });
-                sheetData.push([]);
+                currentRow++;
             }
 
-            // Chi tiết Key Results
+            // CHI TIẾT KEY RESULTS
             if (detailedData?.keyResults && detailedData.keyResults.length > 0) {
-                sheetData.push(['CHI TIẾT KEY RESULTS']);
-                sheetData.push(['Tên Key Result', 'Objective', 'Người được giao', 'Tiến độ (%)', 'Trạng thái']);
+                worksheet.getCell(currentRow, 1).value = 'CHI TIẾT KEY RESULTS';
+                applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+                worksheet.mergeCells(currentRow, 1, currentRow, 5);
+                currentRow++;
+
+                const krHeaders = ['Tên Key Result', 'Objective', 'Người được giao', 'Tiến độ (%)', 'Trạng thái'];
+                krHeaders.forEach((header, idx) => {
+                    const cell = worksheet.getCell(currentRow, idx + 1);
+                    cell.value = header;
+                    applyHeaderStyle(cell);
+                });
+                currentRow++;
 
                 detailedData.keyResults.forEach(kr => {
                     const progress = kr.progress_percent || 0;
                     const status = progress >= 70 ? 'Đúng tiến độ' : (progress >= 40 ? 'Có nguy cơ' : 'Chậm tiến độ');
                     const assigneeName = kr.assignedUser?.full_name || kr.objective_owner?.full_name || kr.objective_owner?.name || 'Chưa gán';
                     
-                    sheetData.push([
+                    const rowData = [
                         kr.kr_title || 'N/A',
                         kr.objective_title || 'N/A',
                         assigneeName,
                         progress.toFixed(1) + '%',
                         status,
-                    ]);
+                    ];
+                    
+                    rowData.forEach((value, idx) => {
+                        const cell = worksheet.getCell(currentRow, idx + 1);
+                        cell.value = value;
+                        if (idx === rowData.length - 1) {
+                            applyStatusStyle(cell, value);
+                        } else {
+                            applyDataCellStyle(cell);
+                            if (idx === 0 || idx === 1 || idx === 2) {
+                                cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                            } else {
+                                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                            }
+                        }
+                    });
+                    currentRow++;
                 });
-                sheetData.push([]);
+                currentRow++;
             }
 
-            // Phân tích theo Người chịu trách nhiệm
+            // PHÂN TÍCH THEO NGƯỜI CHỊU TRÁCH NHIỆM
             if (detailedData?.owners && detailedData.owners.length > 0) {
-                sheetData.push(['PHÂN TÍCH THEO NGƯỜI CHỊU TRÁCH NHIỆM']);
-                sheetData.push(['Người chịu trách nhiệm', 'Số Key Results', 'Tiến độ TB (%)', 'Đúng tiến độ', 'Có nguy cơ', 'Chậm tiến độ']);
+                worksheet.getCell(currentRow, 1).value = 'PHÂN TÍCH THEO NGƯỜI CHỊU TRÁCH NHIỆM';
+                applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+                worksheet.mergeCells(currentRow, 1, currentRow, 6);
+                currentRow++;
+
+                const ownerHeaders = ['Người chịu trách nhiệm', 'Số Key Results', 'Tiến độ TB (%)', 'Đúng tiến độ', 'Có nguy cơ', 'Chậm tiến độ'];
+                ownerHeaders.forEach((header, idx) => {
+                    const cell = worksheet.getCell(currentRow, idx + 1);
+                    cell.value = header;
+                    applyHeaderStyle(cell);
+                });
+                currentRow++;
 
                 detailedData.owners.forEach(owner => {
-                    sheetData.push([
+                    const rowData = [
                         owner.owner_name || 'Chưa gán',
                         owner.keyResults?.length || 0,
                         owner.averageProgress || 0,
                         owner.onTrack || 0,
                         owner.atRisk || 0,
                         owner.offTrack || 0,
-                    ]);
+                    ];
+                    rowData.forEach((value, idx) => {
+                        const cell = worksheet.getCell(currentRow, idx + 1);
+                        cell.value = value;
+                        applyDataCellStyle(cell);
+                        if (idx === 0) {
+                            cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                        } else {
+                            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                        }
+                    });
+                    currentRow++;
                 });
-                sheetData.push([]);
+                currentRow++;
             }
 
-            // Lịch sử Check-in
+            // LỊCH SỬ CHECK-IN
             if (detailedData?.checkIns && detailedData.checkIns.length > 0) {
-                sheetData.push(['LỊCH SỬ CHECK-IN']);
-                sheetData.push(['Key Result', 'Objective', 'Người check-in', 'Tiến độ (%)', 'Ngày check-in', 'Ghi chú']);
+                worksheet.getCell(currentRow, 1).value = 'LỊCH SỬ CHECK-IN';
+                applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+                worksheet.mergeCells(currentRow, 1, currentRow, 6);
+                currentRow++;
+
+                const checkInHeaders = ['Key Result', 'Objective', 'Người check-in', 'Tiến độ (%)', 'Ngày check-in', 'Ghi chú'];
+                checkInHeaders.forEach((header, idx) => {
+                    const cell = worksheet.getCell(currentRow, idx + 1);
+                    cell.value = header;
+                    applyHeaderStyle(cell);
+                });
+                currentRow++;
 
                 detailedData.checkIns.forEach(checkIn => {
-                    sheetData.push([
+                    const rowData = [
                         checkIn.key_result?.kr_title || checkIn.kr_title || 'N/A',
                         checkIn.objective?.obj_title || checkIn.objective_title || 'N/A',
                         checkIn.user?.full_name || checkIn.user_name || 'N/A',
                         checkIn.progress_percent || 0,
                         checkIn.created_at ? new Date(checkIn.created_at).toLocaleDateString('vi-VN') : 'N/A',
                         checkIn.notes || checkIn.note || '—',
-                    ]);
+                    ];
+                    rowData.forEach((value, idx) => {
+                        const cell = worksheet.getCell(currentRow, idx + 1);
+                        cell.value = value;
+                        applyDataCellStyle(cell);
+                        if (idx === 0 || idx === 1 || idx === 2 || idx === 5) {
+                            cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                        } else {
+                            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                        }
+                    });
+                    currentRow++;
                 });
             }
 
-            return sheetData;
-        };
-
-        // Helper function to create worksheet with better formatting
-        const createWorksheet = (sheetData, sheetName, isCompany = false) => {
-            const ws = XLSX.utils.aoa_to_sheet(sheetData);
-            
-            // Calculate optimal column widths based on content
-            const maxCols = Math.max(...sheetData.map(row => row ? row.length : 0));
-            const colWidths = [];
-            
-            // Calculate max width for each column
-            for (let col = 0; col < maxCols; col++) {
-                let maxWidth = 10;
-                for (let row = 0; row < sheetData.length; row++) {
-                    if (sheetData[row] && sheetData[row][col] !== undefined) {
-                        const cellValue = String(sheetData[row][col] || '');
-                        const cellWidth = cellValue.length;
-                        if (cellWidth > maxWidth) {
-                            maxWidth = Math.min(cellWidth + 2, 50); // Cap at 50
-                        }
-                    }
+            // Set column widths
+            worksheet.columns.forEach((column, index) => {
+                if (index === 0) {
+                    column.width = 40; // Tên Objective/Key Result
+                } else if (index === 1 && !isCompany) {
+                    column.width = 25; // Phòng ban
+                } else if (index === 2 && !isCompany) {
+                    column.width = 15; // Cấp độ
+                } else if (index === 1 || (index === 2 && isCompany)) {
+                    column.width = 15; // Cấp độ/Objective
+                } else if (index === 2 || (index === 3 && !isCompany)) {
+                    column.width = 20; // Người được giao/Phòng ban
+                } else {
+                    column.width = 15; // Số KR, Tiến độ, Trạng thái
                 }
-                colWidths.push({ wch: maxWidth });
-            }
-            
-            ws['!cols'] = colWidths;
-            
-            return ws;
+            });
+
+            // Freeze header rows
+            worksheet.views = [{
+                state: 'frozen',
+                ySplit: 1
+            }];
         };
 
-        // Sheet 1: Công ty
-        const companySheetData = createLevelSheet(companyData.report, companyData.detailedData, 'Công ty', true);
-        const companyWs = createWorksheet(companySheetData, 'Công ty', true);
-        XLSX.utils.book_append_sheet(workbook, companyWs, 'Công ty');
-
-        // Sheet 2: Phòng ban
-        const departmentsSheetData = createLevelSheet(departmentsData.report, departmentsData.detailedData, 'Phòng ban', false);
-        const deptWs = createWorksheet(departmentsSheetData, 'Phòng ban', false);
-        XLSX.utils.book_append_sheet(workbook, deptWs, 'Phòng ban');
+        // Create sheets
+        await createLevelSheet(companyData.report, companyData.detailedData, 'Công ty', true);
+        await createLevelSheet(departmentsData.report, departmentsData.detailedData, 'Phòng ban', false);
 
         // Save Excel
         // Format: Bao_cao_(ten_bao_cao_chot_ky)_dd_mm_yyyy.xlsx
-        // Ưu tiên lấy từ snapshot title, nếu không có thì dùng tên chu kỳ
         const tenBaoCaoChotKy = (snapshotTitle || currentCycleMeta?.name || 'Chua_chon_chu_ky')
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
@@ -731,7 +938,17 @@ export function exportToExcel(companyData, departmentsData, currentCycleMeta, sn
         const yyyy = now.getFullYear();
 
         const filename = `Bao_cao_${tenBaoCaoChotKy}_${dd}_${mm}_${yyyy}.xlsx`;
-        XLSX.writeFile(workbook, filename);
+        
+        // Write to buffer and download
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        window.URL.revokeObjectURL(url);
+
         onSuccess('✓ Xuất Excel thành công!');
     } catch (error) {
         console.error('Lỗi khi xuất Excel:', error);
