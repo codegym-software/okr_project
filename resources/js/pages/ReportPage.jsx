@@ -62,14 +62,16 @@ export default function ReportPage() {
     };
 
     // --- DERIVED METRICS ---
+    
+    // 1. Define activeOkrs FIRST to avoid ReferenceError
     const activeOkrs = useMemo(() => {
         if (!reportData?.team_okrs) return [];
         return reportData.team_okrs.filter(okr => okr.status !== 'archived');
     }, [reportData]);
 
+    // 2. Define metrics using activeOkrs
     const metrics = useMemo(() => {
         const data = reportData || {};
-        // activeOkrs is now available here
         
         // Tính toán trạng thái dựa trên status từ API (Time-based)
         let onTrack = 0, atRisk = 0, behind = 0;
@@ -90,20 +92,19 @@ export default function ReportPage() {
         });
         
         const total = activeOkrs.length || 1;
-        // 2. Tự tính lại tiến độ trung bình dựa trên danh sách Active
+        // Tự tính lại tiến độ trung bình dựa trên danh sách Active
         const calculatedAvg = activeOkrs.length > 0 ? (totalProgressSum / activeOkrs.length) : 0;
         
-        // 3. Tính toán chi tiết cho từng cấp độ (Dept vs Team)
+        // Tính toán chi tiết cho từng cấp độ (Dept vs Team)
         const deptOkrs = activeOkrs.filter(o => o.level !== 'team');
         const subTeamOkrs = activeOkrs.filter(o => o.level === 'team');
         
         const calcAvg = (list) => list.length ? (list.reduce((sum, item) => sum + (Number(item.progress) || 0), 0) / list.length) : 0;
 
-        // Lấy Top 3 OKR rủi ro nhất (tiến độ thấp nhất hoặc trạng thái xấu)
-        const topRisks = activeOkrs
-            .filter(o => o.status === 'at_risk' || o.status === 'behind' || o.progress < 50)
-            .sort((a, b) => a.progress - b.progress)
-            .slice(0, 3);
+        // Lấy danh sách Thành viên CHẬM TRỄ (behind) - Không giới hạn số lượng
+        const riskMembers = (data.members || [])
+            .filter(m => m.status === 'behind')
+            .sort((a, b) => (a.average_completion || 0) - (b.average_completion || 0));
 
         return {
             avgProgress: calculatedAvg,
@@ -114,7 +115,9 @@ export default function ReportPage() {
             atRiskPct: (atRisk / total) * 100,
             behindPct: (behind / total) * 100,
             atRiskCount: atRisk + behind,
-            topRisks: topRisks
+            riskMembers: riskMembers,
+            deptStats: { count: deptOkrs.length, avg: calcAvg(deptOkrs) },
+            teamStats: { count: subTeamOkrs.length, avg: calcAvg(subTeamOkrs) }
         };
     }, [reportData, activeOkrs]);
 
@@ -349,31 +352,38 @@ export default function ReportPage() {
 
                                         <hr className="border-slate-50" />
 
-                                        {/* 2. Top Risks (Updated from Level Breakdown) */}
+                                        {/* 2. Top Risk Members */}
                                         <div>
                                             <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                                                 <HiExclamationTriangle className="text-amber-500 w-4 h-4" />
-                                                Cần chú ý (Top 3)
+                                                Cần hỗ trợ
                                             </h4>
-                                            <div className="space-y-4">
-                                                {metrics.topRisks.length > 0 ? metrics.topRisks.map((okr, i) => (
-                                                    <div key={i} className="group">
-                                                        <div className="flex justify-between text-xs mb-1.5">
-                                                            <span className="font-medium text-slate-600 truncate max-w-[70%]" title={okr.obj_title}>
-                                                                {okr.obj_title}
-                                                            </span>
-                                                            <span className="font-bold text-rose-600">{okr.progress}%</span>
-                                                        </div>
-                                                        <div className="h-1.5 bg-rose-50 rounded-full overflow-hidden">
-                                                            <div 
-                                                                className="h-full bg-rose-500 rounded-full"
-                                                                style={{ width: `${okr.progress}%` }}
-                                                            />
+                                            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-200">
+                                                {metrics.riskMembers.length > 0 ? metrics.riskMembers.map((member) => (
+                                                    <div key={member.user_id} className="flex items-center gap-3">
+                                                        <img 
+                                                            src={member.avatar || `https://ui-avatars.com/api/?name=${member.full_name}&background=random`} 
+                                                            alt={member.full_name}
+                                                            className="w-8 h-8 rounded-full object-cover border border-slate-100"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex justify-between text-xs mb-1">
+                                                                <span className="font-medium text-slate-700 truncate" title={member.full_name}>
+                                                                    {member.full_name}
+                                                                </span>
+                                                                <span className="font-bold text-rose-600">{member.average_completion?.toFixed(0)}%</span>
+                                                            </div>
+                                                            <div className="h-1.5 bg-rose-50 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className="h-full bg-rose-500 rounded-full"
+                                                                    style={{ width: `${member.average_completion}%` }}
+                                                                />
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )) : (
-                                                    <div className="text-xs text-slate-400 italic text-center py-2">
-                                                        Không có mục tiêu rủi ro nào. Làm tốt lắm!
+                                                    <div className="text-xs text-slate-400 italic text-center py-2 bg-slate-50 rounded-lg">
+                                                        Tất cả thành viên đều ổn định!
                                                     </div>
                                                 )}
                                             </div>
