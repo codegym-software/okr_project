@@ -310,44 +310,81 @@ export default function ReportPage() {
                                     <h3 className="text-lg font-bold text-slate-800 mb-6">Sức khỏe & Phân bổ</h3>
                                     
                                     <div className="flex-1 space-y-8">
-                                        {/* 1. Velocity: Time vs Reality */}
+                                        {/* 1. Time & Pace Analysis */}
                                         <div>
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tiến độ thực tế</span>
-                                                <span className={`text-sm font-bold ${metrics.avgProgress >= metrics.expectedProgress ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                    {metrics.avgProgress.toFixed(1)}%
-                                                </span>
-                                            </div>
-                                            <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden mb-4">
-                                                <div 
-                                                    className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ${
-                                                        metrics.avgProgress >= metrics.expectedProgress ? 'bg-emerald-500' : 'bg-rose-500'
-                                                    }`}
-                                                    style={{ width: `${Math.min(metrics.avgProgress, 100)}%` }}
-                                                />
-                                            </div>
+                                            {(() => {
+                                                const delta = metrics.avgProgress - metrics.expectedProgress;
+                                                const isBehind = delta < 0;
+                                                const absDelta = Math.abs(delta).toFixed(1);
+                                                
+                                                // Màu sắc cho con số chênh lệch
+                                                let gapColor = isBehind ? 'text-rose-600' : 'text-emerald-600';
+                                                let gapBg = isBehind ? 'bg-rose-50' : 'bg-emerald-50';
+                                                let gapIcon = isBehind ? <FiAlertCircle className="w-5 h-5 text-rose-500" /> : <FiTrendingUp className="w-5 h-5 text-emerald-500" />;
+                                                let gapText = isBehind ? 'Chậm hơn kế hoạch' : 'Vượt kế hoạch';
 
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Thời gian trôi qua</span>
-                                                <span className="text-sm font-medium text-slate-500">{metrics.expectedProgress}%</span>
-                                            </div>
-                                            <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden">
-                                                <div 
-                                                    className="h-full bg-slate-300 rounded-full"
-                                                    style={{ width: `${Math.min(metrics.expectedProgress, 100)}%` }}
-                                                />
-                                            </div>
-                                            
-                                            <div className="mt-3 text-xs text-slate-400 flex items-center gap-1">
-                                                {metrics.avgProgress >= metrics.expectedProgress 
-                                                    ? <FiTrendingUp className="text-emerald-500" /> 
-                                                    : <FiAlertCircle className="text-rose-500" />
-                                                }
-                                                {metrics.avgProgress >= metrics.expectedProgress 
-                                                    ? "Đang chạy trước kế hoạch" 
-                                                    : `Đang chậm ${(metrics.expectedProgress - metrics.avgProgress).toFixed(1)}% so với kế hoạch`
-                                                }
-                                            </div>
+                                                return (
+                                                    <>
+                                                        <div className="flex items-center justify-between mb-6">
+                                                            <div>
+                                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Đánh giá tiến độ</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`text-3xl font-bold ${gapColor}`}>
+                                                                        {delta > 0 ? '+' : ''}{Math.abs(delta).toFixed(1)}%
+                                                                    </span>
+                                                                    <div className={`p-1.5 rounded-full ${gapBg}`}>
+                                                                        {gapIcon}
+                                                                    </div>
+                                                                </div>
+                                                                <p className="text-xs font-medium text-slate-500 mt-1">{gapText}</p>
+                                                            </div>
+                                                            
+                                                            {/* Mini circular indicator for visual balance */}
+                                                            <div className="relative w-16 h-16">
+                                                                <svg className="w-full h-full transform -rotate-90">
+                                                                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-100" />
+                                                                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" 
+                                                                        strokeDasharray={175.9} 
+                                                                        strokeDashoffset={175.9 - (175.9 * metrics.expectedProgress) / 100} 
+                                                                        className="text-blue-500 transition-all duration-1000 ease-out" 
+                                                                    />
+                                                                </svg>
+                                                                <div className="absolute inset-0 flex items-center justify-center flex-col">
+                                                                    <span className="text-[10px] font-bold text-slate-400">TIME</span>
+                                                                    <span className="text-xs font-bold text-blue-600">{Math.round(metrics.expectedProgress)}%</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Time Bar Context */}
+                                                        <div>
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Thời gian trôi qua</span>
+                                                            </div>
+                                                            <div className="h-2 bg-blue-50 rounded-full overflow-hidden relative">
+                                                                {/* Thanh thời gian */}
+                                                                <div 
+                                                                    className="absolute top-0 left-0 h-full bg-blue-500 rounded-full opacity-30"
+                                                                    style={{ width: `${Math.min(metrics.expectedProgress, 100)}%` }}
+                                                                />
+                                                                {/* Mốc tiến độ thực tế (Marker) */}
+                                                                <div 
+                                                                    className={`absolute top-0 h-full w-1 ${isBehind ? 'bg-rose-500' : 'bg-emerald-500'} z-10`}
+                                                                    style={{ left: `${Math.min(metrics.avgProgress, 100)}%` }}
+                                                                />
+                                                            </div>
+                                                            <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                                                                <span>Bắt đầu</span>
+                                                                <span className="flex items-center gap-1">
+                                                                    <span className={`w-2 h-2 rounded-full ${isBehind ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
+                                                                    Thực tế: {metrics.avgProgress.toFixed(0)}%
+                                                                </span>
+                                                                <span>Kết thúc</span>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
 
                                         <hr className="border-slate-50" />
@@ -415,10 +452,9 @@ export default function ReportPage() {
                                                         <div className="flex justify-between items-start gap-4">
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 mb-1">
-                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                                                                        okr.level === 'team' ? 'bg-indigo-50 text-indigo-600' : 'bg-purple-50 text-purple-600'
-                                                                    }`}>
-                                                                        {okr.level === 'team' ? 'Team' : 'Dept'}
+                                                                    <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
+                                                                        <HiDocumentCheck className="w-3 h-3" />
+                                                                        {okr.completed_kr_count}/{okr.key_results_count} Kết quả then chốt
                                                                     </span>
                                                                 </div>
                                                                 <h4 className="text-sm font-bold text-slate-900 line-clamp-2 group-hover:text-indigo-600 transition-colors" title={okr.obj_title}>
@@ -431,7 +467,7 @@ export default function ReportPage() {
                                                         {/* Bottom Row: Progress */}
                                                         <div className="space-y-1.5">
                                                             <div className="flex justify-between text-xs text-slate-500">
-                                                                <span>{okr.completed_kr_count}/{okr.key_results_count} KRs</span>
+                                                                <span>Tiến độ</span>
                                                                 <span className="font-bold text-slate-900">{okr.progress}%</span>
                                                             </div>
                                                             <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
