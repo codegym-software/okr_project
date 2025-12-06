@@ -25,7 +25,7 @@ export default function SnapshotModal({
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex justify-between items-center mb-5 p-6 border-b border-gray-100">
-                        <h3 className="text-xl font-bold text-slate-900">Chốt kỳ</h3>
+                        <h3 className="text-xl font-bold text-slate-900">Tạo Báo cáo</h3>
                         <button 
                             onClick={onClose}
                             className="text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg p-2 transition"
@@ -39,7 +39,7 @@ export default function SnapshotModal({
                     <div className="p-6 pt-0 space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Tên báo cáo chốt kỳ <span className="text-red-500">*</span>
+                                Tên Báo cáo Cuối kỳ <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="text"

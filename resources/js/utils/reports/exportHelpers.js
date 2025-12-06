@@ -511,10 +511,10 @@ export async function exportToPDF(companyData, departmentsData, currentCycleMeta
 
 /**
  * Export report to Excel with both company and departments data
- * @param {Object} companyData - { report, detailedData }
- * @param {Object} departmentsData - { report, detailedData }
+ * @param {Object} companyData 
+ * @param {Object} departmentsData 
  * @param {Object} currentCycleMeta
- * @param {String} snapshotTitle - Tên báo cáo chốt kỳ (từ snapshot)
+ * @param {String} snapshotTitle 
  * @param {Function} onSuccess
  * @param {Function} onError
  */

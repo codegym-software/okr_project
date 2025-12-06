@@ -363,10 +363,9 @@ export default function CompanyOverviewReport() {
         setToast({ type, message });
     };
 
-    // Mở modal Chốt kỳ + nhập tên
     const openSnapshotModal = () => {
         if (!filters.cycleId) {
-            showNotification('error', '⚠ Vui lòng chọn chu kỳ trước khi Chốt kỳ');
+            showNotification('error', '⚠ Vui lòng chọn chu kỳ trước khi tạo Báo cáo');
             return;
         }
         setSnapshotTitleInput('');
@@ -375,7 +374,7 @@ export default function CompanyOverviewReport() {
 
     const confirmCreateSnapshot = async () => {
         if (!snapshotTitleInput.trim()) {
-            showNotification('error', '�Warning Vui lòng nhập tên báo cáo chốt kỳ');
+            showNotification('error', '�Warning Vui lòng nhập tên Báo cáo Cuối kỳ');
             return;
         }
 
@@ -497,7 +496,7 @@ export default function CompanyOverviewReport() {
                 throw new Error(departmentsDataResult.message || 'Không thể tạo snapshot cho phòng ban');
             }
 
-            showNotification('success', 'Chốt kỳ thành công!');
+            showNotification('success', 'Tạo Báo cáo thành công!');
             setSnapshotPage(1);
             loadSnapshots(1);
 
@@ -506,7 +505,7 @@ export default function CompanyOverviewReport() {
             setShowSnapshotModal(false);
             setSnapshotTitleInput('');
         } catch (error) {
-            console.error('Lỗi khi Chốt kỳ:', error);
+            console.error('Lỗi khi tạo Báo cáo:', error);
             showNotification('error', '✗ ' + (error.message || 'Đã có lỗi xảy ra'));
         } finally {
             setIsCreatingSnapshot(false);
@@ -544,7 +543,7 @@ export default function CompanyOverviewReport() {
     const exportToExcel = async () => {
         // Kiểm tra đã tạo snapshot chưa
         if (!isReportReady || snapshots.length === 0) {
-            showNotification('error', '⚠ Vui lòng tạo snapshot (Chốt kỳ) trước khi xuất file');
+            showNotification('error', '⚠ Vui lòng tạo Báo cáo trước khi xuất file');
             return;
         }
 
@@ -587,7 +586,6 @@ export default function CompanyOverviewReport() {
                 fetchDataForLevel('departments'),
             ]);
 
-            // Lấy tên báo cáo chốt kỳ từ snapshot mới nhất của chu kỳ hiện tại
             let snapshotTitle = null;
             try {
                 if (filters.cycleId && snapshots.length > 0) {
@@ -647,7 +645,7 @@ export default function CompanyOverviewReport() {
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                 </svg>
-                                Chốt kỳ
+                                Tạo Báo cáo
                             </>
                         )}
                     </button>
@@ -662,7 +660,7 @@ export default function CompanyOverviewReport() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                         </svg>
-                        Lịch sử chốt kỳ ({snapshots.length})
+                        Danh sách Báo cáo ({snapshots.length})
                     </button>
 
                         {/* Filter trạng thái + chu kỳ */}
@@ -718,7 +716,7 @@ export default function CompanyOverviewReport() {
                             }`}
                             title={
                                 !isReportReady || snapshots.length === 0
-                                    ? 'Vui lòng tạo snapshot (Chốt kỳ) trước khi xuất file'
+                                    ? 'Vui lòng tạo Báo cáo trước khi xuất file'
                                     : 'Xuất báo cáo Excel'
                             }
                         >
@@ -747,7 +745,6 @@ export default function CompanyOverviewReport() {
             {/* ===================== NOTIFICATION TOAST ===================== */}
             <ToastNotification toast={toast} onClose={() => setToast(null)} />
 
-            {/* ===================== NỘI DUNG BÁO CÁO - CHỈ HIỂN THỊ SAU KHI Chốt kỳ ===================== */}
             {isReportReady ? (
                 <>
                     {/* 5 Cards Tổng quan */}
@@ -772,7 +769,6 @@ export default function CompanyOverviewReport() {
                     <CheckInsTable checkIns={detailedData.checkIns} objectives={detailedData.objectives} />
                 </>
             ) : (
-                /* ===================== TRƯỚC KHI Chốt kỳ - CHỈ HIỂN THỊ THÔNG BÁO ===================== */
                 <div className="flex flex-col items-center justify-center py-32 text-center">
                     <div className="w-32 h-32 flex items-center justify-center mb-8 rounded-xl border-2 border-gray-300 bg-gray-50">
                         <svg xmlns="http://www.w3.org/2000/svg"
@@ -785,15 +781,14 @@ export default function CompanyOverviewReport() {
                                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                     </div>
-                    <h3 className="text-2xl font-bold text-slate-800 mb-3">Chưa có báo cáo Chốt kỳ</h3>
+                    <h3 className="text-2xl font-bold text-slate-800 mb-3">Chưa có báo cáo Cuối kỳ</h3>
                     <p className="text-slate-600 max-w-md leading-relaxed">
-                        Nhấn <strong className="text-blue-600">Chốt kỳ</strong> để tạo báo cáo chính thức.<br/>
-                        Nội dung báo cáo sẽ hiển thị tại đây sau khi hoàn tất.
+                        Nhấn <strong className="text-blue-600">Tạo Báo cáo</strong> để tạo Báo cáo chính thức.<br/>
+                        Nội dung Báo cáo sẽ hiển thị tại đây sau khi hoàn tất.
                     </p>
                 </div>
             )}
 
-            {/* Modal Chốt kỳ */}
             <SnapshotModal
                 isOpen={showSnapshotModal}
                 onClose={() => {
@@ -816,7 +811,7 @@ export default function CompanyOverviewReport() {
                     if (e.target === e.currentTarget) {
                         setShowSnapshots(false);
                         setSelectedSnapshot(null);
-                        setSnapshotPage(1); // Reset về trang 1 khi đóng modal
+                        setSnapshotPage(1); 
                     }
                 }}
                 >
@@ -827,7 +822,7 @@ export default function CompanyOverviewReport() {
                 >
                     {/* Header */}
                     <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-xl">
-                    <h2 className="text-xl font-bold text-gray-900">Lịch sử chốt kỳ</h2>
+                    <h2 className="text-xl font-bold text-gray-900">Danh sách Báo cáo</h2>
                     <button 
                         onClick={() => { 
                             setShowSnapshots(false); 
@@ -1502,11 +1497,11 @@ export default function CompanyOverviewReport() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                             </div>
-                            <p className="text-gray-600 font-semibold text-lg">Chưa có Chốt kỳ nào</p>
+                            <p className="text-gray-600 font-semibold text-lg">Chưa có Báo cáo nào</p>
                                         <p className="text-gray-400 text-sm mt-2">
                                             {snapshotLevelFilter === 'all' 
-                                                ? 'Nhấn nút "Chốt kỳ" để tạo bản sao đầu tiên'
-                                                : `Chưa có Chốt kỳ nào cho cấp độ ${snapshotLevelFilter === 'company' ? 'Công ty' : 'Phòng ban'}`
+                                                ? 'Nhấn nút "Tạo Báo cáo" để tạo bản sao đầu tiên'
+                                                : `Chưa có Báo cáo nào cho cấp độ ${snapshotLevelFilter === 'company' ? 'Công ty' : 'Phòng ban'}`
                                             }
                                         </p>
                             </div>
