@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { CycleDropdown } from '../components/Dropdown';
 import GroupedBarChart from '../components/GroupedBarChart';
 import ToastNotification from '../components/ToastNotification';
 import StatCard from '../components/reports/StatCard';
@@ -26,7 +27,7 @@ export default function CompanyOverviewReport() {
     const [snapshots, setSnapshots] = useState([]);
     const [showSnapshots, setShowSnapshots] = useState(false);
     const [selectedSnapshot, setSelectedSnapshot] = useState(null);
-    const [snapshotLevelFilter, setSnapshotLevelFilter] = useState('all'); // 'all', 'company', 'departments'
+    const [snapshotLevelFilter, setSnapshotLevelFilter] = useState('all');
     const [snapshotPage, setSnapshotPage] = useState(1);
     const [snapshotPagination, setSnapshotPagination] = useState({
         current_page: 1,
@@ -37,6 +38,12 @@ export default function CompanyOverviewReport() {
     const [snapshotTitleInput, setSnapshotTitleInput] = useState('');
     const [toast, setToast] = useState(null);
     const [isReportReady, setIsReportReady] = useState(false);
+    const [showExcelMenu, setShowExcelMenu] = useState(false);
+
+    // CycleDropdown state (copied behavior from ArchivedOkrsPage)
+    const [cyclesList, setCyclesList] = useState([]);
+    const [cycleFilter, setCycleFilter] = useState('');
+    const [dropdownOpen, setDropdownOpen] = useState(false);
 
     const [filters, setFilters] = useState({
         cycleId: '',
@@ -152,6 +159,7 @@ export default function CompanyOverviewReport() {
                 const listDepts = Array.isArray(dDepts.data) ? dDepts.data : [];
                 const listUsers = Array.isArray(dUsers.data) ? dUsers.data : [];
                 setCycles(listCycles);
+                setCyclesList(listCycles);
                 setDepartments(listDepts);
                 setOwners(listUsers);
                 if (listCycles.length) {
@@ -166,12 +174,16 @@ export default function CompanyOverviewReport() {
                         return start && end && start <= now && now <= end;
                     }) || listCycles[0];
                     setFilters(f => ({ ...f, cycleId: current.cycle_id || current.cycleId }));
+                    setCycleFilter(current.cycle_id || current.cycleId);
                     setCurrentCycleMeta({
                         id: current.cycle_id || current.cycleId,
                         name: current.cycle_name || current.cycleName,
                         start: current.start_date || current.startDate,
                         end: current.end_date || current.endDate,
                     });
+                    } else {
+                        // If cycle_id provided in query params, keep cycleFilter in sync
+                        setCycleFilter(params.get('cycle_id'));
                     }
                 }
             } catch (e) { /* ignore */ }
@@ -179,8 +191,11 @@ export default function CompanyOverviewReport() {
     }, []);
 
     useEffect(() => {
-        if (!filters.cycleId || !Array.isArray(cycles) || cycles.length === 0) return;
-        const c = cycles.find(x => String(x.cycle_id || x.cycleId) === String(filters.cycleId));
+        if (!filters.cycleId) return;
+        // Try to find in cyclesList first (dropdown source), fallback to cycles
+        const source = Array.isArray(cyclesList) && cyclesList.length ? cyclesList : cycles;
+        if (!Array.isArray(source) || source.length === 0) return;
+        const c = source.find(x => String(x.cycle_id || x.cycleId) === String(filters.cycleId));
         if (c) {
             setCurrentCycleMeta({
                 id: c.cycle_id || c.cycleId,
@@ -188,6 +203,7 @@ export default function CompanyOverviewReport() {
                 start: c.start_date || c.startDate,
                 end: c.end_date || c.endDate,
             });
+            setCycleFilter(c.cycle_id || c.cycleId);
         }
     }, [filters.cycleId, cycles]);
 
@@ -220,8 +236,6 @@ export default function CompanyOverviewReport() {
         })();
     }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId, level]);
     
-    // fetchDetailedData and fetchDetailedDataForSnapshot are now imported from utils/reports/dataFetchers
-
     useEffect(() => {
         if (!filters.cycleId) return;
         const timer = setInterval(() => {
@@ -238,7 +252,7 @@ export default function CompanyOverviewReport() {
                 .catch(() => {});
         }, 60000); 
         return () => clearInterval(timer);
-    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId, level]); // Add level to dependencies
+    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId, level]);
 
     // Đồng bộ filters với query params
     useEffect(() => {
@@ -302,8 +316,6 @@ export default function CompanyOverviewReport() {
         }
     }, [snapshotLevelFilter]);
 
-    // Đồng bộ showSnapshots và snapshotPage với query params
-    // show_snapshots = số trang (1, 2, 3...) khi modal mở, xóa khi đóng
     useEffect(() => {
         try {
             const url = new URL(window.location.href);
@@ -321,8 +333,6 @@ export default function CompanyOverviewReport() {
             console.error('Failed to sync showSnapshots to URL', e);
         }
     }, [showSnapshots, snapshotPage]);
-
-    // pieData and groupedChartData are now handled in ChartSection component
 
     useEffect(() => {
         const handler = (e) => {
@@ -626,118 +636,112 @@ export default function CompanyOverviewReport() {
                     <div className="flex items-center gap-3">
                     {/* Nút Tạo kết chuyển / Lập báo cáo cuối kỳ - Chỉ Admin và CEO */}
                     {isAdminOrCeo && (
-                    <button
+                        <button
                         onClick={openSnapshotModal}
                         disabled={isCreatingSnapshot}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 active:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    >
+                        className="flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 active:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 min-w-10 whitespace-nowrap"
+                        >
                         {isCreatingSnapshot ? (
                             <>
-                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.507 3 7.938l3-2.647z"/>
-                                </svg>
-                                Đang tạo...
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.507 3 7.938l3-2.647z" />
+                            </svg>
+                            Đang tạo...
                             </>
                         ) : (
                             <>
-                                {/* Icon: lưu trữ / kết chuyển (dùng icon archive-box hoặc document-check) */}
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                </svg>
-                                Tạo Báo cáo
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                            </svg>
+                            Tạo Báo cáo
                             </>
                         )}
-                    </button>
+                        </button>
                     )}
 
-                    {/* Nút Xem lịch sử kết chuyển */}
+                    {/* 2. Nút Danh sách Báo cáo */}
                     <button
                         onClick={handleViewSnapshots}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-all duration-200"
+                        className="flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-all duration-200 min-w-48 whitespace-nowrap"
                     >
-                        {/* Icon: lịch sử / danh sách báo cáo */}
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                         </svg>
                         Danh sách Báo cáo ({snapshots.length})
                     </button>
 
-                        {/* Filter trạng thái + chu kỳ */}
-                        <div className="flex items-center gap-4">
-                            <div className="relative">
-                                <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 10h13M3 16h13" />
-                                </svg>
-                                <select
-                                    value={filters.status ?? ''}
-                                    onChange={(e) => setFilters(f => ({ ...f, status: e.target.value || null }))}
-                                    className="pl-10 pr-9 py-2.5 text-sm font-semibold text-gray-800 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
-                                >
-                                    <option value="">Tất cả trạng thái</option>
-                                    <option value="on_track">Đúng tiến độ</option>
-                                    <option value="at_risk">Có nguy cơ</option>
-                                    <option value="off_track">Chậm tiến độ</option>
-                                </select>
-                                <svg className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
-
-                            <div className="relative">
-                                <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                <select
-                                    value={filters.cycleId ?? ''}
-                                    onChange={(e) => setFilters(f => ({ ...f, cycleId: e.target.value || null }))}
-                                    className="pl-10 pr-9 py-2.5 text-sm font-semibold text-gray-800 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
-                                >
-                                    {cycles.map(c => (
-                                        <option key={c.cycle_id || c.cycleId} value={c.cycle_id || c.cycleId}>
-                                            {c.cycle_name || c.cycleName}
-                                        </option>
-                                    ))}
-                                </select>
-                                <svg className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
-                        </div>
+                    {/* 3. Dropdown chọn chu kỳ – ép cùng chiều rộng và chiều cao */}
+<div className="h-10 min-w-48 flex items-center">
+  <div className="w-full h-full">
+    <CycleDropdown
+      cyclesList={cyclesList}
+      cycleFilter={cycleFilter}
+      handleCycleChange={(val) => {
+        setCycleFilter(val);
+        setFilters(f => ({ ...f, cycleId: val }));
+      }}
+      dropdownOpen={dropdownOpen}
+      setDropdownOpen={setDropdownOpen}
+      // Dòng này quan trọng nhất: ép đúng h-10 và căn giữa
+      className="w-full h-10"
+    />
+  </div>
+</div>
 
                         {/* Nút Export Excel - Chỉ cho phép sau khi đã tạo snapshot */}
-                            <button
-                            onClick={exportToExcel}
-                            disabled={!isReportReady || snapshots.length === 0}
-                            className={`p-2.5 rounded-lg transition-colors ${
-                                !isReportReady || snapshots.length === 0
-                                    ? 'opacity-50 cursor-not-allowed'
-                                    : 'hover:bg-slate-100 cursor-pointer'
-                            }`}
-                            title={
-                                !isReportReady || snapshots.length === 0
-                                    ? 'Vui lòng tạo Báo cáo trước khi xuất file'
-                                    : 'Xuất báo cáo Excel'
-                            }
-                        >
-                            <svg 
-                                className={`h-5 w-5 ${
-                                    !isReportReady || snapshots.length === 0
-                                        ? 'text-slate-400'
-                                        : 'text-slate-600'
-                                }`} 
-                                viewBox="0 0 24 24" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                strokeWidth="2" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round"
-                            >
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                                            </button>
+                            <div className="relative h-10">
+                                <button
+                                    onClick={() => {
+                                        if (isReportReady && snapshots.length > 0) {
+                                            setShowExcelMenu((prev) => !prev);
+                                        }
+                                    }}
+                                    disabled={!isReportReady || snapshots.length === 0}
+                                    className={`h-10 w-10 flex items-center justify-center rounded-lg transition-colors ${
+                                        !isReportReady || snapshots.length === 0
+                                            ? 'opacity-50 cursor-not-allowed'
+                                            : 'hover:bg-slate-100 cursor-pointer'
+                                    }`}
+                                    title={
+                                        !isReportReady || snapshots.length === 0
+                                            ? 'Vui lòng tạo Báo cáo trước khi xuất file'
+                                            : 'Xuất báo cáo Excel'
+                                    }
+                                >
+                                    <svg
+                                        className={`h-5 w-5 ${
+                                            !isReportReady || snapshots.length === 0
+                                                ? 'text-slate-400'
+                                                : 'text-slate-600'
+                                        }`}
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="7 10 12 15 17 10" />
+                                        <line x1="12" y1="15" x2="12" y2="3" />
+                                    </svg>
+                                </button>
+                                {/* Excel menu dropdown */}
+                                {isReportReady && snapshots.length > 0 && showExcelMenu && (
+                                <div className="absolute right-0 top-full mt-2 w-full min-w-40 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50">
+                                    <button
+                                    onClick={() => {
+                                        exportToExcel();
+                                        setShowExcelMenu(false);
+                                    }}
+                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors whitespace-nowrap"
+                                    >
+                                    Xuất Excel
+                                    </button>
+                                </div>
+                                )}
+                            </div>
                     </div>
                 </div>
             </div>
@@ -770,18 +774,12 @@ export default function CompanyOverviewReport() {
                 </>
             ) : (
                 <div className="flex flex-col items-center justify-center py-32 text-center">
-                    <div className="w-32 h-32 flex items-center justify-center mb-8 rounded-xl border-2 border-gray-300 bg-gray-50">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            className="w-20 h-20 text-gray-500"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth="1.8">
-                            <path strokeLinecap="round" strokeLinejoin="round"
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                     </div>
-                    <h3 className="text-2xl font-bold text-slate-800 mb-3">Chưa có báo cáo Cuối kỳ</h3>
+                    <h3 className="text-xl font-bold text-slate-800 mb-3">Chưa có báo cáo Cuối kỳ</h3>
                     <p className="text-slate-600 max-w-md leading-relaxed">
                         Nhấn <strong className="text-blue-600">Tạo Báo cáo</strong> để tạo Báo cáo chính thức.<br/>
                         Nội dung Báo cáo sẽ hiển thị tại đây sau khi hoàn tất.

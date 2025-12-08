@@ -949,10 +949,10 @@ export async function exportToExcel(companyData, departmentsData, currentCycleMe
         link.click();
         window.URL.revokeObjectURL(url);
 
-        onSuccess('✓ Xuất Excel thành công!');
+        onSuccess('Xuất Excel thành công!');
     } catch (error) {
         console.error('Lỗi khi xuất Excel:', error);
-        onError('✕ Xuất Excel thất bại. Vui lòng thử lại.');
+        onError('Xuất Excel thất bại. Vui lòng thử lại.');
     }
 }
 
