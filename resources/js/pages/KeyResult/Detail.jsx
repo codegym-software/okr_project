@@ -84,44 +84,69 @@ const KrOverviewSection = ({ keyResult }) => {
     const ownerName = assigned_user?.full_name || 'N/A';
     const parentObjectiveUrl = objective ? `/company-okrs/detail/${objective.objective_id}` : '#';
 
+    const circumference = 2 * Math.PI * 20; // Radius is 20
+
     return (
         <div>
-            {/* Parent Objective Link */}
             {objective && (
                 <div className="mb-4">
-                    <a href={parentObjectiveUrl} className="text-sm text-blue-600 hover:underline">
-                        &larr; {objective.obj_title}
+                    <a href={parentObjectiveUrl} className="text-sm text-blue-600 hover:underline flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        {objective.obj_title}
                     </a>
                 </div>
             )}
 
-            {/* Progress Bar and Status */}
-            <div className="mb-4">
-                <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium text-gray-700">Tiến độ</span>
-                    <span className="text-lg font-bold text-blue-600">{Math.round(progress_percent)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-4">
-                    <div
-                        className="bg-blue-600 h-4 rounded-full"
-                        style={{ width: `${progress_percent}%` }}
-                    ></div>
+            <div className="flex items-center justify-center my-6">
+                <div className="relative h-32 w-32">
+                    <svg className="h-full w-full" viewBox="0 0 50 50">
+                        <circle
+                            className="text-gray-200"
+                            strokeWidth="5"
+                            stroke="currentColor"
+                            fill="transparent"
+                            r="20"
+                            cx="25"
+                            cy="25"
+                        />
+                        <circle
+                            className="text-blue-600"
+                            strokeWidth="5"
+                            strokeDasharray={circumference}
+                            strokeDashoffset={circumference - (progress_percent / 100) * circumference}
+                            strokeLinecap="round"
+                            stroke="currentColor"
+                            fill="transparent"
+                            r="20"
+                            cx="25"
+                            cy="25"
+                            style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+                        />
+                    </svg>
+                    <div className="absolute top-0 left-0 h-full w-full flex items-center justify-center">
+                        <span className="text-2xl font-bold text-blue-600">
+                            {Math.round(progress_percent)}%
+                        </span>
+                    </div>
                 </div>
             </div>
 
-            {/* Status and Owner */}
-            <div className="flex items-center justify-between text-sm">
-                <div>
-                    <span className="font-semibold">Trạng thái: </span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(status)}`}>
-                        {status.replace('_', ' ').toUpperCase()}
-                    </span>
+            <dl className="space-y-2 text-sm">
+                <div className="flex items-center">
+                    <dt className="font-semibold w-24">Trạng thái:</dt>
+                    <dd>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(status)}`}>
+                            {status.replace('_', ' ').toUpperCase()}
+                        </span>
+                    </dd>
                 </div>
-                <div>
-                    <span className="font-semibold">Chủ sở hữu: </span>
-                    <span>{ownerName}</span>
+                <div className="flex items-center">
+                    <dt className="font-semibold w-24">Chủ sở hữu:</dt>
+                    <dd className="text-gray-800">{ownerName}</dd>
                 </div>
-            </div>
+            </dl>
         </div>
     );
 };
@@ -228,7 +253,7 @@ const KrProgressVisualizationSection = ({ keyResult }) => {
     
     return (
         <div>
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Trực quan hóa Tiến độ</h2>
+            <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">Trực quan hóa Tiến độ</h3>
             {check_ins.length > 0 ? (
                 <Line options={chartOptions} data={chartData} />
             ) : (
@@ -270,7 +295,7 @@ const KrCommentSection = ({ comments, krId, onCommentPosted }) => {
 
     return (
         <div>
-            <h3 className="font-semibold text-md mb-3">Thảo luận</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Thảo luận</h3>
             <div className="space-y-4">
                 <CommentForm krId={krId} onSubmitted={handleSubmitted} />
                 {comments?.length > 0 ? (
@@ -377,10 +402,10 @@ const CommentForm = ({ krId, parentId = null, onSubmitted }) => {
 const KrHistoryAndInteractionSection = ({ keyResult, onCommentPosted }) => {
     return (
         <div>
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Lịch sử & Tương tác</h2>
+            <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">Lịch sử & Tương tác</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div>
-                    <h3 className="font-semibold text-md mb-3">Lịch sử Check-in</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Lịch sử Check-in</h3>
                     <KrCheckInHistory checkIns={keyResult.check_ins} />
                 </div>
                 <div>
@@ -397,7 +422,7 @@ const KrDetailsSection = ({ keyResult }) => (
         {/* Sidebar (now on the left) */}
         <div className="lg:col-span-1 space-y-8">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Tổng quan</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Tổng quan</h3>
                 <KrOverviewSection keyResult={keyResult} />
             </div>
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">

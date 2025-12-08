@@ -101,7 +101,7 @@ const KeyResultsSection = ({ keyResults }) => (
 const AlignmentSection = ({ objective }) => (
     <div>
         <div className="mb-4">
-            <h4 className="font-semibold text-md mb-2">Liên kết Cấp trên (Parent OKR)</h4>
+            <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Liên kết Cấp trên (Parent OKR)</h3>
             {objective.source_links?.length > 0 ? objective.source_links.map(link => (
                 <div key={link.link_id} className="p-2 border rounded-md bg-gray-50 text-sm">
                     <a href={`/company-okrs/detail/${link.target_objective.objective_id}`} className="text-blue-700 hover:underline">{link.target_objective.obj_title}</a>
@@ -110,7 +110,7 @@ const AlignmentSection = ({ objective }) => (
             )) : <p className="text-gray-500 text-sm">Objective này không liên kết lên OKR nào.</p>}
         </div>
         <div>
-            <h4 className="font-semibold text-md mb-2">Liên kết Cấp dưới (Child OKR)</h4>
+            <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Liên kết Cấp dưới (Child OKR)</h3>
             {objective.child_objectives?.length > 0 ? objective.child_objectives.map(link => (
                  <div key={link.link_id} className="p-2 border rounded-md bg-gray-50 text-sm">
                     <a href={`/company-okrs/detail/${link.source_objective.objective_id}`} className="text-blue-700 hover:underline">{link.source_objective.obj_title}</a>
@@ -270,11 +270,11 @@ const DetailsSection = ({ objective }) => (
         {/* Main Content */}
         <div className="lg:col-span-3 space-y-6">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Tổng quan</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Tổng quan</h3>
                 <OverviewSection objective={objective} />
             </div>
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Results</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Key Results</h3>
                 <KeyResultsSection keyResults={objective.key_results} />
             </div>
         </div>
