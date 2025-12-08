@@ -756,12 +756,14 @@ export default function CompanyOverviewReport() {
             {showSnapshots && (
                 <>
                     <div
-                        className="fixed inset-0 absolute inset-0 bg-black/30 bg-opacity-70 flex items-center justify-center z-50 p-4"
+                        className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
                         onClick={(e) => {
                             if (e.target === e.currentTarget) {
                                 setShowSnapshots(false);
                                 setSelectedSnapshot(null);
                                 setSnapshotPage(1);
+                                setSnapshotLevelDropdownOpen(false);
+                                setModalCycleDropdownOpen(false);
                             }
                         }}
                     >
@@ -854,7 +856,7 @@ export default function CompanyOverviewReport() {
                                                                             item.color === 'amber' ? 'border-amber-200' :
                                                                                 'border-red-200'}
                                                                         `}
-                                                                        >
+                                                            >
                                                                 <div className={`
                                                                         text-sm font-medium
                                                                         ${i <= 1 ? 'text-gray-600' :
