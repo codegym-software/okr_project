@@ -74,7 +74,7 @@ export default function KeyResultRow({
                             </div>
                             <div className="truncate flex items-center gap-1">
                                 <FaBullseye
-                                    className="h-3 w-3 text-indigo-500 flex-shrink-0"
+                                    className="h-5 w-5 text-indigo-500 flex-shrink-0"
                                     title="OKR được liên kết"
                                 />
                                 <span className="font-semibold text-slate-900 text-lg">
