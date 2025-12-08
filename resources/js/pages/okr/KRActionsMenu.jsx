@@ -57,42 +57,22 @@ export default function KRActionsMenu({
                     className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
                     style={{ zIndex: 50 }}
                 >
-                    {canCheckIn && openCheckInModal && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                openCheckInModal({
-                                    ...kr,
-                                    objective_id: objective.objective_id,
-                                });
-                                setOpenObj((prev) => ({
-                                    ...prev,
-                                    [menuKey]: false,
-                                }));
-                            }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                            Check-in Key Result
-                        </button>
-                    )}
-                    {openCheckInHistory && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                openCheckInHistory({
-                                    ...kr,
-                                    objective_id: objective.objective_id,
-                                });
-                                setOpenObj((prev) => ({
-                                    ...prev,
-                                    [menuKey]: false,
-                                }));
-                            }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                            Lịch sử Check-in
-                        </button>
-                    )}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (disableActions) return;
+                            setEditingKR(kr);
+                            setOpenObj((prev) => ({ ...prev, [menuKey]: false }));
+                        }}
+                        disabled={disableActions}
+                        className={`flex items-center gap-2 w-full px-3 py-2 text-sm ${
+                            disableActions
+                                ? "text-slate-400 cursor-not-allowed"
+                                : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                    >
+                        Sửa
+                    </button>
                     <div className="my-1 h-px bg-slate-100"></div>
                     <button
                         onClick={(e) => {
