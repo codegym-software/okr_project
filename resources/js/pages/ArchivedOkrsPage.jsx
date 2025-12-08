@@ -5,7 +5,6 @@ import ConfirmationModal from "../components/ConfirmationModal";
 import { FaBullseye, FaKey } from "react-icons/fa";
 import { formatPercent, getStatusText } from "./okr/utils/formatters";
 
-// Helper để định dạng ngày tháng ngay tại đây
 const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     try {
@@ -28,18 +27,13 @@ export default function ArchivedOkrsPage() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     const [openObj, setOpenObj] = useState({});
-
-    // === MODAL XÁC NHẬN CHUNG ===
-    const [confirmModal, setConfirmModal] = useState({ show: false, title: "", message: "", onConfirm: () => {}, confirmText: "OK", cancelText: "Hủy" });
+    const [confirmModal, setConfirmModal] = useState({ show: false, title: "", message: "", onConfirm: () => { }, confirmText: "OK", cancelText: "Hủy" });
     const [processing, setProcessing] = useState({ type: "", id: null });
-
     const openConfirm = (title, message, onConfirm, confirmText = "OK") => {
         setConfirmModal({ show: true, title, message, onConfirm, confirmText, cancelText: "Hủy" });
     };
-
     const closeConfirm = () => setConfirmModal((prev) => ({ ...prev, show: false }));
 
-    // Fetch initial data (user, cycles)
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
@@ -79,7 +73,6 @@ export default function ArchivedOkrsPage() {
         fetchInitialData();
     }, []);
 
-    // Fetch Archived OKR data when filters change
     const fetchData = useCallback(async () => {
         if (cycleFilter === null) return;
 
@@ -101,7 +94,7 @@ export default function ArchivedOkrsPage() {
                     throw new Error(json.message || "Không thể tải OKR lưu trữ");
                 }
             } else {
-                 throw new Error("Lỗi mạng khi tải OKR lưu trữ");
+                throw new Error("Lỗi mạng khi tải OKR lưu trữ");
             }
         } catch (err) {
             setToast({ type: "error", message: err.message });
@@ -130,7 +123,7 @@ export default function ArchivedOkrsPage() {
                     const json = await res.json();
                     if (!res.ok || json.success === false) throw new Error(json.message || "Lỗi không xác định");
                     setToast({ type: "success", message: json.message || "Phục hồi thành công!" });
-                    await fetchData(); // Reload data
+                    await fetchData();
                 } catch (err) {
                     setToast({ type: "error", message: err.message });
                 } finally {
@@ -197,7 +190,7 @@ export default function ArchivedOkrsPage() {
                         headers: { "X-CSRF-TOKEN": token, Accept: "application/json" },
                     });
                     const json = await res.json();
-                     if (!res.ok || json.success === false) throw new Error(json.message || "Lỗi không xác định");
+                    if (!res.ok || json.success === false) throw new Error(json.message || "Lỗi không xác định");
                     setToast({ type: "success", message: json.message || "Phục hồi thành công!" });
                     await fetchData();
                 } catch (err) {
@@ -283,13 +276,13 @@ export default function ArchivedOkrsPage() {
                             <th className="px-3 py-2 text-left border-r border-slate-200">
                                 Tiêu đề
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{width: '180px'}}>
+                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{ width: '180px' }}>
                                 Người thực hiện
                             </th>
-                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{width: '150px'}}>
+                            <th className="px-3 py-2 text-center border-r border-slate-200" style={{ width: '150px' }}>
                                 Tiến độ (%)
                             </th>
-                            <th className="px-3 py-2 text-center" style={{width: '100px'}}>
+                            <th className="px-3 py-2 text-center" style={{ width: '100px' }}>
                                 Hành động
                             </th>
                         </tr>
@@ -309,19 +302,25 @@ export default function ArchivedOkrsPage() {
 
                         {!loading && items.map((obj) => (
                             <React.Fragment key={`archived-obj-${obj.objective_id}`}>
-                                {/* HÀNG OBJECTIVE */}
                                 <tr className={`transition-colors duration-150 ${obj.archived_at ? 'bg-slate-200/30' : 'bg-white'} hover:bg-slate-50/70`}>
-                                    {/* Cột "Tiêu đề" (kéo dài 3 cột) */}
                                     <td colSpan={3} className="px-3 py-3 border-r border-slate-200">
                                         <div className="flex items-center justify-between w-full">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                                                    {(obj.key_results?.length > 0) && (
+                                                    {obj.key_results?.some(kr => kr.archived_at) && (
                                                         <button
-                                                            onClick={() => setOpenObj(prev => ({ ...prev, [obj.objective_id]: !prev[obj.objective_id] }))}
+                                                            onClick={() => setOpenObj(prev => ({
+                                                                ...prev,
+                                                                [obj.objective_id]: !prev[obj.objective_id]
+                                                            }))}
                                                             className="p-2 rounded-lg hover:bg-slate-100 transition-all group"
                                                         >
-                                                            <svg className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform ${openObj[obj.objective_id] ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <svg
+                                                                className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform ${openObj[obj.objective_id] ? "rotate-90" : ""}`}
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                viewBox="0 0 24 24"
+                                                            >
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                             </svg>
                                                         </button>
@@ -341,7 +340,6 @@ export default function ArchivedOkrsPage() {
                                             </div>
                                         </div>
                                     </td>
-                                    {/* Cột "Hành động" cho Objective */}
                                     <td className="px-3 py-3 text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             {obj.archived_at && (
@@ -376,22 +374,18 @@ export default function ArchivedOkrsPage() {
                                     </td>
                                 </tr>
 
-                                {/* HÀNG KEY RESULT (NẾU CÓ VÀ ĐANG MỞ) */}
                                 {openObj[obj.objective_id] && obj.key_results?.filter(kr => kr.archived_at).map(kr => (
                                     <tr key={`archived-kr-${kr.kr_id}`} className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
-                                        {/* Cột Tiêu đề KR */}
                                         <td className="px-8 py-3 border-r border-slate-200">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-6 flex-shrink-0"></div> {/* Để thụt vào */}
+                                                <div className="w-6 flex-shrink-0"></div>
                                                 <FaKey className="h-4 w-4 text-slate-500 flex-shrink-0" title="Key Result" />
                                                 <span className="font-medium text-slate-600 italic">{kr.kr_title}</span>
                                             </div>
                                         </td>
-                                        {/* Cột Người thực hiện */}
                                         <td className="px-3 py-3 text-center border-r border-slate-200 text-sm text-slate-500">
                                             {kr.assigned_user?.name || ''}
                                         </td>
-                                        {/* Cột Tiến độ */}
                                         <td className="px-3 py-3 text-center border-r border-slate-200">
                                             <div className="flex flex-col items-center">
                                                 <div className="w-full bg-gray-300 rounded-full h-4 relative overflow-hidden">
@@ -410,7 +404,6 @@ export default function ArchivedOkrsPage() {
                                                 </span>
                                             </div>
                                         </td>
-                                        {/* Cột Hành động (chứa cả ngày lưu trữ và nút) */}
                                         <td className="px-3 py-3 text-center">
                                             <div className="flex flex-col items-center justify-center gap-1">
                                                 <span className="text-slate-500 text-xs italic">
