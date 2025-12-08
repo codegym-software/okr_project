@@ -11,6 +11,7 @@ import {
     Legend,
 } from 'chart.js';
 import { format } from 'date-fns';
+import { PlayIcon, ArrowTrendingUpIcon, TrophyIcon, TagIcon } from '@heroicons/react/24/outline';
 
 ChartJS.register(
     CategoryScale,
@@ -132,35 +133,52 @@ const KrMetricDetailsSection = ({ keyResult }) => {
         unit = 'N/A',
     } = keyResult;
     
-    // Assuming start_value is 0 if not provided, as is common.
     const start_value = keyResult.start_value || 0;
 
     const formatValue = (value) => {
-        // You might want to add more sophisticated formatting based on the unit
         return new Intl.NumberFormat('en-US').format(value);
     }
 
     return (
         <div>
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Chi tiết Số liệu</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div>
-                    <p className="text-sm text-gray-500">Giá trị Bắt đầu</p>
-                    <p className="text-2xl font-bold text-gray-800">{formatValue(start_value)}</p>
+            <dl className="space-y-4">
+                <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-gray-100 rounded-lg p-2">
+                        <PlayIcon className="h-6 w-6 text-gray-500" />
+                    </div>
+                    <div className="ml-4">
+                        <dt className="text-sm font-medium text-gray-500">Giá trị Bắt đầu</dt>
+                        <dd className="text-lg font-semibold text-gray-900">{formatValue(start_value)}</dd>
+                    </div>
                 </div>
-                <div>
-                    <p className="text-sm text-gray-500">Giá trị Hiện tại</p>
-                    <p className="text-2xl font-bold text-blue-600">{formatValue(current_value)}</p>
+                <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-blue-100 rounded-lg p-2">
+                        <ArrowTrendingUpIcon className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <div className="ml-4">
+                        <dt className="text-sm font-medium text-gray-500">Giá trị Hiện tại</dt>
+                        <dd className="text-lg font-semibold text-blue-600">{formatValue(current_value)}</dd>
+                    </div>
                 </div>
-                <div>
-                    <p className="text-sm text-gray-500">Giá trị Mục tiêu</p>
-                    <p className="text-2xl font-bold text-green-600">{formatValue(target_value)}</p>
+                <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-green-100 rounded-lg p-2">
+                        <TrophyIcon className="h-6 w-6 text-green-500" />
+                    </div>
+                    <div className="ml-4">
+                        <dt className="text-sm font-medium text-gray-500">Giá trị Mục tiêu</dt>
+                        <dd className="text-lg font-semibold text-green-600">{formatValue(target_value)}</dd>
+                    </div>
                 </div>
-                <div>
-                    <p className="text-sm text-gray-500">Đơn vị</p>
-                    <p className="text-2xl font-bold text-gray-800">{unit}</p>
+                <div className="flex items-center">
+                    <div className="flex-shrink-0 bg-gray-100 rounded-lg p-2">
+                        <TagIcon className="h-6 w-6 text-gray-500" />
+                    </div>
+                    <div className="ml-4">
+                        <dt className="text-sm font-medium text-gray-500">Đơn vị</dt>
+                        <dd className="text-lg font-semibold text-gray-900">{unit}</dd>
+                    </div>
                 </div>
-            </div>
+            </dl>
         </div>
     );
 };
@@ -374,6 +392,28 @@ const KrHistoryAndInteractionSection = ({ keyResult, onCommentPosted }) => {
 };
 
 
+const KrDetailsSection = ({ keyResult }) => (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Sidebar (now on the left) */}
+        <div className="lg:col-span-1 space-y-8">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Tổng quan</h3>
+                <KrOverviewSection keyResult={keyResult} />
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <KrMetricDetailsSection keyResult={keyResult} />
+            </div>
+        </div>
+
+        {/* Main Content (now on the right) */}
+        <div className="lg:col-span-2">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <KrProgressVisualizationSection keyResult={keyResult} />
+            </div>
+        </div>
+    </div>
+);
+
 // --- Main Page Component ---
 const KeyResultDetailPage = () => {
     const [keyResult, setKeyResult] = useState(null);
@@ -433,9 +473,7 @@ const KeyResultDetailPage = () => {
     const handleCommentPosted = () => fetchData();
 
     const krTabs = [
-        { name: 'Tổng quan', content: <KrOverviewSection keyResult={keyResult} /> },
-        { name: 'Chi tiết & Số liệu', content: <KrMetricDetailsSection keyResult={keyResult} /> },
-        { name: 'Biểu đồ Tiến độ', content: <KrProgressVisualizationSection keyResult={keyResult} /> },
+        { name: 'Chi tiết', content: <KrDetailsSection keyResult={keyResult} /> },
         { name: 'Lịch sử & Tương tác', content: <KrHistoryAndInteractionSection keyResult={keyResult} onCommentPosted={handleCommentPosted} /> },
     ];
 
