@@ -293,10 +293,24 @@ export default function NotificationBell() {
                                     const isCheckIn = notification.type === 'check_in' || 
                                         notification.message?.includes('đã check-in');
                                     
+                                    // Check if this is a KR assigned notification
+                                    const isKrAssigned = notification.type === 'kr_assigned' ||
+                                        notification.type === 'kr_assignment' ||
+                                        notification.message?.includes('đã giao cho bạn') ||
+                                        notification.message?.includes('Key Result');
+                                    
                                     // Check if this notification is clickable (has action)
-                                    const isClickable = isLinkRequest || isCheckIn || notification.action_url;
+                                    const isClickable = isLinkRequest || isCheckIn || isKrAssigned || notification.action_url;
                                     
                                     const handleNotificationClick = () => {
+                                        // Debug log
+                                        console.log('🔔 Notification clicked:', {
+                                            id: notification.notification_id,
+                                            type: notification.type,
+                                            action_url: notification.action_url,
+                                            message: notification.message
+                                        });
+                                        
                                         // Mark as read first
                                         if (!notification.is_read) {
                                             markAsRead(notification.notification_id);
@@ -337,8 +351,10 @@ export default function NotificationBell() {
                                         // Navigate to the page
                                         setIsOpen(false);
                                         if (targetUrl) {
+                                            console.log('🔔 Navigating with action_url:', targetPath + searchParams);
                                             window.location.href = targetPath + searchParams;
-                                        } else if (isLinkRequest || isCheckIn) {
+                                        } else if (isLinkRequest || isCheckIn || isKrAssigned) {
+                                            console.log('🔔 Navigating without action_url (old notification)');
                                             window.location.href = '/my-objectives';
                                         }
                                     };

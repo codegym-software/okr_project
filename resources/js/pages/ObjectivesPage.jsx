@@ -243,6 +243,9 @@ export default function ObjectivesPage() {
         }
     }, [items, loading]);
 
+    // Track if we've tried switching view mode for URL params
+    const viewModeSwitchedRef = React.useRef(false);
+
     // Handle URL parameters for highlighting KR (from email notifications)
     useEffect(() => {
         if (loading || items.length === 0) return;
@@ -252,13 +255,11 @@ export default function ObjectivesPage() {
             const urlParams = new URLSearchParams(window.location.search);
             const highlightKrId = urlParams.get('highlight_kr');
             const objectiveId = urlParams.get('objective_id');
+            const action = urlParams.get('action'); // 'checkin' hoặc null
 
             if (!highlightKrId) return;
 
-            // Đánh dấu đã xử lý URL params
-            urlParamsHandledRef.current = true;
-
-            console.log('🔗 Highlighting KR from URL:', highlightKrId, 'in objective:', objectiveId);
+            console.log('🔗 Highlighting KR from URL:', highlightKrId, 'in objective:', objectiveId, 'action:', action);
 
             // Tìm objective và KR
             let foundObjective = null;
@@ -280,6 +281,9 @@ export default function ObjectivesPage() {
             }
 
             if (foundObjective && foundKR) {
+                // Đánh dấu đã xử lý URL params
+                urlParamsHandledRef.current = true;
+                
                 console.log('🔗 Found KR for highlight:', foundKR);
                 
                 // Lưu KR vào biến để tránh stale closure
@@ -305,9 +309,16 @@ export default function ObjectivesPage() {
                         }, 5000);
                     }
 
-                    // Mở check-in history modal
-                    console.log('🔗 Opening check-in history for:', krToHighlight);
-                    setCheckInHistory({ open: true, keyResult: krToHighlight });
+                    // Mở modal tùy theo action
+                    if (action === 'checkin') {
+                        // Mở check-in modal để member cập nhật tiến độ
+                        console.log('🔗 Opening check-in modal for:', krToHighlight);
+                        setCheckInModal({ open: true, keyResult: krToHighlight });
+                    } else {
+                        // Mở check-in history modal (mặc định cho thông báo check-in)
+                        console.log('🔗 Opening check-in history for:', krToHighlight);
+                        setCheckInHistory({ open: true, keyResult: krToHighlight });
+                    }
                 }, 800);
 
                 // Xóa URL parameters sau khi xử lý (delay để đảm bảo state đã được set)
@@ -316,12 +327,32 @@ export default function ObjectivesPage() {
                     window.history.replaceState({}, '', newUrl);
                 }, 1500);
             } else {
-                console.warn('🔗 KR not found for highlight:', highlightKrId);
+                // Không tìm thấy KR - thử chuyển view mode
+                if (!viewModeSwitchedRef.current) {
+                    viewModeSwitchedRef.current = true;
+                    console.log('🔗 KR not found, trying to switch view mode. Current:', viewMode);
+                    
+                    // Chuyển sang view mode khác để tìm KR
+                    if (viewMode === 'personal') {
+                        setViewMode('levels');
+                    } else {
+                        setViewMode('personal');
+                    }
+                    // Không đánh dấu handled, để effect chạy lại sau khi items thay đổi
+                } else {
+                    // Đã thử cả 2 view mode nhưng vẫn không tìm thấy
+                    console.warn('🔗 KR not found in both view modes:', highlightKrId);
+                    urlParamsHandledRef.current = true;
+                    // Xóa URL params
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
+                }
             }
         } catch (error) {
             console.error('🔗 Error handling URL highlight:', error);
+            urlParamsHandledRef.current = true;
         }
-    }, [items, loading]);
+    }, [items, loading, viewMode]);
 
     // Ref để tránh xử lý highlight_link nhiều lần
     const linkParamsHandledRef = React.useRef(false);
