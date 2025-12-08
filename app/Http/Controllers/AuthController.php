@@ -261,12 +261,12 @@ class AuthController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.',
-                    'redirect' => '/landingpage',
+                    'redirect' => '/login',
                     'logout' => true
                 ]);
             }
             
-            return redirect()->route('landingpage')->with('success', 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.');
+            return redirect()->route('login')->with('success', 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.');
 
         } catch (AwsException $e) {
             $errorCode = $e->getAwsErrorCode(); // Lấy code lỗi chính xác
@@ -1384,6 +1384,6 @@ class AuthController extends Controller
         Session::forget('cognito_access_token');
         Session::forget('cognito_refresh_token');
         Session::forget('cognito_id_token');
-        return redirect()->route('landingpage')->with('success', 'Đăng xuất thành công!');
+        return redirect('/login')->with('success', 'Đăng xuất thành công!');
     }
 }
