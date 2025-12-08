@@ -293,65 +293,67 @@ export default function CompanyOkrList() {
 
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
-            <div className="flex items-center gap-2">
-                {displayMode === "tree" && (
-                    <button
-                        type="button"
-                        onClick={() =>
-                            setTreeLayout((prev) =>
-                                prev === "horizontal"
-                                    ? "vertical"
-                                    : "horizontal"
-                            )
-                        }
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                        title={
-                            treeLayout === "horizontal"
-                                ? "Chuyển sang hiển thị dọc"
-                                : "Chuyển sang hiển thị ngang"
-                        }
-                    >
-                        <svg
-                            className="h-4 w-4 text-slate-600"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+            <div className="flex justify-end">
+                <div className="flex items-center gap-2">
+                    {displayMode === "tree" && (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setTreeLayout((prev) =>
+                                    prev === "horizontal"
+                                        ? "vertical"
+                                        : "horizontal"
+                                )
+                            }
+                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                            title={
+                                treeLayout === "horizontal"
+                                    ? "Chuyển sang hiển thị dọc"
+                                    : "Chuyển sang hiển thị ngang"
+                            }
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                            />
-                        </svg>
-                        {treeLayout === "horizontal"
-                            ? "Xem ngang"
-                            : "Xem dọc"}
-                    </button>
-                )}
-                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-                    <button
-                        type="button"
-                        onClick={() => setDisplayMode("table")}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md ${
-                            displayMode === "table"
-                                ? "bg-blue-600 text-white shadow-sm"
-                                : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                    >
-                        Dạng bảng
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setDisplayMode("tree")}
-                        className={`ml-1 px-3 py-1.5 text-xs font-medium rounded-md ${
-                            displayMode === "tree"
-                                ? "bg-blue-600 text-white shadow-sm"
-                                : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                    >
-                        Dạng cây
-                    </button>
+                            <svg
+                                className="h-4 w-4 text-slate-600"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                />
+                            </svg>
+                            {treeLayout === "horizontal"
+                                ? "Xem ngang"
+                                : "Xem dọc"}
+                        </button>
+                    )}
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("table")}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "table"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng bảng
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("tree")}
+                            className={`ml-1 px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "tree"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng cây
+                        </button>
+                    </div>
                 </div>
             </div>
             <div className="mb-4 flex items-center justify-between gap-4">

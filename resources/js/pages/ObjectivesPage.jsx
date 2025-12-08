@@ -758,7 +758,7 @@ export default function ObjectivesPage() {
                 message={toast.message}
                 onClose={() => setToast((prev) => ({ ...prev, message: "" }))}
             />
-            <div className="mx-auto w-full max-w-6xl">
+            <div className="mx-auto w-full max-w-6xl flex justify-end">
                 <div className="flex items-center gap-2">
                     {displayMode === "tree" && (
                         <button
