@@ -120,10 +120,23 @@ export default function ObjectiveRow({
                             </svg>
                         </button>
                         <button
-                            onClick={() => setEditingObjective(obj)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (disableActions || obj.level === "company") {
+                                    return;
+                                }
+                                onOpenLinkModal({
+                                    sourceType: "objective",
+                                    source: obj,
+                                });
+                            }}
+                            disabled={disableActions || obj.level === "company"}
+                            title={
+                                obj.level === "company"
+                                    ? "OKR cấp công ty không thể làm mục tiêu liên kết."
+                                    : "Liên kết OKR"
+                            }
                             className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Sửa"
-                            disabled={disableActions}
                         >
                             <svg
                                 className="h-4 w-4"
@@ -135,11 +148,11 @@ export default function ObjectiveRow({
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                     strokeWidth={2}
-                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.172-1.172m-.915-2.06c.071-.044.14-.087.207-.13.312-.192.646-.358 1-.497.647-.253 1.348-.372 2.052-.372h.001c.704 0 1.405.119 2.052.372.354.139.688.305 1 .497.067.043.136.086.207.13l-.915-2.06z"
                                 />
                             </svg>
                         </button>
-
+                        
                         {disableActions ? (
                             <button
                                 onClick={() => handleArchive(obj.objective_id)}
@@ -161,6 +174,7 @@ export default function ObjectiveRow({
                                 openObj={openObj}
                                 setOpenObj={setOpenObj}
                                 disableActions={disableActions}
+                                setEditingObjective={setEditingObjective} // Pass down the editing function
                             />
                         )}
                     </div>

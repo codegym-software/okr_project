@@ -9,6 +9,7 @@ export default function ObjectiveActionsMenu({
     openObj,
     setOpenObj,
     disableActions = false,
+    setEditingObjective,
 }) {
     const menuKey = `menu_obj_${obj.objective_id}`;
     const isCompanyLevel = obj.level === "company";
@@ -44,38 +45,23 @@ export default function ObjectiveActionsMenu({
                     className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
                     style={{ zIndex: 50 }}
                 >
-                    {onOpenLinkModal && (
-                         <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (disableActions || isCompanyLevel) {
-                                    return;
-                                }
-                                onOpenLinkModal({
-                                    sourceType: "objective",
-                                    source: obj,
-                                });
-                                setOpenObj((prev) => ({
-                                    ...prev,
-                                    [menuKey]: false,
-                                }));
-                            }}
-                            disabled={disableActions || isCompanyLevel}
-                            title={
-                                isCompanyLevel
-                                    ? "OKR cấp công ty không thể làm mục tiêu liên kết."
-                                    : "Liên kết OKR"
-                            }
-                            className={`flex items-center gap-2 w-full px-3 py-2 text-sm ${
-                                disableActions || isCompanyLevel
-                                    ? "text-slate-400 cursor-not-allowed"
-                                    : "text-slate-700 hover:bg-slate-50"
-                            }`}
-                         >
-                            Liên kết OKR
-                        </button>
-                    )}
-                    
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (disableActions) return;
+                            setEditingObjective(obj);
+                            setOpenObj((prev) => ({ ...prev, [menuKey]: false }));
+                        }}
+                        disabled={disableActions}
+                        className={`flex items-center gap-2 w-full px-3 py-2 text-sm ${
+                            disableActions
+                                ? "text-slate-400 cursor-not-allowed"
+                                : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                    >
+                        Sửa
+                    </button>
+
                     <div className="my-1 h-px bg-slate-100"></div>
 
                     <button
