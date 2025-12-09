@@ -41,7 +41,6 @@ export default function CompanyOverviewReport() {
     const [filters, setFilters] = useState({
         cycleId: '',
         departmentId: '',
-        status: '',
         ownerId: '',
     });
 
@@ -95,7 +94,6 @@ export default function CompanyOverviewReport() {
             const cycleId = params.get('cycle_id');
             const departmentId = params.get('department_id');
             const ownerId = params.get('owner_id');
-            const status = params.get('status');
             const levelParam = params.get('level');
             const snapshotLevel = params.get('snapshot_level');
             const showSnapshotsParam = params.get('show_snapshots');
@@ -109,9 +107,6 @@ export default function CompanyOverviewReport() {
             }
             if (ownerId) {
                 setFilters(f => ({ ...f, ownerId }));
-            }
-            if (status) {
-                setFilters(f => ({ ...f, status }));
             }
             if (levelParam === 'company' || levelParam === 'departments') {
                 setLevel(levelParam);
@@ -200,7 +195,6 @@ export default function CompanyOverviewReport() {
                 const params = new URLSearchParams();
                 if (filters.cycleId) params.set('cycle_id', filters.cycleId);
                 if (filters.departmentId) params.set('department_id', filters.departmentId);
-                if (filters.status) params.set('status', filters.status);
                 if (filters.ownerId) params.set('owner_id', filters.ownerId);
                 if (level) params.set('level', level); // Add level filter
                 const url = `/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`;
@@ -218,7 +212,7 @@ export default function CompanyOverviewReport() {
                 setLoading(false);
             }
         })();
-    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId, level]);
+    }, [filters.cycleId, filters.departmentId, filters.ownerId, level]);
     
     // fetchDetailedData and fetchDetailedDataForSnapshot are now imported from utils/reports/dataFetchers
 
@@ -228,7 +222,6 @@ export default function CompanyOverviewReport() {
             const params = new URLSearchParams();
             if (filters.cycleId) params.set('cycle_id', filters.cycleId);
             if (filters.departmentId) params.set('department_id', filters.departmentId);
-            if (filters.status) params.set('status', filters.status);
             if (filters.ownerId) params.set('owner_id', filters.ownerId);
             if (level) params.set('level', level); // Add level filter to auto-refresh
             const url = `/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`;
@@ -238,7 +231,7 @@ export default function CompanyOverviewReport() {
                 .catch(() => {});
         }, 60000); 
         return () => clearInterval(timer);
-    }, [filters.cycleId, filters.departmentId, filters.status, filters.ownerId, level]); // Add level to dependencies
+    }, [filters.cycleId, filters.departmentId, filters.ownerId, level]); // Add level to dependencies
 
     // Đồng bộ filters với query params
     useEffect(() => {
@@ -259,16 +252,11 @@ export default function CompanyOverviewReport() {
             } else {
                 url.searchParams.delete('owner_id');
             }
-            if (filters.status) {
-                url.searchParams.set('status', filters.status);
-            } else {
-                url.searchParams.delete('status');
-            }
             window.history.replaceState({}, '', url.toString());
         } catch (e) {
             console.error('Failed to sync filters to URL', e);
         }
-    }, [filters.cycleId, filters.departmentId, filters.ownerId, filters.status]);
+    }, [filters.cycleId, filters.departmentId, filters.ownerId]);
 
     // Đồng bộ level với query params - chỉ thêm vào URL nếu khác mặc định
     useEffect(() => {
@@ -354,7 +342,6 @@ export default function CompanyOverviewReport() {
             ...f,
             cycleId: currentCycleMeta?.id || f.cycleId,
             departmentId: '',
-            status: '',
         }));
     };
 
@@ -390,7 +377,6 @@ export default function CompanyOverviewReport() {
                 const params = new URLSearchParams();
                 if (filters.cycleId) params.set('cycle_id', filters.cycleId);
                 if (filters.departmentId) params.set('department_id', filters.departmentId);
-                if (filters.status) params.set('status', filters.status);
                 if (filters.ownerId) params.set('owner_id', filters.ownerId);
                 params.set('level', levelToFetch);
                 
@@ -555,7 +541,6 @@ export default function CompanyOverviewReport() {
                 const params = new URLSearchParams();
                 if (filters.cycleId) params.set('cycle_id', filters.cycleId);
                 if (filters.departmentId) params.set('department_id', filters.departmentId);
-                if (filters.status) params.set('status', filters.status);
                 if (filters.ownerId) params.set('owner_id', filters.ownerId);
                 params.set('level', levelToFetch);
                 
@@ -665,27 +650,8 @@ export default function CompanyOverviewReport() {
                         Lịch sử chốt kỳ ({snapshots.length})
                     </button>
 
-                        {/* Filter trạng thái + chu kỳ */}
+                        {/* Filter chu kỳ */}
                         <div className="flex items-center gap-4">
-                            <div className="relative">
-                                <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 10h13M3 16h13" />
-                                </svg>
-                                <select
-                                    value={filters.status ?? ''}
-                                    onChange={(e) => setFilters(f => ({ ...f, status: e.target.value || null }))}
-                                    className="pl-10 pr-9 py-2.5 text-sm font-semibold text-gray-800 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
-                                >
-                                    <option value="">Tất cả trạng thái</option>
-                                    <option value="on_track">Đúng tiến độ</option>
-                                    <option value="at_risk">Có nguy cơ</option>
-                                    <option value="off_track">Chậm tiến độ</option>
-                                </select>
-                                <svg className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
-
                             <div className="relative">
                                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
