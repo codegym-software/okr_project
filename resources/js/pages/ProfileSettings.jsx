@@ -70,8 +70,8 @@ export default function ProfileSettings({ user, activeTab }){
                     // Xóa tất cả session storage và local storage
                     sessionStorage.clear();
                     localStorage.clear();
-                    // Redirect về landing page
-                    window.location.href = data.redirect || '/landingpage';
+                    // Redirect về trang login
+                    window.location.href = data.redirect || '/login';
                 }, 1500);
             } else {
                 // Xử lý validation errors
@@ -111,8 +111,9 @@ export default function ProfileSettings({ user, activeTab }){
 
 
     return (
-        <div className="mx-auto w-full max-w-4xl">
-            <Toast type={toast.type} message={toast.message} onClose={()=>setToast({ type:'success', message:'' })} />
+        <div className="flex h-[calc(100vh-6rem)] items-center justify-center px-4 py-8">
+            <div className="mx-auto w-full max-w-4xl">
+                <Toast type={toast.type} message={toast.message} onClose={()=>setToast({ type:'success', message:'' })} />
             {activeTab==='profile' && (
                 <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
                     <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-white">
@@ -160,7 +161,7 @@ export default function ProfileSettings({ user, activeTab }){
 
             {activeTab==='password' && (
                 <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-                    <div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 px-6 py-4 text-white">
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 text-white">
                         <h2 className="text-xl font-extrabold">Đổi mật khẩu</h2>
                         <p className="text-white/80">Bảo vệ tài khoản của bạn với mật khẩu mạnh</p>
                     </div>
@@ -224,7 +225,7 @@ export default function ProfileSettings({ user, activeTab }){
                                     id="showPasswords" 
                                     checked={showPasswords}
                                     onChange={(e) => setShowPasswords(e.target.checked)}
-                                    className={`h-4 w-4 rounded border-slate-300 text-fuchsia-600 focus:ring-fuchsia-500 ${user?.google_id ? 'cursor-not-allowed opacity-50' : ''}`}
+                                    className={`h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 ${user?.google_id ? 'cursor-not-allowed opacity-50' : ''}`}
                                     disabled={!!user?.google_id}
                                 />
                                 <label htmlFor="showPasswords" className={`text-sm font-medium text-slate-700 ${user?.google_id ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
@@ -239,7 +240,7 @@ export default function ProfileSettings({ user, activeTab }){
                                 </ul>
                                 <button 
                                     type="submit" 
-                                    className={`rounded-2xl bg-gradient-to-r from-fuchsia-600 to-purple-600 px-7 py-3 text-sm font-semibold text-white shadow hover:opacity-95 ${user?.google_id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    className={`rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-3 text-sm font-semibold text-white shadow hover:opacity-95 ${user?.google_id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     disabled={!!user?.google_id}
                                 >
                                     {user?.google_id ? 'Không khả dụng cho tài khoản Google' : 'Cập nhật'}
@@ -249,6 +250,7 @@ export default function ProfileSettings({ user, activeTab }){
                     </div>
                 </div>
             )}
+            </div>
         </div>
     );
 }

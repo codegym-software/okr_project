@@ -103,30 +103,43 @@ class CompanyOkrController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        try {
-            $objective = Objective::with([
-                    'keyResults' => fn($q) => $q->active()->with('assignedUser'),
-                    'department',
-                    'cycle',
-                    'user',
-                    'assignments.user'
-                ])
-                ->findOrFail($id);
-
-            $user = Auth::user();
-            if (!$user->isAdmin() && $objective->level !== 'company' 
-                && ($objective->level === 'unit' && $objective->department_id !== $user->department_id)) {
-                return response()->json(['success' => false, 'message' => 'Không có quyền xem'], 403);
+        $objective = Objective::with([
+            'user',
+            'department',
+            'cycle',
+            'comments',
+            'keyResults' => function ($query) {
+                $query->with(['assignedUser', 'checkIns.user'])->orderBy('created_at');
+            },
+            'childObjectives' => function ($query) {
+                $query->with(['sourceObjective.user', 'sourceObjective.department']);
+            },
+            'sourceLinks' => function ($query) {
+                $query->with(['targetObjective.user', 'targetObjective.department']);
             }
+        ])->findOrFail($id);
 
-            return response()->json(['success' => true, 'data' => $objective]);
-
-        } catch (\Exception $e) {
-            Log::error('CompanyOkrController::show error', ['id' => $id, 'error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Lỗi tải chi tiết'], 500);
+        $user = Auth::user();
+        if (!$user->isAdmin() && $objective->level !== 'company' 
+            && ($objective->level === 'unit' && $objective->department_id !== $user->department_id)) {
+            return response()->json(['success' => false, 'message' => 'Không có quyền xem'], 403);
         }
-    }
 
+        // Manually construct the response to ensure all data is included
+        $data = $objective->attributesToArray();
+        $data['user'] = $objective->user;
+        $data['department'] = $objective->department;
+        $data['cycle'] = $objective->cycle;
+        $data['key_results'] = $objective->keyResults->map(function($kr) { return $kr->toArray(); })->values()->all();
+        $data['child_objectives'] = $objective->childObjectives->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['source_links'] = $objective->sourceLinks->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['comments'] = $objective->comments->map(function($comment) { return $comment->toArray(); })->values()->all();
+        // The progress_percent is an accessor, let's make sure it's included
+        $data['progress_percent'] = $objective->progress_percent;
+
+
+        return response()->json(['success' => true, 'data' => $data]);
+    }
     // Helper methods (giữ nguyên)
     private function getCurrentCycle($request)
     {

@@ -208,34 +208,30 @@ export function CycleDropdown({
     return (
         <div className="relative w-52">
             <button
-                onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            className={`flex w-full h-10 items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-gray-50 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 `}
             >
-                <div className="flex items-baseline flex-1 truncate mr-2">
-                    <span className="truncate font-medium text-slate-700">
-                        {selectedCycle?.cycle_name || "Chọn chu kỳ"}
-                    </span>
-                    {selectedCycle && (
-                        <span className="ml-2 text-xs text-slate-500">
-                            ({formatDate(selectedCycle.start_date)}-{formatDate(selectedCycle.end_date)})
-                        </span>
-                    )}
-                </div>
-                <svg
-                    className={`w-4 h-4 transition-transform flex-shrink-0 ${
-                        dropdownOpen ? "rotate-180" : ""
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                    />
-                </svg>
+            <div className="flex items-center flex-1 truncate">
+                <span className="truncate">
+                {selectedCycle?.cycle_name || "Chọn chu kỳ"}
+                </span>
+                {selectedCycle && (
+                <span className="ml-2 text-xs text-slate-500 flex-shrink-0">
+                    ({formatDate(selectedCycle.start_date)} - {formatDate(selectedCycle.end_date)})
+                </span>
+                )}
+            </div>
+
+            <svg
+                className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${
+                dropdownOpen ? "rotate-180" : ""
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
             </button>
 
             {dropdownOpen && (

@@ -18,29 +18,19 @@ import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import FirstLoginChangePasswordPage from "./pages/FirstLoginChangePasswordPage";
 import ArchivedOkrsPage from "./pages/ArchivedOkrsPage";
+import ObjectiveDetailPage from "./pages/Objective/Detail";
+import KeyResultDetailPage from "./pages/KeyResult/Detail";
 
-function NavBar({ activeTab, onChangeTab }) {
-    const go = (tab) => {
-        onChangeTab(tab);
-        window.history.pushState(
-            {},
-            "",
-            tab === "features"
-                ? "/#features"
-                : tab === "pricing"
-                ? "/#pricing"
-                : "/"
-        );
-    };
+function NavBar() {
     return (
         <header className="fixed inset-x-0 top-0 z-50 border-b border-white/20 bg-white/90 backdrop-blur">
-            <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-8">
+            <div className="mx-auto flex h-16 w-full items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-8">
                 <a
-                    href="/"
+                    href="/home"
                     className="flex items-center gap-2"
                     onClick={(e) => {
                         e.preventDefault();
-                        go("home");
+                        window.location.href = "/home";
                     }}
                 >
                     <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2 rounded-xl shadow-sm">
@@ -57,36 +47,6 @@ function NavBar({ activeTab, onChangeTab }) {
                         OKRun
                     </span>
                 </a>
-                <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-700 sm:flex">
-                    <a
-                        className={`${
-                            activeTab === "features"
-                                ? "text-blue-600"
-                                : "hover:text-blue-600"
-                        } transition`}
-                        href="#features"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            go("features");
-                        }}
-                    >
-                        Tính năng
-                    </a>
-                    <a
-                        className={`${
-                            activeTab === "pricing"
-                                ? "text-blue-600"
-                                : "hover:text-blue-600"
-                        } transition`}
-                        href="#pricing"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            go("pricing");
-                        }}
-                    >
-                        Giá
-                    </a>
-                </nav>
                 <div className="flex items-center gap-3">
                     <a
                         href="/signup"
@@ -114,246 +74,301 @@ function NavBar({ activeTab, onChangeTab }) {
     );
 }
 
-function Hero({ onShowFeatures }) {
+function Hero() {
     return (
-        <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-            <div className="absolute -left-32 -top-32 h-64 w-64 rounded-full bg-blue-200/40 blur-3xl" />
-            <div className="absolute -right-32 -bottom-32 h-64 w-64 rounded-full bg-indigo-200/40 blur-3xl" />
-            <div className="mx-auto max-w-6xl items-center gap-10 px-4 pb-28 pt-40 text-center sm:px-6 lg:px-8">
-                <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/70 px-3 py-1 text-sm font-semibold text-blue-700 shadow-sm backdrop-blur">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600" /> Ra
-                    mắt bản Beta AI khuyến nghị OKR
-                </p>
+        <section className="relative overflow-hidden bg-gradient-to-br from-blue-100 via-blue-50 to-indigo-100">
+            <div className="absolute -left-32 -top-32 h-64 w-64 rounded-full bg-blue-300/50 blur-3xl" />
+            <div className="absolute -right-32 -bottom-32 h-64 w-64 rounded-full bg-indigo-300/50 blur-3xl" />
+            <div className="mx-auto w-full px-4 pb-32 pt-40 text-center sm:px-6 lg:px-8">
                 <h1 className="text-5xl font-extrabold leading-tight text-slate-900 sm:text-6xl">
-                    <GradientText>OKR hiện đại</GradientText> giúp đội ngũ tập
-                    trung và bứt phá
+                    <GradientText>OKR hiện đại</GradientText> giúp đội ngũ
+                    <br />
+                    tập trung và bứt phá
                 </h1>
                 <p className="mx-auto mt-6 max-w-4xl text-xl leading-9 text-slate-600">
                     Đặt mục tiêu rõ ràng, theo dõi kết quả theo thời gian thực
                     và cộng tác mượt mà. OKRun mang đến trải nghiệm OKR trực
                     quan, mạnh mẽ và dễ sử dụng.
                 </p>
+                
                 <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                     <a
-                        href="/signup"
+                        href="#features"
                         onClick={(e) => {
                             e.preventDefault();
-                            window.location.href = "/signup";
+                            const featuresSection = document.getElementById('features');
+                            if (featuresSection) {
+                                featuresSection.scrollIntoView({ behavior: 'smooth' });
+                            }
                         }}
-                        className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-4 text-lg font-semibold text-white shadow-lg transition hover:translate-y-[-1px] hover:shadow-xl"
+                        className="inline-flex items-center justify-center rounded-2xl border-2 border-slate-300 bg-white px-8 py-4 text-lg font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:border-slate-400"
                     >
-                        Dùng thử miễn phí
+                        Tìm hiểu thêm
                     </a>
-                    <button
-                        onClick={onShowFeatures}
-                        className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-4 text-lg font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                    >
-                        Xem tính năng
-                    </button>
                 </div>
-                <div className="mt-7 flex items-center justify-center gap-4 text-sm text-slate-500">
-                    <div className="flex items-center gap-1">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" />{" "}
-                        99.9% uptime
-                    </div>
-                    <div>|</div>
-                    <div>Bảo mật theo tiêu chuẩn OAuth2/OIDC</div>
-                </div>
-            </div>
-        </section>
-    );
-}
 
-function Section({ id, title, children }) {
-    return (
-        <section id={id} className="bg-white">
-            <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-                <div className="mx-auto max-w-2xl text-center">
-                    <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-                        {title}
-                    </h2>
+                <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-sm text-slate-600">
+                    <div className="flex items-center gap-2">
+                        <svg className="h-5 w-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span>Bảo mật OAuth2/OIDC</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <svg className="h-5 w-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span>Triển khai nhanh chóng</span>
+                    </div>
                 </div>
-                <div className="mt-10">{children}</div>
             </div>
         </section>
     );
 }
 
 function Features() {
-    const items = [
+    const features = [
         {
-            title: "Theo dõi tiến độ",
-            desc: "Biểu đồ trực quan và báo cáo chi tiết giúp bám sát mục tiêu.",
+            title: "Quản lý OKR thông minh",
+            desc: "Thiết lập và theo dõi Objectives cùng Key Results với cấu trúc phân cấp rõ ràng. Hỗ trợ liên kết OKR giữa các cấp độ và workflow phê duyệt.",
             icon: (
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                >
-                    <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7 -4h4v18h-4V3z" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
             ),
             color: "from-blue-600 to-indigo-600",
         },
         {
-            title: "Cộng tác đội nhóm",
-            desc: "Phân quyền linh hoạt, bình luận và theo dõi hoạt động rõ ràng.",
+            title: "Báo cáo & Phân tích nâng cao",
+            desc: "Dashboard với biểu đồ trực quan. Snapshot để lưu trữ và so sánh báo cáo theo thời gian.",
             icon: (
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                >
-                    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13z" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
                 </svg>
             ),
             color: "from-emerald-600 to-teal-600",
         },
         {
-            title: "Đặt mục tiêu thông minh",
-            desc: "Thiết lập SMART và gợi ý OKR phù hợp theo dữ liệu lịch sử.",
+            title: "Check-in theo thời gian thực",
+            desc: "Cập nhật tiến độ và ghi chú check-in dễ dàng. Theo dõi lịch sử thay đổi, xu hướng hiệu suất và trạng thái OKR.",
             icon: (
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                >
-                    <path d="M11 2v20c-4.97-.5-9-4.78-9-10S6.03 2.5 11 2zm2 0c4.97.5 9 4.78 9 10s-4.03 9.5-9 10V2z" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
             ),
             color: "from-purple-600 to-fuchsia-600",
         },
+        {
+            title: "Thông báo thông minh",
+            desc: "Nhận thông báo real-time về cập nhật OKR, check-in và các hoạt động quan trọng. Quản lý thông báo dễ dàng và không bỏ lỡ thông tin quan trọng.",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+                </svg>
+            ),
+            color: "from-amber-600 to-orange-600",
+        },
+        {
+            title: "Quản lý tổ chức toàn diện",
+            desc: "Quản lý phòng ban phân cấp, người dùng và phân quyền linh hoạt. Hỗ trợ gán OKR, theo dõi trách nhiệm và mời thành viên mới.",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                </svg>
+            ),
+            color: "from-teal-600 to-cyan-600",
+        },
+        {
+            title: "Liên kết & Căn chỉnh OKR",
+            desc: "Liên kết OKR cấp dưới với cấp trên, hiển thị mối quan hệ và tác động giữa các mục tiêu. Đảm bảo toàn bộ tổ chức hướng về cùng một mục tiêu.",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+                </svg>
+            ),
+            color: "from-pink-600 to-rose-600",
+        },
     ];
+
     return (
-        <Section id="features" title="Tính năng nổi bật">
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {items.map((f, i) => (
-                    <div
-                        key={i}
-                        className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-                    >
+        <section id="features" className="bg-white py-20">
+            <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div className="text-center mb-12">
+                    <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">
+                        Tính năng nổi bật
+                    </h2>
+                    <p className="mt-4 text-lg text-slate-600">
+                        Tất cả công cụ bạn cần để quản lý OKR hiệu quả
+                    </p>
+                </div>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {features.map((feature, index) => (
                         <div
-                            className={`mb-4 inline-flex rounded-xl bg-gradient-to-br ${f.color} p-3 text-white shadow`}
+                            key={index}
+                            className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
                         >
-                            {f.icon}
+                            <div
+                                className={`mb-4 inline-flex rounded-xl bg-gradient-to-br ${feature.color} p-3 text-white shadow`}
+                            >
+                                {feature.icon}
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 mb-2">
+                                {feature.title}
+                            </h3>
+                            <p className="text-sm text-slate-600 leading-relaxed">
+                                {feature.desc}
+                            </p>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900">
-                            {f.title}
-                        </h3>
-                        <p className="mt-2 text-slate-600">{f.desc}</p>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
-        </Section>
+        </section>
     );
 }
 
-function Pricing() {
+function Benefits() {
+    const benefits = [
+        {
+            title: "Tăng năng suất đội ngũ",
+            desc: "Tập trung vào mục tiêu quan trọng, loại bỏ công việc không cần thiết và tăng hiệu quả làm việc lên đến 50%.",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                </svg>
+            ),
+            color: "from-blue-600 to-indigo-600",
+        },
+        {
+            title: "Minh bạch và trách nhiệm",
+            desc: "Mọi thành viên đều thấy rõ mục tiêu, tiến độ và trách nhiệm của mình. Tạo môi trường làm việc minh bạch và hiệu quả.",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+            ),
+            color: "from-emerald-600 to-teal-600",
+        },
+        {
+            title: "Quyết định dựa trên dữ liệu",
+            desc: "Báo cáo chi tiết và phân tích xu hướng giúp lãnh đạo đưa ra quyết định nhanh chóng và chính xác dựa trên dữ liệu thực tế.",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+                </svg>
+            ),
+            color: "from-purple-600 to-fuchsia-600",
+        },
+        {
+            title: "Dễ triển khai và sử dụng",
+            desc: "Giao diện trực quan, dễ sử dụng. Hỗ trợ đầy đủ tài liệu và hướng dẫn. Triển khai nhanh chóng, không cần đào tạo phức tạp.",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"/>
+                </svg>
+            ),
+            color: "from-amber-600 to-orange-600",
+        },
+    ];
+
     return (
-        <Section id="pricing" title="Gói giá">
-            <div className="grid gap-6 md:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-                    <h3 className="text-xl font-bold text-slate-900">
-                        Starter
-                    </h3>
-                    <p className="mt-2 text-slate-600">
-                        Dành cho nhóm nhỏ, thử nghiệm OKR.
+        <section className="bg-gradient-to-br from-slate-50 to-blue-50 py-20">
+            <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div className="text-center mb-12">
+                    <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">
+                        Lợi ích khi sử dụng OKRun
+                    </h2>
+                    <p className="mt-4 text-lg text-slate-600">
+                        Tại sao tổ chức nên tin tưởng OKRun?
                     </p>
-                    <div className="mt-4 text-3xl font-extrabold">0đ</div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-                    <h3 className="text-xl font-bold text-slate-900">Pro</h3>
-                    <p className="mt-2 text-slate-600">
-                        Tính năng đầy đủ, hỗ trợ triển khai.
-                    </p>
-                    <div className="mt-4 text-3xl font-extrabold">Liên hệ</div>
+                <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+                    {benefits.map((benefit, index) => (
+                        <div
+                            key={index}
+                            className="text-center"
+                        >
+                            <div
+                                className={`mx-auto mb-4 inline-flex rounded-2xl bg-gradient-to-br ${benefit.color} p-4 text-white shadow-lg`}
+                            >
+                                {benefit.icon}
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 mb-2">
+                                {benefit.title}
+                            </h3>
+                            <p className="text-sm text-slate-600 leading-relaxed">
+                                {benefit.desc}
+                            </p>
+                        </div>
+                    ))}
                 </div>
             </div>
-        </Section>
+        </section>
     );
 }
 
 function Footer() {
     return (
-        <footer id="contact" className="border-t border-slate-200 bg-white">
-            <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
-                <div>
-                    <div className="flex items-center gap-2">
-                        <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2 rounded-xl">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-5 w-5 text-white"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                            >
-                                <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
-                            </svg>
+        <footer id="contact" className="bg-white w-full border-t border-slate-200">
+            <div className="mx-auto w-full px-4 py-4 sm:px-6 lg:px-8">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+                    <div className="flex flex-col text-center sm:text-left">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                            <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-1.5 rounded-lg flex-shrink-0">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-4 w-4 text-white"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                >
+                                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+                                </svg>
+                            </div>
+                            <span className="text-base font-extrabold text-slate-900">
+                                OKRun
+                            </span>
                         </div>
-                        <span className="text-lg font-extrabold text-slate-900">
-                            OKRun
-                        </span>
+                        <p className="text-center text-xs text-slate-600 leading-relaxed">
+                            Phần mềm OKR hiện đại cho mọi quy mô tổ chức.
+                        </p>
                     </div>
-                    <p className="mt-3 text-sm text-slate-600">
-                        Phần mềm OKR hiện đại cho mọi quy mô tổ chức.
-                    </p>
+                    <div className="flex flex-col text-center sm:text-left">
+                        <h4 className="text-center text-xs font-bold text-slate-900 mb-2">Hỗ trợ</h4>
+                        <ul className="space-y-1.5 text-center text-xs text-slate-600">
+                            <li>
+                                <a
+                                    className="hover:text-blue-600 transition-colors"
+                                    href="/auth/forgot"
+                                >
+                                    Quên mật khẩu
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    className="hover:text-blue-600 transition-colors"
+                                    href="/signup"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        window.location.href = "/signup";
+                                    }}
+                                >
+                                    Đăng ký
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div className="flex flex-col text-center sm:text-left">
+                        <h4 className="text-center text-xs font-bold text-slate-900 mb-2">
+                            Liên hệ
+                        </h4>
+                        <ul className="space-y-1.5 text-center text-xs text-slate-600">
+                            <li>Email: support@okrun.app</li>
+                            <li>Hotline: 0123 456 789</li>
+                        </ul>
+                    </div>
                 </div>
-                <div>
-                    <h4 className="text-sm font-bold text-slate-900">
-                        Sản phẩm
-                    </h4>
-                    <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                        <li>
-                            <a className="hover:text-blue-600" href="#features">
-                                Tính năng
-                            </a>
-                        </li>
-                        <li>
-                            <a className="hover:text-blue-600" href="#pricing">
-                                Giá
-                            </a>
-                        </li>
-                    </ul>
+                <div className="mt-6 pt-4 text-center text-xs text-slate-700">
+                    © {new Date().getFullYear()} OKRun. All rights reserved.
                 </div>
-                <div>
-                    <h4 className="text-sm font-bold text-slate-900">Hỗ trợ</h4>
-                    <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                        <li>
-                            <a
-                                className="hover:text-blue-600"
-                                href="/auth/forgot"
-                            >
-                                Quên mật khẩu
-                            </a>
-                        </li>
-                        <li>
-                            <a
-                                className="hover:text-blue-600"
-                                href="/signup"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    window.location.href = "/signup";
-                                }}
-                            >
-                                Đăng ký
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 className="text-sm font-bold text-slate-900">
-                        Liên hệ
-                    </h4>
-                    <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                        <li>Email: support@okrun.app</li>
-                        <li>Hotline: 0123 456 789</li>
-                    </ul>
-                </div>
-            </div>
-            <div className="border-t border-slate-200 py-4 text-center text-xs text-slate-500">
-                © {new Date().getFullYear()} OKRun. All rights reserved.
             </div>
         </footer>
     );
@@ -432,6 +447,10 @@ export default function App() {
         else if (p.startsWith("/cycles")) content = <CyclesPanel />;
         else if (p.startsWith("/departments")) content = <DepartmentsPanel />;
         else if (p.startsWith("/my-objectives")) content = <ObjectivesPage />;
+        else if (p.startsWith("/company-okrs/detail/kr/"))
+            content = <KeyResultDetailPage />;
+        else if (p.startsWith("/company-okrs/detail/"))
+            content = <ObjectiveDetailPage />;
         else if (p.startsWith("/company-okrs"))
             content = <CompanyOkrList currentUser={user} />;
         else if (p.startsWith("/profile")) content = <ProfilePage />;
@@ -446,34 +465,29 @@ export default function App() {
         return <DashboardLayout user={user}>{content}</DashboardLayout>;
     }
 
-    const [activeTab, setActiveTab] = useState(() =>
-        window.location.hash === "#features"
-            ? "features"
-            : window.location.hash === "#pricing"
-            ? "pricing"
-            : "home"
-    );
-    useEffect(() => {
-        if (activeTab === "features" || activeTab === "pricing") {
-            const id = activeTab;
-            setTimeout(() => {
-                const el = document.getElementById(id);
-                if (el)
-                    el.scrollIntoView({ behavior: "smooth", block: "start" });
-            }, 0);
-        } else if (activeTab === "home") {
-            window.history.pushState({}, "", "/");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        }
-    }, [activeTab]);
+    // Render landing page only for /home route
+    if (p === "/home" || p === "/") {
+        return (
+            <div className="min-h-screen flex flex-col bg-white text-slate-900">
+                <NavBar />
+                <main className="flex-1">
+                    <Hero />
+                    <Features />
+                    <Benefits />
+                </main>
+                <Footer />
+            </div>
+        );
+    }
 
+    // Default: redirect to home if route not found
     return (
         <div className="min-h-screen flex flex-col bg-white text-slate-900">
-            <NavBar activeTab={activeTab} onChangeTab={setActiveTab} />
+            <NavBar />
             <main className="flex-1">
-                <Hero onShowFeatures={() => setActiveTab("features")} />
-                {activeTab === "features" && <Features />}
-                {activeTab === "pricing" && <Pricing />}
+                <Hero />
+                <Features />
+                <Benefits />
             </main>
             <Footer />
         </div>

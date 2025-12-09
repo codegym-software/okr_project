@@ -75,6 +75,15 @@ class Objective extends Model
     }
 
     /**
+     * Get the comments for the objective.
+     * Only retrieve top-level comments (not replies).
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(Comment::class, 'objective_id', 'objective_id')->whereNull('parent_id');
+    }
+
+    /**
      * Get OKR links where this objective is the source
      */
     public function sourceLinks()
@@ -229,15 +238,22 @@ class Objective extends Model
     {
         $array = parent::toArray();
         
-        // Ensure key_results exists (Laravel camelCase -> snake_case conversion)
-        if (isset($array['key_results'])) {
-            // Already has key_results, good
-        } elseif ($this->relationLoaded('keyResults')) {
-            // Has keyResults relationship loaded, convert to key_results
-            $array['key_results'] = $this->keyResults->toArray();
-        } else {
-            // No relationship loaded, set empty array
-            $array['key_results'] = [];
+        // Ensure key_results exists
+        if (!array_key_exists('key_results', $array)) {
+            if ($this->relationLoaded('keyResults')) {
+                $array['key_results'] = $this->keyResults->toArray();
+            } else {
+                $array['key_results'] = [];
+            }
+        }
+
+        // Ensure comments exists
+        if (!array_key_exists('comments', $array)) {
+            if ($this->relationLoaded('comments')) {
+                $array['comments'] = $this->comments->toArray();
+            } else {
+                $array['comments'] = [];
+            }
         }
         
         return $array;

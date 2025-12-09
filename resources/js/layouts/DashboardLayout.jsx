@@ -340,7 +340,7 @@ export default function DashboardLayout({ children, user }) {
                 method: "POST",
                 headers: { "X-CSRF-TOKEN": token },
             });
-            window.location.href = "/landingpage";
+            window.location.href = "/login";
         } catch (e) {
             console.error(e);
         }

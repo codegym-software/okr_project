@@ -42,7 +42,7 @@ class ReportSnapshotController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Đã chốt sổ báo cáo thành công!',
+            'message' => 'Đã tạo báo cáo thành công!',
             'data' => $snapshot->load(['cycle', 'creator'])
         ], 201);
     }

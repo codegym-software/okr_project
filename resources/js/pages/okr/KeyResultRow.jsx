@@ -1,6 +1,6 @@
 // src/components/okr/KeyResultRow.jsx
 import React from "react";
-import { FaKey, FaBullseye, FaLink, FaLongArrowAltLeft } from "react-icons/fa";
+import { FaKey, FaBullseye, FaLink, FaLongArrowAltLeft, FaUserEdit } from "react-icons/fa";
 import { LuAlignCenterHorizontal } from "react-icons/lu";
 import LinkedChildObjectiveRow from "./LinkedChildObjectiveRow";
 import KRActionsMenu from "./KRActionsMenu";
@@ -38,8 +38,7 @@ export default function KeyResultRow({
         return (
             <>
                 <tr className="bg-white hover:bg-slate-50/70 transition-colors duration-150">
-                    {/* Cột Tiêu đề */}
-                    <td className="px-8 py-3 border-r border-slate-200">
+<td className="pl-12 pr-4 py-3">
                         <div className="flex items-center gap-2">
                             <div className="w-6 h-6 flex items-center justify-center">
                                 {kr.key_results?.length > 0 && (
@@ -75,7 +74,7 @@ export default function KeyResultRow({
                             </div>
                             <div className="truncate flex items-center gap-1">
                                 <FaBullseye
-                                    className="h-3 w-3 text-indigo-500 flex-shrink-0"
+                                    className="h-5 w-5 text-indigo-500 flex-shrink-0"
                                     title="OKR được liên kết"
                                 />
                                 <span className="font-semibold text-slate-900 text-lg">
@@ -90,9 +89,9 @@ export default function KeyResultRow({
                         </div>
                     </td>
                     {/* Cột Người thực hiện (Trống) */}
-                    <td className="px-3 py-3 text-center border-r border-slate-200"></td>
+                    <td className="px-3 py-3 text-center"></td>
                     {/* Cột Tiến độ (Trống) */}
-                    <td className="px-3 py-3 text-center border-r border-slate-200"></td>
+                    <td className="px-3 py-3 text-center"></td>
                     {/* Cột Hành động */}
                     <td className="px-3 py-3 text-center">
                         <button
@@ -136,7 +135,7 @@ export default function KeyResultRow({
                                 key={`source_kr_${sourceKr.kr_id}`}
                                 className="bg-white"
                             >
-                                <td className="pl-18 pr-8 py-3 border-r border-slate-200 text-base text-slate-800">
+                                <td className="pl-20 pr-8 py-3 text-base text-slate-800">
                                     <div className="flex items-center gap-2">
                                         <FaKey
                                             className="h-4 w-4 text-amber-600 flex-shrink-0"
@@ -147,7 +146,7 @@ export default function KeyResultRow({
                                         </span>
                                     </div>
                                 </td>
-                                <td className="px-3 py-3 text-center border-r border-slate-200">
+                                <td className="px-3 py-3 text-center">
                                     {info.name ? (
                                         <div
                                             className="flex items-center justify-center gap-2 cursor-pointer"
@@ -182,10 +181,9 @@ export default function KeyResultRow({
                                             Chưa giao
                                         </span>
                                     )}
-                                </td>
-
-                                <td className="px-3 py-3 text-center border-r border-slate-200">
-                                    <div className="flex flex-col items-center">
+                                                </td>
+                                
+                                                <td className="px-3 py-3 text-center">                                    <div className="flex flex-col items-center">
                                         <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
                                             <div
                                                 className={`h-full rounded-full absolute left-0 ${
@@ -237,7 +235,7 @@ export default function KeyResultRow({
                 className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
                 data-kr-id={kr.kr_id}
             >
-                <td className="px-8 py-3 border-r border-slate-200">
+                <td className="pl-12 pr-4 py-3">
                     <div className="flex items-center gap-2">
                         <div className="w-6 flex-shrink-0">
                             {hasLinkedChildren && (
@@ -274,13 +272,12 @@ export default function KeyResultRow({
                             title="Key Result"
                         />
 
-                        <span className="font-semibold text-slate-900 text-base">
+                        <a href={`/company-okrs/detail/kr/${kr.kr_id}`} className="font-semibold text-slate-900 text-base hover:text-blue-600 hover:underline">
                             {kr.kr_title}
-                        </span>
-                    </div>
-                </td>
-
-                <td className="px-3 py-3 text-center border-r border-slate-200">
+                        </a>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-center">
                     {kr.assigned_to ? (
                         <div
                             className="flex items-center justify-center gap-2 cursor-pointer"
@@ -315,7 +312,8 @@ export default function KeyResultRow({
                     )}
                 </td>
 
-                <td className="px-3 py-3 text-center border-r border-slate-200">
+
+                <td className="px-3 py-3 text-center">
                     <div className="flex flex-col items-center">
                         <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
                             <div
@@ -386,9 +384,7 @@ export default function KeyResultRow({
                                 title="Giao việc"
                                 disabled={disableActions}
                             >
-                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" />
-                                </svg>
+                                <FaUserEdit className="h-4 w-4" />
                             </button>
                             {canCheckInKR && canCheckInKR(kr) && openCheckInModal && (
                                 <button
@@ -422,31 +418,43 @@ export default function KeyResultRow({
                         </div>
                     ) : (
                         <div className="flex items-center justify-end gap-1">
+                            {canCheckInKR(kr) && openCheckInModal && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openCheckInModal({
+                                            ...kr,
+                                            objective_id: objective.objective_id,
+                                        });
+                                    }}
+                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Check-in"
+                                    disabled={disableActions}
+                                >
+                                    <svg
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M5 13l4 4L19 7"
+                                        />
+                                    </svg>
+                                </button>
+                            )}
                             <button
                                 onClick={() => setAssignModal({ show: true, kr, objective, email: "", loading: false })}
                                 className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Giao việc"
                                 disabled={disableActions}
                             >
-                                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" />
-                                </svg>
+
+                                <FaUserEdit className="h-4 w-4" />
                             </button>
-                            {canCheckInKR && canCheckInKR(kr) && openCheckInModal && (
-                                <button
-                                    onClick={() => openCheckInModal({
-                                        ...kr,
-                                        objective_id: objective.objective_id,
-                                    })}
-                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Check-in"
-                                    disabled={disableActions}
-                                >
-                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </button>
-                            )}
                             <KRActionsMenu
                                 kr={kr}
                                 objective={objective}

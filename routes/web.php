@@ -19,14 +19,15 @@ use Illuminate\Support\Facades\File;
 use App\Http\Controllers\LinkController;
 
 
-Route::get('/', function () {
+// Landing Page
+Route::get('/home', function () {
     return view('app');
-});
+})->name('home');
 
-// Landing Page - hiển thị nút đăng nhập
-Route::get('/landingpage', function () {
-    return view('app');
-})->name('landingpage');
+// Redirect root to home
+Route::get('/', function () {
+    return redirect('/home');
+});
 
 Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () {
     // Route xác thực - Sử dụng giao diện riêng (không qua Cognito Hosted UI)
@@ -129,6 +130,19 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     Route::get('/api/reports/progress-trend', [App\Http\Controllers\ReportController::class, 'getTeamProgressTrend'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.progress-trend');
     Route::post('/api/reports/remind', [App\Http\Controllers\ReportController::class, 'remindMember'])->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->name('api.reports.remind');
 
+    // Routes cho Report Manager (Báo cáo quản lý phòng ban)
+    Route::get('/reports/manager', function() { return view('app'); })
+        ->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])
+        ->name('reports.manager');
+    Route::prefix('api/reports/manager')->middleware(['auth', \App\Http\Middleware\ManagerOnly::class])->group(function () {
+        Route::get('/team-okrs', [\App\Http\Controllers\ReportManagerController::class, 'getTeamOkrs'])
+            ->name('api.reports.manager.team-okrs');
+        Route::get('/check-in-history/{objectiveId}/{krId}', [\App\Http\Controllers\ReportManagerController::class, 'getCheckInHistory'])
+            ->name('api.reports.manager.check-in-history');
+        Route::get('/export.pdf', [\App\Http\Controllers\ReportManagerController::class, 'exportPdf'])
+            ->name('api.reports.manager.export.pdf');
+    });
+
     // Routes cho Profile - trả về React app
     Route::get('/profile', function () {
         return view('app');
@@ -171,6 +185,41 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
                 ->name('users.index')
                 ->middleware(\App\Http\Middleware\RestrictToAdminOrUnitManager::class);
 
+    // Route::get('/users2', [UserController::class, 'index2']);
+
+    // // Objectives Routes
+    // Route::resource('objectives', ObjectiveController::class);
+    // // Route::get('/dashboard', [ObjectiveController::class, 'dashboard'])->name('dashboard');
+
+    // // Key Results Routes
+    // Route::get('/objectives/{objective}/key-results', 
+    // [KeyResultController::class, 'index'])
+    // ->name('key_results.index');
+
+    // Route::get('/objectives/{objective}/key-results/{key_result}', 
+    // [KeyResultController::class, 'show'])
+    // ->whereNumber('key_result')
+    // ->name('key_results.show');
+
+    // // Form tạo mới Key Result
+    // Route::get('/objectives/{objective}/key-results/create',
+    //     [KeyResultController::class, 'create']
+    // )->name('key_results.create');
+
+    // // Lưu Key Result
+    // Route::post('/objectives/{objective}/key-results',
+    //     [KeyResultController::class, 'store']
+    // )->name('key_results.store');
+
+    // // Cập nhật Key Result
+    // Route::put('/objectives/{objective}/key-results/{kr}',
+    //     [KeyResultController::class, 'update']
+    // )->name('key_results.update');
+
+    // Route::delete('/objectives/{objective}/key-results/{kr}',
+    //     [KeyResultController::class, 'destroy']
+    // )->name('key_results.destroy');
+
     Route::prefix('my-objectives')->group(function () {
         Route::get('/', [MyObjectiveController::class, 'index'])
             ->middleware('auth')
@@ -199,6 +248,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
             ->middleware('auth')
             ->name('my-objectives.getAllowedLevelsApi');
+        Route::get('/check-in-reminders', [MyObjectiveController::class, 'getCheckInReminders'])
+            ->middleware('auth')
+            ->name('my-objectives.check-in-reminders');
         Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
             ->middleware('auth')
             ->name('my-objectives.user-levels');
@@ -246,11 +298,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         ->middleware('auth')
         ->name('company.okrs.show');
 
-    // Archived OKRs Route - returns React app for frontend routing
-    Route::get('/archived-okrs', function () {
-        return view('app');
-    })->middleware('auth')->name('archived.okrs');
-
     // Check-in Routes
     Route::prefix('check-in')->middleware('auth')->group(function () {
         Route::get('/{objectiveId}/{krId}', [CheckInController::class, 'create'])->name('check-in.create');
@@ -264,6 +311,15 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/{objectiveId}/{krId}/history', [CheckInController::class, 'getHistory'])->name('api.check-in.history');
     });
 
+    // Notifications API
+    Route::prefix('api/notifications')->middleware('auth')->group(function () {
+        Route::get('/', [\App\Http\Controllers\NotificationController::class, 'index'])->name('api.notifications.index');
+        Route::get('/unread-count', [\App\Http\Controllers\NotificationController::class, 'unreadCount'])->name('api.notifications.unread-count');
+        Route::post('/{notificationId}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('api.notifications.mark-as-read');
+        Route::post('/mark-all-read', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('api.notifications.mark-all-read');
+        Route::delete('/{notificationId}', [\App\Http\Controllers\NotificationController::class, 'destroy'])->name('api.notifications.destroy');
+    });
+
     // Reports API (Admin hoặc CEO)
     Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])->group(function () {
         Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
@@ -272,12 +328,22 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.okr-company');
         Route::get('/okr-company/export.csv', [\App\Http\Controllers\ReportController::class, 'exportCompanyOkrCsv'])
             ->name('api.reports.okr-company.export.csv');
-        Route::post('/snapshot', [\App\Http\Controllers\ReportSnapshotController::class, 'store'])
-            ->name('api.reports.snapshot.store');
-        Route::get('/snapshots', [\App\Http\Controllers\ReportSnapshotController::class, 'index'])
-            ->name('api.reports.snapshots.index');
-        Route::get('/snapshots/{id}', [\App\Http\Controllers\ReportSnapshotController::class, 'show'])
+        Route::get('/okr-company/export.pdf', [\App\Http\Controllers\ReportController::class, 'exportCompanyOkrPdf'])
+            ->name('api.reports.okr-company.export.pdf');
+        Route::get('/okr-company/by-department', [\App\Http\Controllers\ReportController::class, 'getOkrsByDepartment'])
+            ->name('api.reports.okr-company.by-department');
+    });
+
+    // Report Snapshots API - Tạo và quản lý snapshot báo cáo
+    Route::prefix('api/reports/snapshots')->middleware('auth')->group(function () {
+        Route::post('/create', [\App\Http\Controllers\ReportController::class, 'createSnapshot'])
+            ->name('api.reports.snapshots.create');
+        Route::get('/list', [\App\Http\Controllers\ReportController::class, 'getReportsList'])
+            ->name('api.reports.snapshots.list');
+        Route::get('/{reportId}', [\App\Http\Controllers\ReportController::class, 'getReportSnapshot'])
             ->name('api.reports.snapshots.show');
+        Route::delete('/{reportId}', [\App\Http\Controllers\ReportController::class, 'deleteReport'])
+            ->name('api.reports.snapshots.delete');
     });
 
     // Frontend page route for Reports (SPA) - Admin hoặc CEO
@@ -299,17 +365,29 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::post('/{link}/cancel', [LinkController::class, 'cancel'])->middleware('auth')->name('my-links.cancel');
     });
 
-    // OKR Tree View
-    Route::prefix('api/okr-tree')->middleware('auth')->group(function () {
-        Route::get('/company-objectives', [App\Http\Controllers\OkrTreeController::class, 'getCompanyObjectives'])->name('api.okr-tree.company-objectives');
-        Route::get('/', [App\Http\Controllers\OkrTreeController::class, 'index'])->name('api.okr-tree.index');
-        Route::get('/{objectiveId}', [App\Http\Controllers\OkrTreeController::class, 'show'])->name('api.okr-tree.show');
+    // All Links API
+    Route::prefix('api/links')->middleware('auth')->group(function () {
+        Route::get('/', [LinkController::class, 'getAllLinks'])->name('api.links.index');
     });
 
-    // Frontend page route for OKR Tree View
-    Route::get('/okr-tree', function() { return view('app'); })
+    // Comment Routes
+    Route::prefix('api')->middleware('auth')->group(function () {
+        Route::post('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'store'])->name('api.comments.store');
+        Route::get('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'index'])->name('api.comments.index');
+        Route::post('/company-okrs/detail/kr/{kr_id}/comments', [App\Http\Controllers\CommentController::class, 'storeForKr'])->name('api.kr-comments.store');
+        Route::get('/company-okrs/detail/kr/{id}', [App\Http\Controllers\KeyResultController::class, 'getDetails'])->name('api.key-results.details');
+    });
+
+
+    // Frontend page route for Archived OKRs
+    Route::get('/archived-okrs', function() { return view('app'); })
         ->middleware('auth')
-        ->name('okr-tree');
+        ->name('archived-okrs');
+
+    // Catch-all route for frontend routing (must be last)
+    Route::get('/{any}', function () {
+        return view('app');
+    })->where('any', '.*')->middleware('auth');
 
 });
 

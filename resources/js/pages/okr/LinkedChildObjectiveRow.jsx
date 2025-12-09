@@ -23,7 +23,7 @@ export default function LinkedChildObjectiveRow({
         <>
             <tr className="bg-white">
                 {/* Cột Tiêu đề */}
-                <td className="px-13 py-3 border-r border-slate-200">
+                <td className="pl-20 pr-4 py-3">
                     <div className="flex items-center gap-1">
                         {hasKRs && (
                             <button
@@ -56,7 +56,7 @@ export default function LinkedChildObjectiveRow({
                             </button>
                         )}
                         <FaBullseye
-                            className="h-3 w-3 text-indigo-500 flex-shrink-0"
+                            className="h-5 w-5 text-indigo-500 flex-shrink-0"
                             title="Objective được liên kết"
                         />
                         <span className="font-semibold text-slate-900 text-lg">
@@ -70,11 +70,11 @@ export default function LinkedChildObjectiveRow({
                     </div>
                 </td>
                 {/* Cột Người thực hiện (empty) */}
-                <td className="px-3 py-3 text-center border-r border-slate-200">
+                <td className="px-3 py-3 text-center">
                     {/* Giữ trống */}
                 </td>
                 {/* Cột Tiến độ (empty) */}
-                <td className="px-3 py-3 text-center border-r border-slate-200">
+                <td className="px-3 py-3 text-center">
                     {/* Giữ trống */}
                 </td>
                 {/* Cột Hành động */}
@@ -121,7 +121,7 @@ export default function LinkedChildObjectiveRow({
                     const userInfo = getAssigneeInfo(kr);
                     return (
                         <tr key={kr.kr_id} className="bg-white">
-                            <td className="pl-23 py-3 border-r border-slate-200">
+                            <td className="pl-32 pr-4 py-3">
                                 <div className="flex items-center gap-2">
                                     <FaKey
                                         className="h-4 w-4 text-amber-600 flex-shrink-0"
@@ -132,7 +132,7 @@ export default function LinkedChildObjectiveRow({
                                     </span>
                                 </div>
                             </td>
-                            <td className="px-3 py-3 text-center border-r border-slate-200">
+                            <td className="px-3 py-3 text-center">
                                 {kr.assigned_to ? (
                                     <div className="flex items-center justify-center gap-2">
                                         {userInfo.avatar ? (
@@ -157,7 +157,7 @@ export default function LinkedChildObjectiveRow({
                                 )}
                             </td>
 
-                            <td className="px-3 py-3 text200 text-center border-r border-slate-200">
+                            <td className="px-3 py-3 text200 text-center">
                                 <div className="flex flex-col items-center">
                                     <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
                                         <div

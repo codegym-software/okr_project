@@ -23,9 +23,7 @@ export default function AlignmentBadge({ link, onCancelLink }) {
 
     return (
         <span
-            className={`mt-1 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold ${
-                themes[status] || "bg-slate-100 text-slate-600"
-            }`}
+            className={`mt-1 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold`}
         >
             {status === "pending" && `Đang chờ duyệt: ${targetLabel}`}
             {status === "approved" && (
