@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from '@inertiajs/react';
 import { format, isToday, isYesterday, differenceInMinutes, differenceInHours } from 'date-fns';
-import { InformationCircleIcon, CalendarIcon, UserCircleIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, CalendarIcon, UserCircleIcon, DocumentTextIcon, BuildingOfficeIcon, TagIcon, ClockIcon, CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import OkrTreeCanvas from "../../components/okr/OkrTreeCanvas";
 import { mergeChildLinksIntoObjectives, buildTreeFromObjectives } from "../../utils/okrHierarchy";
 
@@ -46,79 +46,244 @@ const Tabs = ({ tabs, activeTab: controlledActiveTab, onTabChange }) => {
 
 const getStatusClass = (status) => {
     switch (status) {
-        case 'on_track': return 'bg-green-100 text-green-800';
-        case 'at_risk': return 'bg-yellow-100 text-yellow-800';
-        case 'behind': return 'bg-red-100 text-red-800';
-        default: return 'bg-gray-100 text-gray-800';
+        case 'active': return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+        case 'draft': return 'bg-gray-100 text-gray-800 border-gray-200';
+        case 'on_track': return 'bg-green-100 text-green-800 border-green-200';
+        case 'at_risk': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        case 'behind': return 'bg-red-100 text-red-800 border-red-200';
+        default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
 };
 
-const OverviewSection = ({ objective }) => (
-    <div>
-        <div className="mb-4">
-            <div className="flex justify-between items-center mb-1">
-                <span className="text-sm font-medium text-gray-700">Overall Progress</span>
-                <span className="text-lg font-bold text-blue-600">{objective.progress_percent}%</span>
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-5 relative overflow-hidden border border-slate-200">
-                <div className="bg-blue-600 h-5 rounded-full transition-all duration-300" style={{ width: `${Math.min(100, Math.max(0, objective.progress_percent || 0))}%` }}></div>
-            </div>
-        </div>
-        <div className="mt-4 border-t border-gray-200 pt-4">
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-                <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500 flex items-center">
-                        <CalendarIcon className="h-5 w-5 text-gray-400 mr-2" />
-                        Chu kỳ
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-900 ml-7">{objective.cycle?.cycle_name || 'N/A'}</dd>
-                </div>
-                <div className="sm:col-span-1">
-                    <dt className="text-sm font-medium text-gray-500 flex items-center">
-                        <UserCircleIcon className="h-5 w-5 text-gray-400 mr-2" />
-                        Chủ sở hữu
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-900 ml-7">{objective.user?.full_name || objective.department?.d_name || 'N/A'}</dd>
-                </div>
-                <div className="sm:col-span-2">
-                    <dt className="text-sm font-medium text-gray-500 flex items-center">
-                        <DocumentTextIcon className="h-5 w-5 text-gray-400 mr-2" />
-                        Mô tả
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap ml-7">{objective.description || 'Không có mô tả.'}</dd>
-                </div>
-            </dl>
-        </div>
-    </div>
-);
+const getStatusLabel = (status) => {
+    const labels = {
+        'active': 'Đang thực hiện',
+        'completed': 'Hoàn thành',
+        'draft': 'Nháp',
+        'on_track': 'Đúng tiến độ',
+        'at_risk': 'Có rủi ro',
+        'behind': 'Chậm tiến độ',
+    };
+    return labels[status] || status;
+};
 
-const KeyResultsSection = ({ keyResults, objective }) => (
-    <div className="space-y-4">
-        {keyResults?.length > 0 ? keyResults.map(kr => (
-            <div key={kr.kr_id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-200">
-                <div className="flex justify-between items-center mb-2">
-                    <a href={objective?.level === "person" 
-                        ? `/my-objectives/key-result-details/${kr.kr_id}`
-                        : `/company-okrs/detail/kr/${kr.kr_id}`} 
-                        className="font-semibold text-gray-900 hover:text-blue-600 transition-colors">{kr.kr_title}</a>
-                    <span className="text-base font-bold text-gray-800">{kr.progress_percent}%</span>
+const getLevelClass = (level) => {
+    switch (level) {
+        case 'company': return 'bg-purple-100 text-purple-800 border-purple-200';
+        case 'unit': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+        case 'team': return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'person': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+};
+
+const getLevelLabel = (level) => {
+    const labels = {
+        'company': 'Công ty',
+        'unit': 'Phòng ban',
+        'team': 'Team',
+        'person': 'Cá nhân',
+    };
+    return labels[level] || level;
+};
+
+const OverviewSection = ({ objective }) => {
+    return (
+        <div>
+            {/* Overall Progress */}
+            <div className="mb-4">
+                <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+                    <span className="text-lg font-bold text-gray-900">{objective.progress_percent}%</span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-4 relative overflow-hidden border border-slate-200">
-                    <div className={`h-4 rounded-full transition-all duration-300 ${
-                        kr.status === "completed"
-                            ? "bg-emerald-600"
-                            : kr.status === "active"
-                            ? "bg-blue-600"
-                            : "bg-slate-500"
-                    }`} style={{ width: `${Math.min(100, Math.max(0, kr.progress_percent || 0))}%` }}></div>
-                </div>
-                <div className="text-xs text-gray-600 mt-2">
-                    Owner: <span className="font-medium text-gray-800">{kr.assigned_user?.full_name || 'N/A'}</span>
+                <div className="w-full bg-slate-100 rounded-full h-5 relative overflow-hidden border border-slate-200">
+                    <div className="bg-blue-600 h-5 rounded-full transition-all duration-300" style={{ width: `${Math.min(100, Math.max(0, objective.progress_percent || 0))}%` }}></div>
                 </div>
             </div>
-        )) : <p className="text-gray-500">Không có Key Result nào.</p>}
-    </div>
-);
+
+            {/* Thông tin chi tiết */}
+            <div className="mt-4 border-t border-gray-200 pt-4">
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+                    {/* Hàng 1: Chủ sở hữu | Cấp độ */}
+                    <div className="sm:col-span-1">
+                        <dt className="text-sm font-medium text-gray-500 flex items-center">
+                            <UserCircleIcon className="h-5 w-5 text-gray-400 mr-2" />
+                            Chủ sở hữu
+                        </dt>
+                        <dd className="mt-1 text-sm text-gray-900 ml-7">{objective.user?.full_name || objective.department?.d_name || 'N/A'}</dd>
+                    </div>
+                    {objective.level && (
+                        <div className="sm:col-span-1">
+                            <dt className="text-sm font-medium text-gray-500 flex items-center">
+                                <BuildingOfficeIcon className="h-5 w-5 text-gray-400 mr-2" />
+                                Cấp độ
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900 ml-7">{getLevelLabel(objective.level)}</dd>
+                        </div>
+                    )}
+                    
+                    {/* Hàng 2: Chu kỳ | Mô tả */}
+                    <div className="sm:col-span-1">
+                        <dt className="text-sm font-medium text-gray-500 flex items-center">
+                            <CalendarIcon className="h-5 w-5 text-gray-400 mr-2" />
+                            Chu kỳ
+                        </dt>
+                        <dd className="mt-1 text-sm text-gray-900 ml-7">{objective.cycle?.cycle_name || 'N/A'}</dd>
+                    </div>
+                    <div className="sm:col-span-1">
+                        <dt className="text-sm font-medium text-gray-500 flex items-center">
+                            <DocumentTextIcon className="h-5 w-5 text-gray-400 mr-2" />
+                            Mô tả
+                        </dt>
+                        <dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap ml-7">{objective.description || 'Không có mô tả.'}</dd>
+                    </div>
+                    
+                    {/* Hàng 3: Ngày tạo | Cập nhật lần cuối */}
+                    {objective.created_at && (
+                        <div className="sm:col-span-1">
+                            <dt className="text-sm font-medium text-gray-500 flex items-center">
+                                <ClockIcon className="h-5 w-5 text-gray-400 mr-2" />
+                                Ngày tạo
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900 ml-7">{format(new Date(objective.created_at), 'dd/MM/yyyy HH:mm')}</dd>
+                        </div>
+                    )}
+                    {objective.updated_at && (
+                        <div className="sm:col-span-1">
+                            <dt className="text-sm font-medium text-gray-500 flex items-center">
+                                <ClockIcon className="h-5 w-5 text-gray-400 mr-2" />
+                                Cập nhật lần cuối
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900 ml-7">{format(new Date(objective.updated_at), 'dd/MM/yyyy HH:mm')}</dd>
+                        </div>
+                    )}
+                    
+                    {/* Các trường bổ sung (nếu có) */}
+                    {objective.department && (
+                        <div className="sm:col-span-1">
+                            <dt className="text-sm font-medium text-gray-500 flex items-center">
+                                <BuildingOfficeIcon className="h-5 w-5 text-gray-400 mr-2" />
+                                Phòng ban
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900 ml-7">{objective.department.d_name || 'N/A'}</dd>
+                        </div>
+                    )}
+                    {objective.assignments && objective.assignments.length > 0 && (
+                        <div className="sm:col-span-1">
+                            <dt className="text-sm font-medium text-gray-500 flex items-center">
+                                <UserCircleIcon className="h-5 w-5 text-gray-400 mr-2" />
+                                Người được gán
+                            </dt>
+                            <dd className="mt-1 text-sm text-gray-900 ml-7">
+                                {objective.assignments.map((assignment, idx) => (
+                                    <span key={assignment.id || idx}>
+                                        {assignment.user?.full_name || 'N/A'}
+                                        {idx < objective.assignments.length - 1 && ', '}
+                                    </span>
+                                ))}
+                            </dd>
+                        </div>
+                    )}
+                </dl>
+            </div>
+        </div>
+    );
+};
+
+const KeyResultsSection = ({ keyResults, objective }) => {
+    const getUnitLabel = (unit) => {
+        const labels = {
+            'number': 'Số lượng',
+            'percent': 'Phần trăm',
+            'currency': 'Tiền tệ',
+            'completion': 'Hoàn thành',
+        };
+        return labels[unit] || unit;
+    };
+
+    const formatValue = (value, unit) => {
+        if (unit === 'currency') {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+        }
+        if (unit === 'percent') {
+            return `${value}%`;
+        }
+        return value?.toLocaleString('vi-VN') || '0';
+    };
+
+    return (
+        <div className="space-y-4">
+            {keyResults?.length > 0 ? keyResults.map(kr => {
+                const checkInCount = kr.check_ins?.length || 0;
+                return (
+                    <div key={kr.kr_id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-200">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <a href={objective?.level === "person" 
+                                        ? `/my-objectives/key-result-details/${kr.kr_id}`
+                                        : `/company-okrs/detail/kr/${kr.kr_id}`} 
+                                        className="font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+                                        {kr.kr_title}
+                                    </a>
+                                    {kr.status && (
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusClass(kr.status)}`}>
+                                            {getStatusLabel(kr.status)}
+                                        </span>
+                                    )}
+                                </div>
+                                {kr.unit && (
+                                    <div className="text-xs text-gray-500 mb-1">
+                                        Đơn vị: <span className="font-medium">{getUnitLabel(kr.unit)}</span>
+                                        {kr.target_value !== undefined && (
+                                            <span className="ml-2">
+                                                | Mục tiêu: <span className="font-medium">{formatValue(kr.target_value, kr.unit)}</span>
+                                            </span>
+                                        )}
+                                        {kr.current_value !== undefined && (
+                                            <span className="ml-2">
+                                                | Hiện tại: <span className="font-medium">{formatValue(kr.current_value, kr.unit)}</span>
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <span className="text-base font-bold text-gray-800 ml-2">{kr.progress_percent}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-4 relative overflow-hidden border border-slate-200 mb-2">
+                            <div className={`h-4 rounded-full transition-all duration-300 ${
+                                kr.status === "completed"
+                                    ? "bg-emerald-600"
+                                    : kr.status === "active"
+                                    ? "bg-blue-600"
+                                    : "bg-slate-500"
+                            }`} style={{ width: `${Math.min(100, Math.max(0, kr.progress_percent || 0))}%` }}></div>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-600">
+                            <div>
+                                Chủ sở hữu: <span className="font-medium text-gray-800">{kr.assigned_user?.full_name || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {checkInCount > 0 && (
+                                    <span className="text-gray-500">
+                                        <ClockIcon className="h-3 w-3 inline mr-1" />
+                                        {checkInCount} check-in
+                                    </span>
+                                )}
+                                {kr.created_at && (
+                                    <span className="text-gray-500">
+                                        Tạo: {format(new Date(kr.created_at), 'dd/MM/yyyy')}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }) : <p className="text-gray-500">Không có Key Result nào.</p>}
+        </div>
+    );
+};
 
 const AlignmentSection = ({ objective }) => (
     <div className="space-y-8">

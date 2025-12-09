@@ -135,6 +135,9 @@ class MyKeyResultController extends Controller
                     'assigned_to' => $finalAssignedTo,
                 ]);
                 
+                // Cập nhật updated_at của Objective khi tạo KR mới
+                $objective->touch();
+                
                 // Refresh để đảm bảo kr_id được load từ database
                 $keyResult->refresh();
 

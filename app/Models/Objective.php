@@ -215,14 +215,22 @@ class Objective extends Model
         }
 
         // Tính trung bình
-        if (empty($progressList)) {
-            $this->attributes['progress_percent'] = 0;
-        } else {
+        $newProgress = 0;
+        if (!empty($progressList)) {
             $avgProgress = array_sum($progressList) / count($progressList);
-            $this->attributes['progress_percent'] = round($avgProgress, 2);
+            $newProgress = round($avgProgress, 2);
         }
         
-        return $this->save();
+        // Chỉ cập nhật progress_percent, không cập nhật updated_at
+        // Sử dụng DB::table để update trực tiếp mà không trigger timestamps
+        \DB::table('objectives')
+            ->where('objective_id', $this->objective_id)
+            ->update(['progress_percent' => $newProgress]);
+        
+        // Cập nhật attribute trong model để đồng bộ
+        $this->attributes['progress_percent'] = $newProgress;
+        
+        return true;
     }
 
 

@@ -315,6 +315,8 @@ class MyObjectiveController extends Controller
                             'user_id' => $user->user_id, 
                         ]);
                     }
+                    // Cập nhật updated_at của Objective khi tạo KR mới
+                    $objective->touch();
                 }
 
                 // Gán người dùng
