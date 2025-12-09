@@ -52,9 +52,10 @@ class CommentController extends Controller
         $commenterName = Auth::user()->full_name ?? Auth::user()->email;
         $objTitle = $objective->obj_title;
         $isMyObjective = request()->header('Referer') && str_contains(request()->header('Referer'), '/my-objectives/');
+        // Chỉ lưu path và query params, không lưu domain để bảo mật
         $actionUrl = $isMyObjective 
-            ? config('app.url') . "/my-objectives/details/{$objective->objective_id}?tab=history"
-            : config('app.url') . "/company-okrs/detail/{$objective->objective_id}?tab=history";
+            ? "/my-objectives/details/{$objective->objective_id}?tab=history"
+            : "/company-okrs/detail/{$objective->objective_id}?tab=history";
         
         // Nếu là reply, gửi thông báo cho người được reply
         if ($request->parent_id) {
@@ -133,9 +134,10 @@ class CommentController extends Controller
         $commenterName = Auth::user()->full_name ?? Auth::user()->email;
         $krTitle = $keyResult->kr_title;
         $isMyKeyResult = request()->header('Referer') && str_contains(request()->header('Referer'), '/my-objectives/');
+        // Chỉ lưu path và query params, không lưu domain để bảo mật
         $actionUrl = $isMyKeyResult 
-            ? config('app.url') . "/my-objectives/key-result-details/{$krId}?tab=history"
-            : config('app.url') . "/company-okrs/detail/kr/{$krId}?tab=history";
+            ? "/my-objectives/key-result-details/{$krId}?tab=history"
+            : "/company-okrs/detail/kr/{$krId}?tab=history";
         
         // Nếu là reply, gửi thông báo cho người được reply
         if ($request->parent_id) {

@@ -296,21 +296,16 @@ export default function NotificationBell() {
                                         }
                                         
                                         // Extract URL info
+                                        // action_url chỉ chứa path và query params, không có domain
                                         let targetUrl = notification.action_url;
                                         let targetPath = '/my-objectives';
                                         let searchParams = '';
                                         
                                         if (targetUrl) {
-                                            try {
-                                                const url = new URL(targetUrl, window.location.origin);
-                                                targetPath = url.pathname;
-                                                searchParams = url.search;
-                                            } catch (e) {
-                                                // If URL parsing fails, try to extract path and query from string
-                                                const urlParts = targetUrl.split('?');
-                                                targetPath = urlParts[0].replace(window.location.origin, '');
-                                                searchParams = urlParts[1] ? `?${urlParts[1]}` : '';
-                                            }
+                                            // action_url đã là path + query params, không cần parse URL
+                                            const urlParts = targetUrl.split('?');
+                                            targetPath = urlParts[0];
+                                            searchParams = urlParts[1] ? `?${urlParts[1]}` : '';
                                         }
                                         
                                         // Navigate to the page

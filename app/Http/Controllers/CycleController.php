@@ -158,16 +158,37 @@ class CycleController extends Controller
         DB::beginTransaction();
         try {
             // Tính và lưu tiến độ cuối cùng cho các Objective
-            $objectives = Objective::with('keyResults')
+            // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
+            $objectives = Objective::with(['keyResults' => function($query) {
+                $query->whereNull('archived_at'); // Chỉ tính KR chưa archived
+            }])
                 ->where('cycle_id', $cycle->cycle_id)
                 ->get();
 
             foreach ($objectives as $obj) {
-                $avg = $obj->keyResults->count() ? $obj->keyResults->avg(function (KeyResult $kr) {
-                    $p = $kr->progress_percent; // accessor
-                    return is_numeric($p) ? (float) $p : 0.0;
-                }) : 0;
-                $obj->progress_percent = round($avg ?? 0, 2);
+                // Chỉ tính từ KeyResults trực tiếp, không archived
+                $keyResults = $obj->keyResults->filter(function($kr) {
+                    return is_null($kr->archived_at);
+                });
+                
+                if ($keyResults->isEmpty()) {
+                    $obj->progress_percent = 0;
+                } else {
+                    $progressList = [];
+                    foreach ($keyResults as $kr) {
+                        $progress = $kr->progress_percent; // accessor
+                        if ($progress !== null && is_numeric($progress)) {
+                            $progressList[] = (float) $progress;
+                        }
+                    }
+                    
+                    if (empty($progressList)) {
+                        $obj->progress_percent = 0;
+                    } else {
+                        $avgProgress = array_sum($progressList) / count($progressList);
+                        $obj->progress_percent = round($avgProgress, 2);
+                    }
+                }
                 $obj->save();
             }
 

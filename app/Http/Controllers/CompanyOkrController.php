@@ -159,7 +159,26 @@ class CompanyOkrController extends Controller
         $weightedProgress = 0;
 
         foreach ($objectives as $obj) {
-            $objProgress = $obj->keyResults->avg('progress_percent') ?? 0;
+            // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
+            // Chỉ tính từ KeyResults trực tiếp, không archived
+            $keyResults = $obj->keyResults->filter(function($kr) {
+                return is_null($kr->archived_at);
+            });
+            
+            $objProgress = 0;
+            if ($keyResults->isNotEmpty()) {
+                $progressList = [];
+                foreach ($keyResults as $kr) {
+                    $progress = $kr->progress_percent;
+                    if ($progress !== null && is_numeric($progress)) {
+                        $progressList[] = (float) $progress;
+                    }
+                }
+                if (!empty($progressList)) {
+                    $objProgress = array_sum($progressList) / count($progressList);
+                }
+            }
+            
             $weight = $obj->level === 'company' ? 1.5 : 1;
             $totalWeight += $weight;
             $weightedProgress += $objProgress * $weight;

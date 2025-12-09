@@ -185,16 +185,15 @@ class NotificationService
      */
     private static function getDefaultActionUrl(string $type): string
     {
-        $baseUrl = config('app.url');
-
+        // Chỉ trả về path, không bao gồm domain để bảo mật
         return match ($type) {
-            'kr_assigned', 'kr_assignment' => $baseUrl . '/my-objectives',
-            'okr_link', 'link_request' => $baseUrl . '/my-objectives',
-            'link_approved', 'link_rejected' => $baseUrl . '/my-objectives',
-            'check_in' => $baseUrl . '/my-objectives',
-            'reminder' => $baseUrl . '/my-objectives',
-            'comment' => $baseUrl . '/my-objectives',
-            default => $baseUrl . '/dashboard',
+            'kr_assigned', 'kr_assignment' => '/my-objectives',
+            'okr_link', 'link_request' => '/my-objectives',
+            'link_approved', 'link_rejected' => '/my-objectives',
+            'check_in' => '/my-objectives',
+            'reminder' => '/my-objectives',
+            'comment' => '/my-objectives',
+            default => '/dashboard',
         };
     }
 
