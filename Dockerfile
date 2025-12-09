@@ -1,4 +1,4 @@
-FROM php:8.2-cli
+FROM php:8.2-fpm-alpine
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -16,11 +16,17 @@ RUN apt-get update && apt-get install -y \
     npm \
     && docker-php-ext-install pdo_mysql pdo_sqlite mbstring exif pcntl bcmath gd zip
 
+# Install Nginx
+RUN apk add --no-cache nginx
+
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Set working directory
 WORKDIR /var/www
+
+# Copy Nginx configuration file
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy all application files first
 COPY . .
@@ -39,9 +45,9 @@ RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 RUN chmod -R 777 /var/www/storage /var/www/bootstrap/cache
 
 # Expose port
-EXPOSE 8000
+EXPOSE 80
 
 # Switch to www-data user
 USER www-data
 
-CMD ["sh", "-c", "php artisan migrate:fresh --seed && php artisan config:clear && php artisan serve --host=0.0.0.0 --port=8000"]
+CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off;'"]
