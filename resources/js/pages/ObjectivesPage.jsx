@@ -360,30 +360,14 @@ export default function ObjectivesPage() {
                         }, 3000);
                     }
 
-<<<<<<< HEAD
-                    // Mở modal tùy theo action
-                    setTimeout(() => {
-                        if (action === 'checkin') {
-                            // Mở check-in modal để member cập nhật tiến độ
-                            console.log('🔗 Opening check-in modal for:', krToHighlight);
-                            setCheckInModal({ open: true, keyResult: krToHighlight });
-                        } else if (action === 'checkin_history') {
-                            // Mở check-in history modal (cho thông báo check-in từ manager)
-                            console.log('🔗 Opening check-in history for:', krToHighlight);
-                            setCheckInHistory({ open: true, keyResult: krToHighlight });
-                        } else {
-                            // Mặc định: mở check-in history nếu không có action
-                            console.log('🔗 No action specified, opening check-in history for:', krToHighlight);
-                            setCheckInHistory({ open: true, keyResult: krToHighlight });
-                        }
-                    }, 600); // Đợi scroll xong rồi mới mở modal
-                }, 500); // Đợi objective mở xong
-=======
+
+                    
+
                     // Mở check-in history modal
                     console.log('🔗 Opening check-in history for:', krToHighlight);
                     openCheckInHistory(krToHighlight);
                 }, 800);
->>>>>>> 8ce5522db6a4bcf879e60987a0b03f3bea7cb39a
+
 
                 // Xóa URL parameters sau khi xử lý (delay để đảm bảo state đã được set)
                 setTimeout(() => {

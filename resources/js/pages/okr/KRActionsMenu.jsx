@@ -57,6 +57,7 @@ export default function KRActionsMenu({
                     className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
                     style={{ zIndex: 50 }}
                 >
+                    {/* Sửa */}
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -65,7 +66,7 @@ export default function KRActionsMenu({
                             setOpenObj((prev) => ({ ...prev, [menuKey]: false }));
                         }}
                         disabled={disableActions}
-                        className={`flex items-center gap-2 w-full px-3 py-2 text-sm ${
+                        className={`w-full px-3 py-2 text-sm text-left ${
                             disableActions
                                 ? "text-slate-400 cursor-not-allowed"
                                 : "text-slate-700 hover:bg-slate-50"
@@ -73,32 +74,26 @@ export default function KRActionsMenu({
                     >
                         Sửa
                     </button>
+                    
                     <div className="my-1 h-px bg-slate-100"></div>
-                    {setEditingKR && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingKR(kr);
-                                setOpenObj((prev) => ({
-                                    ...prev,
-                                    [menuKey]: false,
-                                }));
-                            }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                        >
-                            Chỉnh sửa
-                        </button>
-                    )}
+                    
+                    {/* Lưu trữ */}
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
+                            if (disableActions) return;
                             handleArchiveKR(kr.kr_id);
                             setOpenObj((prev) => ({
                                 ...prev,
                                 [menuKey]: false,
                             }));
                         }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
+                        disabled={disableActions}
+                        className={`w-full px-3 py-2 text-sm text-left ${
+                            disableActions
+                                ? "text-slate-400 cursor-not-allowed"
+                                : "text-rose-600 hover:bg-rose-50"
+                        }`}
                     >
                         Lưu trữ
                     </button>

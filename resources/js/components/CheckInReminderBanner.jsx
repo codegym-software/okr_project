@@ -138,8 +138,13 @@ export default function CheckInReminderBanner({ onDismiss }) {
                             }
 
                             const firstKR = firstReminder.key_results[0];
+                            // Lấy KR ID từ nhiều nguồn có thể để đảm bảo luôn có ID
+                            const krId = firstKR.kr_id || firstKR.key_result_id || firstKR.id;
+                            
                             const checkInData = {
-                                kr_id: firstKR.kr_id,
+                                kr_id: krId, // Luôn sử dụng kr_id làm field chính
+                                key_result_id: firstKR.key_result_id || krId, // Giữ key_result_id nếu có
+                                id: firstKR.id || krId, // Giữ id nếu có
                                 objective_id: firstReminder.objective_id,
                                 kr_title: firstKR.kr_title,
                                 current_value: firstKR.current_value,
@@ -157,24 +162,17 @@ export default function CheckInReminderBanner({ onDismiss }) {
                             if (isOnMyObjectives) {
                                 // Đã ở trang my-objectives - dispatch event để mở modal mà không reload
                                 console.log('🔔 Already on my-objectives, dispatching event');
-                                window.dispatchEvent(new CustomEvent('open-checkin-from-reminder', {
-                                    detail: checkInData
-                                }));
                                 
-                                // Cập nhật URL với query params để highlight KR
+                                // Cập nhật URL với query params để highlight KR (nếu cần)
                                 const newUrl = `/my-objectives?highlight_kr=${checkInData.kr_id}&objective_id=${checkInData.objective_id}&action=checkin`;
                                 window.history.pushState({}, '', newUrl);
                                 
-                                // Dispatch event để highlight KR
-                                window.dispatchEvent(new CustomEvent('okr-navigate', {
-                                    detail: {
-                                        highlight_kr: checkInData.kr_id,
-                                        objective_id: checkInData.objective_id,
-                                        action: 'checkin'
-                                    }
+                                // Dispatch event để mở check-in modal (event này sẽ xử lý scroll, highlight và mở modal)
+                                window.dispatchEvent(new CustomEvent('open-checkin-from-reminder', {
+                                    detail: checkInData
                                 }));
                             } else {
-                                // Chưa ở trang my-objectives - điều hướng với query params để highlight KR
+                                // Chưa ở trang my-objectives - điều hướng với query params để highlight KR và mở modal
                                 console.log('🔔 Not on my-objectives, navigating with query params');
                                 const url = `/my-objectives?highlight_kr=${checkInData.kr_id}&objective_id=${checkInData.objective_id}&action=checkin`;
                                 window.location.href = url;

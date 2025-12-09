@@ -386,7 +386,7 @@ export default function KeyResultRow({
                             >
                                 <FaUserEdit className="h-4 w-4" />
                             </button>
-                            {canCheckInKR && canCheckInKR(kr) && openCheckInModal && (
+                            {openCheckInModal && (
                                 <button
                                     onClick={() => openCheckInModal({
                                         ...kr,
@@ -418,7 +418,7 @@ export default function KeyResultRow({
                         </div>
                     ) : (
                         <div className="flex items-center justify-end gap-1">
-                            {canCheckInKR(kr) && openCheckInModal && (
+                            {openCheckInModal && (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
