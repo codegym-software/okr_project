@@ -48,13 +48,9 @@ RUN chmod -R 777 /var/www/storage /var/www/bootstrap/cache
 # Expose port
 EXPOSE 80
 
-# THÊM: Tạo thư mục mặc định cho Nginx PID và Log và cấp quyền
-RUN mkdir -p /run/nginx /var/lib/nginx/logs \
-    && chown -R www-data:www-data /run/nginx /var/lib/nginx/logs
 
-# THÊM: Tạo thư mục tạm cho Nginx và cấp quyền
-RUN mkdir -p /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi \
-    && chown -R www-data:www-data /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi
+
+
 
 # Switch to www-data user
 USER www-data
