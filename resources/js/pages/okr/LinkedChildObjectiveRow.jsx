@@ -59,9 +59,15 @@ export default function LinkedChildObjectiveRow({
                             className="h-5 w-5 text-indigo-500 flex-shrink-0"
                             title="Objective được liên kết"
                         />
-                        <span className="font-semibold text-slate-900 text-lg">
+                        <a 
+                            href={linkedObj.level === "person" 
+                                ? `/my-objectives/details/${linkedObj.objective_id}`
+                                : `/company-okrs/detail/${linkedObj.objective_id}`
+                            }
+                            className="font-semibold text-slate-900 text-lg hover:text-blue-600"
+                        >
                             {linkedObj.obj_title}
-                        </span>
+                        </a>
                         {hasKRs && (
                             <span className="text-xs text-slate-500">
                                 ({linkedObj.key_results.length} KR)
@@ -127,9 +133,15 @@ export default function LinkedChildObjectiveRow({
                                         className="h-4 w-4 text-amber-600 flex-shrink-0"
                                         title="Key Result"
                                     />
-                                    <span className="font-semibold text-slate-900 text-base">
+                                    <a 
+                                        href={linkedObj.level === "person" 
+                                            ? `/my-objectives/key-result-details/${kr.kr_id}`
+                                            : `/company-okrs/detail/kr/${kr.kr_id}`
+                                        }
+                                        className="font-semibold text-slate-900 text-base hover:text-blue-600"
+                                    >
                                         {kr.kr_title}
-                                    </span>
+                                    </a>
                                 </div>
                             </td>
                             <td className="px-3 py-3 text-center">

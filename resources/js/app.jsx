@@ -446,6 +446,10 @@ export default function App() {
         if (p.startsWith("/users")) content = <UsersPage />;
         else if (p.startsWith("/cycles")) content = <CyclesPanel />;
         else if (p.startsWith("/departments")) content = <DepartmentsPanel />;
+        else if (p.startsWith("/my-objectives/key-result-details/"))
+            content = <KeyResultDetailPage />;
+        else if (p.startsWith("/my-objectives/details/"))
+            content = <ObjectiveDetailPage />;
         else if (p.startsWith("/my-objectives")) content = <ObjectivesPage />;
         else if (p.startsWith("/company-okrs/detail/kr/"))
             content = <KeyResultDetailPage />;

@@ -134,22 +134,44 @@ const HistorySection = ({ keyResults, comments, objectiveId, onCommentPosted }) 
     const allCheckIns = keyResults.flatMap(kr => kr.check_ins.map(ci => ({ ...ci, kr_title: kr.kr_title })));
     allCheckIns.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
+    // Tạo map để lưu progress_percent của check-in trước đó cho mỗi KR
+    // Vì đã sort mới nhất trước, nên check-in trước đó (theo thời gian) sẽ là check-in sau đó trong mảng
+    const getPreviousProgress = (currentIndex, currentKrTitle, currentCreatedAt) => {
+        // Tìm check-in trước đó của cùng KR (có thời gian cũ hơn)
+        for (let i = currentIndex + 1; i < allCheckIns.length; i++) {
+            if (allCheckIns[i].kr_title === currentKrTitle && 
+                new Date(allCheckIns[i].created_at) < new Date(currentCreatedAt)) {
+                return allCheckIns[i].progress_percent;
+            }
+        }
+        return null;
+    };
+
     return (
         <div>
             <div className="mb-6">
                 <h4 className="font-semibold text-md mb-2">Lịch sử Check-in</h4>
                  {allCheckIns.length > 0 ? (
                     <div className="space-y-3 max-h-60 overflow-y-auto p-1">
-                        {allCheckIns.map(ci => (
-                            <div key={ci.check_in_id} className="text-sm p-2 border-l-4 border-gray-200">
-                                <p><strong>{ci.user?.full_name || '...'}</strong> đã check-in cho KR <strong>"{ci.kr_title}"</strong></p>
-                                <p className="text-gray-700 mt-1">"{ci.notes || 'Không có ghi chú'}"</p>
-                                <div className="text-xs text-gray-500 mt-1">
-                                    <span>{format(new Date(ci.created_at), 'dd/MM/yyyy HH:mm')}</span>
-                                    <span className="ml-2 font-semibold">→ {ci.progress_percent}%</span>
+                        {allCheckIns.map((ci, index) => {
+                            const previousProgress = getPreviousProgress(index, ci.kr_title, ci.created_at);
+                            const progressText = previousProgress !== null 
+                                ? `${previousProgress}% → ${ci.progress_percent}%`
+                                : `${ci.progress_percent}%`;
+                            
+                            return (
+                                <div key={ci.check_in_id} className="text-sm p-2 border-l-4 border-gray-200">
+                                    <p><strong>{ci.user?.full_name || '...'}</strong> đã check-in cho KR <strong>"{ci.kr_title}"</strong></p>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                        <span className="font-semibold">{progressText}</span>
+                                    </div>
+                                    <p className="text-gray-700 mt-1">"{ci.notes || 'Không có ghi chú'}"</p>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                        <span>{format(new Date(ci.created_at), 'dd/MM/yyyy HH:mm')}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 ) : <p className="text-gray-500 text-sm">Chưa có lịch sử check-in.</p>}
             </div>
@@ -307,9 +329,15 @@ const ObjectiveDetailPage = () => {
             return;
         }
 
+        // Kiểm tra xem URL có phải là my-objectives không
+        const isMyObjective = window.location.pathname.includes('/my-objectives/details/');
+        const apiUrl = isMyObjective 
+            ? `/my-objectives/details/${objectiveId}?_t=${new Date().getTime()}`
+            : `/company-okrs/${objectiveId}?_t=${new Date().getTime()}`;
+
         try {
             setLoading(true);
-            const response = await fetch(`/company-okrs/${objectiveId}?_t=${new Date().getTime()}`, {
+            const response = await fetch(apiUrl, {
                 headers: { 'Accept': 'application/json' }
             });
 

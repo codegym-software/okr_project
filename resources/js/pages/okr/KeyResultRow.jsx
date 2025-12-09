@@ -273,7 +273,13 @@ export default function KeyResultRow({
                             title="Key Result"
                         />
 
-                        <a href={`/company-okrs/detail/kr/${kr.kr_id}`} className="font-semibold text-slate-900 text-base hover:text-blue-600 hover:underline">
+                        <a 
+                            href={objective?.level === "person" 
+                                ? `/my-objectives/key-result-details/${kr.kr_id}`
+                                : `/company-okrs/detail/kr/${kr.kr_id}`
+                            } 
+                            className="font-semibold text-slate-900 text-base hover:text-blue-600"
+                        >
                             {kr.kr_title}
                         </a>
                                                         </div>

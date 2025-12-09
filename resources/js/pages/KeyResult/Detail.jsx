@@ -84,7 +84,12 @@ const KrOverviewSection = ({ keyResult }) => {
     } = keyResult;
 
     const ownerName = assigned_user?.full_name || 'N/A';
-    const parentObjectiveUrl = objective ? `/company-okrs/detail/${objective.objective_id}` : '#';
+    const isMyKeyResult = window.location.pathname.includes('/my-objectives/key-result-details/');
+    const parentObjectiveUrl = objective 
+        ? (objective.level === "person" 
+            ? `/my-objectives/details/${objective.objective_id}`
+            : `/company-okrs/detail/${objective.objective_id}`)
+        : '#';
 
     const circumference = 2 * Math.PI * 20; // Radius is 20
 
@@ -277,20 +282,36 @@ const KrCheckInHistory = ({ checkIns }) => {
         return <p className="text-gray-500 text-sm">Chưa có lịch sử check-in.</p>;
     }
 
+    // Sort theo thời gian mới nhất trước
+    const sortedCheckIns = checkIns.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
     return (
         <div className="space-y-4">
-            {checkIns.slice().reverse().map(ci => (
-                <div key={ci.check_in_id} className="text-sm p-3 border-l-4 border-gray-200 bg-gray-50 rounded-r-lg">
-                    <p>
-                        <strong>{ci.user?.full_name || '...'}</strong> đã check-in
-                        với giá trị <strong>{ci.current_value}</strong>.
-                    </p>
-                    {ci.notes && <p className="text-gray-700 mt-1 italic">"{ci.notes}"</p>}
-                    <div className="text-xs text-gray-500 mt-1">
-                        <span>{format(new Date(ci.created_at), 'dd/MM/yyyy HH:mm')}</span>
+            {sortedCheckIns.map((ci, index) => {
+                // Lấy progress_percent của check-in trước đó (theo thời gian, tức là check-in sau trong mảng đã sort mới nhất trước)
+                const previousProgress = index < sortedCheckIns.length - 1 
+                    ? sortedCheckIns[index + 1].progress_percent 
+                    : null;
+                const progressText = previousProgress !== null 
+                    ? `${previousProgress}% → ${ci.progress_percent}%`
+                    : `${ci.progress_percent}%`;
+                
+                return (
+                    <div key={ci.check_in_id} className="text-sm p-3 border-l-4 border-gray-200 bg-gray-50 rounded-r-lg">
+                        <p>
+                            <strong>{ci.user?.full_name || '...'}</strong> đã check-in cho KR <strong>"{ci.kr_title || 'KR'}"</strong>
+                        </p>
+                        <div className="text-xs text-gray-500 mt-1">
+                            <span className="font-semibold">{progressText}</span>
+                        </div>
+                        {ci.notes && <p className="text-gray-700 mt-1 italic">"{ci.notes}"</p>}
+                        {!ci.notes && <p className="text-gray-700 mt-1 italic">"Không có ghi chú"</p>}
+                        <div className="text-xs text-gray-500 mt-1">
+                            <span>{format(new Date(ci.created_at), 'dd/MM/yyyy HH:mm')}</span>
+                        </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 };
@@ -466,9 +487,15 @@ const KeyResultDetailPage = () => {
             return;
         }
 
+        // Kiểm tra xem URL có phải là my-objectives không
+        const isMyKeyResult = window.location.pathname.includes('/my-objectives/key-result-details/');
+        const apiUrl = isMyKeyResult
+            ? `/my-objectives/key-result-details/${krId}?_t=${new Date().getTime()}`
+            : `/api/company-okrs/detail/kr/${krId}?_t=${new Date().getTime()}`;
+
         try {
             setLoading(true);
-            const response = await fetch(`/api/company-okrs/detail/kr/${krId}?_t=${new Date().getTime()}`, {
+            const response = await fetch(apiUrl, {
                 headers: { 
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')

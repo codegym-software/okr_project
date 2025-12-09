@@ -77,8 +77,11 @@ export default function ObjectiveRow({
                             </div>
                             <FaBullseye className="h-5 w-5 text-indigo-600 flex-shrink-0" title="Objective"/>
                             <a 
-                                href={`/company-okrs/detail/${obj.objective_id}`}
-                                className="font-semibold text-slate-900 truncate text-lg hover:text-blue-600 hover:underline"
+                                href={obj.level === "person" 
+                                    ? `/my-objectives/details/${obj.objective_id}`
+                                    : `/company-okrs/detail/${obj.objective_id}`
+                                }
+                                className="font-semibold text-slate-900 truncate text-lg hover:text-blue-600"
                             >
                                 {obj.obj_title}
                             </a>
