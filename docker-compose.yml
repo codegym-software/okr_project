@@ -4,11 +4,11 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "8009:8000"
     volumes:
-      - .:/var/www
-      - ./storage:/var/www/storage
+      - app_storage:/var/www/storage
     environment:
+      - APP_KEY=base64:h0cq6MtBD8Co6TuE6hTWBtuh/SOKO3DDefjymO48sH8=
       - APP_ENV=local
       - APP_DEBUG=true
       - DB_CONNECTION=mysql
@@ -19,8 +19,11 @@ services:
       - DB_PASSWORD=okr_password
       - CACHE_STORE=file
       - SESSION_DRIVER=file
+      - AWS_ACCESS_KEY_ID=dummy_key
+      - AWS_SECRET_ACCESS_KEY=dummy_secret
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   mysql:
     image: mysql:8.0
@@ -30,9 +33,14 @@ services:
       MYSQL_USER: okr_user
       MYSQL_PASSWORD: okr_password
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
 
 volumes:
   mysql_data:
+  app_storage:

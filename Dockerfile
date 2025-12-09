@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libzip-dev \
     libsqlite3-dev \
+    default-mysql-client \
+    nodejs \
+    npm \
     && docker-php-ext-install pdo_mysql pdo_sqlite mbstring exif pcntl bcmath gd zip
 
 # Install Composer
@@ -19,24 +22,22 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www
 
-# Copy composer files first
-COPY composer.json composer.lock ./
-
-# Install dependencies
-RUN composer install --no-dev --optimize-autoloader
-
-# Copy application files
+# Copy all application files first
 COPY . .
 
-# Set permissions
-RUN chmod -R 755 /var/www/storage \
-    && chmod -R 755 /var/www/bootstrap/cache
+# Install composer dependencies
+RUN composer install --no-dev --optimize-autoloader
 
-# Wait for MySQL to be ready
-RUN echo "#!/bin/bash\nwhile ! mysqladmin ping -h mysql -u root -ppassword --silent; do sleep 1; done\necho 'MySQL is ready!'" > /wait-for-mysql.sh && chmod +x /wait-for-mysql.sh
+# Install npm dependencies and build assets
+RUN rm -rf node_modules package-lock.json && npm install && npm run build
+
+# Set permissions
+RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache && chmod -R 777 /var/www/storage /var/www/bootstrap/cache
 
 # Expose port
 EXPOSE 8000
 
+USER www-data
+
 # Start Laravel development server
-CMD ["/wait-for-mysql.sh", "&&", "php", "artisan", "migrate:fresh", "--seed", "&&", "php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+CMD ["sh", "-c", "php artisan migrate:fresh --seed && php artisan config:clear && rm -rf bootstrap/cache/* && php artisan serve --host=0.0.0.0 --port=8000"]
