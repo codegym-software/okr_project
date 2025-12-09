@@ -423,7 +423,7 @@ export default function ObjectiveList({
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-300">
                         {/* Loading & Empty States */}
                         {loading && (
                             <tr>

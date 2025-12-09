@@ -533,7 +533,22 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        $objective = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+        $objective = Objective::with([
+            'keyResults' => function ($query) {
+                $query->with(['assignedUser.role', 'assignedUser.department', 'checkIns.user'])->orderBy('created_at');
+            },
+            'department',
+            'cycle',
+            'assignments.user',
+            'assignments.role',
+            'comments',
+            'childObjectives' => function ($query) {
+                $query->with(['sourceObjective.user', 'sourceObjective.department']);
+            },
+            'sourceLinks' => function ($query) {
+                $query->with(['targetObjective.user', 'targetObjective.department']);
+            }
+        ])
             ->where('user_id', $user->user_id) 
             ->find($id);
 
@@ -541,7 +556,18 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Không tìm thấy hoặc bạn không có quyền xem.'], 404);
         }
 
-        return response()->json(['success' => true, 'data' => $objective]);
+        // Manually construct the response to ensure all data is included
+        $data = $objective->attributesToArray();
+        $data['user'] = $objective->user;
+        $data['department'] = $objective->department;
+        $data['cycle'] = $objective->cycle;
+        $data['key_results'] = $objective->keyResults->map(function($kr) { return $kr->toArray(); })->values()->all();
+        $data['child_objectives'] = $objective->childObjectives->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['source_links'] = $objective->sourceLinks->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['comments'] = $objective->comments->map(function($comment) { return $comment->toArray(); })->values()->all();
+        $data['progress_percent'] = $objective->progress_percent;
+
+        return response()->json(['success' => true, 'data' => $data]);
     }
 
     /**

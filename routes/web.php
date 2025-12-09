@@ -239,12 +239,12 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::delete('/destroy/{id}', [MyObjectiveController::class, 'destroy'])
             ->middleware('auth')
             ->name('my-objectives.destroy');
-        Route::get('/details/{id}', [MyObjectiveController::class, 'getObjectiveDetails'])
-            ->middleware('auth')
-            ->name('my-objectives.details');
-        Route::get('/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])
-            ->middleware('auth')
-            ->name('my-objectives.key-result-details');
+        Route::get('/details/{id}', function() {
+            return view('app');
+        })->middleware('auth')->name('my-objectives.details');
+        Route::get('/key-result-details/{id}', function() {
+            return view('app');
+        })->middleware('auth')->name('my-objectives.key-result-details');
         Route::get('/getAllowedLevelsApi', [MyObjectiveController::class, 'getAllowedLevelsApi'])
             ->middleware('auth')
             ->name('my-objectives.getAllowedLevelsApi');
@@ -375,6 +375,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'index'])->name('api.comments.index');
         Route::post('/company-okrs/detail/kr/{kr_id}/comments', [App\Http\Controllers\CommentController::class, 'storeForKr'])->name('api.kr-comments.store');
         Route::get('/company-okrs/detail/kr/{id}', [App\Http\Controllers\KeyResultController::class, 'getDetails'])->name('api.key-results.details');
+        // API routes for my-objectives detail pages
+        Route::get('/my-objectives/details/{id}', [MyObjectiveController::class, 'getObjectiveDetails'])->name('api.my-objectives.details');
+        Route::get('/my-objectives/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])->name('api.my-objectives.key-result-details');
     });
 
 

@@ -80,9 +80,21 @@ class CommentController extends Controller
             }
         }
         
-        // Gửi thông báo đến người sở hữu Objective (nếu không phải người comment và không phải người được reply)
-        $ownerId = $objective->user_id;
+        // Gửi thông báo đến người được gán Objective (nếu không phải người comment và không phải người được reply)
+        // Ưu tiên: người được gán (assignments) > người sở hữu (user_id)
+        $objective->load('assignments.user');
+        $assignedUserId = null;
+        
+        // Kiểm tra xem có assignments không
+        if ($objective->assignments && $objective->assignments->isNotEmpty()) {
+            // Lấy user_id từ assignment đầu tiên (hoặc có thể lấy tất cả nếu cần gửi cho nhiều người)
+            $assignedUserId = $objective->assignments->first()->user_id;
+        }
+        
+        // Nếu không có assignment, dùng user_id (người sở hữu)
+        $ownerId = $assignedUserId ?? $objective->user_id;
         $parentCommentUserId = $request->parent_id ? Comment::find($request->parent_id)?->user_id : null;
+        
         if ($ownerId && $ownerId != Auth::id() && $ownerId != $parentCommentUserId) {
             try {
                 \App\Services\NotificationService::send(
@@ -95,9 +107,10 @@ class CommentController extends Controller
                     true
                 );
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('CommentController: Error sending notification to objective owner', [
+                \Illuminate\Support\Facades\Log::error('CommentController: Error sending notification to objective owner/assignee', [
                     'error' => $e->getMessage(),
                     'owner_id' => $ownerId,
+                    'is_assigned' => $assignedUserId !== null,
                 ]);
             }
         }

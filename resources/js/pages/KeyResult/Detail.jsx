@@ -10,7 +10,7 @@ import {
     Tooltip,
     Legend,
 } from 'chart.js';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday, differenceInMinutes, differenceInHours } from 'date-fns';
 import { PlayIcon, ArrowTrendingUpIcon, TrophyIcon, TagIcon, InformationCircleIcon, UserCircleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 ChartJS.register(
@@ -295,7 +295,7 @@ const KrCheckInHistory = ({ checkIns }) => {
     const sortedCheckIns = checkIns.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-3 max-h-60 overflow-y-auto p-1">
             {sortedCheckIns.map((ci, index) => {
                 // Lấy progress_percent của check-in trước đó (theo thời gian, tức là check-in sau trong mảng đã sort mới nhất trước)
                 const previousProgress = index < sortedCheckIns.length - 1 
@@ -306,15 +306,12 @@ const KrCheckInHistory = ({ checkIns }) => {
                     : `${ci.progress_percent}%`;
                 
                 return (
-                    <div key={ci.check_in_id} className="text-sm p-3 border-l-4 border-gray-200 bg-gray-50 rounded-r-lg">
-                        <p>
-                            <strong>{ci.user?.full_name || '...'}</strong> đã check-in cho KR <strong>"{ci.kr_title || 'KR'}"</strong>
-                        </p>
+                    <div key={ci.check_in_id} className="text-sm p-2 border-l-4 border-gray-200">
+                        <p><strong>{ci.user?.full_name || '...'}</strong> đã check-in cho KR <strong>"{ci.kr_title || 'KR'}"</strong></p>
                         <div className="text-xs text-gray-500 mt-1">
                             <span className="font-semibold">{progressText}</span>
                         </div>
-                        {ci.notes && <p className="text-gray-700 mt-1 italic">"{ci.notes}"</p>}
-                        {!ci.notes && <p className="text-gray-700 mt-1 italic">"Không có ghi chú"</p>}
+                        <p className="text-gray-700 mt-1">"{ci.notes || 'Không có ghi chú'}"</p>
                         <div className="text-xs text-gray-500 mt-1">
                             <span>{format(new Date(ci.created_at), 'dd/MM/yyyy HH:mm')}</span>
                         </div>
@@ -325,12 +322,55 @@ const KrCheckInHistory = ({ checkIns }) => {
     );
 };
 
+// --- Helper function to format comment time ---
+const formatCommentTime = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMinutes = differenceInMinutes(now, date);
+    const diffHours = differenceInHours(now, date);
+    
+    // Vừa xong (< 1 phút)
+    if (diffMinutes < 1) {
+        return 'Vừa xong';
+    }
+    
+    // Gần đây (< 1 giờ): "X phút trước"
+    if (diffMinutes < 60) {
+        return `${diffMinutes} phút trước`;
+    }
+    
+    // Gần đây (< 24 giờ): "X giờ trước"
+    if (diffHours < 24) {
+        return `${diffHours} giờ trước`;
+    }
+    
+    // Hôm nay: "Hôm nay HH:mm"
+    if (isToday(date)) {
+        return `Hôm nay ${format(date, 'HH:mm')}`;
+    }
+    
+    // Hôm qua: "Hôm qua HH:mm"
+    if (isYesterday(date)) {
+        return `Hôm qua ${format(date, 'HH:mm')}`;
+    }
+    
+    // Cũ hơn: chỉ ngày tháng năm
+    return format(date, 'dd/MM/yyyy');
+};
+
 const KrCommentSection = ({ comments: initialComments, krId, onCommentPosted }) => {
     const [comments, setComments] = useState(initialComments || []);
 
     // Cập nhật comments khi initialComments thay đổi (từ parent)
+    // Sort comments từ mới nhất đến cũ nhất
     useEffect(() => {
-        setComments(initialComments || []);
+        const sortedComments = (initialComments || []).map(comment => ({
+            ...comment,
+            replies: (comment.replies || []).sort((a, b) => 
+                new Date(b.created_at) - new Date(a.created_at)
+            )
+        })).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        setComments(sortedComments);
     }, [initialComments]);
 
     const handleSubmitted = (newComment) => {
@@ -342,7 +382,9 @@ const KrCommentSection = ({ comments: initialComments, krId, onCommentPosted }) 
                         if (comment.id === newComment.parent_id) {
                             return {
                                 ...comment,
-                                replies: [...(comment.replies || []), newComment]
+                                replies: [...(comment.replies || []), newComment].sort((a, b) => 
+                                    new Date(b.created_at) - new Date(a.created_at)
+                                )
                             };
                         }
                         // Tìm trong replies
@@ -351,7 +393,9 @@ const KrCommentSection = ({ comments: initialComments, krId, onCommentPosted }) 
                                 if (reply.id === newComment.parent_id) {
                                     return {
                                         ...reply,
-                                        replies: [...(reply.replies || []), newComment]
+                                        replies: [...(reply.replies || []), newComment].sort((a, b) => 
+                                            new Date(b.created_at) - new Date(a.created_at)
+                                        )
                                     };
                                 }
                                 if (reply.replies && reply.replies.length > 0) {
@@ -373,16 +417,19 @@ const KrCommentSection = ({ comments: initialComments, krId, onCommentPosted }) 
                     })
                 );
             } else {
-                // Nếu là comment mới, thêm vào đầu danh sách
-                setComments(prevComments => [newComment, ...prevComments]);
+                // Nếu là comment mới, thêm vào đầu danh sách và sort lại
+                setComments(prevComments => {
+                    const updated = [newComment, ...prevComments];
+                    return updated.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                });
             }
         }
         if (onCommentPosted) onCommentPosted();
     };
 
     return (
-        <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">Thảo luận</h3>
+        <div className="mt-4">
+            <h4 className="font-semibold text-md mb-2">Thảo luận (Comment)</h4>
             <div className="space-y-4">
                 <CommentForm krId={krId} onSubmitted={handleSubmitted} />
                 {comments?.length > 0 ? (
@@ -422,7 +469,7 @@ const Comment = ({ comment, krId, depth = 0, onReplyPosted }) => {
                 </div>
             </div>
             <div className="ml-11 text-xs text-slate-500 mt-2 flex items-center gap-3">
-                <span>{format(new Date(comment.created_at), 'dd/MM/yyyy')}</span>
+                <span>{formatCommentTime(comment.created_at)}</span>
                 {canReply && (
                     <button 
                         onClick={() => setShowReplyForm(!showReplyForm)} 
@@ -531,16 +578,12 @@ const CommentForm = ({ krId, parentId = null, onSubmitted }) => {
 const KrHistoryAndInteractionSection = ({ keyResult, onCommentPosted }) => {
     return (
         <div>
-            <h3 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">Lịch sử & Tương tác</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Lịch sử Check-in</h3>
-                    <KrCheckInHistory checkIns={keyResult.check_ins} />
-                </div>
-                <div>
-                    <KrCommentSection comments={keyResult.comments} krId={keyResult.kr_id} onCommentPosted={onCommentPosted} />
-                </div>
+            <div className="mb-6">
+                <h4 className="font-semibold text-md mb-2">Lịch sử Check-in</h4>
+                <KrCheckInHistory checkIns={keyResult.check_ins} />
             </div>
+            
+            <KrCommentSection comments={keyResult.comments} krId={keyResult.kr_id} onCommentPosted={onCommentPosted} />
         </div>
     );
 };
@@ -575,6 +618,31 @@ const KeyResultDetailPage = () => {
     const [error, setError] = useState(null);
     const [activeTabIndex, setActiveTabIndex] = useState(0);
 
+    // Map tab names to indices
+    const tabMap = {
+        'details': 0,
+        'history': 1
+    };
+
+    const getTabIndexFromUrl = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabParam = urlParams.get('tab');
+        return tabParam && tabMap[tabParam] !== undefined ? tabMap[tabParam] : 0;
+    };
+
+    const updateUrlForTab = (tabIndex) => {
+        const tabNames = ['details', 'history'];
+        const tabName = tabNames[tabIndex] || 'details';
+        const url = new URL(window.location);
+        url.searchParams.set('tab', tabName);
+        window.history.pushState({}, '', url);
+    };
+
+    const handleTabChange = (newTabIndex) => {
+        setActiveTabIndex(newTabIndex);
+        updateUrlForTab(newTabIndex);
+    };
+
     const getKeyResultIdFromUrl = () => {
         const pathParts = window.location.pathname.split('/');
         // Assuming URL is /key-results/detail/{id}
@@ -592,7 +660,7 @@ const KeyResultDetailPage = () => {
         // Kiểm tra xem URL có phải là my-objectives không
         const isMyKeyResult = window.location.pathname.includes('/my-objectives/key-result-details/');
         const apiUrl = isMyKeyResult
-            ? `/my-objectives/key-result-details/${krId}?_t=${new Date().getTime()}`
+            ? `/api/my-objectives/key-result-details/${krId}?_t=${new Date().getTime()}`
             : `/api/company-okrs/detail/kr/${krId}?_t=${new Date().getTime()}`;
 
         try {
@@ -626,11 +694,9 @@ const KeyResultDetailPage = () => {
     useEffect(() => {
         fetchData();
         
-        // Check query parameter để tự động mở tab "Lịch sử & Tương tác"
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('tab') === 'history') {
-            setActiveTabIndex(1); // Tab "Lịch sử & Tương tác" là index 1
-        }
+        // Check query parameter để tự động mở tab tương ứng
+        const tabIndex = getTabIndexFromUrl();
+        setActiveTabIndex(tabIndex);
     }, [window.location.pathname, window.location.search]);
 
     if (loading) return <div className="p-8 text-center">Đang tải dữ liệu Key Result...</div>;
@@ -656,7 +722,7 @@ const KeyResultDetailPage = () => {
                 </div>
                 
                 <div className="bg-white p-6 rounded-lg shadow-md">
-                   <Tabs tabs={krTabs} activeTab={activeTabIndex} onTabChange={setActiveTabIndex} />
+                   <Tabs tabs={krTabs} activeTab={activeTabIndex} onTabChange={handleTabChange} />
                 </div>
             </div>
         </div>
