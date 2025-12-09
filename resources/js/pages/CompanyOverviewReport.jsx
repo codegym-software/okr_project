@@ -806,15 +806,79 @@ export default function CompanyOverviewReport() {
                     {selectedSnapshot ? (
                         /* ==================== XEM CHI TIẾT SNAPSHOT ==================== */
                         <div>
-                        <button 
-                            onClick={() => setSelectedSnapshot(null)} 
-                            className="mb-6 text-blue-600 hover:text-blue-800 flex items-center gap-2 font-medium transition"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                            </svg>
-                            Quay lại danh sách
-                        </button>
+                        <div className="flex items-center justify-between mb-4 gap-3">
+                            <button 
+                                onClick={() => setSelectedSnapshot(null)} 
+                                className="text-blue-600 hover:text-blue-800 flex items-center gap-2 font-medium transition"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                                </svg>
+                                Quay lại danh sách
+                            </button>
+
+                            <button
+                                onClick={async () => {
+                                    if (!selectedSnapshot) return;
+                                    try {
+                                        const cycleId = selectedSnapshot.cycle_id;
+                                        const fetchDataForLevel = async (levelToFetch) => {
+                                            const params = new URLSearchParams();
+                                            if (cycleId) params.set('cycle_id', cycleId);
+                                            params.set('level', levelToFetch);
+                                            const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
+                                                headers: { Accept: 'application/json' }
+                                            });
+                                            const reportJson = await reportRes.json();
+                                            if (!reportRes.ok || !reportJson.success) {
+                                                throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
+                                            }
+                                            const detailedData = await fetchDetailedDataForSnapshot(
+                                                cycleId,
+                                                null,
+                                                null,
+                                                levelToFetch
+                                            );
+                                            return { report: reportJson.data, detailedData };
+                                        };
+
+                                        const [companyData, departmentsData] = await Promise.all([
+                                            fetchDataForLevel('company'),
+                                            fetchDataForLevel('departments'),
+                                        ]);
+
+                                        exportToExcelUtil(
+                                            companyData,
+                                            departmentsData,
+                                            currentCycleMeta,
+                                            selectedSnapshot.title,
+                                            (message) => showNotification('success', message),
+                                            (message) => showNotification('error', message)
+                                        );
+                                    } catch (error) {
+                                        console.error('Lỗi khi xuất Excel từ lịch sử:', error);
+                                        showNotification('error', 'Xuất Excel thất bại: ' + (error.message || 'Lỗi không xác định'));
+                                    }
+                                }}
+                                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 active:bg-slate-100 transition-colors"
+                                title="Xuất báo cáo"
+                            >
+                                <svg 
+                                    className="h-4 w-4 text-slate-600" 
+                                    viewBox="0 0 24 24" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    strokeWidth="2" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                >
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Xuất file
+                            </button>
+                        </div>
 
                         <h4 className="text-lg font-bold text-slate-900 mb-2">{selectedSnapshot.title}</h4>
 
