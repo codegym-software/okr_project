@@ -111,7 +111,10 @@ class KeyResultController extends Controller
             'user_id' => $user->user_id, // Lưu người tạo KR
         ]);
 
-        // Tự động cập nhật progress của Objective từ KeyResults
+        // Cập nhật updated_at của Objective khi tạo KR mới
+        $objective->touch();
+        
+        // Tự động cập nhật progress của Objective từ KeyResults (không cập nhật updated_at)
         $objective->updateProgressFromKeyResults();
 
         if ($request->expectsJson()) {

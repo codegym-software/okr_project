@@ -411,8 +411,18 @@ function TreeFlow({
     onEdgesChange,
     nodeTypes,
     layoutDirection,
+    onInit,
+    nodesDraggable = true,
+    nodesConnectable = true,
 }) {
     const { fitView } = useReactFlow();
+    const reactFlowInstance = useReactFlow();
+    
+    useEffect(() => {
+        if (onInit && reactFlowInstance) {
+            onInit(reactFlowInstance);
+        }
+    }, [onInit, reactFlowInstance]);
 
     useEffect(() => {
         if (nodes.length === 0) return;
@@ -443,8 +453,9 @@ function TreeFlow({
             minZoom={0.1}
             maxZoom={2}
             style={{ width: "100%", height: "100%" }}
+            nodesDraggable={nodesDraggable}
+            nodesConnectable={nodesConnectable}
         >
-            <Controls />
             <MiniMap
                 nodeColor={(node) =>
                     node.type === "key_result" ? "#6366f1" : "#3b82f6"
@@ -466,6 +477,9 @@ const OkrTreeCanvas = ({
     onLayoutDirectionChange,
     showLayoutToggle = true,
     extraControls,
+    onInit,
+    nodesDraggable = true,
+    nodesConnectable = true,
 }) => {
     const [internalLayout, setInternalLayout] = useState(initialLayout);
     const layoutDirection = controlledLayout || internalLayout;
@@ -761,6 +775,9 @@ const OkrTreeCanvas = ({
                     onEdgesChange={onEdgesChange}
                     nodeTypes={nodeTypes}
                     layoutDirection={layoutDirection}
+                    onInit={onInit}
+                    nodesDraggable={nodesDraggable}
+                    nodesConnectable={nodesConnectable}
                 />
                 {showLayoutToggle && (
                 <button

@@ -197,26 +197,29 @@ class ReportController extends Controller
         $objectiveProgress = $objectives->map(function ($obj) {
             $progress = $obj->progress_percent;
             if ($progress === null || (float) $progress === 0.0) {
-                // Fallback an toàn: tính bằng PHP để tránh khác biệt SQL/nullable
+                // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
+                // Chỉ tính từ KeyResults trực tiếp, không archived
                 $krs = DB::table('key_results')
-                    ->select(['progress_percent','current_value','target_value'])
+                    ->select(['progress_percent'])
                     ->where('objective_id', $obj->objective_id)
-                    ->whereNull('archived_at') // Only count non-archived KeyResults
+                    ->whereNull('archived_at') // Chỉ tính KR chưa archived
                     ->get();
-                if ($krs->count() === 0) {
+                    
+                if ($krs->isEmpty()) {
                     $progress = 0.0;
                 } else {
-                    $sum = 0.0;
+                    $progressList = [];
                     foreach ($krs as $kr) {
                         if ($kr->progress_percent !== null) {
-                            $sum += (float) $kr->progress_percent;
-                        } elseif (!empty($kr->target_value) && (float) $kr->target_value > 0) {
-                            $sum += max(0.0, min(100.0, ((float) $kr->current_value / (float) $kr->target_value) * 100.0));
-                        } else {
-                            $sum += 0.0;
+                            $progressList[] = (float) $kr->progress_percent;
                         }
                     }
-                    $progress = $sum / $krs->count();
+                    
+                    if (empty($progressList)) {
+                        $progress = 0.0;
+                    } else {
+                        $progress = array_sum($progressList) / count($progressList);
+                    }
                 }
             }
             return [
@@ -332,16 +335,26 @@ class ReportController extends Controller
 
         // Compute progress per objective from live KRs (real-time)
         $objectiveIds = $objectives->pluck('objective_id');
+        // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
+        // Tính progress từ KeyResults trực tiếp, không archived
         $krAgg = DB::table('key_results')
-            ->select('objective_id',
-                DB::raw('AVG(CASE WHEN progress_percent IS NOT NULL THEN progress_percent ELSE CASE WHEN target_value IS NOT NULL AND target_value > 0 THEN LEAST(100, GREATEST(0, (current_value/target_value)*100)) ELSE 0 END END) as avg_progress')
-            )
+            ->select('objective_id', 'progress_percent')
             ->whereIn('objective_id', $objectiveIds)
-            ->whereNull('archived_at') // Only count non-archived KeyResults
+            ->whereNull('archived_at') // Chỉ tính KR chưa archived
+            ->get()
             ->groupBy('objective_id')
-            ->pluck('avg_progress', 'objective_id');
+            ->map(function ($krs) {
+                $progressList = [];
+                foreach ($krs as $kr) {
+                    if ($kr->progress_percent !== null) {
+                        $progressList[] = (float) $kr->progress_percent;
+                    }
+                }
+                return empty($progressList) ? null : (array_sum($progressList) / count($progressList));
+            });
 
         $objectiveProgress = $objectives->map(function ($obj) use ($krAgg) {
+            // Ưu tiên tính từ KR trực tiếp, nếu không có thì dùng giá trị trong DB
             $avgFromKrs = $krAgg[$obj->objective_id] ?? null;
             $progress = $avgFromKrs !== null ? (float) $avgFromKrs : (float) ($obj->progress_percent ?? 0.0);
             $computedStatus = $progress >= 70 ? 'on_track' : ($progress >= 40 ? 'at_risk' : 'off_track');
@@ -700,7 +713,7 @@ class ReportController extends Controller
         $objectiveIds = $objectives->pluck('objective_id');
         $keyResults = KeyResult::whereIn('objective_id', $objectiveIds)
             ->whereNull('archived_at')
-            ->with(['assignedUser', 'assignee'])
+            ->with(['assignedUser.role', 'assignedUser.department', 'assignee'])
             ->get()
             ->groupBy('objective_id');
 

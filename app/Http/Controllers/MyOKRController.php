@@ -172,7 +172,25 @@ public function switchMode(Request $request)
                 ? $objective->created_at->copy()->addMonths(3)
                 : Carbon::parse($objective->created_at)->addMonths(3);
             $daysRemaining = $now->diffInDays($deadline, false);
-            $avgProgress = round($objective->keyResults->avg('progress') ?? 0, 0);
+            // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
+            // Chỉ tính từ KeyResults trực tiếp, không archived
+            $keyResults = $objective->keyResults->filter(function($kr) {
+                return is_null($kr->archived_at);
+            });
+            
+            $avgProgress = 0;
+            if ($keyResults->isNotEmpty()) {
+                $progressList = [];
+                foreach ($keyResults as $kr) {
+                    $progress = $kr->progress_percent;
+                    if ($progress !== null && is_numeric($progress)) {
+                        $progressList[] = (float) $progress;
+                    }
+                }
+                if (!empty($progressList)) {
+                    $avgProgress = round(array_sum($progressList) / count($progressList), 0);
+                }
+            }
             
             // Kiểm tra deadline (3 tháng từ ngày tạo)
             if ($daysRemaining > 0 && $daysRemaining <= 7) {

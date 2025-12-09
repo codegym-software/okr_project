@@ -39,10 +39,12 @@ export const getAssigneeInfo = (kr) => {
             avatar: DEFAULT_AVATAR_URL,
             department: null,
             email: "",
+            role: "",
         };
     const user = kr.assigned_user || kr.assignedUser || kr.assignee || null;
 
     if (user) {
+        const roleName = user.role?.role_name?.toLowerCase() || "";
         return {
             name:
                 user.full_name ||
@@ -65,6 +67,7 @@ export const getAssigneeInfo = (kr) => {
                 user.department ||
                 null,
             email: user.email || "",
+            role: roleName,
         };
     }
 
@@ -73,5 +76,6 @@ export const getAssigneeInfo = (kr) => {
         avatar: DEFAULT_AVATAR_URL,
         department: null,
         email: "",
+        role: "",
     };
 };

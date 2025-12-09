@@ -23,7 +23,7 @@ class MyKeyResultController extends Controller
     {
         $user = Auth::user();
 
-        $keyResults = KeyResult::with(['objective', 'cycle', 'assignedUser'])
+        $keyResults = KeyResult::with(['objective', 'cycle', 'assignedUser.role', 'assignedUser.department'])
             ->active() 
             ->where(function ($query) use ($user) {
                 $query->whereHas('objective', function ($q) use ($user) {
@@ -134,6 +134,9 @@ class MyKeyResultController extends Controller
                     'archived_at' => null,
                     'assigned_to' => $finalAssignedTo,
                 ]);
+                
+                // Cập nhật updated_at của Objective khi tạo KR mới
+                $objective->touch();
                 
                 // Refresh để đảm bảo kr_id được load từ database
                 $keyResult->refresh();

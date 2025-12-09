@@ -159,9 +159,15 @@ export default function ObjectiveDetailModal({ objective, onClose }) {
                                     </div>
                                     {/* Progress Bar */}
                                     <div className="mt-3">
-                                        <div className="w-full bg-slate-200 rounded-full h-2">
+                                        <div className="w-full bg-slate-100 rounded-full h-3 relative overflow-hidden border border-slate-200">
                                             <div
-                                                className="bg-blue-600 h-2 rounded-full transition-all"
+                                                className={`h-3 rounded-full transition-all duration-300 ${
+                                                    kr.status === "completed"
+                                                        ? "bg-emerald-600"
+                                                        : kr.status === "active"
+                                                        ? "bg-blue-600"
+                                                        : "bg-slate-500"
+                                                }`}
                                                 style={{
                                                     width: `${Math.min(
                                                         100,

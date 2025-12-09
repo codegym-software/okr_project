@@ -116,7 +116,7 @@ class ReportManagerController extends Controller
         // Load check-ins mới nhất cho mỗi Key Result
         $objectiveIds = $objectives->pluck('objective_id');
         $keyResults = KeyResult::whereIn('objective_id', $objectiveIds)
-            ->with(['assignedUser', 'assignee'])
+            ->with(['assignedUser.role', 'assignedUser.department', 'assignee'])
             ->get()
             ->groupBy('objective_id');
         
@@ -461,7 +461,7 @@ class ReportManagerController extends Controller
         // Load key results
         $objectiveIds = $objectives->pluck('objective_id');
         $keyResults = KeyResult::whereIn('objective_id', $objectiveIds)
-            ->with(['assignedUser', 'assignee'])
+            ->with(['assignedUser.role', 'assignedUser.department', 'assignee'])
             ->get()
             ->groupBy('objective_id');
 

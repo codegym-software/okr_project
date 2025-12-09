@@ -478,10 +478,11 @@ class LinkController extends Controller
     {
         return [
             'sourceObjective.user.department',
-            'sourceObjective.keyResults' => fn($q) => $q->with('assignedUser')->whereNull('archived_at'),
+            'sourceObjective.keyResults' => fn($q) => $q->with(['assignedUser.role', 'assignedUser.department'])->whereNull('archived_at'),
             // sourceKr không cần vì source luôn là Objective
             'targetObjective.user.department',
             'targetKr.assignedUser.department',
+            'targetKr.assignedUser.role',
             'requester.department',
             'targetOwner.department',
             'approver.department',

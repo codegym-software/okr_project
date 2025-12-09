@@ -49,7 +49,7 @@ class CompanyOkrController extends Controller
 
         // === 2. QUERY OKR DỰA TRÊN BỘ LỌC ===
         $query = Objective::with([
-                'keyResults' => fn($q) => $q->with('assignedUser.department')->whereNull('archived_at'),
+                'keyResults' => fn($q) => $q->with(['assignedUser.department', 'assignedUser.role'])->whereNull('archived_at'),
                 'department',
                 'cycle',
                 'user' => fn($q) => $q->select('user_id', 'full_name', 'avatar_url'),
@@ -109,7 +109,7 @@ class CompanyOkrController extends Controller
             'cycle',
             'comments',
             'keyResults' => function ($query) {
-                $query->with(['assignedUser', 'checkIns.user'])->orderBy('created_at');
+                $query->with(['assignedUser.role', 'assignedUser.department', 'checkIns.user'])->orderBy('created_at');
             },
             'childObjectives' => function ($query) {
                 $query->with(['sourceObjective.user', 'sourceObjective.department']);
@@ -159,7 +159,26 @@ class CompanyOkrController extends Controller
         $weightedProgress = 0;
 
         foreach ($objectives as $obj) {
-            $objProgress = $obj->keyResults->avg('progress_percent') ?? 0;
+            // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
+            // Chỉ tính từ KeyResults trực tiếp, không archived
+            $keyResults = $obj->keyResults->filter(function($kr) {
+                return is_null($kr->archived_at);
+            });
+            
+            $objProgress = 0;
+            if ($keyResults->isNotEmpty()) {
+                $progressList = [];
+                foreach ($keyResults as $kr) {
+                    $progress = $kr->progress_percent;
+                    if ($progress !== null && is_numeric($progress)) {
+                        $progressList[] = (float) $progress;
+                    }
+                }
+                if (!empty($progressList)) {
+                    $objProgress = array_sum($progressList) / count($progressList);
+                }
+            }
+            
             $weight = $obj->level === 'company' ? 1.5 : 1;
             $totalWeight += $weight;
             $weightedProgress += $objProgress * $weight;

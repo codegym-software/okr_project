@@ -97,7 +97,7 @@ class MyObjectiveController extends Controller
         }
         
         $userId = $user->user_id;
-        $query = Objective::with(['keyResults.assignedUser.department', 'department', 'cycle', 'assignments.user', 'assignments.role', 'user'])
+        $query = Objective::with(['keyResults.assignedUser.department', 'keyResults.assignedUser.role', 'department', 'cycle', 'assignments.user', 'assignments.role', 'user'])
             ->where(function ($q) use ($userId) {
                 $q->where('user_id', $userId)
                 ->orWhereHas('keyResults', function ($subQuery) use ($userId) {
@@ -134,12 +134,12 @@ class MyObjectiveController extends Controller
 
         if ($request->boolean('include_archived_kr')) {
             $query->with(['keyResults' => function ($q) {
-                $q->with(['assignedUser.department']);
+                $q->with(['assignedUser.department', 'assignedUser.role']);
             }]);
         } else {
             $query->with([
                 'keyResults' => fn($q) => $q
-                    ->with(['assignedUser.department'])
+                    ->with(['assignedUser.department', 'assignedUser.role'])
                     ->whereNull('archived_at'),
             ]);
         }
@@ -315,6 +315,8 @@ class MyObjectiveController extends Controller
                             'user_id' => $user->user_id, 
                         ]);
                     }
+                    // Cập nhật updated_at của Objective khi tạo KR mới
+                    $objective->touch();
                 }
 
                 // Gán người dùng
@@ -533,7 +535,22 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        $objective = Objective::with(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role'])
+        $objective = Objective::with([
+            'keyResults' => function ($query) {
+                $query->with(['assignedUser.role', 'assignedUser.department', 'checkIns.user'])->orderBy('created_at');
+            },
+            'department',
+            'cycle',
+            'assignments.user',
+            'assignments.role',
+            'comments',
+            'childObjectives' => function ($query) {
+                $query->with(['sourceObjective.user', 'sourceObjective.department']);
+            },
+            'sourceLinks' => function ($query) {
+                $query->with(['targetObjective.user', 'targetObjective.department']);
+            }
+        ])
             ->where('user_id', $user->user_id) 
             ->find($id);
 
@@ -541,7 +558,18 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Không tìm thấy hoặc bạn không có quyền xem.'], 404);
         }
 
-        return response()->json(['success' => true, 'data' => $objective]);
+        // Manually construct the response to ensure all data is included
+        $data = $objective->attributesToArray();
+        $data['user'] = $objective->user;
+        $data['department'] = $objective->department;
+        $data['cycle'] = $objective->cycle;
+        $data['key_results'] = $objective->keyResults->map(function($kr) { return $kr->toArray(); })->values()->all();
+        $data['child_objectives'] = $objective->childObjectives->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['source_links'] = $objective->sourceLinks->map(function($link) { return $link->toArray(); })->values()->all();
+        $data['comments'] = $objective->comments->map(function($comment) { return $comment->toArray(); })->values()->all();
+        $data['progress_percent'] = $objective->progress_percent;
+
+        return response()->json(['success' => true, 'data' => $data]);
     }
 
     /**

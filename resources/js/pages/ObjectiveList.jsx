@@ -423,7 +423,7 @@ export default function ObjectiveList({
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-300">
                         {/* Loading & Empty States */}
                         {loading && (
                             <tr>
@@ -538,9 +538,11 @@ export default function ObjectiveList({
                                 <p className="text-base font-semibold text-slate-900">
                                     {assigneeTooltip.info.name || "Không rõ tên"}
                                 </p>
-                                <p className="text-sm text-slate-500">
-                                    {assigneeTooltip.info.department || "Phòng ban: Chưa xác định"}
-                                </p>
+                                {assigneeTooltip.info.role !== 'admin' && assigneeTooltip.info.role !== 'ceo' && (
+                                    <p className="text-sm text-slate-500">
+                                        {assigneeTooltip.info.department || "Phòng ban: Chưa xác định"}
+                                    </p>
+                                )}
                                 {assigneeTooltip.info.email && (
                                     <p className="mt-1 text-xs text-slate-400">
                                         {assigneeTooltip.info.email}

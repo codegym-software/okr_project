@@ -183,36 +183,37 @@ export default function KeyResultRow({
                                     )}
                                                 </td>
                                 
-                                                <td className="px-3 py-3 text-center">                                    <div className="flex flex-col items-center">
-                                        <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                                                <td className="px-3 py-3 text-center">
+                                    <div className="flex flex-col items-center gap-1.5">
+                                        <div className="w-full bg-slate-100 rounded-full h-5 relative overflow-hidden border border-slate-200">
                                             <div
-                                                className={`h-full rounded-full absolute left-0 ${
-                                                    sourceKr.status ===
-                                                    "completed"
-                                                        ? "bg-green-600"
-                                                        : "bg-blue-600"
+                                                className={`h-full rounded-full absolute left-0 transition-all duration-300 ${
+                                                    sourceKr.status === "completed"
+                                                        ? "bg-emerald-600"
+                                                        : sourceKr.status === "active"
+                                                        ? "bg-blue-600"
+                                                        : "bg-slate-500"
                                                 }`}
                                                 style={{
-                                                    width: `${sourceKr.progress_percent}%`,
+                                                    width: `${Math.max(0, Math.min(100, sourceKr.progress_percent || 0))}%`,
                                                 }}
                                             ></div>
-                                            {sourceKr.progress_percent > 0 && (
-                                                <span className="absolute left-1 text-white text-xs font-semibold z-10">
-                                                    {formatPercent(
-                                                        sourceKr.progress_percent
-                                                    )}
-                                                </span>
-                                            )}
+                                            <span className={`absolute inset-0 flex items-center justify-center text-xs font-bold z-10 ${
+                                                (sourceKr.progress_percent || 0) > 35 
+                                                    ? "text-white" 
+                                                    : "text-slate-700"
+                                            }`} style={(sourceKr.progress_percent || 0) > 35 ? { textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)' } : {}}>
+                                                {formatPercent(sourceKr.progress_percent)}
+                                            </span>
                                         </div>
                                         <span
-                                            className={`inline-flex items-center rounded-md px-0 py-0 text-[9px] font-semibold ${
+                                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                                 sourceKr.status === "completed"
-                                                    ? "text-emerald-700"
-                                                    : sourceKr.status ===
-                                                      "active"
-                                                    ? "text-blue-700"
-                                                    : "text-slate-700"
-                                            } mt-1`}
+                                                    ? "text-emerald-700 bg-emerald-50"
+                                                    : sourceKr.status === "active"
+                                                    ? "text-blue-700 bg-blue-50"
+                                                    : "text-slate-600 bg-slate-50"
+                                            }`}
                                         >
                                             {getStatusText(sourceKr.status)}
                                         </span>
@@ -272,7 +273,13 @@ export default function KeyResultRow({
                             title="Key Result"
                         />
 
-                        <a href={`/company-okrs/detail/kr/${kr.kr_id}`} className="font-semibold text-slate-900 text-base hover:text-blue-600 hover:underline">
+                        <a 
+                            href={objective?.level === "person" 
+                                ? `/my-objectives/key-result-details/${kr.kr_id}`
+                                : `/company-okrs/detail/kr/${kr.kr_id}`
+                            } 
+                            className="font-semibold text-slate-900 text-base hover:text-blue-600"
+                        >
                             {kr.kr_title}
                         </a>
                                                         </div>
@@ -313,30 +320,34 @@ export default function KeyResultRow({
                 </td>
 
                 <td className="px-3 py-3 text-center">
-                    <div className="flex flex-col items-center">
-                        <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                    <div className="flex flex-col items-center gap-1.5">
+                        <div className="w-full bg-slate-100 rounded-full h-5 relative overflow-hidden border border-slate-200">
                             <div
-                                className={`h-full rounded-full absolute left-0 ${
+                                className={`h-full rounded-full absolute left-0 transition-all duration-300 ${
                                     kr.status === "completed"
-                                        ? "bg-green-600"
-                                        : "bg-blue-600"
+                                        ? "bg-emerald-600"
+                                        : kr.status === "active"
+                                        ? "bg-blue-600"
+                                        : "bg-slate-500"
                                 }`}
-                                style={{ width: `${kr.progress_percent}%` }}
+                                style={{ width: `${Math.max(0, Math.min(100, kr.progress_percent || 0))}%` }}
                             ></div>
-                            {kr.progress_percent > 0 && (
-                                <span className="absolute left-1 text-gray text-xs font-normal z-10">
-                                    {formatPercent(kr.progress_percent)}
-                                </span>
-                            )}
+                            <span className={`absolute inset-0 flex items-center justify-center text-xs font-bold z-10 ${
+                                (kr.progress_percent || 0) > 35 
+                                    ? "text-white" 
+                                    : "text-slate-700"
+                            }`} style={(kr.progress_percent || 0) > 35 ? { textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,1)' } : {}}>
+                                {formatPercent(kr.progress_percent)}
+                            </span>
                         </div>
                         <span
-                            className={`inline-flex items-center rounded-md px-0 py-0 text-[9px] font-semibold ${
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                 kr.status === "completed"
-                                    ? "text-emerald-700"
+                                    ? "text-emerald-700 bg-emerald-50"
                                     : kr.status === "active"
-                                    ? "text-blue-700"
-                                    : "text-slate-700"
-                            } mt-1`}
+                                    ? "text-blue-700 bg-blue-50"
+                                    : "text-slate-600 bg-slate-50"
+                            }`}
                         >
                             {getStatusText(kr.status)}
                         </span>

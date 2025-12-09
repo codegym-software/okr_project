@@ -77,7 +77,7 @@ class OkrTreeController extends Controller
         $objectiveId = $request->input('objective_id');
         if ($objectiveId) {
             $objective = Objective::with([
-                    'keyResults' => fn($q) => $q->whereNull('archived_at')->with('assignedUser'),
+                    'keyResults' => fn($q) => $q->whereNull('archived_at')->with(['assignedUser.role', 'assignedUser.department']),
                     'user.department',
                     'department',
                     'cycle',
@@ -160,7 +160,7 @@ class OkrTreeController extends Controller
 
         // Tìm các KeyResult được liên kết lên OKR này
         $linkedKRs = OkrLink::with([
-                'targetKr' => fn($q) => $q->with(['assignedUser', 'objective']),
+                'targetKr' => fn($q) => $q->with(['assignedUser.role', 'assignedUser.department', 'objective']),
             ])
             ->where('target_objective_id', $objective->objective_id)
             ->where('target_type', 'kr')
