@@ -29,9 +29,11 @@ export default function AssigneeTooltip({ tooltip }) {
                         <p className="text-base font-semibold text-slate-900">
                             {info.name || "Không rõ"}
                         </p>
-                        <p className="text-sm text-slate-500">
-                            {info.department || "Phòng ban: Chưa xác định"}
-                        </p>
+                        {info.role !== 'admin' && info.role !== 'ceo' && (
+                            <p className="text-sm text-slate-500">
+                                {info.department || "Phòng ban: Chưa xác định"}
+                            </p>
+                        )}
                         {info.email && (
                             <p className="mt-1 text-xs text-slate-400">
                                 {info.email}

@@ -700,7 +700,7 @@ class ReportController extends Controller
         $objectiveIds = $objectives->pluck('objective_id');
         $keyResults = KeyResult::whereIn('objective_id', $objectiveIds)
             ->whereNull('archived_at')
-            ->with(['assignedUser', 'assignee'])
+            ->with(['assignedUser.role', 'assignedUser.department', 'assignee'])
             ->get()
             ->groupBy('objective_id');
 

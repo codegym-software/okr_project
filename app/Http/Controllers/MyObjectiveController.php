@@ -97,7 +97,7 @@ class MyObjectiveController extends Controller
         }
         
         $userId = $user->user_id;
-        $query = Objective::with(['keyResults.assignedUser.department', 'department', 'cycle', 'assignments.user', 'assignments.role', 'user'])
+        $query = Objective::with(['keyResults.assignedUser.department', 'keyResults.assignedUser.role', 'department', 'cycle', 'assignments.user', 'assignments.role', 'user'])
             ->where(function ($q) use ($userId) {
                 $q->where('user_id', $userId)
                 ->orWhereHas('keyResults', function ($subQuery) use ($userId) {
@@ -134,12 +134,12 @@ class MyObjectiveController extends Controller
 
         if ($request->boolean('include_archived_kr')) {
             $query->with(['keyResults' => function ($q) {
-                $q->with(['assignedUser.department']);
+                $q->with(['assignedUser.department', 'assignedUser.role']);
             }]);
         } else {
             $query->with([
                 'keyResults' => fn($q) => $q
-                    ->with(['assignedUser.department'])
+                    ->with(['assignedUser.department', 'assignedUser.role'])
                     ->whereNull('archived_at'),
             ]);
         }

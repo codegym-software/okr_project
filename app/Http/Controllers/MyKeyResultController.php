@@ -23,7 +23,7 @@ class MyKeyResultController extends Controller
     {
         $user = Auth::user();
 
-        $keyResults = KeyResult::with(['objective', 'cycle', 'assignedUser'])
+        $keyResults = KeyResult::with(['objective', 'cycle', 'assignedUser.role', 'assignedUser.department'])
             ->active() 
             ->where(function ($query) use ($user) {
                 $query->whereHas('objective', function ($q) use ($user) {

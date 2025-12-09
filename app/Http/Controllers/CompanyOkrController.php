@@ -49,7 +49,7 @@ class CompanyOkrController extends Controller
 
         // === 2. QUERY OKR DỰA TRÊN BỘ LỌC ===
         $query = Objective::with([
-                'keyResults' => fn($q) => $q->with('assignedUser.department')->whereNull('archived_at'),
+                'keyResults' => fn($q) => $q->with(['assignedUser.department', 'assignedUser.role'])->whereNull('archived_at'),
                 'department',
                 'cycle',
                 'user' => fn($q) => $q->select('user_id', 'full_name', 'avatar_url'),
@@ -109,7 +109,7 @@ class CompanyOkrController extends Controller
             'cycle',
             'comments',
             'keyResults' => function ($query) {
-                $query->with(['assignedUser', 'checkIns.user'])->orderBy('created_at');
+                $query->with(['assignedUser.role', 'assignedUser.department', 'checkIns.user'])->orderBy('created_at');
             },
             'childObjectives' => function ($query) {
                 $query->with(['sourceObjective.user', 'sourceObjective.department']);
