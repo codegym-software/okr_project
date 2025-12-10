@@ -6,41 +6,31 @@ export default function LinkRequestsPanel({
     loading = false,
     onApprove,
     onReject,
-    onRequestChanges,
     onCancel,
 }) {
     const [noteInput, setNoteInput] = React.useState("");
     const [actionModal, setActionModal] = React.useState({
         show: false,
         linkId: null,
-        type: "reject", // 'reject' | 'changes'
         title: "",
         placeholder: "",
     });
 
     const closeActionModal = () =>
-        setActionModal({ show: false, linkId: null, type: "reject", title: "", placeholder: "" });
+        setActionModal({ show: false, linkId: null, title: "", placeholder: "" });
 
-    const openActionModal = (linkId, type) => {
+    const openActionModal = (linkId) => {
         setActionModal({
             show: true,
             linkId,
-            type,
-            title:
-                type === "changes"
-                    ? "Nhập yêu cầu chỉnh sửa trước khi duyệt"
-                    : "Nhập lý do từ chối yêu cầu liên kết",
-            placeholder: type === "changes" ? "Ví dụ: Cần cập nhật target value..." : "Ví dụ: Không phù hợp KPI năm nay...",
+            title: "Nhập lý do từ chối yêu cầu liên kết",
+            placeholder: "Ví dụ: Không phù hợp KPI năm nay...",
         });
     };
 
     const submitActionModal = () => {
         if (!noteInput.trim()) return;
-        if (actionModal.type === "changes") {
-            onRequestChanges?.(actionModal.linkId, noteInput.trim());
-        } else {
-            onReject?.(actionModal.linkId, noteInput.trim());
-        }
+        onReject?.(actionModal.linkId, noteInput.trim());
         setNoteInput("");
         closeActionModal();
     };
@@ -50,7 +40,7 @@ export default function LinkRequestsPanel({
     }
 
     return (
-        <div className="mt-10 space-y-6" data-section="link-requests">
+        <div className="mx-auto w-full max-w-6xl mt-10 space-y-6" data-section="link-requests">
             {incoming.length > 0 && (
                 <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
                     <div className="mb-4 flex items-center justify-between">
@@ -118,13 +108,7 @@ export default function LinkRequestsPanel({
                                             Chấp thuận
                                         </button>
                                         <button
-                                            onClick={() => openActionModal(link.link_id, "changes")}
-                                            className="rounded-full border border-amber-400 px-4 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100"
-                                        >
-                                            Yêu cầu chỉnh sửa
-                                        </button>
-                                        <button
-                                            onClick={() => openActionModal(link.link_id, "reject")}
+                                            onClick={() => openActionModal(link.link_id)}
                                             className="rounded-full border border-rose-300 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
                                         >
                                             Từ chối

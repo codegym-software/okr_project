@@ -177,7 +177,9 @@ export default function ObjectiveRow({
                                 openObj={openObj}
                                 setOpenObj={setOpenObj}
                                 disableActions={disableActions}
-                                setEditingObjective={setEditingObjective} // Pass down the editing function
+                                setEditingObjective={setEditingObjective}
+                                onCancelLink={onCancelLink}
+                                linkId={linkBadge?.link_id}
                             />
                         )}
                     </div>
@@ -207,6 +209,11 @@ export default function ObjectiveRow({
                         menuRefs={menuRefs}
                         colSpanForKRs={7} // NEW PROP
                         disableActions={disableActions}
+                        setCreatingFor={setCreatingFor}
+                        onOpenLinkModal={onOpenLinkModal}
+                        handleArchive={handleArchive}
+                        setEditingObjective={setEditingObjective}
+                        archiving={archiving}
                     />
                 ))}
         </>

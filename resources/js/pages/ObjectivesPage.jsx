@@ -616,6 +616,17 @@ export default function ObjectivesPage() {
     useEffect(() => {
         try {
             const url = new URL(window.location.href);
+            
+            // Giữ lại các query params quan trọng khác (highlight_link, objective_id, highlight_kr, cycle_id, view_mode)
+            const preserveParams = ['highlight_link', 'objective_id', 'highlight_kr', 'cycle_id', 'view_mode'];
+            const preservedValues = {};
+            preserveParams.forEach(param => {
+                const value = url.searchParams.get(param);
+                if (value) {
+                    preservedValues[param] = value;
+                }
+            });
+            
             if (displayMode === "tree") {
                 url.searchParams.set("display", "tree");
                 if (treeRootId) {
@@ -629,6 +640,12 @@ export default function ObjectivesPage() {
                 url.searchParams.delete("root_objective_id");
                 url.searchParams.delete("tree_layout");
             }
+            
+            // Khôi phục các params đã giữ lại
+            Object.entries(preservedValues).forEach(([key, value]) => {
+                url.searchParams.set(key, value);
+            });
+            
             window.history.replaceState({}, "", url.toString());
         } catch (e) {
             console.error("Failed to sync tree params", e);
@@ -727,8 +744,19 @@ export default function ObjectivesPage() {
         [page, cycleFilter, myOKRFilter, viewMode]
     );
 
-    const handleCancelLink = (linkId, reason = "", keepOwnership = true) =>
-        performLinkAction(linkId, "cancel", { reason, keep_ownership: keepOwnership }, "Đã hủy liên kết");
+    const handleCancelLink = (linkIdOrLink, reason = "", keepOwnership = true) => {
+        // Xử lý cả 2 trường hợp: nhận linkId (number/string) hoặc link object
+        const linkId = typeof linkIdOrLink === 'object' && linkIdOrLink !== null
+            ? linkIdOrLink.link_id
+            : linkIdOrLink;
+        
+        if (!linkId) {
+            console.error('handleCancelLink: linkId is required');
+            return;
+        }
+        
+        return performLinkAction(linkId, "cancel", { reason, keep_ownership: keepOwnership }, "Đã hủy liên kết");
+    };
 
     const handleApproveLink = (linkId, note = "") =>
         performLinkAction(linkId, "approve", { note }, "Đã chấp thuận yêu cầu");
@@ -736,8 +764,6 @@ export default function ObjectivesPage() {
     const handleRejectLink = (linkId, note) =>
         performLinkAction(linkId, "reject", { note }, "Đã từ chối yêu cầu");
 
-    const handleRequestChanges = (linkId, note) =>
-        performLinkAction(linkId, "request-changes", { note }, "Đã yêu cầu chỉnh sửa");
 
     const openCheckInModal = (keyResult) => {
         setCheckInModal({ open: true, keyResult });
@@ -1071,7 +1097,6 @@ export default function ObjectivesPage() {
                 loading={linksLoading}
                 onApprove={handleApproveLink}
                 onReject={handleRejectLink}
-                onRequestChanges={handleRequestChanges}
                 onCancel={handleCancelLink}
             />
 
@@ -1103,6 +1128,7 @@ export default function ObjectivesPage() {
                     source={linkModal.source}
                     sourceType={linkModal.sourceType}
                     onSuccess={handleLinkRequestSuccess}
+                    onCancelLink={handleCancelLink}
                 />
             )}
         </div>

@@ -1,5 +1,6 @@
 import React from "react";
 import { FaBullseye, FaKey, FaLongArrowAltLeft } from "react-icons/fa";
+import ObjectiveActionsMenu from "./ObjectiveActionsMenu";
 
 export default function LinkedChildObjectiveRow({
     linkedObj,
@@ -14,6 +15,12 @@ export default function LinkedChildObjectiveRow({
     getUnitText,
     colSpanForKRs,
     disableActions = false,
+    setCreatingFor,
+    onOpenLinkModal,
+    handleArchive,
+    setEditingObjective,
+    menuRefs,
+    archiving,
 }) {
     const hasKRs = linkedObj.key_results?.length > 0;
     const expanded =
@@ -85,39 +92,92 @@ export default function LinkedChildObjectiveRow({
                 </td>
                 {/* Cột Hành động */}
                 <td className="px-3 py-3 text-center">
-                    <button
-                        onClick={() => {
-                            if (
-                                window.confirm(
-                                    `Hủy liên kết với "${linkedObj.obj_title}"?`
-                                )
-                            ) {
-                                const keep =
-                                    window.confirm("Giữ quyền sở hữu?");
-                                onCancelLink?.(
-                                    linkedObj.link.link_id,
-                                    "",
-                                    keep
-                                );
-                            }
-                        }}
-                        className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={disableActions}
-                    >
-                        <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                    <div className="flex items-center justify-end gap-1">
+                        <button
+                            onClick={() => setCreatingFor?.(linkedObj)}
+                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Thêm KR"
+                            disabled={true}
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
+                            <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <circle
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    fill="none"
+                                />
+                                <path
+                                    d="M12 7V17M7 12H17"
+                                    stroke="currentColor"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                />
+                            </svg>
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (disableActions || linkedObj.level === "company") {
+                                    return;
+                                }
+                                onOpenLinkModal?.({
+                                    sourceType: "objective",
+                                    source: linkedObj,
+                                });
+                            }}
+                            disabled={true}
+                            title="Liên kết OKR"
+                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.172-1.172m-.915-2.06c.071-.044.14-.087.207-.13.312-.192.646-.358 1-.497.647-.253 1.348-.372 2.052-.372h.001c.704 0 1.405.119 2.052.372.354.139.688.305 1 .497.067.043.136.086.207.13l-.915-2.06z"
+                                />
+                            </svg>
+                        </button>
+                        
+                        {disableActions ? (
+                            <button
+                                onClick={() => handleArchive?.(linkedObj.objective_id)}
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Lưu trữ"
+                                disabled={archiving === linkedObj.objective_id}
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                            </button>
+                        ) : (
+                            <ObjectiveActionsMenu
+                                obj={linkedObj}
+                                onOpenLinkModal={onOpenLinkModal}
+                                handleArchive={handleArchive}
+                                archiving={archiving}
+                                menuRefs={menuRefs}
+                                openObj={openObj}
+                                setOpenObj={setOpenObj}
+                                disableActions={disableActions}
+                                setEditingObjective={setEditingObjective}
+                                onCancelLink={onCancelLink}
+                                linkId={linkedObj.link?.link_id}
                             />
-                        </svg>
-                    </button>
+                        )}
+                    </div>
                 </td>
             </tr>
 
