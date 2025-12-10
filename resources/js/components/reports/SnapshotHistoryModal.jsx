@@ -35,17 +35,17 @@ export default function SnapshotHistoryModal({
             const snapLevel = snap.data_snapshot?.level || 'departments';
             if (snapLevel !== snapshotLevelFilter) return false;
         }
-        
+
         // Filter by cycle
         if (modalCycleFilter && snap.cycle_id !== parseInt(modalCycleFilter)) {
             return false;
         }
-        
+
         return true;
     });
 
     return (
-        <div 
+        <div
             className="fixed inset-0 bg-black/30 bg-opacity-70 flex items-center justify-center z-[70] p-4"
             onClick={(e) => {
                 if (e.target === e.currentTarget) {
@@ -53,17 +53,17 @@ export default function SnapshotHistoryModal({
                 }
             }}
         >
-            <div 
+            <div
                 className="bg-white rounded-xl shadow-2xl max-w-[80vw] w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
-                onClick={(e) => e.stopPropagation()} 
+                onClick={(e) => e.stopPropagation()}
             >
-                
+
                 <div className="sticky top-0 z-50 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-xl shadow-sm">
                     <div className="flex items-center gap-4">
                         <h2 className="text-xl font-bold text-gray-900">Danh sách Báo cáo</h2>
                     </div>
-                    <button 
-                        onClick={onClose} 
+                    <button
+                        onClick={onClose}
                         className="text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg p-2 transition"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -264,25 +264,25 @@ export default function SnapshotHistoryModal({
                                                         const levelText = snapLevel === 'company' ? 'Công ty' : 'Phòng ban';
                                                         const rowKey = `snapshot-${snap.id}-${snapshotSortBy || 'nosort'}-${snapshotSortDir}-${snap.snapshotted_at || snap.created_at || ''}`;
                                                         return (
-                                                            <tr 
-                                                                key={rowKey} 
+                                                            <tr
+                                                                key={rowKey}
                                                                 className="border-t border-gray-100 hover:bg-slate-50 cursor-pointer"
                                                                 onClick={() => onLoadSnapshot?.(snap.id)}
                                                             >
-                                                                <td className="px-6 py-4 pl-8"> 
+                                                                <td className="px-6 py-4 pl-8">
                                                                     <div className="flex items-center gap-4">
                                                                         <h3 className="font-medium text-gray-900 text-base leading-6 truncate hover:text-blue-600 transition-colors">
-                                                                        {snap.title}
+                                                                            {snap.title}
                                                                         </h3>
 
                                                                         <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-blue-700">
-                                                                        {levelText}
+                                                                            {levelText}
                                                                         </span>
                                                                     </div>
                                                                 </td>
                                                                 <td className="px-4 py-3 align-middle">
                                                                     {snap.creator ? (
-                                                                        <div 
+                                                                        <div
                                                                             className="flex items-center gap-2 justify-center"
                                                                             onMouseEnter={(e) =>
                                                                                 setCreatorTooltip({
@@ -311,9 +311,9 @@ export default function SnapshotHistoryModal({
                                                                         <span className="text-slate-400 text-xs">N/A</span>
                                                                     )}
                                                                 </td>
-                                                                <td className="px-4 py-3 text-center align-middle text-center">
-                                                                    <div className="flex justify-center">
-                                                                        <div className="w-24">
+                                                                <td className="px-4 py-4 align-middle">
+                                                                    <div className="flex justify-center items-center">
+                                                                        <div className="w-32 mx-auto">
                                                                             <ProgressBar progress={snap.data_snapshot?.overall?.averageProgress || 0} />
                                                                         </div>
                                                                     </div>
@@ -413,7 +413,7 @@ export default function SnapshotHistoryModal({
                 <div
                     className="fixed bg-white rounded-lg shadow-xl p-4 z-[100] border border-slate-200 min-w-max"
                     style={{
-                        top: `${creatorTooltip.position.top - 95}px`,
+                        top: `${creatorTooltip.position.top - 85}px`,
                         left: `${creatorTooltip.position.left + creatorTooltip.position.width / 2 - 170}px`,
                     }}
                 >
@@ -439,7 +439,7 @@ export default function SnapshotHistoryModal({
                         </div>
                     </div>
                     {/* Arrow */}
-                    <div 
+                    <div
                         className="absolute w-2 h-2 bg-white border-r border-b border-slate-200 transform rotate-45"
                         style={{
                             bottom: '-4px',
@@ -452,4 +452,3 @@ export default function SnapshotHistoryModal({
         </div>
     );
 }
-
