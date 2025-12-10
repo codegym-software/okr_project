@@ -51,8 +51,11 @@ EXPOSE 80
 
 
 
+# THÊM: Tạo thư mục tạm cho Nginx và cấp quyền
+RUN mkdir -p /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi \
+    && chown -R www-data:www-data /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi
 
 # Switch to www-data user
 USER www-data
 
-CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off; pid /tmp/nginx.pid; error_log /dev/stderr warn;'"]
+CMD ["sh", "-c", "php-fpm -D && nginx -g 'daemon off; pid /tmp/nginx.pid;'"]
