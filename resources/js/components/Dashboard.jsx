@@ -103,10 +103,7 @@ function MyOkrRow({ okr }) {
                                             style={{ width: `${krProgress}%` }}
                                         />
                                     </div>
-                                    <div className="flex items-center gap-2 min-w-[100px] justify-end">
-                                        <span className="text-xs font-semibold text-slate-900">
-                                            {currentVal} / {targetVal} {unit}
-                                        </span>
+                                    <div className="flex items-center gap-2 min-w-[50px] justify-end">
                                         <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${krProgress >= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
                                             {krProgress}%
                                         </span>
