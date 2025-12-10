@@ -47,6 +47,7 @@ export default function ObjectiveList({
     onCancelLink,
     hideFilters = false,
     disableActions = false,
+    departments = [],
 }) {
     const [toast, setToast] = useState(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -511,6 +512,8 @@ export default function ObjectiveList({
                 onConfirm={handleAssignKR}
                 onClose={closeAssignModal}
                 currentUserRole={currentUser?.role}
+                currentUser={currentUser}
+                departments={departments}
             />
             {assigneeTooltip && assigneeTooltip.info && (
                 <div

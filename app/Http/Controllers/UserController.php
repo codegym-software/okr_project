@@ -403,13 +403,45 @@ class UserController extends Controller
         $query = $request->query('q');
         $departmentId = $request->query('department_id');
 
+        // Nếu có department_id nhưng không có query, trả về tất cả users trong phòng ban
+        if (empty($query) && $departmentId) {
+            $users = User::with('role')
+                ->where('department_id', $departmentId)
+                ->orderBy('full_name')
+                ->get();
+            
+            Log::info('Loading users for department', [
+                'department_id' => $departmentId,
+                'total_users' => $users->count(),
+                'users_with_roles' => $users->filter(fn($u) => $u->role)->count(),
+            ]);
+            
+            // Map để đảm bảo role được include trong response
+            $usersData = $users->map(function($user) {
+                return [
+                    'user_id' => $user->user_id,
+                    'full_name' => $user->full_name,
+                    'email' => $user->email,
+                    'avatar_url' => $user->avatar_url,
+                    'role' => $user->role ? [
+                        'role_id' => $user->role->role_id,
+                        'role_name' => $user->role->role_name,
+                    ] : null,
+                ];
+            });
+            
+            return response()->json(['success' => true, 'data' => $usersData]);
+        }
+
+        // Nếu không có query và không có department_id, trả về empty
         if (empty($query)) {
             return response()->json(['success' => true, 'data' => []]);
         }
 
         $lowerQuery = strtolower($query);
 
-        $users = User::where(function ($qBuilder) use ($lowerQuery) {
+        $users = User::with('role')
+            ->where(function ($qBuilder) use ($lowerQuery) {
                 $qBuilder->where(DB::raw('LOWER(full_name)'), 'like', '%' . $lowerQuery . '%')
                          ->orWhere(DB::raw('LOWER(email)'), 'like', '%' . $lowerQuery . '%');
             })
@@ -417,8 +449,22 @@ class UserController extends Controller
                 $qBuilder->where('department_id', $departmentId);
             })
             ->limit(10)
-            ->get(['user_id', 'full_name', 'email', 'avatar_url']);
+            ->get();
 
-        return response()->json(['success' => true, 'data' => $users]);
+        // Map để đảm bảo role được include trong response
+        $usersData = $users->map(function($user) {
+            return [
+                'user_id' => $user->user_id,
+                'full_name' => $user->full_name,
+                'email' => $user->email,
+                'avatar_url' => $user->avatar_url,
+                'role' => $user->role ? [
+                    'role_id' => $user->role->role_id,
+                    'role_name' => $user->role->role_name,
+                ] : null,
+            ];
+        });
+
+        return response()->json(['success' => true, 'data' => $usersData]);
     }
 }
