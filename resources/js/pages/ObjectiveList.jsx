@@ -413,7 +413,7 @@ export default function ObjectiveList({
                                 Tiêu đề
                             </th>
                             <th className="px-3 py-2 text-center" style={{width: '180px'}}>
-                                Người thực hiện
+                                Người sở hữu
                             </th>
                             <th className="px-3 py-2 text-center" style={{width: '150px'}}>
                                 Tiến độ (%)

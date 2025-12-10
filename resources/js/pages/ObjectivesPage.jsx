@@ -7,8 +7,10 @@ import CheckInModal from "../components/CheckInModal";
 import ErrorBoundary from "../components/ErrorBoundary";
 import LinkOkrModal from "../components/LinkOkrModal.jsx";
 import LinkRequestsPanel from "../components/LinkRequestsPanel";
+import OkrTreeCanvas from "../components/okr/OkrTreeCanvas";
 import {
     mergeChildLinksIntoObjectives,
+    buildTreeFromObjectives,
 } from "../utils/okrHierarchy";
 
 const pickRelation = (link, camel, snake) =>
@@ -62,6 +64,9 @@ export default function ObjectivesPage() {
 
     const [myOKRFilter, setMyOKRFilter] = useState(false);
     const [viewMode, setViewMode] = useState('levels'); // 'levels' or 'personal'
+    const [displayMode, setDisplayMode] = useState('table'); // 'table' or 'tree'
+    const [treeLayout, setTreeLayout] = useState('horizontal');
+    const [treeRootId, setTreeRootId] = useState(null);
 
     // Hàm cập nhật URL query parameters
     const updateURL = useCallback((cycleId, viewModeValue) => {
@@ -654,6 +659,57 @@ export default function ObjectivesPage() {
         () => mergeChildLinksIntoObjectives(displayItems, childLinks),
         [displayItems, childLinks]
     );
+    
+    const treeNodes = useMemo(
+        () => buildTreeFromObjectives(enrichedItems),
+        [enrichedItems]
+    );
+
+    // Đồng bộ displayMode, treeRootId, treeLayout vào query params
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (displayMode == "tree") {
+                url.searchParams.set("display", "tree");
+                if (treeRootId) {
+                    url.searchParams.set("root_objective_id", String(treeRootId));
+                } else {
+                    url.searchParams.delete("root_objective_id");
+                }
+                url.searchParams.set("tree_layout", treeLayout);
+            } else {
+                url.searchParams.delete("display");
+                url.searchParams.delete("root_objective_id");
+                url.searchParams.delete("tree_layout");
+            }
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            console.error("Failed to sync tree params:", e);
+        }
+    }, [displayMode, treeRootId, treeLayout]);
+
+    useEffect(() => {
+        if (!enrichedItems.length) {
+            setTreeRootId(null);
+            return;
+        }
+        if (
+            !treeRootId ||
+            !enrichedItems.some(
+                (obj) => String(obj.objective_id) === String(treeRootId)
+            )
+        ) {
+            setTreeRootId(enrichedItems[0].objective_id);
+        }
+    }, [enrichedItems, treeRootId]);
+
+    const treeDataForRender = useMemo(() => {
+        if (!treeNodes.length) return [];
+        if (!treeRootId) return treeNodes;
+        return treeNodes.filter(
+            (node) => String(node.objective_id || node.id) === String(treeRootId)
+        );
+    }, [treeNodes, treeRootId]); 
 
     const handleCheckInSuccess = (responseData) => {
         const updatedObjective = responseData.objective;
@@ -756,6 +812,45 @@ export default function ObjectivesPage() {
                 message={toast.message}
                 onClose={() => setToast((prev) => ({ ...prev, message: "" }))}
             />
+
+            <div className="mx-auto w-full max-w-6xl flex justify-end">
+                <div className="flex items-center gap-2">
+                    {displayMode === "tree" && (
+                        <button type="button" onClick={() => setTreeLayout((prev) => prev === "horizontal" ? "vertical" : "horizontal")} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50" title={treeLayout === "horizontal" ? "Chuyển sang hiển thị dọc" : "Chuyển sang hiển thị ngang"}>
+                            <svg classname="h-4 w-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                            {treeLayout === "horizontal" ? "Xem ngang" : "Xem dọc"}
+                        </button>
+                    )}
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                        <button type="button" onClick={() => setDisplayMode("table")} className={`px-3 py-1.5 text-xs font-medium rounded-md ${displayMode === "table" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}> Dạng bảng 
+                        </button>
+                        <button type="button" onClick={() => setDisplayMode("tree")} className={`ml-1 px-3 py-1.5 text-xs font-medium rounded-md ${displayMode === "tree" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}> Dạng cây
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div className="mb-4 flex items-center justify-between gap-4">
+                {displayMode === "tree" ? (
+                    <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-slate-600">
+                            Objective gốc
+                        </label>
+                        <select className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" value={treeRootId || ""} onChange={(e) => setTreeRootId(e.target.value)}>
+                            {enrichedItems.map((obj) => (
+                                <option key={obj.objective_id} value={obj.objective_id}>
+                                    {obj.objective_title}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                ) : (
+                    <div />
+                )}
+            </div>
+
+            {displayMode === "table" ? (
             <ObjectiveList
                     items={displayItems}
                 setItems={setItems}
@@ -785,8 +880,19 @@ export default function ObjectivesPage() {
                 onCancelLink={handleCancelLink}
                 reloadData={load}
             />
+            ) : (
+                <>
+                    <OkrTreeCanvas
+                        data={treeDataForRender}
+                        loading={loading}
+                        emptyMessage="Không có OKR nào trong danh sách hiện tại"
+                        height={640}
+                        showLayoutToggle={false}
+                        layoutDirection={treeLayout}
+                        onLayoutDirectionChange={setTreeLayout}
+                    />
 
-            {totalPages > 1 && (
+                    {totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-center">
                     <div className="flex items-center gap-2">
                 <button
@@ -876,7 +982,10 @@ export default function ObjectivesPage() {
                 </button>
             </div>
                 </div>
+                    )}
+                </>
             )}
+        
             {editingKR && (
                 <KeyResultModal
                     editingKR={editingKR}
@@ -950,6 +1059,7 @@ export default function ObjectivesPage() {
                     onSuccess={handleLinkRequestSuccess}
                 />
             )}
+            
         </div>
     );
 }
