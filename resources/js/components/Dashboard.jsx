@@ -313,14 +313,25 @@ export default function Dashboard() {
             <div className="grid gap-10 md:grid-cols-2">
                 {/* KHU VỰC 2: PHÒNG BAN (Read Only) */}
                 <section className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-4">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 font-bold text-sm">
-                            🏢
-                        </span>
-                        <div>
-                            <h2 className="text-base font-bold text-slate-800">Mục tiêu Phòng Ban</h2>
-                            <p className="text-xs text-slate-500">Phạm vi team & bộ phận</p>
+                    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+                        <div className="flex items-center gap-2">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 font-bold text-sm">
+                                🏢
+                            </span>
+                            <div>
+                                <h2 className="text-base font-bold text-slate-800">Mục tiêu Phòng Ban</h2>
+                                <p className="text-xs text-slate-500">Phạm vi team & bộ phận</p>
+                            </div>
                         </div>
+                        {/* Link xem báo cáo chi tiết - Chỉ Manager mới thấy */}
+                        {data.user?.role?.role_name === 'manager' && (
+                            <a href="/reports" className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline transition-colors">
+                                Xem chi tiết
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                </svg>
+                            </a>
+                        )}
                     </div>
                     <SimpleOkrList 
                         okrs={data.deptOkrs || []} 
@@ -330,14 +341,25 @@ export default function Dashboard() {
 
                 {/* KHU VỰC 3: CÔNG TY (Read Only) */}
                 <section className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-4">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 font-bold text-sm">
-                            🌏
-                        </span>
-                        <div>
-                            <h2 className="text-base font-bold text-slate-800">Mục tiêu Công Ty liên quan</h2>
-                            <p className="text-xs text-slate-500">Các mục tiêu bạn đang trực tiếp đóng góp</p>
+                    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+                        <div className="flex items-center gap-2">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 font-bold text-sm">
+                                🌏
+                            </span>
+                            <div>
+                                <h2 className="text-base font-bold text-slate-800">Mục tiêu Công Ty liên quan</h2>
+                                <p className="text-xs text-slate-500">Các mục tiêu bạn đang trực tiếp đóng góp</p>
+                            </div>
                         </div>
+                        {/* Link xem báo cáo chi tiết - Chỉ CEO/Admin mới thấy */}
+                        {['admin', 'ceo'].includes(data.user?.role?.role_name?.toLowerCase()) && (
+                            <a href="/reports/company-overview" className="flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-800 hover:underline transition-colors">
+                                Xem chi tiết
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                </svg>
+                            </a>
+                        )}
                     </div>
                     <SimpleOkrList 
                         okrs={data.companyOkrs || []} 

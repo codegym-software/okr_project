@@ -14,7 +14,8 @@ class DashboardController extends Controller
 
     public function getData(Request $request)
     {
-        $user = auth()->user();
+        // Eager load role to ensure we can check permissions in frontend
+        $user = auth()->user()->load('role');
 
         // 1. My OKRs (Active)
         // OKRs owned by user
