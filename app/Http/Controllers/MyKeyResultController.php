@@ -143,11 +143,14 @@ class MyKeyResultController extends Controller
 
                 // Gửi thông báo cho người được giao (nếu khác người tạo)
                 if ($finalAssignedTo && $finalAssignedTo !== $user->user_id) {
+                    $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$keyResult->kr_id}&objective_id={$keyResult->objective_id}&action=checkin";
                     NotificationService::send(
                         $finalAssignedTo,
                         "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
                         'kr_assigned',
-                        $keyResult->cycle_id
+                        $keyResult->cycle_id,
+                        $actionUrl,
+                        'Xem Key Result'
                     );
                 }
                 
@@ -256,11 +259,14 @@ class MyKeyResultController extends Controller
 
                     // Gửi thông báo cho người được giao mới (nếu khác người thực hiện trước và khác người tạo)
                     if ($assignee->user_id !== $user->user_id) {
+                        $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$keyResult->kr_id}&objective_id={$keyResult->objective_id}&action=checkin";
                         NotificationService::send(
                             $assignee->user_id,
                             "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
                             'kr_assigned',
-                            $keyResult->cycle_id
+                            $keyResult->cycle_id,
+                            $actionUrl,
+                            'Xem Key Result'
                         );
                     }
                 }
@@ -421,8 +427,8 @@ class MyKeyResultController extends Controller
     {
         $user = Auth::user();
         $keyResult = KeyResult::where('objective_id', $objectiveId)
-
-            ->findOrFail($keyResultId);
+            ->where('kr_id', $keyResultId)
+            ->firstOrFail();
 
         $objective = Objective::findOrFail($objectiveId);
 
@@ -461,18 +467,21 @@ class MyKeyResultController extends Controller
         $message = $assignee ? "Đã giao KR cho {$assignee->full_name}" : "Đã bỏ giao KR thành công.";
 
         // Tạo thông báo cho người được giao
-        if ($assignee->user_id !== $user->user_id) {
+        if ($assignee && $assignee->user_id !== $user->user_id) {
+            $actionUrl = config('app.url') . "/my-objectives?highlight_kr={$keyResult->kr_id}&objective_id={$keyResult->objective_id}&action=checkin";
             NotificationService::send(
                 $assignee->user_id,
                 "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
                 'kr_assigned',
-                $keyResult->cycle_id
+                $keyResult->cycle_id,
+                $actionUrl,
+                'Xem Key Result'
             );
         }
 
         return response()->json([
             'success' => true,
-            'message' => "Đã giao KR cho {$assignee->full_name}",
+            'message' => $message,
 
             'data' => [
                 'objective' => $updatedObjective

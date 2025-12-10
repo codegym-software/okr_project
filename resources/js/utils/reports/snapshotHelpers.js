@@ -6,11 +6,19 @@ export async function loadSnapshots(cycleId, page = 1) {
         const params = new URLSearchParams();
         if (cycleId) params.set('cycle_id', cycleId);
         params.set('page', page);
-        const response = await fetch(`/api/reports/snapshots?${params.toString()}`, {
+        const url = `/api/reports/snapshots?${params.toString()}`;
+        console.log('Fetching snapshots from:', url);
+        
+        const response = await fetch(url, {
             headers: { Accept: 'application/json' }
         });
+        
+        console.log('Response status:', response.status);
         const data = await response.json();
+        console.log('Response data:', data);
+        
         if (data.success) {
+            console.log('Snapshots count:', data.data.data?.length || 0);
             return {
                 snapshots: data.data.data || [],
                 pagination: {
@@ -20,6 +28,7 @@ export async function loadSnapshots(cycleId, page = 1) {
                 }
             };
         }
+        console.warn('Response not successful:', data);
         return { snapshots: [], pagination: { current_page: 1, last_page: 1, total: 0 } };
     } catch (error) {
         console.error('Lỗi khi tải snapshots:', error);
@@ -32,13 +41,21 @@ export async function loadSnapshots(cycleId, page = 1) {
  */
 export async function loadSnapshot(snapshotId) {
     try {
-        const response = await fetch(`/api/reports/snapshots/${snapshotId}`, {
+        const url = `/api/reports/snapshots/${snapshotId}`;
+        console.log('Fetching snapshot from:', url);
+        
+        const response = await fetch(url, {
             headers: { Accept: 'application/json' }
         });
+        
+        console.log('Response status:', response.status);
         const data = await response.json();
+        console.log('Response data:', data);
+        
         if (data.success) {
             return data.data;
         }
+        console.warn('Response not successful:', data);
         return null;
     } catch (error) {
         console.error('Lỗi khi tải snapshot:', error);

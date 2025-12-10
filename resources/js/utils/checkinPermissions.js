@@ -51,7 +51,7 @@ export const canCheckInKeyResult = (currentUser, keyResult, objective) => {
         return true;
     }
 
-    // Kiểm tra user có phải owner của Objective không (khi chưa gán)
+    // Kiểm tra user có phải owner của Objective không
     if (objective.user_id && String(objective.user_id) === String(currentUser.user_id || currentUser.id)) {
         return true;
     }

@@ -7,6 +7,7 @@ export default function SnapshotModal({
     onTitleChange, 
     onSubmit, 
     isSubmitting 
+    , level, onLevelChange
 }) {
     if (!isOpen) return null;
 
@@ -50,6 +51,22 @@ export default function SnapshotModal({
                                 autoFocus
                             />
                         </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Cấp độ Báo cáo <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            value={level}
+                            onChange={(e) => onLevelChange(e.target.value)}
+                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition appearance-none cursor-pointer"
+                            style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '12px' }}
+                        >
+                            <option value="departments">Phòng ban</option>
+                            <option value="company">Công ty</option>
+                        </select>
+                    </div>
+
                     </div>
 
                     <div className="flex justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">

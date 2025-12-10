@@ -362,20 +362,20 @@ export default function ObjectiveList({
         <div className="mx-auto w-full max-w-6xl">
             {/* Conditional rendering for the entire filter bar */}
             {!hideFilters && (
-                <div className="mb-4 flex w-full items-center justify-between">
-                    <div className="flex items-center gap-4">
+            <div className="mb-4 flex w-full items-center justify-between">
+                <div className="flex items-center gap-4">
                         <div className="flex flex-col gap-1">
                             <span className="text-xs font-semibold text-slate-600 leading-none">
                                 Chu kỳ OKR
                             </span>
-                            <CycleDropdown
-                                cyclesList={cyclesList}
-                                cycleFilter={cycleFilter}
-                                handleCycleChange={setCycleFilter}
-                                dropdownOpen={dropdownOpen}
-                                setDropdownOpen={setDropdownOpen}
-                            />
-                        </div>
+                    <CycleDropdown
+                        cyclesList={cyclesList}
+                        cycleFilter={cycleFilter}
+                        handleCycleChange={setCycleFilter}
+                        dropdownOpen={dropdownOpen}
+                        setDropdownOpen={setDropdownOpen}
+                    />
+                </div>
                         {role !== 'ceo' && role !== 'admin' && (
                             <div className="flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-600 leading-none">
@@ -392,10 +392,10 @@ export default function ObjectiveList({
                             </div>
                         )}
                     </div>
-                    <Tabs
-                        setCreatingObjective={setCreatingObjective}
-                    />
-                </div>
+                <Tabs
+                    setCreatingObjective={setCreatingObjective}
+                />
+            </div>
             )}
 
 

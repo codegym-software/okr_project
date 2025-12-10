@@ -34,12 +34,20 @@ export default function CheckInModal({
         }
     }, [open, initialTab]);
 
+
     // ... (rest of the component)
+
     // Load checkin history function
-    // Chỉ phụ thuộc vào kr_id thay vì toàn bộ keyResult object để tránh re-render không cần thiết
-    const krId = keyResult?.kr_id;
     const loadCheckInHistory = React.useCallback(async () => {
-        if (!objectiveId || !krId) {
+        const currentKeyResult = keyResult;
+        const currentObjectiveId = objectiveId || currentKeyResult?.objective_id;
+        
+        if (!currentObjectiveId || !currentKeyResult) {
+            return;
+        }
+
+        const currentKrId = currentKeyResult?.kr_id || currentKeyResult?.key_result_id || currentKeyResult?.id;
+        if (!currentKrId) {
             return;
         }
 
@@ -47,7 +55,7 @@ export default function CheckInModal({
         try {
             const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             
-            const response = await fetch(`/api/check-in/${objectiveId}/${krId}/history`, {
+            const response = await fetch(`/api/check-in/${currentObjectiveId}/${currentKrId}/history`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -75,27 +83,45 @@ export default function CheckInModal({
         } finally {
             setLoadingHistory(false);
         }
-    }, [objectiveId, krId]);
+    }, [objectiveId, keyResult]);
 
     // Cập nhật formData khi keyResult thay đổi
     useEffect(() => {
-        if (keyResult) {
+        const currentKeyResult = keyResult;
+        if (currentKeyResult) {
+            console.log('🔧 CheckInModal: keyResult updated:', {
+                kr_id: currentKeyResult.kr_id,
+                key_result_id: currentKeyResult.key_result_id,
+                id: currentKeyResult.id,
+                objective_id: currentKeyResult.objective_id,
+                assigned_to: currentKeyResult.assigned_to,
+                user_id: currentKeyResult.user_id,
+                fullKeyResult: currentKeyResult
+            });
+            
             setFormData({
-                progress_value: parseFloat(keyResult.current_value) || 0,
-                progress_percent: parseFloat(keyResult.progress_percent) || 0,
+                progress_value: parseFloat(currentKeyResult.current_value) || 0,
+                progress_percent: parseFloat(currentKeyResult.progress_percent) || 0,
                 check_in_type: 'quantity',
                 notes: ''
             });
             setError(''); // Reset error khi keyResult thay đổi
+        } else if (open) {
+            // Chỉ warning nếu modal đang mở
+            console.warn('🔧 CheckInModal: keyResult is null or undefined but modal is open');
         }
-    }, [keyResult]);
+    }, [keyResult, open]);
 
     // Load checkin history khi modal mở
     useEffect(() => {
-        if (open && keyResult && objectiveId) {
+        const currentKeyResult = keyResult;
+        const currentObjectiveId = objectiveId || currentKeyResult?.objective_id;
+        
+        if (open && currentKeyResult && currentObjectiveId) {
             loadCheckInHistory();
         }
-    }, [open, keyResult, objectiveId, loadCheckInHistory]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, keyResult, objectiveId]);
 
     // Debug: Log formData changes
     useEffect(() => {
@@ -156,7 +182,8 @@ export default function CheckInModal({
 
     // Null check for keyResult - hiển thị message thay vì return null
     // Phải đặt sau tất cả hooks để tuân thủ Rules of Hooks
-    if (!keyResult) {
+    const currentKeyResult = keyResult;
+    if (!currentKeyResult) {
         return (
             <Modal open={open} onClose={onClose} title="Cập nhật tiến độ Key Result">
                 <div className="text-center py-8">
@@ -178,6 +205,7 @@ export default function CheckInModal({
         : true; // Nếu không có currentUser hoặc objective, để backend xử lý
 
     const handleInputChange = (field, value) => {
+        const currentKeyResult = keyResult;
         console.log('🔧 handleInputChange called:', { field, value, type: typeof value });
         
         if (field === 'progress_value') {
@@ -185,7 +213,7 @@ export default function CheckInModal({
             console.log('🔧 Progress value change:', { 
                 old_value: formData.progress_value, 
                 new_value: numValue,
-                target_value: keyResult?.target_value 
+                target_value: currentKeyResult?.target_value 
             });
             
             setFormData(prev => {
@@ -201,7 +229,7 @@ export default function CheckInModal({
             console.log('🔧 Progress percent change:', { 
                 old_percent: formData.progress_percent, 
                 new_percent: numValue,
-                target_value: keyResult?.target_value 
+                target_value: currentKeyResult?.target_value 
             });
             
             setFormData(prev => {
@@ -225,15 +253,29 @@ export default function CheckInModal({
         setLoading(true);
         setError('');
 
-        // Validation
-        if (!objectiveId) {
-            setError('Không tìm thấy Objective ID');
+        // Sử dụng keyResult từ prop
+        const currentKeyResult = keyResult;
+
+        // Kiểm tra keyResult trước
+        if (!currentKeyResult) {
+            setError('Không tìm thấy thông tin Key Result. Vui lòng đóng và mở lại modal.');
             setLoading(false);
             return;
         }
 
-        if (!keyResult?.kr_id) {
-            setError('Không tìm thấy Key Result ID');
+        // Đảm bảo có objective_id
+        const currentObjectiveId = objectiveId || currentKeyResult.objective_id;
+        if (!currentObjectiveId) {
+            console.error('CheckInModal: Missing objective_id:', currentKeyResult);
+            setError('Không tìm thấy Objective ID. Vui lòng thử lại.');
+            setLoading(false);
+            return;
+        }
+
+        const krId = currentKeyResult.kr_id || currentKeyResult.key_result_id || currentKeyResult.id;
+        if (!krId) {
+            console.error('CheckInModal: keyResult missing ID:', currentKeyResult);
+            setError('Không tìm thấy Key Result ID. Vui lòng thử lại.');
             setLoading(false);
             return;
         }
@@ -255,11 +297,22 @@ export default function CheckInModal({
         }
 
         // Debug: Log form data before submit
-        console.log('🔧 Submitting form data:', {
-            progress_value: formData.progress_value,
-            progress_percent: formData.progress_percent,
-            check_in_type: formData.check_in_type,
-            notes: formData.notes
+        console.log('🔧 Submitting check-in:', {
+            objectiveId: currentObjectiveId,
+            krId: krId,
+            keyResult: {
+                kr_id: currentKeyResult.kr_id,
+                key_result_id: currentKeyResult.key_result_id,
+                id: currentKeyResult.id,
+                assigned_to: currentKeyResult.assigned_to,
+                user_id: currentKeyResult.user_id,
+            },
+            formData: {
+                progress_value: formData.progress_value,
+                progress_percent: formData.progress_percent,
+                check_in_type: formData.check_in_type,
+                notes: formData.notes
+            }
         });
 
         try {
@@ -269,7 +322,10 @@ export default function CheckInModal({
                 throw new Error('Không tìm thấy CSRF token. Vui lòng tải lại trang.');
             }
             
-            const response = await fetch(`/check-in/${objectiveId}/${keyResult.kr_id}`, {
+            const checkInUrl = `/check-in/${currentObjectiveId}/${krId}`;
+            console.log('🔧 Check-in URL:', checkInUrl);
+            
+            const response = await fetch(checkInUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -292,8 +348,18 @@ export default function CheckInModal({
                 throw new Error(`Lỗi phản hồi từ server: ${response.status} ${response.statusText}`);
             }
 
+            console.log('🔧 Check-in response:', {
+                ok: response.ok,
+                status: response.status,
+                success: data.success,
+                message: data.message,
+                data: data.data
+            });
+
             if (!response.ok || !data.success) {
-                throw new Error(data.message || `Cập nhật tiến độ thất bại (${response.status})`);
+                const errorMessage = data.message || `Cập nhật tiến độ thất bại (${response.status})`;
+                console.error('🔧 Check-in failed:', errorMessage, data);
+                throw new Error(errorMessage);
             }
 
             // Reload checkin history để cập nhật chart
@@ -301,7 +367,18 @@ export default function CheckInModal({
 
             // Gọi callback để cập nhật UI
             if (onSuccess) {
-                onSuccess(data.data?.key_result || data.key_result || data.data);
+                // Backend trả về: { success: true, message: "...", data: { objective: ... } }
+                // Cần truyền data.data (chứa objective) cho onSuccess
+                const responseData = data.data || {};
+                console.log('🔧 Calling onSuccess with:', {
+                    has_objective: !!responseData.objective,
+                    objective_id: responseData.objective?.objective_id,
+                    key_results_count: responseData.objective?.key_results?.length || responseData.objective?.keyResults?.length || 0,
+                    sample_kr: responseData.objective?.key_results?.[0] || responseData.objective?.keyResults?.[0] || null
+                });
+                onSuccess(responseData);
+            } else {
+                console.warn('🔧 onSuccess callback is not provided');
             }
 
             onClose();
@@ -313,6 +390,9 @@ export default function CheckInModal({
             setLoading(false);
         }
     };
+
+    // Kiểm tra xem Key Result đã hoàn thành chưa
+    const isCompleted = currentKeyResult?.status === 'completed' || currentKeyResult?.status === 'closed';
 
     return (
         <Modal open={open} onClose={onClose} title="Cập nhật tiến độ Key Result">
@@ -329,14 +409,14 @@ export default function CheckInModal({
                     </div>
                 )}
 
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Key Result
-                    </label>
-                    <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
-                        {keyResult.kr_title}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Key Result
+                        </label>
+                        <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
+                            {currentKeyResult.kr_title}
+                        </div>
                     </div>
-                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -391,33 +471,33 @@ export default function CheckInModal({
                     </div>
                 </div>
 
-                {/* Tabs for Chart and History */}
-                <div className="border-b border-slate-200">
-                    <nav className="-mb-px flex space-x-4" aria-label="Tabs">
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('chart')}
-                            className={`${
-                                activeTab === 'chart'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                            } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
-                        >
-                            Biểu đồ
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('history')}
-                            className={`${
-                                activeTab === 'history'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                            } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
-                        >
-                            Lịch sử
-                        </button>
-                    </nav>
-                </div>
+                    {/* Tabs for Chart and History */}
+                    <div className="border-b border-slate-200">
+                        <nav className="-mb-px flex space-x-4" aria-label="Tabs">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('chart')}
+                                className={`${
+                                    activeTab === 'chart'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
+                            >
+                                Biểu đồ
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('history')}
+                                className={`${
+                                    activeTab === 'history'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
+                            >
+                                Lịch sử
+                            </button>
+                        </nav>
+                    </div>
 
                 {/* Tab Content */}
                 <div>

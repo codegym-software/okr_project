@@ -254,6 +254,10 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
             ->middleware('auth')
             ->name('my-objectives.user-levels');
+        Route::get('/check-in-reminders', [MyObjectiveController::class, 'getCheckInReminders'])
+            ->middleware('auth')
+            ->name('my-objectives.check-in-reminders');
+        // Routes với {id} phải đặt sau các route cụ thể
         Route::post('/{id}/archive', [MyObjectiveController::class, 'archive'])
             ->middleware('auth')
             ->name('my-objectives.archive');
@@ -284,9 +288,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('my-key-results.unarchive');
             Route::post('/{objectiveId}/{keyResultId}/assign', [MyKeyResultController::class, 'assign'])
             ->name('my-key-results.assign');
-        Route::delete('/{id}', [MyKeyResultController::class, 'destroy'])  
-            ->middleware('auth')
-            ->name('my-key-result.destroy');
     });
 
     // Company OKR Routes - yêu cầu đăng nhập
