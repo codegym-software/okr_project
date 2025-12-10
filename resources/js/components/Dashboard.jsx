@@ -152,8 +152,25 @@ function SimpleOkrList({ okrs, emptyText }) {
                 const progress = Math.round(okr.progress_percent || 0);
                 const colorClass = getProgressColor(progress);
                 
+                // Tìm parent (Mục tiêu cấp trên)
+                const parentLink = okr.source_links?.find(
+                    (link) => link.target_objective
+                );
+                const parentObj = parentLink?.target_objective;
+                
                 return (
                     <div key={okr.objective_id} className="group flex flex-col gap-2 rounded-lg border border-transparent bg-slate-50 p-3 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all">
+                        {parentObj && (
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider flex-shrink-0">
+                                    Liên kết tới
+                                </span>
+                                <span className="text-xs text-slate-500 truncate" title={`Đóng góp cho: ${parentObj.obj_title}`}>
+                                    {parentObj.obj_title}
+                                </span>
+                            </div>
+                        )}
+                        
                         <div className="flex justify-between items-start gap-4">
                             <span className="text-sm font-medium text-slate-800 line-clamp-2">
                                 {okr.obj_title}
@@ -325,14 +342,6 @@ export default function Dashboard() {
                 </section>
             </div>
 
-            {/* DEBUG SECTION - REMOVE AFTER FIX */}
-            <div className="mt-10 p-4 bg-gray-100 rounded text-xs font-mono text-gray-600 overflow-auto">
-                <p><strong>Debug Info:</strong></p>
-                <p>User: {data.user ? `${data.user.full_name} (ID: ${data.user.user_id}, Dept: ${data.user.department_id})` : 'Loading...'}</p>
-                <p>My OKRs: {(data.myOkrs || []).length}</p>
-                <p>Dept OKRs: {(data.deptOkrs || []).length}</p>
-                <p>Company OKRs: {(data.companyOkrs || []).length}</p>
-            </div>
         </div>
     );
 }

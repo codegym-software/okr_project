@@ -37,7 +37,10 @@ class DashboardController extends Controller
             $deptOkrs = Objective::where('department_id', $user->department_id)
                 ->where('level', 'unit')
                 ->whereNull('archived_at')
-                ->with('keyResults')
+                ->with([
+                    'keyResults',
+                    'sourceLinks.targetObjective' // Eager load parent objective for alignment display
+                ])
                 ->orderBy('created_at', 'desc')
                 ->limit(20) // Increased limit to ensure we capture enough dept objectives
                 ->get();
