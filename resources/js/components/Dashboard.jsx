@@ -26,9 +26,12 @@ function MyOkrRow({ okr }) {
     const parentObj = parentLink?.target_objective;
 
     // Tính toán tiến độ chung
-    const objProgress = Math.round(okr.progress_percent || 0);
-    const objColorClass = getProgressColor(objProgress);
-    const objTextClass = getProgressTextClass(objProgress);
+    const rawObjProgress = okr.calculated_progress ?? okr.progress_percent ?? 0;
+    const objProgress = parseFloat(rawObjProgress).toFixed(1);
+    const objProgressValue = parseFloat(objProgress);
+    
+    const objColorClass = getProgressColor(objProgressValue);
+    const objTextClass = getProgressTextClass(objProgressValue);
 
     return (
         <div className="border-b border-slate-100 py-6 first:pt-0 last:border-0 last:pb-0">
@@ -133,8 +136,13 @@ function SimpleOkrList({ okrs, emptyText }) {
     return (
         <div className="space-y-4">
             {okrs.map((okr) => {
-                const progress = Math.round(okr.progress_percent || 0);
-                const colorClass = getProgressColor(progress);
+                // Ưu tiên calculated_progress, fallback về progress_percent
+                // Giữ 1 chữ số thập phân
+                const rawProgress = okr.calculated_progress ?? okr.progress_percent ?? 0;
+                const progress = parseFloat(rawProgress).toFixed(1);
+                const progressValue = parseFloat(progress); // Dùng để tính width (cần số)
+                
+                const colorClass = getProgressColor(progressValue);
                 
                 // Tìm parent (Mục tiêu cấp trên)
                 const parentLink = okr.source_links?.find(
@@ -168,12 +176,12 @@ function SimpleOkrList({ okrs, emptyText }) {
                             <span className="text-sm font-medium text-slate-800 line-clamp-2">
                                 {okr.obj_title}
                             </span>
-                            <span className="text-xs font-bold text-slate-500">{progress}%</span>
+                            <span className="text-xs font-bold text-slate-500 whitespace-nowrap">{progress}%</span>
                         </div>
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
                             <div
                                 className={`h-full ${colorClass}`}
-                                style={{ width: `${progress}%` }}
+                                style={{ width: `${progressValue}%` }}
                             />
                         </div>
                     </div>

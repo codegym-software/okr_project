@@ -144,28 +144,52 @@ class Objective extends Model
     public function getProgressPercentAttribute($value)
     {
         // Nếu đã có giá trị trong database và không null, trả về giá trị đó
+        // Tuy nhiên, nếu muốn tính toán dynamic real-time, có thể bỏ dòng này hoặc dùng logic cache
         if (!is_null($value)) {
             return (float) $value;
         }
 
-        // Tránh vòng lặp vô hạn: nếu Objective này đang được tính, trả về 0
+        // Tránh vòng lặp vô hạn
         if (in_array($this->objective_id, self::$calculatingProgress)) {
             return 0.0;
         }
 
-        // Đánh dấu Objective này đang được tính
         self::$calculatingProgress[] = $this->objective_id;
 
         try {
-            // Tính từ KeyResults trực tiếp (không tính từ child Objectives liên kết)
             $progressList = [];
 
-            // Tính từ KeyResults trực tiếp
-            $keyResults = $this->keyResults()->whereNull('archived_at')->get();
+            // 1. Tính từ KeyResults trực tiếp
+            // Kiểm tra relation loaded để tránh N+1 nếu có thể, hoặc query nếu cần
+            $keyResults = $this->relationLoaded('keyResults') 
+                ? $this->keyResults 
+                : $this->keyResults()->whereNull('archived_at')->get();
+
             foreach ($keyResults as $kr) {
-                $progress = $kr->progress_percent; // Progress từ check-in (người sở hữu KR)
+                $progress = $kr->progress_percent;
                 if ($progress !== null) {
                     $progressList[] = $progress;
+                }
+            }
+
+            // 2. Tính từ Child Objectives (Mục tiêu con liên kết lên)
+            // Ví dụ: Objective NV liên kết lên Objective Phòng ban
+            $childLinks = $this->relationLoaded('childObjectives')
+                ? $this->childObjectives
+                : $this->childObjectives()->get();
+
+            foreach ($childLinks as $link) {
+                // Chỉ tính các link active/approved
+                if ($link->is_active && $link->status === OkrLink::STATUS_APPROVED) {
+                    $childObj = $link->sourceObjective;
+                    if ($childObj) {
+                        // Gọi đệ quy để lấy progress của child (nếu child chưa có value DB)
+                        // Hoặc lấy trực tiếp attribute nếu child đã được load
+                        $childProgress = $childObj->progress_percent;
+                        if ($childProgress !== null) {
+                            $progressList[] = $childProgress;
+                        }
+                    }
                 }
             }
 
@@ -177,7 +201,6 @@ class Objective extends Model
             $avgProgress = array_sum($progressList) / count($progressList);
             return (float) round($avgProgress, 2);
         } finally {
-            // Xóa Objective này khỏi danh sách đang tính
             $key = array_search($this->objective_id, self::$calculatingProgress);
             if ($key !== false) {
                 unset(self::$calculatingProgress[$key]);
@@ -237,7 +260,74 @@ class Objective extends Model
     /**
      * Append key_results to array/JSON
      */
-    protected $appends = [];
+    protected $appends = ['calculated_progress'];
+
+    /**
+     * Accessor for calculated_progress
+     * Forces recalculation regardless of DB value
+     */
+    public function getCalculatedProgressAttribute()
+    {
+        // Reuse the logic from getProgressPercentAttribute but skip the DB value check
+        // We can refactor the logic into a shared private method later
+        
+        // Tránh vòng lặp vô hạn
+        if (in_array($this->objective_id, self::$calculatingProgress)) {
+            return 0.0;
+        }
+
+        self::$calculatingProgress[] = $this->objective_id;
+
+        try {
+            $progressList = [];
+
+            // 1. KeyResults
+            $keyResults = $this->relationLoaded('keyResults') 
+                ? $this->keyResults 
+                : $this->keyResults()->whereNull('archived_at')->get();
+
+            foreach ($keyResults as $kr) {
+                $progress = $kr->progress_percent;
+                if ($progress !== null) {
+                    $progressList[] = $progress;
+                }
+            }
+
+            // 2. Child Objectives
+            $childLinks = $this->relationLoaded('childObjectives')
+                ? $this->childObjectives
+                : $this->childObjectives()->get();
+
+            foreach ($childLinks as $link) {
+                if ($link->is_active && $link->status === OkrLink::STATUS_APPROVED) {
+                    $childObj = $link->sourceObjective;
+                    if ($childObj) {
+                        // Use DB value for child to avoid deep recursion performance hit
+                        // Or use calculated_progress if we want deep calculation (careful with performance)
+                        // For dashboard depth (usually 3 levels), getting DB value is safer/faster
+                        // But if child value is stale, this is stale.
+                        // Let's try to get attribute which might trigger getProgressPercentAttribute logic
+                        $childProgress = $childObj->progress_percent; 
+                        if ($childProgress !== null) {
+                            $progressList[] = $childProgress;
+                        }
+                    }
+                }
+            }
+
+            if (empty($progressList)) {
+                return 0.0;
+            }
+
+            $avgProgress = array_sum($progressList) / count($progressList);
+            return (float) round($avgProgress, 2);
+        } finally {
+            $key = array_search($this->objective_id, self::$calculatingProgress);
+            if ($key !== false) {
+                unset(self::$calculatingProgress[$key]);
+            }
+        }
+    }
 
     /**
      * Override toArray to ensure key_results is always present

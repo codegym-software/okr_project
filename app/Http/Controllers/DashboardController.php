@@ -41,11 +41,12 @@ class DashboardController extends Controller
                 ->whereNull('archived_at')
                 ->with([
                     'keyResults',
-                    'sourceLinks.targetObjective', // Eager load parent objective for alignment display
-                    'department' // Load department info to show which dept it belongs to
+                    'sourceLinks.targetObjective',
+                    'department',
+                    'childObjectives' // Load child objectives for accurate progress calc
                 ])
                 ->orderBy('created_at', 'desc')
-                ->limit(50) // Limit to prevent overload, maybe pagination later
+                ->limit(50)
                 ->get();
         } elseif ($user->department_id) {
             // Normal User: View ONLY their Department's Unit OKRs
@@ -54,7 +55,8 @@ class DashboardController extends Controller
                 ->whereNull('archived_at')
                 ->with([
                     'keyResults',
-                    'sourceLinks.targetObjective'
+                    'sourceLinks.targetObjective',
+                    'childObjectives' // Load child objectives
                 ])
                 ->orderBy('created_at', 'desc')
                 ->limit(20)
@@ -68,7 +70,10 @@ class DashboardController extends Controller
             // CEO/Admin: View ALL Company OKRs
             $companyOkrs = Objective::where('level', 'company')
                 ->whereNull('archived_at')
-                ->with('keyResults')
+                ->with([
+                    'keyResults',
+                    'childObjectives' // Load child objectives (e.g., Dept OKRs aligned to Company)
+                ])
                 ->orderBy('created_at', 'desc')
                 ->get();
         } elseif (!empty($deptOkrs) && $deptOkrs->count() > 0) {
@@ -82,7 +87,10 @@ class DashboardController extends Controller
                           ->where('status', 'approved');
                 })
                 ->whereNull('archived_at')
-                ->with('keyResults')
+                ->with([
+                    'keyResults',
+                    'childObjectives' // Load child objectives
+                ])
                 ->orderBy('created_at', 'desc')
                 ->get();
         }
