@@ -73,7 +73,6 @@ export default function KeyResultModal({
             ...form,
             target_value: Number(form.target_value),
             current_value: Number(form.current_value),
-            cycle_id: form.cycle_id, // Luôn lấy từ Objective
             department_id: form.department_id || null,
             assigned_to: form.assigned_to || null, // Thêm người được giao vào payload
         };
@@ -213,11 +212,6 @@ export default function KeyResultModal({
         }
     };
 
-    // Tìm tên chu kỳ để hiển thị (readonly)
-    const currentCycle = cyclesList.find(
-        (c) => String(c.cycle_id) === String(form.cycle_id)
-    );
-
     return (
         <Modal
             open={!!editingKR || !!creatingFor}
@@ -242,39 +236,21 @@ export default function KeyResultModal({
                         />
                     </div>
 
-                    {/* Hiển thị Chu kỳ (chỉ đọc) */}
-                    <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-600">
-                            Chu kỳ
-                        </label>
-                        <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                            {currentCycle?.cycle_name || "—"}
-                        </div>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-2 items-start">
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Trạng thái
+                                Mục tiêu
                             </label>
-                            {creatingFor ? (
-                                <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                                    Bản nháp
-                                </div>
-                            ) : (
-                                <select
-                                    value={form.status}
-                                    onChange={(e) =>
-                                        handleChange("status", e.target.value)
-                                    }
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                >
-                                    <option value="">-- chọn trạng thái --</option>
-                                    <option value="draft">Bản nháp</option>
-                                    <option value="active">Đang thực hiện</option>
-                                    <option value="completed">Hoàn thành</option>
-                                </select>
-                            )}
+                            <input
+                                value={form.target_value}
+                                onChange={(e) =>
+                                    handleChange("target_value", e.target.value)
+                                }
+                                type="number"
+                                step="0.01"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                required
+                            />
                         </div>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
@@ -294,24 +270,6 @@ export default function KeyResultModal({
                                 <option value="completion">Hoàn thành</option>
                                 <option value="currency">Tiền tệ</option>
                             </select>
-                        </div>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Mục tiêu
-                            </label>
-                            <input
-                                value={form.target_value}
-                                onChange={(e) =>
-                                    handleChange("target_value", e.target.value)
-                                }
-                                type="number"
-                                step="0.01"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            />
                         </div>
                     </div>
 

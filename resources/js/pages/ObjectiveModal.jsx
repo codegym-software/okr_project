@@ -401,8 +401,9 @@ export default function ObjectiveModal({
                     : setEditingObjective(null)
             }
             title={creatingObjective ? "Thêm Objective" : "Sửa Objective"}
+            className="max-w-3xl"
         >
-            <div className="max-h-[80vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400">
+            <div className="max-h-[80vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400 px-1 md:px-2">
                 <form
                     onSubmit={
                         creatingObjective
@@ -442,7 +443,7 @@ export default function ObjectiveModal({
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                         />
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2 items-start">
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Cấp độ
@@ -457,64 +458,20 @@ export default function ObjectiveModal({
                                 }
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             >
-                                <option value="">-- chọn cấp độ --</option>
-                                {allowedLevels.map((level) => (
-                                    <option key={level} value={level}>
-                                        {level}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Trạng thái
-                            </label>
-                            {creatingObjective ? (
-                                <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                                    Bản nháp
-                                </div>
-                            ) : (
-                                <select
-                                    value={createForm.status || ""}
-                                    onChange={(e) =>
-                                        handleCreateFormChange(
-                                            "status",
-                                            e.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                >
-                                    <option value="">-- chọn trạng thái --</option>
-                                    <option value="draft">Bản nháp</option>
-                                    <option value="active">Đang thực hiện</option>
-                                    <option value="completed">Hoàn thành</option>
-                                </select>
-                            )}
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Chu kỳ
-                            </label>
-                            <select
-                                value={createForm.cycle_id || ""}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "cycle_id",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            >
-                                <option value="">-- chọn chu kỳ --</option>
-                                {cyclesList.map((c) => (
-                                    <option
-                                        key={c.cycle_id}
-                                        value={String(c.cycle_id)}
-                                    >
-                                        {c.cycle_name}
-                                    </option>
-                                ))}
+                            <option value="">-- chọn cấp độ --</option>
+                            {allowedLevels.map((level) => (
+                                <option key={level} value={level}>
+                                    {level === "company"
+                                        ? "Công ty"
+                                        : level === "unit"
+                                        ? "Phòng ban"
+                                        : level === "team"
+                                        ? "Nhóm"
+                                        : level === "person"
+                                        ? "Cá nhân"
+                                        : level}
+                                </option>
+                            ))}
                             </select>
                         </div>
                         {/* Thay thế toàn bộ phần hiển thị Phòng ban hiện tại bằng đoạn code mới này */}

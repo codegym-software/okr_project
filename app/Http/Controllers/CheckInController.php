@@ -149,34 +149,66 @@ class CheckInController extends Controller
             'progress_percent' => 'required|numeric|min:0|max:100',
             'notes' => 'nullable|string|max:1000',
             'is_completed' => 'boolean',
+            'status' => 'nullable|in:not_start,on_track,at_risk,in_trouble,completed',
         ]);
+
+        // Chặn check-in nếu KR đã hoàn thành
+        if (strtolower((string)$keyResult->status) === 'completed') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Key Result đã hoàn thành và không thể check-in thêm.'
+            ], 400);
+        }
+
+        // Tính toán phần trăm theo mục tiêu để kiểm tra trạng thái
+        $targetValue = (float) ($keyResult->target_value ?? 0);
+        $progressValue = (float) $request->progress_value;
+        $calculatedPercent = $targetValue > 0
+            ? ($progressValue / $targetValue) * 100
+            : (float) $request->progress_percent;
+
+        // Nếu đặt trạng thái hoàn thành nhưng chưa đạt mục tiêu thì từ chối
+        if (
+            $request->status === 'completed'
+            && $targetValue > 0
+            && $progressValue < $targetValue
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chưa đạt mục tiêu nên không thể đặt trạng thái Hoàn thành.'
+            ], 422);
+        }
 
         try {
             $checkIn = null;
-            DB::transaction(function () use ($request, $user, $keyResult, &$checkIn) {
+            DB::transaction(function () use ($request, $user, $keyResult, &$checkIn, $calculatedPercent) {
                 // Tạo check-in mới
                 $checkIn = CheckIn::create([
                     'kr_id' => $keyResult->kr_id,
                     'user_id' => $user->user_id,
                     'progress_value' => $request->progress_value,
-                    'progress_percent' => $request->progress_percent,
+                    'progress_percent' => $calculatedPercent,
                     'notes' => $request->notes,
                     'check_in_type' => $request->check_in_type,
-                    'is_completed' => $request->boolean('is_completed') || $request->progress_percent >= 100,
+                    'is_completed' => $request->boolean('is_completed') || $calculatedPercent >= 100,
                 ]);
 
                 // Determine the new status
-                $newStatus = $keyResult->status;
-                if ($request->boolean('is_completed') || $request->progress_percent >= 100) {
+                $isCompletedFlag = $request->boolean('is_completed')
+                    || $calculatedPercent >= 100
+                    || $request->status === 'completed';
+
+                $newStatus = $request->status
+                    ?: ($keyResult->status === 'completed' ? 'completed' : 'on_track');
+
+                if ($isCompletedFlag) {
                     $newStatus = 'completed';
-                } elseif ($keyResult->status !== 'completed') {
-                    $newStatus = 'active';
                 }
 
                 // Update the Key Result in a single call
                 $keyResult->update([
                     'current_value' => $request->progress_value,
-                    'progress_percent' => $request->progress_percent,
+                    'progress_percent' => $calculatedPercent,
                     'status' => $newStatus,
                 ]);
 

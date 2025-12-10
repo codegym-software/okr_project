@@ -254,8 +254,12 @@ export default function LinkedChildObjectiveRow({
                                             className={`h-full rounded-full absolute left-0 transition-all duration-300 ${
                                                 kr.status === "completed"
                                                     ? "bg-emerald-600"
-                                                    : kr.status === "active"
+                                                    : kr.status === "on_track" || kr.status === "active"
                                                     ? "bg-blue-600"
+                                                    : kr.status === "at_risk"
+                                                    ? "bg-amber-500"
+                                                    : kr.status === "in_trouble"
+                                                    ? "bg-rose-600"
                                                     : "bg-slate-500"
                                             }`}
                                             style={{
@@ -274,8 +278,12 @@ export default function LinkedChildObjectiveRow({
                                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                             kr.status === "completed"
                                                 ? "text-emerald-700 bg-emerald-50"
-                                                : kr.status === "active"
+                                                : kr.status === "on_track" || kr.status === "active"
                                                 ? "text-blue-700 bg-blue-50"
+                                                : kr.status === "at_risk"
+                                                ? "text-amber-700 bg-amber-50"
+                                                : kr.status === "in_trouble"
+                                                ? "text-rose-700 bg-rose-50"
                                                 : "text-slate-600 bg-slate-50"
                                         }`}
                                     >

@@ -23,7 +23,7 @@ export default function CompanyOverviewReport() {
     const [departments, setDepartments] = useState([]);
     const [owners, setOwners] = useState([]);
     const [filterOpen, setFilterOpen] = useState(false);
-    const [level, setLevel] = useState('departments');
+    const [level, setLevel] = useState('departments'); 
     const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
     const [snapshots, setSnapshots] = useState([]);
     const [showSnapshots, setShowSnapshots] = useState(false);
@@ -91,7 +91,7 @@ export default function CompanyOverviewReport() {
     useEffect(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-
+            
             // Đọc các query params
             const cycleId = params.get('cycle_id');
             const departmentId = params.get('department_id');
@@ -99,7 +99,7 @@ export default function CompanyOverviewReport() {
             const levelParam = params.get('level');
             const snapshotLevel = params.get('snapshot_level');
             const showSnapshotsParam = params.get('show_snapshots');
-
+            
             // Khôi phục state từ query params
             if (cycleId) {
                 setFilters(f => ({ ...f, cycleId }));
@@ -157,18 +157,18 @@ export default function CompanyOverviewReport() {
                     // Chỉ set cycle mặc định nếu chưa có trong query params
                     const params = new URLSearchParams(window.location.search);
                     if (!params.get('cycle_id')) {
-                        const current = listCycles.find(c => {
-                            const start = parse(c.start_date || c.startDate);
-                            const end = parse(c.end_date || c.endDate);
-                            return start && end && start <= now && now <= end;
-                        }) || listCycles[0];
-                        setFilters(f => ({ ...f, cycleId: current.cycle_id || current.cycleId }));
-                        setCurrentCycleMeta({
-                            id: current.cycle_id || current.cycleId,
-                            name: current.cycle_name || current.cycleName,
-                            start: current.start_date || current.startDate,
-                            end: current.end_date || current.endDate,
-                        });
+                    const current = listCycles.find(c => {
+                        const start = parse(c.start_date || c.startDate);
+                        const end = parse(c.end_date || c.endDate);
+                        return start && end && start <= now && now <= end;
+                    }) || listCycles[0];
+                    setFilters(f => ({ ...f, cycleId: current.cycle_id || current.cycleId }));
+                    setCurrentCycleMeta({
+                        id: current.cycle_id || current.cycleId,
+                        name: current.cycle_name || current.cycleName,
+                        start: current.start_date || current.startDate,
+                        end: current.end_date || current.endDate,
+                    });
                     }
                 }
             } catch (e) { /* ignore */ }
@@ -204,7 +204,7 @@ export default function CompanyOverviewReport() {
                 const json = await res.json();
                 if (!res.ok || !json.success) throw new Error(json.message || 'Load report failed');
                 setReport(json.data);
-
+                
                 // Fetch detailed data based on current level
                 const detailedDataResult = await fetchDetailedData(filters.cycleId, filters.departmentId, filters.ownerId, level);
                 setDetailedData(detailedDataResult);
@@ -215,7 +215,7 @@ export default function CompanyOverviewReport() {
             }
         })();
     }, [filters.cycleId, filters.departmentId, filters.ownerId, level]);
-
+    
     // fetchDetailedData and fetchDetailedDataForSnapshot are now imported from utils/reports/dataFetchers
 
     useEffect(() => {
@@ -231,7 +231,7 @@ export default function CompanyOverviewReport() {
                 .then(r => r.json().then(j => ({ ok: r.ok, j })))
                 .then(({ ok, j }) => { if (ok && j.success) setReport(j.data); })
                 .catch(() => { });
-        }, 60000);
+        }, 60000); 
         return () => clearInterval(timer);
     }, [filters.cycleId, filters.departmentId, filters.ownerId, level]);
 
@@ -382,7 +382,7 @@ export default function CompanyOverviewReport() {
                 if (filters.departmentId) params.set('department_id', filters.departmentId);
                 if (filters.ownerId) params.set('owner_id', filters.ownerId);
                 params.set('level', level);
-
+                
                 const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
                     headers: { Accept: 'application/json' }
                 });
@@ -431,11 +431,11 @@ export default function CompanyOverviewReport() {
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
+                        'X-CSRF-TOKEN': csrfToken,
                 },
                 body: JSON.stringify({
                     cycle_id: filters.cycleId,
-                    title: baseTitle,
+                        title: baseTitle,
                     data_snapshot: snapshotData,
                 }),
             });
@@ -468,8 +468,8 @@ export default function CompanyOverviewReport() {
             console.log('Loading snapshots for cycle:', useCycle, 'page:', page);
             const result = await loadSnapshotsUtil(useCycle, page);
             console.log('Snapshots loaded:', result);
-            setSnapshots(result.snapshots);
-            setSnapshotPagination(result.pagination);
+        setSnapshots(result.snapshots);
+        setSnapshotPagination(result.pagination);
         } catch (error) {
             console.error('Error in loadSnapshots:', error);
             setSnapshots([]);
@@ -481,10 +481,10 @@ export default function CompanyOverviewReport() {
     const loadSnapshot = async (snapshotId) => {
         try {
             console.log('Loading snapshot:', snapshotId);
-            const snapshot = await loadSnapshotUtil(snapshotId);
+        const snapshot = await loadSnapshotUtil(snapshotId);
             console.log('Snapshot loaded:', snapshot);
-            if (snapshot) {
-                setSelectedSnapshot(snapshot);
+        if (snapshot) {
+            setSelectedSnapshot(snapshot);
             } else {
                 showNotification('error', 'Không thể tải chi tiết báo cáo');
             }
@@ -591,7 +591,7 @@ export default function CompanyOverviewReport() {
             showNotification('error', 'Xuất Excel thất bại: ' + (error.message || 'Lỗi không xác định'));
         }
     };
-
+    
     return (
         <div className="px-6 py-8 min-h-screen bg-gray-50">
             {/* ===================== HEADER - LUÔN HIỂN THỊ ===================== */}
@@ -600,43 +600,43 @@ export default function CompanyOverviewReport() {
                     <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo tổng quan</h1>
 
                     <div className="flex items-end gap-3">
-                        {/* Nút Tạo kết chuyển / Lập báo cáo cuối kỳ - Chỉ Admin và CEO */}
-                        {isAdminOrCeo && (
-                            <button
-                                onClick={openSnapshotModal}
-                                disabled={isCreatingSnapshot}
-                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 active:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                            >
-                                {isCreatingSnapshot ? (
-                                    <>
-                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    {/* Nút Tạo kết chuyển / Lập báo cáo cuối kỳ - Chỉ Admin và CEO */}
+                    {isAdminOrCeo && (
+                    <button
+                        onClick={openSnapshotModal}
+                        disabled={isCreatingSnapshot}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 active:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    >
+                        {isCreatingSnapshot ? (
+                            <>
+                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.507 3 7.938l3-2.647z" />
-                                        </svg>
-                                        Đang tạo...
-                                    </>
-                                ) : (
-                                    <>
-                                        {/* Icon: lưu trữ / kết chuyển (dùng icon archive-box hoặc document-check) */}
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                        </svg>
+                                </svg>
+                                Đang tạo...
+                            </>
+                        ) : (
+                            <>
+                                {/* Icon: lưu trữ / kết chuyển (dùng icon archive-box hoặc document-check) */}
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
                                         Tạo Báo cáo
-                                    </>
-                                )}
-                            </button>
+                            </>
                         )}
+                    </button>
+                    )}
 
-                        {/* Nút Xem lịch sử kết chuyển */}
-                        <button
-                            onClick={handleViewSnapshots}
+                    {/* Nút Xem lịch sử kết chuyển */}
+                    <button
+                        onClick={handleViewSnapshots}
                             className="flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-all duration-200 min-w-48 whitespace-nowrap"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                            </svg>
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
                             Danh sách Báo cáo
-                        </button>
+                    </button>
 
                         {/* Filter chu kỳ */}
                         <div className="flex items-center gap-4">
@@ -655,36 +655,36 @@ export default function CompanyOverviewReport() {
                         </div>
 
                         {/* Nút Export Excel - Chỉ cho phép sau khi đã tạo snapshot */}
-                        <button
+                            <button
                             onClick={() => exportSnapshotToExcel()}
                             disabled={!isReportReady || snapshots.length === 0}
                             className={`p-2.5 rounded-lg transition-colors ${!isReportReady || snapshots.length === 0
                                     ? 'opacity-50 cursor-not-allowed'
                                     : 'hover:bg-slate-100 cursor-pointer'
-                                }`}
+                            }`}
                             title={
                                 !isReportReady || snapshots.length === 0
                                     ? 'Vui lòng tạo snapshot (Tạo báo cáo) trước khi xuất file'
                                     : 'Xuất báo cáo Excel'
                             }
                         >
-                            <svg
+                            <svg 
                                 className={`h-5 w-5 ${!isReportReady || snapshots.length === 0
                                         ? 'text-slate-400'
                                         : 'text-slate-600'
-                                    }`}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
+                                }`} 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                strokeLinecap="round" 
                                 strokeLinejoin="round"
                             >
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                                 <polyline points="7 10 12 15 17 10" />
                                 <line x1="12" y1="15" x2="12" y2="3" />
-                            </svg>
-                        </button>
+                                </svg>
+                                            </button>
                     </div>
                 </div>
             </div>
@@ -754,8 +754,8 @@ export default function CompanyOverviewReport() {
                     onClose={() => {
                         setShowSnapshots(false);
                         setSelectedSnapshot(null);
-                        setSnapshotPage(1);
-                    }}
+                                    setSnapshotPage(1);
+                                }}
                     snapshots={snapshots}
                     snapshotLevelFilter={snapshotLevelFilter}
                     onSnapshotLevelChange={setSnapshotLevelFilter}
@@ -770,7 +770,7 @@ export default function CompanyOverviewReport() {
                     onModalCycleFilterChange={setModalCycleFilter}
                     cyclesList={cycles}
                 />
-            )}
+            )}     
         </div>
     );
 }
