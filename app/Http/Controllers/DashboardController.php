@@ -31,36 +31,54 @@ class DashboardController extends Controller
             ->get();
 
         // 2. Department OKRs
-        // Fetch ALL Unit OKRs for the user's department
         $deptOkrs = [];
-        if ($user->department_id) {
+        $isCeoOrAdmin = $user->role && in_array(strtolower($user->role->role_name), ['admin', 'ceo']);
+
+        if ($isCeoOrAdmin) {
+            // CEO/Admin: View ALL Unit OKRs from ALL Departments
+            $deptOkrs = Objective::where('level', 'unit')
+                ->whereNull('archived_at')
+                ->with([
+                    'keyResults',
+                    'sourceLinks.targetObjective', // Eager load parent objective for alignment display
+                    'department' // Load department info to show which dept it belongs to
+                ])
+                ->orderBy('created_at', 'desc')
+                ->limit(50) // Limit to prevent overload, maybe pagination later
+                ->get();
+        } elseif ($user->department_id) {
+            // Normal User: View ONLY their Department's Unit OKRs
             $deptOkrs = Objective::where('department_id', $user->department_id)
                 ->where('level', 'unit')
                 ->whereNull('archived_at')
                 ->with([
                     'keyResults',
-                    'sourceLinks.targetObjective' // Eager load parent objective for alignment display
+                    'sourceLinks.targetObjective'
                 ])
                 ->orderBy('created_at', 'desc')
-                ->limit(20) // Increased limit to ensure we capture enough dept objectives
+                ->limit(20)
                 ->get();
         }
 
-        // 3. Company OKRs (Department Aligned)
-        // Show Company OKRs that the User's DEPARTMENT is linked to.
-        // Logic: Find links where Source is one of the Dept OKRs, and Target is Company Level.
-        
+        // 3. Company OKRs
         $companyOkrs = [];
-        if (!empty($deptOkrs) && $deptOkrs->count() > 0) {
+        
+        if ($isCeoOrAdmin) {
+            // CEO/Admin: View ALL Company OKRs
+            $companyOkrs = Objective::where('level', 'company')
+                ->whereNull('archived_at')
+                ->with('keyResults')
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } elseif (!empty($deptOkrs) && $deptOkrs->count() > 0) {
+            // Normal User: View Aligned Company OKRs only
             $deptObjIds = $deptOkrs->pluck('objective_id')->toArray();
 
-            // Find links where Source IN (Dept OKRs) AND Target Level = 'company'
-            // We use whereHas to filter links that actually point to a company objective
             $companyOkrs = Objective::where('level', 'company')
                 ->whereHas('targetLinks', function($query) use ($deptObjIds) {
                     $query->whereIn('source_objective_id', $deptObjIds)
                           ->where('is_active', true)
-                          ->where('status', 'approved'); // Assuming we have Model constants, but raw string is safer here if not imported
+                          ->where('status', 'approved');
                 })
                 ->whereNull('archived_at')
                 ->with('keyResults')
@@ -68,8 +86,7 @@ class DashboardController extends Controller
                 ->get();
         }
 
-        // If no department or no links found, companyOkrs remains empty, 
-        // effectively showing "No aligned company OKRs" which is correct per user request.
+        // If no department or no links found for normal user, companyOkrs remains empty.
 
         return response()->json([
             'user' => $user,

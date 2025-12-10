@@ -155,6 +155,15 @@ function SimpleOkrList({ okrs, emptyText }) {
                             </div>
                         )}
                         
+                        {/* Hiển thị Department Name cho CEO/Admin xem tổng hợp */}
+                        {okr.department && (
+                            <div className="mb-1">
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">
+                                    {okr.department.d_name || okr.department.department_name}
+                                </span>
+                            </div>
+                        )}
+                        
                         <div className="flex justify-between items-start gap-4">
                             <span className="text-sm font-medium text-slate-800 line-clamp-2">
                                 {okr.obj_title}
