@@ -18,8 +18,9 @@ class DashboardController extends Controller
 
         // 1. My OKRs (Active)
         // OKRs owned by user
-        // We include both 'person' level and any OKR explicitly assigned to the user
+        // STRICTLY filter by 'person' level as requested
         $myOkrs = Objective::where('user_id', $user->user_id)
+            ->where('level', 'person')
             ->whereNull('archived_at')
             ->with([
                 'keyResults', 

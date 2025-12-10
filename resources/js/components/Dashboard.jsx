@@ -16,96 +16,98 @@ const getProgressTextClass = (percent) => {
 };
 
 /**
- * Component: Thẻ OKR Cá nhân (Interactive)
+ * Component: Thẻ OKR Cá nhân (Interactive) - Redesigned
  */
 function MyOkrCard({ okr }) {
     // Tìm parent (Mục tiêu cấp trên mà OKR này đóng góp vào)
-    // Dựa vào sourceLinks (links đi ra từ OKR này)
     const parentLink = okr.source_links?.find(
         (link) => link.target_objective
     );
     const parentObj = parentLink?.target_objective;
 
-    // Tính toán tiến độ
-    const progress = Math.round(okr.progress_percent || 0);
-    const colorClass = getProgressColor(progress);
-    const textClass = getProgressTextClass(progress);
+    // Tính toán tiến độ chung của Objective
+    const objProgress = Math.round(okr.progress_percent || 0);
+    const objColorClass = getProgressColor(objProgress);
+    const objTextClass = getProgressTextClass(objProgress);
 
     return (
-        <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md">
-            {/* Header: Sự đóng góp (Alignment) */}
-            {parentObj ? (
-                <div className="mb-4 rounded-lg bg-slate-50 border border-slate-100 p-3">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 text-blue-500"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                        >
-                            <path
-                                fillRule="evenodd"
-                                d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
-                                clipRule="evenodd"
-                            />
-                        </svg>
-                        Đóng góp cho
-                    </div>
-                    <div className="mt-1 text-sm font-medium text-slate-700 line-clamp-1">
-                        {parentObj.obj_title}
-                    </div>
-                    {parentObj.department && (
-                        <div className="mt-0.5 text-xs text-slate-500">
-                            {parentObj.department.d_name}
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="mb-4 text-xs italic text-slate-400">
-                    * Mục tiêu độc lập (Chưa liên kết)
+        <div className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md overflow-hidden">
+            {/* Header: Sự đóng góp (Alignment) - Giữ nguyên để tạo động lực */}
+            {parentObj && (
+                <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Đóng góp cho: <span className="text-slate-700 normal-case ml-1">{parentObj.obj_title}</span>
+                    </span>
                 </div>
             )}
 
-            {/* Content: Mục tiêu của mình */}
-            <div className="mb-4 flex-1">
-                <h3 className="text-lg font-bold text-slate-900 leading-snug">
-                    {okr.obj_title}
-                </h3>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="mb-5 space-y-2">
-                <div className="flex justify-between text-sm font-semibold">
-                    <span className="text-slate-500">Tiến độ</span>
-                    <span className={textClass + " px-2 py-0.5 rounded-full text-xs"}>{progress}%</span>
+            <div className="p-5 flex flex-col h-full">
+                {/* Objective Title */}
+                <div className="mb-4">
+                    <div className="flex justify-between items-start gap-4">
+                        <h3 className="text-lg font-bold text-slate-900 leading-snug">
+                            {okr.obj_title}
+                        </h3>
+                        <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${objTextClass}`}>
+                            {objProgress}%
+                        </span>
+                    </div>
+                    {/* Overall Progress Bar */}
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                            className={`h-full ${objColorClass} transition-all duration-500 ease-out`}
+                            style={{ width: `${objProgress}%` }}
+                        />
+                    </div>
                 </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                        className={`h-full ${colorClass} transition-all duration-500 ease-out`}
-                        style={{ width: `${progress}%` }}
-                    />
+
+                {/* Key Results List */}
+                <div className="flex-1 space-y-4 mt-2">
+                    {okr.key_results && okr.key_results.length > 0 ? (
+                        okr.key_results.map((kr) => {
+                            const krProgress = Math.round(kr.progress_percent || 0);
+                            const krColor = getProgressColor(krProgress);
+                            
+                            return (
+                                <div key={kr.kr_id || kr.id} className="group">
+                                    <div className="flex justify-between items-end mb-1">
+                                        <span className="text-sm font-medium text-slate-600 group-hover:text-slate-800 transition-colors line-clamp-2">
+                                            • {kr.kr_title}
+                                        </span>
+                                        <span className="text-xs font-semibold text-slate-400 group-hover:text-slate-600">
+                                            {krProgress}%
+                                        </span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
+                                        <div 
+                                            className={`h-full ${krColor} opacity-70 group-hover:opacity-100 transition-all`} 
+                                            style={{ width: `${krProgress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <p className="text-xs text-slate-400 italic">Chưa có kết quả then chốt (Key Results)</p>
+                    )}
+                </div>
+
+                {/* Action Footer */}
+                <div className="mt-6 pt-4 border-t border-slate-100">
+                    <a
+                        href={`/my-objectives/details/${okr.objective_id}`}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition-all active:scale-95 border border-slate-200"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        Check-in Tiến độ
+                    </a>
                 </div>
             </div>
-
-            {/* Action Button */}
-            <a
-                href={`/my-objectives/details/${okr.objective_id}`}
-                className="group flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-blue-600 active:scale-95"
-            >
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 opacity-80 group-hover:opacity-100"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                >
-                    <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                    />
-                </svg>
-                CHECK-IN NGAY
-            </a>
         </div>
     );
 }
