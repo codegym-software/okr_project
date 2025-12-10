@@ -54,7 +54,7 @@ export default function SnapshotModal({
 
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Cấp độ báo cáo <span className="text-red-500">*</span>
+                            Cấp độ Báo cáo <span className="text-red-500">*</span>
                         </label>
                         <select
                             value={level}
