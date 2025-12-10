@@ -50,7 +50,8 @@ export default function ReportPage() {
     // 1. Define activeOkrs FIRST to avoid ReferenceError
     const activeOkrs = useMemo(() => {
         if (!reportData?.team_okrs) return [];
-        return reportData.team_okrs.filter(okr => okr.status !== 'archived');
+        // Filter out archived AND keep only 'unit' level OKRs (Department Objectives)
+        return reportData.team_okrs.filter(okr => okr.status !== 'archived' && okr.level === 'unit');
     }, [reportData]);
 
     // 2. Define metrics using activeOkrs

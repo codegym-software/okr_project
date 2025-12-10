@@ -575,33 +575,49 @@ export default function KeyResultRow({
                     ) : (
                         <div className="flex items-center justify-end gap-1">
                             {openCheckInModal && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (!canCheckInKR(kr) || disableActions) return;
-                                        openCheckInModal({
-                                            ...kr,
-                                            objective_id: objective.objective_id,
-                                        });
-                                    }}
-                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title={canCheckInKR(kr) ? "Check-in" : "Bạn không có quyền check-in"}
-                                    disabled={!canCheckInKR(kr) || disableActions}
-                                >
-                                    <svg
-                                        className="h-4 w-4"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
+                                hasLinkedChildren ? (
+                                    <div className="group relative">
+                                        <button
+                                            disabled
+                                            className="p-1 text-amber-500 cursor-help opacity-80"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                            </svg>
+                                        </button>
+                                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
+                                            Tiến độ được cập nhật tự động từ {kr.linked_objectives.length} mục tiêu liên kết. Không thể check-in thủ công.
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!canCheckInKR(kr) || disableActions) return;
+                                            openCheckInModal({
+                                                ...kr,
+                                                objective_id: objective.objective_id,
+                                            });
+                                        }}
+                                        className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={canCheckInKR(kr) ? "Check-in" : "Bạn không có quyền check-in"}
+                                        disabled={!canCheckInKR(kr) || disableActions}
                                     >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M5 13l4 4L19 7"
-                                        />
-                                    </svg>
-                                </button>
+                                        <svg
+                                            className="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M5 13l4 4L19 7"
+                                            />
+                                        </svg>
+                                    </button>
+                                )
                             )}
                             <button
                                 onClick={() => setAssignModal({ show: true, kr, objective, email: "", loading: false })}

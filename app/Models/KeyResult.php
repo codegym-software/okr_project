@@ -54,6 +54,114 @@ class KeyResult extends Model
     ];
 
     /**
+     * Append calculated properties
+     */
+    protected $appends = ['calculated_progress'];
+
+    /**
+     * Get child Objectives linked to this KR (Objectives that link to this KR as target)
+     */
+    public function childObjectives(): HasMany
+    {
+        return $this->hasMany(OkrLink::class, 'target_kr_id', 'kr_id')
+            ->where('is_active', true)
+            ->where('status', OkrLink::STATUS_APPROVED)
+            ->where('source_type', 'objective');
+    }
+
+    /**
+     * Calculate progress dynamically.
+     * If this KR has child objectives linked to it, progress is the average of those objectives.
+     * Otherwise, it uses the standard progress_percent (manual check-in).
+     */
+    public function getCalculatedProgressAttribute()
+    {
+        // 1. Check for child Objectives linked to this KR
+        // We use loaded relation if available to avoid N+1, otherwise query
+        $childLinks = $this->relationLoaded('childObjectives')
+            ? $this->childObjectives
+            : $this->childObjectives()->with('sourceObjective')->get();
+
+        if ($childLinks->isNotEmpty()) {
+            $progressList = [];
+            foreach ($childLinks as $link) {
+                $childObj = $link->sourceObjective;
+                if ($childObj) {
+                    // Use calculated_progress of the child objective (recursive)
+                    // If child model doesn't have the attribute appended yet, access accessor directly or fallback
+                    $val = $childObj->calculated_progress ?? $childObj->progress_percent ?? 0;
+                    $progressList[] = $val;
+                }
+            }
+
+            if (!empty($progressList)) {
+                $avg = array_sum($progressList) / count($progressList);
+                return (float) round($avg, 2);
+            }
+        }
+
+        // 2. Fallback to standard progress (Manual Check-in)
+        return $this->progress_percent;
+    }
+
+    /**
+     * Tự động tính toán và lưu progress vào DB, sau đó cập nhật Objective cha.
+     */
+    public function updateProgress(array &$visited = []): bool
+    {
+        // 1. Tính toán progress mới
+        $newProgress = 0;
+        
+        // Kiểm tra xem có Objective con liên kết tới KR này không
+        $childLinks = $this->childObjectives()
+            ->where('is_active', true)
+            ->where('status', OkrLink::STATUS_APPROVED)
+            ->get();
+
+        if ($childLinks->isNotEmpty()) {
+            // Trường hợp 1: KR là container chứa các Objective con -> Lấy trung bình
+            $progressList = [];
+            foreach ($childLinks as $link) {
+                $childObj = $link->sourceObjective;
+                if ($childObj) {
+                    $childProgress = $childObj->progress_percent;
+                    if ($childProgress !== null) {
+                        $progressList[] = $childProgress;
+                    }
+                }
+            }
+            if (!empty($progressList)) {
+                $avg = array_sum($progressList) / count($progressList);
+                $newProgress = round($avg, 2);
+            }
+        } else {
+            // Trường hợp 2: KR thường -> Tính theo công thức current/target hoặc lấy từ check-in gần nhất
+            // Ưu tiên lấy từ check-in gần nhất trong DB nếu có
+            $latestCheckIn = $this->checkIns()->orderBy('created_at', 'desc')->first();
+            if ($latestCheckIn) {
+                $newProgress = $latestCheckIn->progress_percent;
+            } elseif ($this->target_value > 0) {
+                $rawProgress = ($this->current_value / $this->target_value) * 100;
+                $newProgress = round(max(0, min(100, $rawProgress)), 2);
+            }
+        }
+
+        // 2. Lưu vào Database
+        \DB::table('key_results')
+            ->where('kr_id', $this->kr_id)
+            ->update(['progress_percent' => $newProgress]);
+            
+        $this->attributes['progress_percent'] = $newProgress;
+
+        // 3. Lan truyền lên Objective cha (Parent Objective)
+        if ($this->objective) {
+            $this->objective->updateProgress($visited);
+        }
+
+        return true;
+    }
+
+    /**
      * Chỉ lấy Key Result chưa lưu trữ
      */
     public function scopeActive($query)

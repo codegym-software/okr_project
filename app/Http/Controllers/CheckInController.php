@@ -205,19 +205,22 @@ class CheckInController extends Controller
                     $newStatus = 'completed';
                 }
 
-                // Update the Key Result in a single call
+                // Update the Key Result in a single call (optional if updateProgress handles it, but good for setting status)
                 $keyResult->update([
                     'current_value' => $request->progress_value,
                     'progress_percent' => $calculatedPercent,
                     'status' => $newStatus,
                 ]);
 
-                // Refresh KeyResult để đảm bảo có dữ liệu mới nhất
+                // IMPORTANT: Trigger chain reaction calculation
+                // This will save progress to DB and propagate to parents
                 $keyResult->refresh();
+                $keyResult->updateProgress(); // New recursive method
 
                 // Tự động cập nhật progress của Objective từ KeyResults
+                // (Redundant if updateProgress() calls objective->updateProgress(), but keeps logic safe)
                 if ($keyResult->objective) {
-                    $keyResult->objective->updateProgressFromKeyResults();
+                    $keyResult->objective->updateProgress();
                 }
 
                 Log::info('Check-in created', [
