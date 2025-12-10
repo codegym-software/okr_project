@@ -38,6 +38,11 @@ class KeyResult extends Model
     ];
 
     /**
+     * The attributes that should be guarded (not mass assignable).
+     */
+    protected $guarded = ['kr_id'];
+
+    /**
      * The attributes that should be cast.
      */
     protected $casts = [

@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import ConfirmationModal from "../../components/ConfirmationModal";
 
 export default function ObjectiveActionsMenu({
     obj,
@@ -10,9 +11,21 @@ export default function ObjectiveActionsMenu({
     setOpenObj,
     disableActions = false,
     setEditingObjective,
+    onCancelLink,
+    linkId,
 }) {
     const menuKey = `menu_obj_${obj.objective_id}`;
     const isCompanyLevel = obj.level === "company";
+    const hasLink = onCancelLink && linkId;
+    
+    const [confirmModal, setConfirmModal] = useState({
+        show: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+        confirmText: "OK",
+        cancelText: "Hủy",
+    });
 
     return (
         <div
@@ -48,14 +61,14 @@ export default function ObjectiveActionsMenu({
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            if (disableActions) return;
+                            if (disableActions || hasLink) return;
                             setEditingObjective(obj);
                             setOpenObj((prev) => ({ ...prev, [menuKey]: false }));
                         }}
-                        disabled={disableActions}
+                        disabled={disableActions || hasLink}
                         className={`flex items-center gap-2 w-full px-3 py-2 text-sm ${
-                            disableActions
-                                ? "text-slate-400 cursor-not-allowed"
+                            disableActions || hasLink
+                                ? "text-slate-400 cursor-not-allowed opacity-50"
                                 : "text-slate-700 hover:bg-slate-50"
                         }`}
                     >
@@ -67,16 +80,57 @@ export default function ObjectiveActionsMenu({
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
+                            if (hasLink) return;
                             handleArchive(obj.objective_id);
                             setOpenObj((prev) => ({ ...prev, [menuKey]: false }));
                         }}
-                        disabled={archiving === obj.objective_id}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 disabled:opacity-40"
+                        disabled={archiving === obj.objective_id || hasLink}
+                        className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-rose-600 ${
+                            hasLink 
+                                ? "opacity-50 cursor-not-allowed" 
+                                : "hover:bg-rose-50"
+                        } disabled:opacity-40`}
                     >
                         Lưu trữ
                     </button>
+
+                    {hasLink && (
+                        <>
+                            <div className="my-1 h-px bg-slate-100"></div>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (disableActions) return;
+                                    setOpenObj((prev) => ({ ...prev, [menuKey]: false }));
+                                    // Hiển thị modal xác nhận hủy liên kết
+                                    setConfirmModal({
+                                        show: true,
+                                        title: "Hủy liên kết",
+                                        message: `Bạn có chắc chắn muốn hủy liên kết với "${obj.obj_title}"?`,
+                                        confirmText: "Hủy liên kết",
+                                        cancelText: "Hủy",
+                                        onConfirm: () => {
+                                            // Hủy liên kết trực tiếp (mặc định giữ quyền sở hữu)
+                                            onCancelLink(linkId, "", true);
+                                            setConfirmModal({ show: false });
+                                        },
+                                    });
+                                }}
+                                disabled={disableActions}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-orange-600 hover:bg-orange-50"
+                            >
+                                Hủy liên kết
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
+            <ConfirmationModal
+                confirmModal={confirmModal}
+                closeConfirm={() => {
+                    setConfirmModal({ show: false });
+                }}
+            />
         </div>
     );
 }

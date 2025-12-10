@@ -1,5 +1,3 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
 
 /**
@@ -12,6 +10,14 @@ import ExcelJS from 'exceljs';
  */
 export async function exportToPDF(companyData, departmentsData, currentCycleMeta, onSuccess, onError) {
     try {
+        // Dynamic import to avoid build-time resolution issues
+        const jspdfModule = await import('jspdf');
+        const autoTableModule = await import('jspdf-autotable');
+        
+        // Handle different export formats
+        const jsPDF = jspdfModule.default || jspdfModule.jsPDF || jspdfModule;
+        const autoTable = autoTableModule.default || autoTableModule;
+        
         const pdf = new jsPDF('p', 'mm', 'a4');
 
         // Load font Noto Sans hỗ trợ tiếng Việt từ jsDelivr CDN (TTF format)

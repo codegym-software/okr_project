@@ -582,7 +582,17 @@ class MyObjectiveController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
         }
 
-        $keyResult = KeyResult::with(['objective', 'cycle'])->findOrFail($id);
+        // Tìm KeyResult, bao gồm cả archived để có thể xem chi tiết
+        $keyResult = KeyResult::with(['objective', 'cycle'])
+            ->where('kr_id', $id)
+            ->first();
+
+        if (!$keyResult) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Không tìm thấy Key Result với ID: ' . $id
+            ], 404);
+        }
 
         // Kiểm tra quyền: Chủ sở hữu hoặc người được gán
         if ($keyResult->objective->user_id !== $user->user_id &&

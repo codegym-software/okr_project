@@ -2,6 +2,7 @@
 import React from "react";
 import { Link } from '@inertiajs/react';
 import { FaBullseye } from "react-icons/fa";
+import { RiAlignItemVerticalCenterLine } from "react-icons/ri";
 import AlignmentBadge from "./AlignmentBadge";
 import KeyResultRow from "./KeyResultRow";
 import ObjectiveActionsMenu from "./ObjectiveActionsMenu";
@@ -29,18 +30,19 @@ export default function ObjectiveRow({
     formatPercent,
     getStatusText,
     getUnitText,
-    colSpanForObjectiveHeader,
     disableActions = false,
 }) {
     const hasKRs = obj.key_results?.length > 0;
+    const owner = obj.user;
+    const progress = Math.max(0, Math.min(100, obj.progress_percent || 0));
 
     return (
         <>
             <tr 
-                className="bg-white hover:bg-slate-50/70 transition-colors duration-150"
+                className="bg-white transition duration-150 rounded-lg shadow-sm hover:shadow-md ring-1 ring-slate-100"
                 data-objective-id={obj.objective_id}
             >
-                <td colSpan={colSpanForObjectiveHeader} className="px-4 py-3">
+                <td className="px-4 py-3">
                     <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
@@ -93,6 +95,33 @@ export default function ObjectiveRow({
                     </div>
                 </td>
                 <td className="px-3 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                        {owner ? (
+                            <>
+                                {owner.avatar_url ? (
+                                    <img
+                                        src={owner.avatar_url}
+                                        alt={owner.full_name}
+                                        className="h-7 w-7 rounded-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="h-7 w-7 rounded-full bg-slate-200 flex items-center justify-center text-xs">
+                                        {owner.full_name?.[0] || "?"}
+                                    </div>
+                                )}
+                                <span className="text-sm truncate max-w-[120px]">
+                                    {owner.full_name}
+                                </span>
+                            </>
+                        ) : (
+                            <span className="text-xs text-slate-400">Chưa có</span>
+                        )}
+                    </div>
+                </td>
+                <td className="px-3 py-3 text-center">
+                    
+                </td>
+                <td className="px-3 py-3 text-center">
                     <div className="flex items-center justify-end gap-1">
                         <button
                             onClick={() => setCreatingFor(obj)}
@@ -141,19 +170,7 @@ export default function ObjectiveRow({
                             }
                             className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <svg
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.172-1.172m-.915-2.06c.071-.044.14-.087.207-.13.312-.192.646-.358 1-.497.647-.253 1.348-.372 2.052-.372h.001c.704 0 1.405.119 2.052.372.354.139.688.305 1 .497.067.043.136.086.207.13l-.915-2.06z"
-                                />
-                            </svg>
+                            <RiAlignItemVerticalCenterLine className="h-4 w-4" />
                         </button>
                         
                         {disableActions ? (
@@ -177,7 +194,9 @@ export default function ObjectiveRow({
                                 openObj={openObj}
                                 setOpenObj={setOpenObj}
                                 disableActions={disableActions}
-                                setEditingObjective={setEditingObjective} // Pass down the editing function
+                                setEditingObjective={setEditingObjective}
+                                onCancelLink={onCancelLink}
+                                linkId={linkBadge?.link_id}
                             />
                         )}
                     </div>
@@ -207,6 +226,11 @@ export default function ObjectiveRow({
                         menuRefs={menuRefs}
                         colSpanForKRs={7} // NEW PROP
                         disableActions={disableActions}
+                        setCreatingFor={setCreatingFor}
+                        onOpenLinkModal={onOpenLinkModal}
+                        handleArchive={handleArchive}
+                        setEditingObjective={setEditingObjective}
+                        archiving={archiving}
                     />
                 ))}
         </>

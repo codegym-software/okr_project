@@ -4,11 +4,14 @@ import ObjectiveModal from "./ObjectiveModal.jsx";
 import KeyResultModal from "./KeyResultModal.jsx";
 import ToastComponent from "./ToastComponent.jsx";
 import CheckInModal from "../components/CheckInModal";
+import CheckInHistory from "../components/CheckInHistory";
 import ErrorBoundary from "../components/ErrorBoundary";
 import LinkOkrModal from "../components/LinkOkrModal.jsx";
 import LinkRequestsPanel from "../components/LinkRequestsPanel";
+import OkrTreeCanvas from "../components/okr/OkrTreeCanvas";
 import {
     mergeChildLinksIntoObjectives,
+    buildTreeFromObjectives,
 } from "../utils/okrHierarchy";
 
 const pickRelation = (link, camel, snake) =>
@@ -53,7 +56,8 @@ export default function ObjectivesPage() {
     const [openObj, setOpenObj] = useState({});
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null, initialTab: 'chart' });
+    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
+    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
     const [currentUser, setCurrentUser] = useState(null);
 
     const urlParamsHandledRef = React.useRef(false);
@@ -62,47 +66,29 @@ export default function ObjectivesPage() {
 
     const [myOKRFilter, setMyOKRFilter] = useState(false);
     const [viewMode, setViewMode] = useState('levels'); // 'levels' or 'personal'
+    const [displayMode, setDisplayMode] = useState("table"); // 'table' | 'tree'
+    const [treeLayout, setTreeLayout] = useState("horizontal");
+    const [treeRootId, setTreeRootId] = useState(null);
+    const [isLocked, setIsLocked] = useState(false);
+    const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
-    // Hàm cập nhật URL query parameters
-    const updateURL = useCallback((cycleId, viewModeValue) => {
-        const params = new URLSearchParams();
-        if (cycleId) params.set('cycle_id', cycleId);
-        if (viewModeValue) params.set('view_mode', viewModeValue);
-        const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
-        window.history.pushState({}, '', newUrl);
-    }, []);
-
-    // Wrapper functions để cập nhật URL khi filter thay đổi
-    const handleCycleFilterChange = useCallback((cycleId) => {
-        setCycleFilter(cycleId);
-        updateURL(cycleId, viewMode);
-    }, [viewMode, updateURL]);
-
-    const handleViewModeChange = useCallback((mode) => {
-        setViewMode(mode);
-        updateURL(cycleFilter, mode);
-    }, [cycleFilter, updateURL]);
+    // Set default view mode for members
+    useEffect(() => {
+        if (currentUser?.role?.role_name?.toLowerCase() === 'member') {
+            setViewMode('personal');
+        }
+    }, [currentUser?.user_id]);
 
     // Effect to select the default cycle on initial load
     useEffect(() => {
         const selectDefaultCycle = async () => {
             try {
-                // Đọc query parameters từ URL
-                const params = new URLSearchParams(window.location.search);
-                const urlCycleId = params.get('cycle_id');
-                const urlViewMode = params.get('view_mode');
-
                 const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
-                const [cyclesRes, userRes] = await Promise.all([
-                    fetch("/cycles", {
-                        headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
-                    }),
-                    fetch("/api/profile", {
-                        headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
-                    }),
-                ]);
+                const res = await fetch("/cycles", {
+                    headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+                });
+                const json = await res.json();
 
-                const json = await cyclesRes.json();
                 if (!Array.isArray(json.data) || json.data.length === 0) {
                     setToast({ type: "error", message: "Không có dữ liệu chu kỳ" });
                     return;
@@ -111,68 +97,34 @@ export default function ObjectivesPage() {
                 const cycles = json.data;
                 setCyclesList(cycles);
 
-                // Lấy thông tin user để xác định view_mode mặc định
-                let userRole = null;
-                if (userRes.ok) {
-                    const userData = await userRes.json();
-                    if (userData.success) {
-                        setCurrentUser(userData.user);
-                        userRole = userData.user?.role?.role_name?.toLowerCase();
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                let selectedCycle = cycles.find(c => {
+                    const start = c.start_date ? new Date(c.start_date) : null;
+                    const end = c.end_date ? new Date(c.end_date) : null;
+                    if (start && end) {
+                        start.setHours(0, 0, 0, 0);
+                        end.setHours(23, 59, 59, 999);
+                        return today >= start && today <= end;
                     }
-                }
+                    return false;
+                });
 
-                let selectedCycle = null;
-
-                // Ưu tiên cycle từ URL
-                if (urlCycleId) {
-                    selectedCycle = cycles.find(c => c.cycle_id == urlCycleId);
-                }
-
-                // Nếu không có từ URL, tìm cycle hiện tại
                 if (!selectedCycle) {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-
-                    selectedCycle = cycles.find(c => {
+                    selectedCycle = cycles.reduce((best, c) => {
                         const start = c.start_date ? new Date(c.start_date) : null;
                         const end = c.end_date ? new Date(c.end_date) : null;
-                        if (start && end) {
-                            start.setHours(0, 0, 0, 0);
-                            end.setHours(23, 59, 59, 999);
-                            return today >= start && today <= end;
-                        }
-                        return false;
-                    });
-
-                    if (!selectedCycle) {
-                        selectedCycle = cycles.reduce((best, c) => {
-                            const start = c.start_date ? new Date(c.start_date) : null;
-                            const end = c.end_date ? new Date(c.end_date) : null;
-                            let refDate = start || end || new Date(c.created_at);
-                            const diff = Math.abs(refDate - today);
-                            return !best || diff < best.diff ? { ...c, diff } : best;
-                        }, null);
-                    }
+                        let refDate = start || end || new Date(c.created_at);
+                        const diff = Math.abs(refDate - today);
+                        return !best || diff < best.diff ? { ...c, diff } : best;
+                    }, null);
                 }
-
-                // Xác định viewMode: ưu tiên URL, sau đó mặc định theo role
-                let finalViewMode;
-                if (urlViewMode) {
-                    // Có trong URL thì dùng giá trị từ URL
-                    finalViewMode = urlViewMode;
-                } else {
-                    // Không có trong URL thì dùng mặc định theo role
-                    finalViewMode = userRole === 'member' ? 'personal' : 'levels';
-                }
-                
-                setViewMode(finalViewMode);
                 
                 if(selectedCycle) {
                     setCycleFilter(selectedCycle.cycle_id);
-                    updateURL(selectedCycle.cycle_id, finalViewMode);
                 } else if (cycles.length > 0) {
                     setCycleFilter(cycles[0].cycle_id);
-                    updateURL(cycles[0].cycle_id, finalViewMode);
                 }
 
             } catch (err) {
@@ -181,7 +133,7 @@ export default function ObjectivesPage() {
             }
         };
         selectDefaultCycle();
-    }, [updateURL]);
+    }, []);
 
 
     const load = async (pageNum = 1, cycle, myOKR = false, view = 'levels') => {
@@ -271,25 +223,60 @@ export default function ObjectivesPage() {
 
             // Tìm Key Result trong items
             let foundKR = null;
+            let foundObjective = null;
             for (const obj of items) {
-                if (obj.objective_id === autoOpen.objective_id) {
-                    const kr = (obj.key_results || []).find(k => k.kr_id === autoOpen.kr_id);
-                    if (kr) {
+                if (String(obj.objective_id) === String(autoOpen.objective_id)) {
+                    foundObjective = obj;
+                    const foundKeyResult = (obj.key_results || []).find(k => String(k.kr_id) === String(autoOpen.kr_id));
+                    if (foundKeyResult) {
+                        // Đảm bảo KR có đầy đủ thông tin
                         foundKR = {
-                            ...kr,
+                            ...foundKeyResult,
                             objective_id: obj.objective_id,
+                            // Đảm bảo có các fields cần thiết
+                            kr_id: foundKeyResult.kr_id || autoOpen.kr_id,
+                            assigned_to: foundKeyResult.assigned_to || autoOpen.assigned_to,
+                            user_id: foundKeyResult.user_id || autoOpen.user_id,
                         };
                         break;
                     }
                 }
             }
 
-            if (foundKR) {
-                // Đợi một chút để đảm bảo component đã render xong
+            if (foundKR && foundObjective) {
+                // Mở objective để hiển thị KR
+                setOpenObj((prev) => ({
+                    ...prev,
+                    [foundObjective.objective_id]: true,
+                }));
+
+                // Đợi một chút để đảm bảo component đã render xong và objective đã mở
                 setTimeout(() => {
-                    openCheckInModal(foundKR);
-                    // Xóa localStorage sau khi đã mở modal
-                    localStorage.removeItem('autoOpenCheckIn');
+                    // Tìm element của KR và scroll đến đó
+                    const krElement = document.querySelector(`[data-kr-id="${autoOpen.kr_id}"]`);
+                    if (krElement) {
+                        // Scroll đến element với offset để không bị che bởi header
+                        const elementPosition = krElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset từ top
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+
+                        // Highlight element tạm thời
+                        krElement.style.backgroundColor = '#fef3c7';
+                        setTimeout(() => {
+                            krElement.style.backgroundColor = '';
+                        }, 2000);
+                    }
+
+                    // Mở modal check-in sau khi scroll
+                    setTimeout(() => {
+                        setCheckInModal({ open: true, keyResult: foundKR });
+                        // Xóa localStorage sau khi đã mở modal
+                        localStorage.removeItem('autoOpenCheckIn');
+                    }, 800);
                 }, 500);
             } else {
                 console.warn('🔔 Key Result not found in items, clearing autoOpen');
@@ -301,6 +288,9 @@ export default function ObjectivesPage() {
         }
     }, [items, loading]);
 
+    // Track if we've tried switching view mode for URL params
+    const viewModeSwitchedRef = React.useRef(false);
+
     // Handle URL parameters for highlighting KR (from email notifications)
     useEffect(() => {
         if (loading || items.length === 0) return;
@@ -310,13 +300,11 @@ export default function ObjectivesPage() {
             const urlParams = new URLSearchParams(window.location.search);
             const highlightKrId = urlParams.get('highlight_kr');
             const objectiveId = urlParams.get('objective_id');
+            const action = urlParams.get('action'); // 'checkin', 'checkin_history' hoặc null
 
             if (!highlightKrId) return;
 
-            // Đánh dấu đã xử lý URL params
-            urlParamsHandledRef.current = true;
-
-            console.log('🔗 Highlighting KR from URL:', highlightKrId, 'in objective:', objectiveId);
+            console.log('🔗 Highlighting KR from URL:', highlightKrId, 'in objective:', objectiveId, 'action:', action);
 
             // Tìm objective và KR
             let foundObjective = null;
@@ -326,11 +314,11 @@ export default function ObjectivesPage() {
                 const objId = String(obj.objective_id);
                 if (objectiveId && objId !== String(objectiveId)) continue;
 
-                const kr = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
-                if (kr) {
+                const foundKeyResult = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
+                if (foundKeyResult) {
                     foundObjective = obj;
                     foundKR = {
-                        ...kr,
+                        ...foundKeyResult,
                         objective_id: obj.objective_id,
                     };
                     break;
@@ -338,6 +326,9 @@ export default function ObjectivesPage() {
             }
 
             if (foundObjective && foundKR) {
+                // Đánh dấu đã xử lý URL params
+                urlParamsHandledRef.current = true;
+                
                 console.log('🔗 Found KR for highlight:', foundKR);
                 
                 // Lưu KR vào biến để tránh stale closure
@@ -354,19 +345,33 @@ export default function ObjectivesPage() {
                 setTimeout(() => {
                     const krElement = document.querySelector(`[data-kr-id="${highlightKrId}"]`);
                     if (krElement) {
-                        krElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        krElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                        // Scroll với offset để không bị che bởi header
+                        const elementPosition = krElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - 100; // 100px offset từ top
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+
+                        // Highlight element tạm thời
+                        krElement.style.backgroundColor = '#dbeafe';
+                        krElement.style.transition = 'background-color 0.3s ease';
                         
-                        // Xóa highlight sau 5 giây
+                        // Xóa highlight sau 3 giây
                         setTimeout(() => {
-                            krElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
-                        }, 5000);
+                            krElement.style.backgroundColor = '';
+                        }, 3000);
                     }
+
+
+                    
 
                     // Mở check-in history modal
                     console.log('🔗 Opening check-in history for:', krToHighlight);
-                    openCheckInHistory(krToHighlight);
+                    setCheckInHistory({ open: true, keyResult: krToHighlight });
                 }, 800);
+
 
                 // Xóa URL parameters sau khi xử lý (delay để đảm bảo state đã được set)
                 setTimeout(() => {
@@ -374,12 +379,32 @@ export default function ObjectivesPage() {
                     window.history.replaceState({}, '', newUrl);
                 }, 1500);
             } else {
-                console.warn('🔗 KR not found for highlight:', highlightKrId);
+                // Không tìm thấy KR - thử chuyển view mode
+                if (!viewModeSwitchedRef.current) {
+                    viewModeSwitchedRef.current = true;
+                    console.log('🔗 KR not found, trying to switch view mode. Current:', viewMode);
+                    
+                    // Chuyển sang view mode khác để tìm KR
+                    if (viewMode === 'personal') {
+                        setViewMode('levels');
+                    } else {
+                        setViewMode('personal');
+                    }
+                    // Không đánh dấu handled, để effect chạy lại sau khi items thay đổi
+                } else {
+                    // Đã thử cả 2 view mode nhưng vẫn không tìm thấy
+                    console.warn('🔗 KR not found in both view modes:', highlightKrId);
+                    urlParamsHandledRef.current = true;
+                    // Xóa URL params
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
+                }
             }
         } catch (error) {
             console.error('🔗 Error handling URL highlight:', error);
+            urlParamsHandledRef.current = true;
         }
-    }, [items, loading]);
+    }, [items, loading, viewMode]);
 
     // Ref để tránh xử lý highlight_link nhiều lần
     const linkParamsHandledRef = React.useRef(false);
@@ -457,10 +482,10 @@ export default function ObjectivesPage() {
     }, [items, loading, incomingLinks, linksLoading]);
 
     // Helper function để highlight KR (dùng chung cho URL params và event)
-    const highlightKR = React.useCallback((highlightKrId, objectiveId) => {
+    const highlightKR = React.useCallback((highlightKrId, objectiveId, action = null) => {
         if (!highlightKrId || items.length === 0) return;
 
-        console.log('🔗 Highlighting KR:', highlightKrId, 'in objective:', objectiveId);
+        console.log('🔗 Highlighting KR:', highlightKrId, 'in objective:', objectiveId, 'action:', action);
 
         // Tìm objective và KR
         let foundObjective = null;
@@ -470,11 +495,11 @@ export default function ObjectivesPage() {
             const objId = String(obj.objective_id);
             if (objectiveId && objId !== String(objectiveId)) continue;
 
-            const kr = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
-            if (kr) {
+            const foundKeyResult = (obj.key_results || []).find(k => String(k.kr_id) === String(highlightKrId));
+            if (foundKeyResult) {
                 foundObjective = obj;
                 foundKR = {
-                    ...kr,
+                    ...foundKeyResult,
                     objective_id: obj.objective_id,
                 };
                 break;
@@ -495,19 +520,46 @@ export default function ObjectivesPage() {
             setTimeout(() => {
                 const krElement = document.querySelector(`[data-kr-id="${highlightKrId}"]`);
                 if (krElement) {
-                    krElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    krElement.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                    // Scroll với offset để không bị che bởi header
+                    const elementPosition = krElement.getBoundingClientRect().top;
+                    const offsetPosition = elementPosition + window.pageYOffset - 120; // 120px offset từ top
+
+                    window.scrollTo({
+                        top: offsetPosition,
+                        behavior: 'smooth'
+                    });
+
+                    // Highlight element tạm thời với border và background
+                    krElement.style.backgroundColor = '#dbeafe';
+                    krElement.style.transition = 'background-color 0.3s ease, border-left 0.3s ease';
+                    krElement.style.borderLeft = '4px solid #3b82f6';
+                    krElement.style.paddingLeft = '8px';
                     
                     // Xóa highlight sau 5 giây
                     setTimeout(() => {
-                        krElement.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'bg-blue-50');
+                        krElement.style.backgroundColor = '';
+                        krElement.style.borderLeft = '';
+                        krElement.style.paddingLeft = '';
                     }, 5000);
                 }
 
-                // Mở check-in history modal
-                console.log('🔗 Opening check-in history for:', krToHighlight);
-                setCheckInHistory({ open: true, keyResult: krToHighlight });
-            }, 300);
+                // Mở modal tùy theo action
+                setTimeout(() => {
+                    if (action === 'checkin') {
+                        // Mở check-in modal để member cập nhật tiến độ
+                        console.log('🔗 Opening check-in modal for:', krToHighlight);
+                        setCheckInModal({ open: true, keyResult: krToHighlight });
+                    } else if (action === 'checkin_history') {
+                        // Mở check-in history modal (cho thông báo check-in từ manager)
+                        console.log('🔗 Opening check-in history for:', krToHighlight);
+                        setCheckInHistory({ open: true, keyResult: krToHighlight });
+                    } else {
+                        // Mặc định: mở check-in history nếu không có action
+                        console.log('🔗 No action specified, opening check-in history for:', krToHighlight);
+                        setCheckInHistory({ open: true, keyResult: krToHighlight });
+                    }
+                }, 800); // Tăng thời gian đợi để đảm bảo scroll và highlight hoàn tất
+            }, 500); // Đợi objective mở xong
         }
     }, [items]);
 
@@ -552,20 +604,113 @@ export default function ObjectivesPage() {
     // Lắng nghe custom event để điều hướng trong trang (không reload)
     useEffect(() => {
         const handleOkrNavigate = (event) => {
-            const { highlight_kr, highlight_link, objective_id } = event.detail;
+            const { highlight_kr, highlight_link, objective_id, action } = event.detail;
             
             console.log('🔔 Received okr-navigate event:', event.detail);
             
             if (highlight_kr) {
-                highlightKR(highlight_kr, objective_id);
+                highlightKR(highlight_kr, objective_id, action);
             } else if (highlight_link) {
                 highlightLinkRequest(highlight_link, objective_id);
             }
         };
 
+        // Lắng nghe event để mở check-in modal từ reminder banner (không reload)
+        const handleOpenCheckInFromReminder = (event) => {
+            const checkInData = event.detail;
+            console.log('🔔 Received open-checkin-from-reminder event:', checkInData);
+            
+            if (!checkInData || !checkInData.kr_id) {
+                console.warn('🔔 Invalid check-in data in event');
+                return;
+            }
+
+            // Tìm Key Result trong items
+            let foundKR = null;
+            let foundObjective = null;
+            
+            for (const obj of items) {
+                if (String(obj.objective_id) === String(checkInData.objective_id)) {
+                    foundObjective = obj;
+                    const foundKeyResult = (obj.key_results || []).find(k => String(k.kr_id) === String(checkInData.kr_id));
+                    if (foundKeyResult) {
+                        // Đảm bảo KR có đầy đủ thông tin
+                        foundKR = {
+                            ...foundKeyResult,
+                            objective_id: obj.objective_id,
+                            // Đảm bảo có các fields cần thiết
+                            kr_id: foundKeyResult.kr_id || checkInData.kr_id,
+                            assigned_to: foundKeyResult.assigned_to || checkInData.assigned_to,
+                            user_id: foundKeyResult.user_id || checkInData.user_id,
+                        };
+                        break;
+                    }
+                }
+            }
+
+            if (foundKR && foundObjective) {
+                console.log('🔔 Found KR for check-in:', foundKR);
+                // Mở objective để hiển thị KR
+                setOpenObj((prev) => ({
+                    ...prev,
+                    [foundObjective.objective_id]: true,
+                }));
+
+                // Đợi một chút để đảm bảo component đã render xong và objective đã mở
+                setTimeout(() => {
+                    // Tìm element của KR và scroll đến đó
+                    const krElement = document.querySelector(`[data-kr-id="${checkInData.kr_id}"]`);
+                    if (krElement) {
+                        // Scroll đến element với offset để không bị che bởi header
+                        const elementPosition = krElement.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.pageYOffset - 120; // 120px offset từ top
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+
+                        // Highlight element tạm thời với border và background
+                        krElement.style.backgroundColor = '#dbeafe';
+                        krElement.style.transition = 'background-color 0.3s ease, border-left 0.3s ease';
+                        krElement.style.borderLeft = '4px solid #3b82f6';
+                        krElement.style.paddingLeft = '8px';
+                        
+                        // Xóa highlight sau 5 giây
+                        setTimeout(() => {
+                            krElement.style.backgroundColor = '';
+                            krElement.style.borderLeft = '';
+                            krElement.style.paddingLeft = '';
+                        }, 5000);
+                    }
+
+                    // Mở modal check-in sau khi scroll và highlight
+                    setTimeout(() => {
+                        console.log('🔔 Opening check-in modal with KR:', foundKR);
+                        setCheckInModal({ open: true, keyResult: foundKR });
+                    }, 800); // Tăng thời gian đợi để đảm bảo scroll và highlight hoàn tất
+                }, 400); // Tăng thời gian đợi để đảm bảo objective đã mở hoàn toàn
+            } else {
+                console.warn('🔔 Key Result not found in items for reminder check-in', {
+                    checkInData,
+                    itemsCount: items.length,
+                    objectiveIds: items.map(o => o.objective_id)
+                });
+                // Fallback: thử reload trang với localStorage
+                localStorage.setItem('autoOpenCheckIn', JSON.stringify(checkInData));
+                window.location.href = '/my-objectives';
+            }
+        };
+
         window.addEventListener('okr-navigate', handleOkrNavigate);
-        return () => window.removeEventListener('okr-navigate', handleOkrNavigate);
-    }, [highlightKR, highlightLinkRequest]);
+        window.addEventListener('open-checkin-from-reminder', handleOpenCheckInFromReminder);
+        
+        return () => {
+            window.removeEventListener('okr-navigate', handleOkrNavigate);
+            window.removeEventListener('open-checkin-from-reminder', handleOpenCheckInFromReminder);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items]);
 
     const sortedItems = useMemo(
         () => (Array.isArray(items) ? items : []),
@@ -655,21 +800,243 @@ export default function ObjectivesPage() {
         [displayItems, childLinks]
     );
 
+    const treeNodes = useMemo(
+        () => buildTreeFromObjectives(enrichedItems),
+        [enrichedItems]
+    );
+
+    // Đồng bộ displayMode, treeRootId, treeLayout vào query params
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            
+            // Giữ lại các query params quan trọng khác (highlight_link, objective_id, highlight_kr, cycle_id, view_mode)
+            const preserveParams = ['highlight_link', 'objective_id', 'highlight_kr', 'cycle_id', 'view_mode'];
+            const preservedValues = {};
+            preserveParams.forEach(param => {
+                const value = url.searchParams.get(param);
+                if (value) {
+                    preservedValues[param] = value;
+                }
+            });
+            
+            if (displayMode === "tree") {
+                url.searchParams.set("display", "tree");
+                if (treeRootId) {
+                    url.searchParams.set("root_objective_id", String(treeRootId));
+                } else {
+                    url.searchParams.delete("root_objective_id");
+                }
+                url.searchParams.set("tree_layout", treeLayout);
+            } else {
+                url.searchParams.delete("display");
+                url.searchParams.delete("root_objective_id");
+                url.searchParams.delete("tree_layout");
+            }
+            
+            // Khôi phục các params đã giữ lại
+            Object.entries(preservedValues).forEach(([key, value]) => {
+                url.searchParams.set(key, value);
+            });
+            
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            console.error("Failed to sync tree params", e);
+        }
+    }, [displayMode, treeRootId, treeLayout]);
+
+    useEffect(() => {
+        if (!enrichedItems.length) {
+            setTreeRootId(null);
+            return;
+        }
+        if (
+            !treeRootId ||
+            !enrichedItems.some(
+                (obj) => String(obj.objective_id) === String(treeRootId)
+            )
+        ) {
+            setTreeRootId(enrichedItems[0].objective_id);
+        }
+    }, [enrichedItems, treeRootId]);
+
+    const treeDataForRender = useMemo(() => {
+        if (!treeNodes.length) return [];
+        if (!treeRootId) return treeNodes;
+        return treeNodes.filter(
+            (node) =>
+                String(node.objective_id || node.id) === String(treeRootId)
+        );
+    }, [treeNodes, treeRootId]);
+
     const handleCheckInSuccess = (responseData) => {
         const updatedObjective = responseData.objective;
 
-        if (!updatedObjective) return;
+        if (!updatedObjective) {
+            console.warn('🔧 handleCheckInSuccess: No objective in response, reloading data', responseData);
+            // Nếu không có objective trong response, reload lại data mà không reload trang
+            load(page, cycleFilter, myOKRFilter, viewMode);
+            setToast({ type: 'success', message: 'Đã cập nhật tiến độ thành công!' });
+            return;
+        }
+
+        console.log('🔧 Updating objective:', updatedObjective.objective_id);
+        
+        // Lấy keyResults mới từ backend (backend trả về key_results - snake_case)
+        const newKeyResults = updatedObjective.key_results || updatedObjective.keyResults;
+        
+        console.log('🔧 Updated objective from backend:', {
+            objective_id: updatedObjective.objective_id,
+            has_key_results: !!updatedObjective.key_results,
+            has_keyResults: !!updatedObjective.keyResults,
+            key_results_count: newKeyResults?.length || 0,
+            sample_kr: newKeyResults?.[0] ? {
+                kr_id: newKeyResults[0].kr_id,
+                progress_percent: newKeyResults[0].progress_percent,
+                current_value: newKeyResults[0].current_value
+            } : null
+        });
 
         setItems(prevItems => {
-            return prevItems.map(objective => {
-                if (objective.objective_id === updatedObjective.objective_id) {
-                    return updatedObjective; // Replace the old objective with the new one
+            const updatedItems = prevItems.map(objective => {
+                if (String(objective.objective_id) === String(updatedObjective.objective_id)) {
+                    // Lấy keyResults mới từ backend (backend trả về key_results - snake_case)
+                    const backendKeyResults = updatedObjective.key_results || updatedObjective.keyResults;
+                    
+                    console.log('🔧 Updated objective from backend:', {
+                        objective_id: updatedObjective.objective_id,
+                        has_key_results: !!updatedObjective.key_results,
+                        has_keyResults: !!updatedObjective.keyResults,
+                        key_results_count: backendKeyResults?.length || 0,
+                        sample_kr: backendKeyResults?.[0] ? {
+                            kr_id: backendKeyResults[0].kr_id,
+                            progress_percent: backendKeyResults[0].progress_percent,
+                            current_value: backendKeyResults[0].current_value,
+                            status: backendKeyResults[0].status
+                        } : null
+                    });
+
+                    // Tạo array mới với object mới cho mỗi KR để React nhận ra thay đổi
+                    let finalKeyResults;
+                    if (backendKeyResults && Array.isArray(backendKeyResults) && backendKeyResults.length > 0) {
+                        // Tạo map từ backend để dễ tìm kiếm theo kr_id
+                        const backendKrMap = new Map();
+                        backendKeyResults.forEach(kr => {
+                            const krId = String(kr.kr_id);
+                            backendKrMap.set(krId, kr);
+                        });
+                        
+                        // Merge với keyResults hiện tại, cập nhật những KR có trong backend
+                        const existingKeyResults = objective.keyResults || objective.key_results || [];
+                        finalKeyResults = existingKeyResults.map(existingKr => {
+                            const krId = String(existingKr.kr_id);
+                            const backendKr = backendKrMap.get(krId);
+                            
+                            if (backendKr) {
+                                // Có dữ liệu mới từ backend, tạo object mới với dữ liệu đã parse
+                                return {
+                                    ...existingKr,
+                                    ...backendKr,
+                                    // Đảm bảo progress_percent là number
+                                    progress_percent: backendKr.progress_percent !== null && backendKr.progress_percent !== undefined 
+                                        ? parseFloat(backendKr.progress_percent) 
+                                        : existingKr.progress_percent,
+                                    // Đảm bảo current_value là number
+                                    current_value: backendKr.current_value !== null && backendKr.current_value !== undefined 
+                                        ? parseFloat(backendKr.current_value) 
+                                        : existingKr.current_value,
+                                    // Đảm bảo target_value là number
+                                    target_value: backendKr.target_value !== null && backendKr.target_value !== undefined 
+                                        ? parseFloat(backendKr.target_value) 
+                                        : existingKr.target_value,
+                                    // Cập nhật status nếu có
+                                    status: backendKr.status || existingKr.status
+                                };
+                            }
+                            // Không có trong backend, giữ nguyên nhưng tạo object mới
+                            return { ...existingKr };
+                        });
+                        
+                        // Thêm các KR mới từ backend mà không có trong existing
+                        backendKeyResults.forEach(backendKr => {
+                            const krId = String(backendKr.kr_id);
+                            const exists = finalKeyResults.some(kr => String(kr.kr_id) === krId);
+                            if (!exists) {
+                                finalKeyResults.push({
+                                    ...backendKr,
+                                    progress_percent: backendKr.progress_percent !== null && backendKr.progress_percent !== undefined 
+                                        ? parseFloat(backendKr.progress_percent) 
+                                        : 0,
+                                    current_value: backendKr.current_value !== null && backendKr.current_value !== undefined 
+                                        ? parseFloat(backendKr.current_value) 
+                                        : 0,
+                                    target_value: backendKr.target_value !== null && backendKr.target_value !== undefined 
+                                        ? parseFloat(backendKr.target_value) 
+                                        : 0
+                                });
+                            }
+                        });
+                    } else {
+                        // Không có dữ liệu từ backend, tạo array mới từ existing
+                        finalKeyResults = (objective.keyResults || objective.key_results || []).map(kr => ({ ...kr }));
+                    }
+                    
+                    console.log('🔧 Final keyResults after merge:', {
+                        count: finalKeyResults.length,
+                        all_krs: finalKeyResults.map(kr => ({
+                            kr_id: kr.kr_id,
+                            progress_percent: kr.progress_percent,
+                            current_value: kr.current_value,
+                            status: kr.status
+                        }))
+                    });
+
+                    // Merge với objective cũ để giữ các thông tin khác (như links, relationships, etc.)
+                    // Loại bỏ key_results và keyResults từ updatedObjective trước khi merge để tránh ghi đè
+                    const { key_results: _, keyResults: __, ...updatedObjectiveWithoutKRs } = updatedObjective;
+                    
+                    const mergedObjective = {
+                        ...objective,
+                        ...updatedObjectiveWithoutKRs,
+                        // Luôn sử dụng finalKeyResults (đã được merge và parse)
+                        key_results: finalKeyResults,
+                        keyResults: finalKeyResults,
+                        // Cập nhật progress_percent của objective nếu có
+                        progress_percent: updatedObjective.progress_percent !== undefined 
+                            ? parseFloat(updatedObjective.progress_percent)
+                            : objective.progress_percent
+                    };
+                    
+                    console.log('🔧 Merged objective:', {
+                        objective_id: mergedObjective.objective_id,
+                        key_results_count: mergedObjective.key_results?.length || 0,
+                        all_krs: mergedObjective.key_results?.map(kr => ({
+                            kr_id: kr.kr_id,
+                            progress_percent: kr.progress_percent,
+                            current_value: kr.current_value,
+                            status: kr.status
+                        })) || []
+                    });
+                    
+                    return mergedObjective;
                 }
                 return objective;
             });
+            console.log('🔧 Updated items count:', updatedItems.length);
+            
+            // Force re-render bằng cách tạo array mới
+            return [...updatedItems];
         });
 
         setToast({ type: 'success', message: 'Đã cập nhật tiến độ thành công!' });
+        
+        // Force update sau một chút để đảm bảo UI được cập nhật
+        setTimeout(() => {
+            setItems(prevItems => {
+                // Tạo array mới để force re-render
+                return prevItems.map(obj => ({ ...obj }));
+            });
+        }, 100);
     };
 
     const handleOpenLinkModal = (payload) => {
@@ -723,8 +1090,19 @@ export default function ObjectivesPage() {
         [page, cycleFilter, myOKRFilter, viewMode]
     );
 
-    const handleCancelLink = (linkId, reason = "", keepOwnership = true) =>
-        performLinkAction(linkId, "cancel", { reason, keep_ownership: keepOwnership }, "Đã hủy liên kết");
+    const handleCancelLink = (linkIdOrLink, reason = "", keepOwnership = true) => {
+        // Xử lý cả 2 trường hợp: nhận linkId (number/string) hoặc link object
+        const linkId = typeof linkIdOrLink === 'object' && linkIdOrLink !== null
+            ? linkIdOrLink.link_id
+            : linkIdOrLink;
+        
+        if (!linkId) {
+            console.error('handleCancelLink: linkId is required');
+            return;
+        }
+        
+        return performLinkAction(linkId, "cancel", { reason, keep_ownership: keepOwnership }, "Đã hủy liên kết");
+    };
 
     const handleApproveLink = (linkId, note = "") =>
         performLinkAction(linkId, "approve", { note }, "Đã chấp thuận yêu cầu");
@@ -732,15 +1110,33 @@ export default function ObjectivesPage() {
     const handleRejectLink = (linkId, note) =>
         performLinkAction(linkId, "reject", { note }, "Đã từ chối yêu cầu");
 
-    const handleRequestChanges = (linkId, note) =>
-        performLinkAction(linkId, "request-changes", { note }, "Đã yêu cầu chỉnh sửa");
 
     const openCheckInModal = (keyResult) => {
+        console.log('🔧 openCheckInModal called with:', {
+            kr_id: keyResult?.kr_id,
+            key_result_id: keyResult?.key_result_id,
+            id: keyResult?.id,
+            objective_id: keyResult?.objective_id,
+            assigned_to: keyResult?.assigned_to,
+            user_id: keyResult?.user_id,
+            fullKeyResult: keyResult
+        });
+        
+        if (!keyResult) {
+            console.error('🔧 openCheckInModal: keyResult is null/undefined');
+            return;
+        }
+        
+        // Đảm bảo có objective_id
+        if (!keyResult.objective_id && keyResult.objective) {
+            keyResult.objective_id = keyResult.objective.objective_id || keyResult.objective.id;
+        }
+        
         setCheckInModal({ open: true, keyResult });
     };
 
     const openCheckInHistory = (keyResult) => {
-        setCheckInModal({ open: true, keyResult, initialTab: 'history' });
+        setCheckInHistory({ open: true, keyResult });
     };
 
     const handlePageChange = (newPage) => {
@@ -756,6 +1152,133 @@ export default function ObjectivesPage() {
                 message={toast.message}
                 onClose={() => setToast((prev) => ({ ...prev, message: "" }))}
             />
+            <div className="mx-auto w-full max-w-6xl mb-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("table")}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "table"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng bảng
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("tree")}
+                            className={`ml-1 px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "tree"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng cây
+                        </button>
+                    </div>
+                    {displayMode === "tree" && (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setTreeLayout((prev) =>
+                                    prev === "horizontal" ? "vertical" : "horizontal"
+                                )
+                            }
+                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                            title={
+                                treeLayout === "horizontal"
+                                    ? "Chuyển sang hiển thị dọc"
+                                    : "Chuyển sang hiển thị ngang"
+                            }
+                        >
+                            <svg
+                                className="h-4 w-4 text-slate-600"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                />
+                            </svg>
+                            {treeLayout === "horizontal" ? "Xem ngang" : "Xem dọc"}
+                        </button>
+                    )}
+                </div>
+                {displayMode === "tree" ? (
+                    <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-slate-600">
+                            Objective gốc
+                        </label>
+                        <select
+                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            value={treeRootId || ""}
+                            onChange={(e) => setTreeRootId(e.target.value)}
+                        >
+                            {enrichedItems.map((obj) => (
+                                <option key={obj.objective_id} value={obj.objective_id}>
+                                    {obj.obj_title}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => reactFlowInstance?.zoomIn()}
+                                className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm"
+                                title="Phóng to"
+                            >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => reactFlowInstance?.zoomOut()}
+                                className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm"
+                                title="Thu nhỏ"
+                            >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => reactFlowInstance?.fitView({ padding: 0.2, maxZoom: 1.5 })}
+                                className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm"
+                                title="Vừa màn hình"
+                            >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsLocked(!isLocked)}
+                                className={`inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm ${isLocked ? 'bg-gray-100' : ''}`}
+                                title={isLocked ? "Mở khóa" : "Khóa"}
+                            >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    {isLocked ? (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    ) : (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                                    )}
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div />
+                )}
+            </div>
+
+            {displayMode === "table" ? (
             <ObjectiveList
                     items={displayItems}
                 setItems={setItems}
@@ -776,15 +1299,29 @@ export default function ObjectivesPage() {
                 currentUser={currentUser}
                 userDepartmentName={userDepartmentName}
                 cycleFilter={cycleFilter}
-                setCycleFilter={handleCycleFilterChange}
+                setCycleFilter={setCycleFilter}
                 myOKRFilter={myOKRFilter}
                 setMyOKRFilter={setMyOKRFilter}
                 viewMode={viewMode}
-                setViewMode={handleViewModeChange}
+                setViewMode={setViewMode}
                 onOpenLinkModal={handleOpenLinkModal}
                 onCancelLink={handleCancelLink}
                 reloadData={load}
             />
+            ) : (
+                <OkrTreeCanvas
+                    data={treeDataForRender}
+                    loading={loading}
+                    emptyMessage="Không có OKR nào trong danh sách hiện tại"
+                    height={640}
+                    showLayoutToggle={false}
+                    layoutDirection={treeLayout}
+                    onLayoutDirectionChange={setTreeLayout}
+                    onInit={setReactFlowInstance}
+                    nodesDraggable={!isLocked}
+                    nodesConnectable={false}
+                />
+            )}
 
             {totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-center">
@@ -926,18 +1463,27 @@ export default function ObjectivesPage() {
                 loading={linksLoading}
                 onApprove={handleApproveLink}
                 onReject={handleRejectLink}
-                onRequestChanges={handleRequestChanges}
                 onCancel={handleCancelLink}
             />
 
             <ErrorBoundary>
                 <CheckInModal
                     open={checkInModal.open}
-                    onClose={() => setCheckInModal({ open: false, keyResult: null, initialTab: 'chart' })}
+                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
                     keyResult={checkInModal.keyResult}
                     objectiveId={checkInModal.keyResult?.objective_id}
                     onSuccess={handleCheckInSuccess}
-                    initialTab={checkInModal.initialTab}
+                    objective={items.find(obj => obj.objective_id === checkInModal.keyResult?.objective_id)}
+                    currentUser={currentUser}
+                />
+            </ErrorBoundary>
+
+            <ErrorBoundary>
+                <CheckInHistory
+                    open={checkInHistory.open}
+                    onClose={() => setCheckInHistory({ open: false, keyResult: null })}
+                    keyResult={checkInHistory.keyResult}
+                    objectiveId={checkInHistory.keyResult?.objective_id}
                 />
             </ErrorBoundary>
 
@@ -948,6 +1494,7 @@ export default function ObjectivesPage() {
                     source={linkModal.source}
                     sourceType={linkModal.sourceType}
                     onSuccess={handleLinkRequestSuccess}
+                    onCancelLink={handleCancelLink}
                 />
             )}
         </div>
