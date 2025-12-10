@@ -155,14 +155,40 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch("/api/dashboard/overview")
-            .then((res) => res.json())
+        // Lấy CSRF token từ meta tag nếu có (dự phòng)
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+        
+        const headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        };
+        
+        if (token) {
+            headers["X-CSRF-TOKEN"] = token;
+        }
+
+        fetch("/api/dashboard/overview", { headers })
+            .then((res) => {
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        console.error("Unauthorized - redirecting to login");
+                        window.location.href = "/login";
+                        return null;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+            })
             .then((json) => {
-                setData(json);
-                setLoading(false);
+                if (json) {
+                    console.log("Dashboard data loaded:", json);
+                    setData(json);
+                }
             })
             .catch((err) => {
                 console.error("Failed to load dashboard data", err);
+            })
+            .finally(() => {
                 setLoading(false);
             });
     }, []);
@@ -219,9 +245,9 @@ export default function Dashboard() {
                     </a>
                 </div>
                 
-                {data.myOkrs.length > 0 ? (
+                {(data.myOkrs || []).length > 0 ? (
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
-                        {data.myOkrs.map((okr) => (
+                        {(data.myOkrs || []).map((okr) => (
                             <MyOkrCard key={okr.objective_id} okr={okr} />
                         ))}
                     </div>
@@ -248,7 +274,7 @@ export default function Dashboard() {
                         </div>
                     </div>
                     <SimpleOkrList 
-                        okrs={data.deptOkrs} 
+                        okrs={data.deptOkrs || []} 
                         emptyText="Chưa có mục tiêu phòng ban nào được công khai." 
                     />
                 </section>
@@ -265,10 +291,19 @@ export default function Dashboard() {
                         </div>
                     </div>
                     <SimpleOkrList 
-                        okrs={data.companyOkrs} 
+                        okrs={data.companyOkrs || []} 
                         emptyText="Chưa có mục tiêu cấp công ty nào." 
                     />
                 </section>
+            </div>
+
+            {/* DEBUG SECTION - REMOVE AFTER FIX */}
+            <div className="mt-10 p-4 bg-gray-100 rounded text-xs font-mono text-gray-600 overflow-auto">
+                <p><strong>Debug Info:</strong></p>
+                <p>User: {data.user ? `${data.user.full_name} (ID: ${data.user.user_id}, Dept: ${data.user.department_id})` : 'Loading...'}</p>
+                <p>My OKRs: {(data.myOkrs || []).length}</p>
+                <p>Dept OKRs: {(data.deptOkrs || []).length}</p>
+                <p>Company OKRs: {(data.companyOkrs || []).length}</p>
             </div>
         </div>
     );
