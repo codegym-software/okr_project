@@ -25,6 +25,7 @@ export default function CheckInModal({
         progress_value: 0,
         progress_percent: 0,
         check_in_type: 'quantity',
+        status: '',
         notes: ''
     });
 
@@ -103,6 +104,7 @@ export default function CheckInModal({
                 progress_value: parseFloat(currentKeyResult.current_value) || 0,
                 progress_percent: parseFloat(currentKeyResult.progress_percent) || 0,
                 check_in_type: 'quantity',
+                status: currentKeyResult.status || '',
                 notes: ''
             });
             setError(''); // Reset error khi keyResult thay đổi
@@ -311,6 +313,7 @@ export default function CheckInModal({
                 progress_value: formData.progress_value,
                 progress_percent: formData.progress_percent,
                 check_in_type: formData.check_in_type,
+                status: formData.status,
                 notes: formData.notes
             }
         });
@@ -469,6 +472,25 @@ export default function CheckInModal({
                             {keyResult.target_value} {keyResult.unit || ''}
                         </div>
                     </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Trạng thái
+                    </label>
+                    <select
+                        value={formData.status}
+                        onChange={(e) => handleInputChange('status', e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                        disabled={!hasPermission}
+                    >
+                        <option value="">-- chọn trạng thái --</option>
+                        <option value="not_start">Bản nháp</option>
+                        <option value="on_track">Đang thực hiện</option>
+                        <option value="at_risk">Nguy cơ bị trễ</option>
+                        <option value="in_trouble">Gặp vấn đề</option>
+                        <option value="completed">Hoàn thành</option>
+                    </select>
                 </div>
 
                     {/* Tabs for Chart and History */}
