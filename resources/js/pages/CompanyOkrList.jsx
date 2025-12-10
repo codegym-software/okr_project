@@ -56,6 +56,8 @@ export default function CompanyOkrList() {
     const [creatingFor, setCreatingFor] = useState(null);
     const [displayMode, setDisplayMode] = useState("table");
     const [treeLayout, setTreeLayout] = useState("horizontal");
+    const [isLocked, setIsLocked] = useState(false);
+    const [reactFlowInstance, setReactFlowInstance] = useState(null);
     const [page, setPage] = useState(1);
     const [pagination, setPagination] = useState({
         current_page: 1,
@@ -294,30 +296,31 @@ export default function CompanyOkrList() {
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
             <div className="mb-4 flex items-center justify-between gap-4">
-                {displayMode === "tree" ? (
-                    <div className="flex items-center gap-2">
-                        <label className="text-xs font-semibold text-slate-600">
-                            Objective gốc
-                        </label>
-                        <select
-                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                            value={treeRootId || ""}
-                            onChange={(e) => setTreeRootId(e.target.value)}
-                        >
-                            {enrichedItems.map((obj) => (
-                                <option
-                                    key={obj.objective_id}
-                                    value={obj.objective_id}
-                                >
-                                    {obj.obj_title}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                ) : (
-                    <div />
-                )}
                 <div className="flex items-center gap-2">
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("table")}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "table"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng bảng
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("tree")}
+                            className={`ml-1 px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "tree"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng cây
+                        </button>
+                    </div>
                     {displayMode === "tree" && (
                         <button
                             type="button"
@@ -353,31 +356,76 @@ export default function CompanyOkrList() {
                                 : "Xem dọc"}
                         </button>
                     )}
-                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-                        <button
-                            type="button"
-                            onClick={() => setDisplayMode("table")}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
-                                displayMode === "table"
-                                    ? "bg-blue-600 text-white shadow-sm"
-                                    : "text-slate-600 hover:bg-slate-50"
-                            }`}
-                        >
-                            Dạng bảng
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setDisplayMode("tree")}
-                            className={`ml-1 px-3 py-1.5 text-xs font-medium rounded-md ${
-                                displayMode === "tree"
-                                    ? "bg-blue-600 text-white shadow-sm"
-                                    : "text-slate-600 hover:bg-slate-50"
-                            }`}
-                        >
-                            Dạng cây
-                        </button>
-                    </div>
                 </div>
+                {displayMode === "tree" ? (
+                    <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-slate-600">
+                            Objective gốc
+                        </label>
+                        <select
+                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            value={treeRootId || ""}
+                            onChange={(e) => setTreeRootId(e.target.value)}
+                        >
+                            {enrichedItems.map((obj) => (
+                                <option
+                                    key={obj.objective_id}
+                                    value={obj.objective_id}
+                                >
+                                    {obj.obj_title}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => reactFlowInstance?.zoomIn()}
+                                className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm"
+                                title="Phóng to"
+                            >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => reactFlowInstance?.zoomOut()}
+                                className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm"
+                                title="Thu nhỏ"
+                            >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => reactFlowInstance?.fitView({ padding: 0.2, maxZoom: 1.5 })}
+                                className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm"
+                                title="Vừa màn hình"
+                            >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsLocked(!isLocked)}
+                                className={`inline-flex items-center justify-center w-10 h-10 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors shadow-sm ${isLocked ? 'bg-gray-100' : ''}`}
+                                title={isLocked ? "Mở khóa" : "Khóa"}
+                            >
+                                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    {isLocked ? (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    ) : (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                                    )}
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div />
+                )}
             </div>
 
             {displayMode === "table" && (
@@ -468,6 +516,9 @@ export default function CompanyOkrList() {
                     showLayoutToggle={false}
                     layoutDirection={treeLayout}
                     onLayoutDirectionChange={setTreeLayout}
+                    onInit={setReactFlowInstance}
+                    nodesDraggable={!isLocked}
+                    nodesConnectable={false}
                 />
             )}
 
