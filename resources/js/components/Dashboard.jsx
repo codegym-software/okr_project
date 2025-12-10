@@ -314,13 +314,13 @@ export default function Dashboard() {
                             🌏
                         </span>
                         <div>
-                            <h2 className="text-base font-bold text-slate-800">Mục tiêu Công Ty</h2>
-                            <p className="text-xs text-slate-500">Tầm nhìn & chiến lược chung</p>
+                            <h2 className="text-base font-bold text-slate-800">Mục tiêu Công Ty liên quan</h2>
+                            <p className="text-xs text-slate-500">Các mục tiêu bạn đang trực tiếp đóng góp</p>
                         </div>
                     </div>
                     <SimpleOkrList 
                         okrs={data.companyOkrs || []} 
-                        emptyText="Chưa có mục tiêu cấp công ty nào." 
+                        emptyText="Bạn chưa liên kết OKR nào tới mục tiêu Công ty." 
                     />
                 </section>
             </div>
