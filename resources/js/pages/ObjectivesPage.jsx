@@ -4,6 +4,7 @@ import ObjectiveModal from "./ObjectiveModal.jsx";
 import KeyResultModal from "./KeyResultModal.jsx";
 import ToastComponent from "./ToastComponent.jsx";
 import CheckInModal from "../components/CheckInModal";
+import CheckInHistory from "../components/CheckInHistory";
 import ErrorBoundary from "../components/ErrorBoundary";
 import LinkOkrModal from "../components/LinkOkrModal.jsx";
 import LinkRequestsPanel from "../components/LinkRequestsPanel";
@@ -55,7 +56,8 @@ export default function ObjectivesPage() {
     const [openObj, setOpenObj] = useState({});
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null, initialTab: 'chart' });
+    const [checkInModal, setCheckInModal] = useState({ open: false, keyResult: null });
+    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
     const [currentUser, setCurrentUser] = useState(null);
 
     const urlParamsHandledRef = React.useRef(false);
@@ -64,50 +66,27 @@ export default function ObjectivesPage() {
 
     const [myOKRFilter, setMyOKRFilter] = useState(false);
     const [viewMode, setViewMode] = useState('levels'); // 'levels' or 'personal'
-    const [displayMode, setDisplayMode] = useState('table'); // 'table' or 'tree'
-    const [treeLayout, setTreeLayout] = useState('horizontal');
+    const [displayMode, setDisplayMode] = useState("table"); // 'table' | 'tree'
+    const [treeLayout, setTreeLayout] = useState("horizontal");
     const [treeRootId, setTreeRootId] = useState(null);
 
-    // Hàm cập nhật URL query parameters
-    const updateURL = useCallback((cycleId, viewModeValue) => {
-        const params = new URLSearchParams();
-        if (cycleId) params.set('cycle_id', cycleId);
-        if (viewModeValue) params.set('view_mode', viewModeValue);
-        const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
-        window.history.pushState({}, '', newUrl);
-    }, []);
-
-    // Wrapper functions để cập nhật URL khi filter thay đổi
-    const handleCycleFilterChange = useCallback((cycleId) => {
-        setCycleFilter(cycleId);
-        updateURL(cycleId, viewMode);
-    }, [viewMode, updateURL]);
-
-    const handleViewModeChange = useCallback((mode) => {
-        setViewMode(mode);
-        updateURL(cycleFilter, mode);
-    }, [cycleFilter, updateURL]);
+    // Set default view mode for members
+    useEffect(() => {
+        if (currentUser?.role?.role_name?.toLowerCase() === 'member') {
+            setViewMode('personal');
+        }
+    }, [currentUser?.user_id]);
 
     // Effect to select the default cycle on initial load
     useEffect(() => {
         const selectDefaultCycle = async () => {
             try {
-                // Đọc query parameters từ URL
-                const params = new URLSearchParams(window.location.search);
-                const urlCycleId = params.get('cycle_id');
-                const urlViewMode = params.get('view_mode');
-
                 const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
-                const [cyclesRes, userRes] = await Promise.all([
-                    fetch("/cycles", {
-                        headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
-                    }),
-                    fetch("/api/profile", {
-                        headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
-                    }),
-                ]);
+                const res = await fetch("/cycles", {
+                    headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
+                });
+                const json = await res.json();
 
-                const json = await cyclesRes.json();
                 if (!Array.isArray(json.data) || json.data.length === 0) {
                     setToast({ type: "error", message: "Không có dữ liệu chu kỳ" });
                     return;
@@ -116,68 +95,34 @@ export default function ObjectivesPage() {
                 const cycles = json.data;
                 setCyclesList(cycles);
 
-                // Lấy thông tin user để xác định view_mode mặc định
-                let userRole = null;
-                if (userRes.ok) {
-                    const userData = await userRes.json();
-                    if (userData.success) {
-                        setCurrentUser(userData.user);
-                        userRole = userData.user?.role?.role_name?.toLowerCase();
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                let selectedCycle = cycles.find(c => {
+                    const start = c.start_date ? new Date(c.start_date) : null;
+                    const end = c.end_date ? new Date(c.end_date) : null;
+                    if (start && end) {
+                        start.setHours(0, 0, 0, 0);
+                        end.setHours(23, 59, 59, 999);
+                        return today >= start && today <= end;
                     }
-                }
+                    return false;
+                });
 
-                let selectedCycle = null;
-
-                // Ưu tiên cycle từ URL
-                if (urlCycleId) {
-                    selectedCycle = cycles.find(c => c.cycle_id == urlCycleId);
-                }
-
-                // Nếu không có từ URL, tìm cycle hiện tại
                 if (!selectedCycle) {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-
-                    selectedCycle = cycles.find(c => {
+                    selectedCycle = cycles.reduce((best, c) => {
                         const start = c.start_date ? new Date(c.start_date) : null;
                         const end = c.end_date ? new Date(c.end_date) : null;
-                        if (start && end) {
-                            start.setHours(0, 0, 0, 0);
-                            end.setHours(23, 59, 59, 999);
-                            return today >= start && today <= end;
-                        }
-                        return false;
-                    });
-
-                    if (!selectedCycle) {
-                        selectedCycle = cycles.reduce((best, c) => {
-                            const start = c.start_date ? new Date(c.start_date) : null;
-                            const end = c.end_date ? new Date(c.end_date) : null;
-                            let refDate = start || end || new Date(c.created_at);
-                            const diff = Math.abs(refDate - today);
-                            return !best || diff < best.diff ? { ...c, diff } : best;
-                        }, null);
-                    }
+                        let refDate = start || end || new Date(c.created_at);
+                        const diff = Math.abs(refDate - today);
+                        return !best || diff < best.diff ? { ...c, diff } : best;
+                    }, null);
                 }
-
-                // Xác định viewMode: ưu tiên URL, sau đó mặc định theo role
-                let finalViewMode;
-                if (urlViewMode) {
-                    // Có trong URL thì dùng giá trị từ URL
-                    finalViewMode = urlViewMode;
-                } else {
-                    // Không có trong URL thì dùng mặc định theo role
-                    finalViewMode = userRole === 'member' ? 'personal' : 'levels';
-                }
-                
-                setViewMode(finalViewMode);
                 
                 if(selectedCycle) {
                     setCycleFilter(selectedCycle.cycle_id);
-                    updateURL(selectedCycle.cycle_id, finalViewMode);
                 } else if (cycles.length > 0) {
                     setCycleFilter(cycles[0].cycle_id);
-                    updateURL(cycles[0].cycle_id, finalViewMode);
                 }
 
             } catch (err) {
@@ -186,7 +131,7 @@ export default function ObjectivesPage() {
             }
         };
         selectDefaultCycle();
-    }, [updateURL]);
+    }, []);
 
 
     const load = async (pageNum = 1, cycle, myOKR = false, view = 'levels') => {
@@ -370,7 +315,7 @@ export default function ObjectivesPage() {
 
                     // Mở check-in history modal
                     console.log('🔗 Opening check-in history for:', krToHighlight);
-                    openCheckInHistory(krToHighlight);
+                    setCheckInHistory({ open: true, keyResult: krToHighlight });
                 }, 800);
 
                 // Xóa URL parameters sau khi xử lý (delay để đảm bảo state đã được set)
@@ -659,7 +604,7 @@ export default function ObjectivesPage() {
         () => mergeChildLinksIntoObjectives(displayItems, childLinks),
         [displayItems, childLinks]
     );
-    
+
     const treeNodes = useMemo(
         () => buildTreeFromObjectives(enrichedItems),
         [enrichedItems]
@@ -669,7 +614,7 @@ export default function ObjectivesPage() {
     useEffect(() => {
         try {
             const url = new URL(window.location.href);
-            if (displayMode == "tree") {
+            if (displayMode === "tree") {
                 url.searchParams.set("display", "tree");
                 if (treeRootId) {
                     url.searchParams.set("root_objective_id", String(treeRootId));
@@ -684,7 +629,7 @@ export default function ObjectivesPage() {
             }
             window.history.replaceState({}, "", url.toString());
         } catch (e) {
-            console.error("Failed to sync tree params:", e);
+            console.error("Failed to sync tree params", e);
         }
     }, [displayMode, treeRootId, treeLayout]);
 
@@ -707,9 +652,10 @@ export default function ObjectivesPage() {
         if (!treeNodes.length) return [];
         if (!treeRootId) return treeNodes;
         return treeNodes.filter(
-            (node) => String(node.objective_id || node.id) === String(treeRootId)
+            (node) =>
+                String(node.objective_id || node.id) === String(treeRootId)
         );
-    }, [treeNodes, treeRootId]); 
+    }, [treeNodes, treeRootId]);
 
     const handleCheckInSuccess = (responseData) => {
         const updatedObjective = responseData.objective;
@@ -796,7 +742,7 @@ export default function ObjectivesPage() {
     };
 
     const openCheckInHistory = (keyResult) => {
-        setCheckInModal({ open: true, keyResult, initialTab: 'history' });
+        setCheckInHistory({ open: true, keyResult });
     };
 
     const handlePageChange = (newPage) => {
@@ -812,35 +758,20 @@ export default function ObjectivesPage() {
                 message={toast.message}
                 onClose={() => setToast((prev) => ({ ...prev, message: "" }))}
             />
-
-            <div className="mx-auto w-full max-w-6xl flex justify-end">
-                <div className="flex items-center gap-2">
-                    {displayMode === "tree" && (
-                        <button type="button" onClick={() => setTreeLayout((prev) => prev === "horizontal" ? "vertical" : "horizontal")} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50" title={treeLayout === "horizontal" ? "Chuyển sang hiển thị dọc" : "Chuyển sang hiển thị ngang"}>
-                            <svg classname="h-4 w-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                            </svg>
-                            {treeLayout === "horizontal" ? "Xem ngang" : "Xem dọc"}
-                        </button>
-                    )}
-                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-                        <button type="button" onClick={() => setDisplayMode("table")} className={`px-3 py-1.5 text-xs font-medium rounded-md ${displayMode === "table" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}> Dạng bảng 
-                        </button>
-                        <button type="button" onClick={() => setDisplayMode("tree")} className={`ml-1 px-3 py-1.5 text-xs font-medium rounded-md ${displayMode === "tree" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}> Dạng cây
-                        </button>
-                    </div>
-                </div>
-            </div>
             <div className="mb-4 flex items-center justify-between gap-4">
                 {displayMode === "tree" ? (
                     <div className="flex items-center gap-2">
                         <label className="text-xs font-semibold text-slate-600">
                             Objective gốc
                         </label>
-                        <select className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" value={treeRootId || ""} onChange={(e) => setTreeRootId(e.target.value)}>
+                        <select
+                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            value={treeRootId || ""}
+                            onChange={(e) => setTreeRootId(e.target.value)}
+                        >
                             {enrichedItems.map((obj) => (
                                 <option key={obj.objective_id} value={obj.objective_id}>
-                                    {obj.objective_title}
+                                    {obj.obj_title}
                                 </option>
                             ))}
                         </select>
@@ -848,6 +779,63 @@ export default function ObjectivesPage() {
                 ) : (
                     <div />
                 )}
+                <div className="flex items-center gap-2">
+                    {displayMode === "tree" && (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setTreeLayout((prev) =>
+                                    prev === "horizontal" ? "vertical" : "horizontal"
+                                )
+                            }
+                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                            title={
+                                treeLayout === "horizontal"
+                                    ? "Chuyển sang hiển thị dọc"
+                                    : "Chuyển sang hiển thị ngang"
+                            }
+                        >
+                            <svg
+                                className="h-4 w-4 text-slate-600"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                />
+                            </svg>
+                            {treeLayout === "horizontal" ? "Xem ngang" : "Xem dọc"}
+                        </button>
+                    )}
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("table")}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "table"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng bảng
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDisplayMode("tree")}
+                            className={`ml-1 px-3 py-1.5 text-xs font-medium rounded-md ${
+                                displayMode === "tree"
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                        >
+                            Dạng cây
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {displayMode === "table" ? (
@@ -871,28 +859,28 @@ export default function ObjectivesPage() {
                 currentUser={currentUser}
                 userDepartmentName={userDepartmentName}
                 cycleFilter={cycleFilter}
-                setCycleFilter={handleCycleFilterChange}
+                setCycleFilter={setCycleFilter}
                 myOKRFilter={myOKRFilter}
                 setMyOKRFilter={setMyOKRFilter}
                 viewMode={viewMode}
-                setViewMode={handleViewModeChange}
+                setViewMode={setViewMode}
                 onOpenLinkModal={handleOpenLinkModal}
                 onCancelLink={handleCancelLink}
                 reloadData={load}
             />
             ) : (
-                <>
-                    <OkrTreeCanvas
-                        data={treeDataForRender}
-                        loading={loading}
-                        emptyMessage="Không có OKR nào trong danh sách hiện tại"
-                        height={640}
-                        showLayoutToggle={false}
-                        layoutDirection={treeLayout}
-                        onLayoutDirectionChange={setTreeLayout}
-                    />
+                <OkrTreeCanvas
+                    data={treeDataForRender}
+                    loading={loading}
+                    emptyMessage="Không có OKR nào trong danh sách hiện tại"
+                    height={640}
+                    showLayoutToggle={false}
+                    layoutDirection={treeLayout}
+                    onLayoutDirectionChange={setTreeLayout}
+                />
+            )}
 
-                    {totalPages > 1 && (
+            {totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-center">
                     <div className="flex items-center gap-2">
                 <button
@@ -982,10 +970,7 @@ export default function ObjectivesPage() {
                 </button>
             </div>
                 </div>
-                    )}
-                </>
             )}
-        
             {editingKR && (
                 <KeyResultModal
                     editingKR={editingKR}
@@ -1042,11 +1027,19 @@ export default function ObjectivesPage() {
             <ErrorBoundary>
                 <CheckInModal
                     open={checkInModal.open}
-                    onClose={() => setCheckInModal({ open: false, keyResult: null, initialTab: 'chart' })}
+                    onClose={() => setCheckInModal({ open: false, keyResult: null })}
                     keyResult={checkInModal.keyResult}
                     objectiveId={checkInModal.keyResult?.objective_id}
                     onSuccess={handleCheckInSuccess}
-                    initialTab={checkInModal.initialTab}
+                />
+            </ErrorBoundary>
+
+            <ErrorBoundary>
+                <CheckInHistory
+                    open={checkInHistory.open}
+                    onClose={() => setCheckInHistory({ open: false, keyResult: null })}
+                    keyResult={checkInHistory.keyResult}
+                    objectiveId={checkInHistory.keyResult?.objective_id}
                 />
             </ErrorBoundary>
 
@@ -1059,7 +1052,6 @@ export default function ObjectivesPage() {
                     onSuccess={handleLinkRequestSuccess}
                 />
             )}
-            
         </div>
     );
 }
