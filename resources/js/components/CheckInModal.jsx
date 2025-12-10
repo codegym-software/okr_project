@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './ui';
 import CheckInProgressChart from './CheckInProgressChart';
+import { canCheckInKeyResult } from '../utils/checkinPermissions';
 
 export default function CheckInModal({
     open,
@@ -8,7 +9,9 @@ export default function CheckInModal({
     keyResult,
     objectiveId,
     onSuccess,
-    initialTab = 'chart' // Add new prop with default value
+    initialTab = 'chart', // Add new prop with default value
+    objective = null, // Thêm prop objective để kiểm tra quyền
+    currentUser = null // Thêm prop currentUser để kiểm tra quyền
 }) {
     // ... (rest of the component)
 
@@ -144,23 +147,38 @@ export default function CheckInModal({
 
     // Auto-calculate progress_percent when progress_value changes (giá trị hiện tại → thanh tiến độ)
     useEffect(() => {
-        const currentKeyResult = keyResult;
-        const targetValue = currentKeyResult?.target_value ? parseFloat(currentKeyResult.target_value) : null;
-        if (targetValue && targetValue > 0) {
-            const calculatedPercent = (formData.progress_value / targetValue) * 100;
-            console.log('🔧 Auto-calculate progress_percent from value:', {
-                progress_value: formData.progress_value,
-                target_value: targetValue,
-                calculated_percent: calculatedPercent,
-                current_percent: formData.progress_percent
-            });
-            
-            setFormData(prev => ({
-                ...prev,
-                progress_percent: calculatedPercent
-            }));
+        if (keyResult?.target_value) {
+            const targetValue = parseFloat(keyResult.target_value);
+            if (targetValue > 0) {
+                const calculatedPercent = (formData.progress_value / targetValue) * 100;
+                console.log('🔧 Auto-calculate progress_percent from value:', {
+                    progress_value: formData.progress_value,
+                    target_value: targetValue,
+                    calculated_percent: calculatedPercent,
+                    current_percent: formData.progress_percent
+                });
+                
+                setFormData(prev => ({
+                    ...prev,
+                    progress_percent: calculatedPercent
+                }));
+            }
         }
-    }, [formData.progress_value, keyResult]);
+    }, [formData.progress_value, keyResult?.target_value]);
+
+    // Kiểm tra quyền check-in khi modal mở
+    useEffect(() => {
+        if (open && keyResult && objective && currentUser) {
+            const hasPermission = canCheckInKeyResult(currentUser, keyResult, objective);
+            if (!hasPermission) {
+                setError('Bạn không có quyền check-in cho Key Result này.');
+                // Đóng modal sau 2 giây
+                setTimeout(() => {
+                    onClose();
+                }, 2000);
+            }
+        }
+    }, [open, keyResult, objective, currentUser, onClose]);
 
     // Null check for keyResult - hiển thị message thay vì return null
     // Phải đặt sau tất cả hooks để tuân thủ Rules of Hooks
@@ -180,6 +198,11 @@ export default function CheckInModal({
             </Modal>
         );
     }
+
+    // Kiểm tra quyền trước khi render form
+    const hasPermission = currentUser && objective 
+        ? canCheckInKeyResult(currentUser, keyResult, objective)
+        : true; // Nếu không có currentUser hoặc objective, để backend xử lý
 
     const handleInputChange = (field, value) => {
         const currentKeyResult = keyResult;
@@ -257,6 +280,15 @@ export default function CheckInModal({
             return;
         }
 
+        // Kiểm tra quyền check-in trước khi submit
+        if (currentUser && objective) {
+            const hasPermission = canCheckInKeyResult(currentUser, keyResult, objective);
+            if (!hasPermission) {
+                setError('Bạn không có quyền check-in cho Key Result này.');
+                setLoading(false);
+                return;
+            }
+        }
 
         if (formData.progress_value < 0) {
             setError('Giá trị tiến độ không thể âm');
@@ -363,130 +395,19 @@ export default function CheckInModal({
     const isCompleted = currentKeyResult?.status === 'completed' || currentKeyResult?.status === 'closed';
 
     return (
-        <Modal open={open} onClose={onClose} title={isCompleted ? "Chi tiết Key Result" : "Cập nhật tiến độ Key Result"}>
-            {isCompleted ? (
-                // Chế độ xem (chỉ xem, không cập nhật)
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Key Result
-                        </label>
-                        <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
-                            {currentKeyResult.kr_title}
-                        </div>
+        <Modal open={open} onClose={onClose} title="Cập nhật tiến độ Key Result">
+            <form onSubmit={handleSubmit} className="space-y-3 -m-2">
+                {/* Disable form nếu không có quyền */}
+                {!hasPermission && (
+                    <div className="rounded-md bg-red-50 p-3 text-red-700 text-sm mb-4">
+                        Bạn không có quyền check-in cho Key Result này.
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Giá trị hiện tại
-                            </label>
-                            <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
-                                {currentKeyResult.current_value} {currentKeyResult.unit || ''}
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Mục tiêu
-                            </label>
-                            <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
-                                {currentKeyResult.target_value} {currentKeyResult.unit || ''}
-                            </div>
-                        </div>
+                )}
+                {error && (
+                    <div className="rounded-md bg-red-50 p-3 text-red-700 text-sm">
+                        {error}
                     </div>
-
-                    {/* Tabs for Chart and History */}
-                    <div className="border-b border-slate-200">
-                        <nav className="-mb-px flex space-x-4" aria-label="Tabs">
-                            <button
-                                type="button"
-                                onClick={() => setActiveTab('chart')}
-                                className={`${
-                                    activeTab === 'chart'
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
-                            >
-                                Biểu đồ
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setActiveTab('history')}
-                                className={`${
-                                    activeTab === 'history'
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
-                            >
-                                Lịch sử
-                            </button>
-                        </nav>
-                    </div>
-
-                    {/* Tab Content */}
-                    <div>
-                        {activeTab === 'chart' && (
-                            <>
-                                {!loadingHistory && checkIns && checkIns.length > 0 && keyResult && (
-                                    <div className="w-full overflow-x-auto">
-                                        <CheckInProgressChart
-                                            checkIns={checkIns}
-                                            width={700}
-                                            height={280}
-                                            keyResult={keyResult}
-                                        />
-                                    </div>
-                                )}
-                                {loadingHistory && <div className="text-center py-4">Đang tải biểu đồ...</div>}
-                                {!loadingHistory && (!checkIns || checkIns.length === 0) && (
-                                    <div className="text-center py-4 text-slate-500">Chưa có dữ liệu check-in.</div>
-                                )}
-                            </>
-                        )}
-                        {activeTab === 'history' && (
-                            <div className="max-h-64 overflow-y-auto">
-                                <table className="min-w-full divide-y divide-slate-200">
-                                    <thead className="bg-slate-50">
-                                        <tr>
-                                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ngày</th>
-                                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Giá trị</th>
-                                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tiến độ</th>
-                                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ghi chú</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-slate-200">
-                                        {checkIns.map(checkin => (
-                                            <tr key={checkin.id}>
-                                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{new Date(checkin.created_at).toLocaleDateString()}</td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-900 font-medium">{checkin.progress_value}</td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{checkin.progress_percent.toFixed(1)}%</td>
-                                                <td className="px-4 py-2 text-sm text-slate-500">{checkin.notes}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex justify-end">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            Đóng
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                // Chế độ chỉnh sửa (có thể cập nhật)
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {error && (
-                        <div className="rounded-md bg-red-50 p-3 text-red-700 text-sm">
-                            {error}
-                        </div>
-                    )}
+                )}
 
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -497,57 +418,58 @@ export default function CheckInModal({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Giá trị hiện tại
-                            </label>
-                            <input
-                                type="number"
-                                min="0"
-                                step="1"
-                                value={formData.progress_value === 0 && !isInputFocused ? '' : formData.progress_value}
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    console.log('🔧 Input change:', { value, type: typeof value });
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Giá trị hiện tại
+                        </label>
+                        <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={formData.progress_value === 0 && !isInputFocused ? '' : formData.progress_value}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                console.log('🔧 Input change:', { value, type: typeof value });
+                                
+                                if (value === '') {
+                                    handleInputChange('progress_value', 0);
+                                } else {
+                                    const numValue = parseFloat(value);
+                                    console.log('🔧 Parsed value:', { numValue, isNaN: isNaN(numValue) });
                                     
-                                    if (value === '') {
+                                    if (isNaN(numValue)) {
                                         handleInputChange('progress_value', 0);
                                     } else {
-                                        const numValue = parseFloat(value);
-                                        console.log('🔧 Parsed value:', { numValue, isNaN: isNaN(numValue) });
-                                        
-                                        if (isNaN(numValue)) {
-                                            handleInputChange('progress_value', 0);
-                                        } else {
-                                            handleInputChange('progress_value', numValue);
-                                        }
+                                        handleInputChange('progress_value', numValue);
                                     }
-                                }}
-                                onFocus={(e) => {
-                                    setIsInputFocused(true);
-                                    if (formData.progress_value === 0) {
-                                        // Select all text when focusing on 0 value
-                                        setTimeout(() => {
-                                            e.target.select();
-                                        }, 0);
-                                    }
-                                }}
-                                onBlur={() => setIsInputFocused(false)}
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Nhập giá trị..."
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Mục tiêu
-                            </label>
-                            <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
-                                {currentKeyResult.target_value} {currentKeyResult.unit || ''}
-                            </div>
+                                }
+                            }}
+                            onFocus={(e) => {
+                                setIsInputFocused(true);
+                                if (formData.progress_value === 0) {
+                                    // Select all text when focusing on 0 value
+                                    setTimeout(() => {
+                                        e.target.select();
+                                    }, 0);
+                                }
+                            }}
+                            onBlur={() => setIsInputFocused(false)}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                            placeholder="Nhập giá trị..."
+                            required
+                            disabled={!hasPermission}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Mục tiêu
+                        </label>
+                        <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-sm">
+                            {keyResult.target_value} {keyResult.unit || ''}
                         </div>
                     </div>
+                </div>
 
                     {/* Tabs for Chart and History */}
                     <div className="border-b border-slate-200">
@@ -577,88 +499,88 @@ export default function CheckInModal({
                         </nav>
                     </div>
 
-                    {/* Tab Content */}
-                    <div>
-                        {activeTab === 'chart' && (
-                            <>
-                                {!loadingHistory && checkIns && checkIns.length > 0 && keyResult && (
-                                    <div className="w-full overflow-x-auto">
-                                        <CheckInProgressChart
-                                            checkIns={checkIns}
-                                            width={700}
-                                            height={280}
-                                            keyResult={keyResult}
-                                        />
-                                    </div>
-                                )}
-                                {loadingHistory && <div className="text-center py-4">Đang tải biểu đồ...</div>}
-                                {!loadingHistory && (!checkIns || checkIns.length === 0) && (
-                                    <div className="text-center py-4 text-slate-500">Chưa có dữ liệu check-in.</div>
-                                )}
-                            </>
-                        )}
-                        {activeTab === 'history' && (
-                            <div className="max-h-64 overflow-y-auto">
-                                <table className="min-w-full divide-y divide-slate-200">
-                                    <thead className="bg-slate-50">
-                                        <tr>
-                                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ngày</th>
-                                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Giá trị</th>
-                                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tiến độ</th>
-                                            <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ghi chú</th>
+                {/* Tab Content */}
+                <div>
+                    {activeTab === 'chart' && (
+                        <>
+                            {!loadingHistory && checkIns && checkIns.length > 0 && keyResult && (
+                                <div className="w-full overflow-x-auto">
+                                    <CheckInProgressChart
+                                        checkIns={checkIns}
+                                        width={700}
+                                        height={200}
+                                        keyResult={keyResult}
+                                    />
+                                </div>
+                            )}
+                            {loadingHistory && <div className="text-center py-4">Đang tải biểu đồ...</div>}
+                            {!loadingHistory && (!checkIns || checkIns.length === 0) && (
+                                <div className="text-center py-4 text-slate-500">Chưa có dữ liệu check-in.</div>
+                            )}
+                        </>
+                    )}
+                    {activeTab === 'history' && (
+                        <div className="max-h-48 overflow-y-auto">
+                            <table className="min-w-full divide-y divide-slate-200">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ngày</th>
+                                        <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Giá trị</th>
+                                        <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tiến độ</th>
+                                        <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Ghi chú</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-slate-200">
+                                    {checkIns.map(checkin => (
+                                        <tr key={checkin.id}>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{new Date(checkin.created_at).toLocaleDateString()}</td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-900 font-medium">{checkin.progress_value}</td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{checkin.progress_percent.toFixed(1)}%</td>
+                                            <td className="px-4 py-2 text-sm text-slate-500">{checkin.notes}</td>
                                         </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-slate-200">
-                                        {checkIns.map(checkin => (
-                                            <tr key={checkin.id}>
-                                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{new Date(checkin.created_at).toLocaleDateString()}</td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-900 font-medium">{checkin.progress_value}</td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{checkin.progress_percent.toFixed(1)}%</td>
-                                                <td className="px-4 py-2 text-sm text-slate-500">{checkin.notes}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Ghi chú (tùy chọn)
-                        </label>
-                        <textarea
-                            value={formData.notes}
-                            onChange={(e) => handleInputChange('notes', e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Mô tả ngắn về tiến độ công việc..."
-                            rows={3}
-                            maxLength={1000}
-                        />
-                        <div className="text-xs text-slate-500 mt-1">
-                            {formData.notes.length}/1000 ký tự
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
+                    )}
+                </div>
 
-                    <div className="flex justify-end space-x-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={loading}
-                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            Hủy
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                        >
-                            {loading ? 'Đang lưu...' : 'Cập nhật'}
-                        </button>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Ghi chú (tùy chọn)
+                    </label>
+                    <textarea
+                        value={formData.notes}
+                        onChange={(e) => handleInputChange('notes', e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                        placeholder="Mô tả ngắn về tiến độ công việc..."
+                        rows={2}
+                        maxLength={1000}
+                        disabled={!hasPermission}
+                    />
+                    <div className="text-xs text-slate-500 mt-1">
+                        {formData.notes.length}/1000 ký tự
                     </div>
-                </form>
-            )}
+                </div>
+
+                <div className="flex justify-end space-x-3">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={loading}
+                        className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        Hủy
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={loading || !hasPermission}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loading ? 'Đang lưu...' : 'Cập nhật'}
+                    </button>
+                </div>
+            </form>
         </Modal>
     );
 }

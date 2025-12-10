@@ -518,8 +518,8 @@ export default function CompanyOverviewReport() {
 
         if (!targetSnapshot) {
             if (!snapshots || snapshots.length === 0) {
-                showNotification('error', 'Chưa có báo cáo để xuất file');
-                return;
+                showNotification('error', '⚠ Chưa có báo cáo để xuất file');
+            return;
             }
             const filtered = filters.cycleId
                 ? snapshots.filter(s => String(s.cycle_id) === String(filters.cycleId))
@@ -551,30 +551,31 @@ export default function CompanyOverviewReport() {
                     detailedData: deptSnap.data_snapshot?.detailedData || {},
                 };
             } else {
-                const fetchDataForLevel = async (levelToFetch) => {
-                    const params = new URLSearchParams();
+                // Trường hợp thiếu snapshot một trong hai cấp, fallback gọi API như cũ
+            const fetchDataForLevel = async (levelToFetch) => {
+                const params = new URLSearchParams();
                     if (cycleId) params.set('cycle_id', cycleId);
-                    params.set('level', levelToFetch);
-                    const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
-                        headers: { Accept: 'application/json' }
-                    });
-                    const reportJson = await reportRes.json();
-                    if (!reportRes.ok || !reportJson.success) {
-                        throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
-                    }
-                    const detailedData = await fetchDetailedDataForSnapshot(
+                params.set('level', levelToFetch);
+                const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
+                    headers: { Accept: 'application/json' }
+                });
+                const reportJson = await reportRes.json();
+                if (!reportRes.ok || !reportJson.success) {
+                    throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
+                }
+                const detailedData = await fetchDetailedDataForSnapshot(
                         cycleId,
                         null,
                         null,
-                        levelToFetch
-                    );
+                    levelToFetch
+                );
                     return { report: reportJson.data, detailedData };
                 };
 
                 [companyData, departmentsData] = await Promise.all([
-                    fetchDataForLevel('company'),
-                    fetchDataForLevel('departments'),
-                ]);
+                fetchDataForLevel('company'),
+                fetchDataForLevel('departments'),
+            ]);
             }
 
             exportToExcelUtil(

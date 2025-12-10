@@ -47,6 +47,7 @@ export default function ObjectiveList({
     onCancelLink,
     hideFilters = false,
     disableActions = false,
+    departments = [],
 }) {
     const [toast, setToast] = useState(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -406,14 +407,14 @@ export default function ObjectiveList({
             )}
 
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                <table className="min-w-full divide-y divide-slate-200 table-fixed">
+                <table className="min-w-full table-fixed border-separate border-spacing-y-2">
                     <thead className="bg-slate-50 text-left font-semibold text-slate-700">
                         <tr>
                             <th className="px-3 py-2 text-left">
                                 Tiêu đề
                             </th>
                             <th className="px-3 py-2 text-center" style={{width: '180px'}}>
-                                Người thực hiện
+                                Người sở hữu
                             </th>
                             <th className="px-3 py-2 text-center" style={{width: '150px'}}>
                                 Tiến độ (%)
@@ -487,7 +488,6 @@ export default function ObjectiveList({
                                     getUnitText={getUnitText}
                                     getAssigneeInfo={getAssigneeInfo}
                                     // The ObjectiveRow itself will now handle its colSpan based on props
-                                    colSpanForObjectiveHeader={3}
                                     disableActions={disableActions}
                                 />
 
@@ -511,6 +511,8 @@ export default function ObjectiveList({
                 onConfirm={handleAssignKR}
                 onClose={closeAssignModal}
                 currentUserRole={currentUser?.role}
+                currentUser={currentUser}
+                departments={departments}
             />
             {assigneeTooltip && assigneeTooltip.info && (
                 <div

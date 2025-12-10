@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import ConfirmationModal from "./ConfirmationModal";
 
 const LEVEL_OPTIONS = [
     { value: "", label: "Tất cả cấp bậc" },
@@ -21,6 +22,7 @@ export default function LinkOkrModal({
     source,
     sourceType = "objective",
     onSuccess,
+    onCancelLink,
 }) {
     const [filters, setFilters] = useState({
         level: "",
@@ -35,6 +37,16 @@ export default function LinkOkrModal({
     const [selectedTarget, setSelectedTarget] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [note, setNote] = useState("");
+    const [existingLink, setExistingLink] = useState(null);
+    const [cancellingLink, setCancellingLink] = useState(false);
+    const [confirmModal, setConfirmModal] = useState({
+        show: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+        confirmText: "OK",
+        cancelText: "Hủy",
+    });
 
     const sourceLevel = useMemo(() => {
         if (!source) return "person";
@@ -84,6 +96,41 @@ export default function LinkOkrModal({
             setLoading(false);
         }
     };
+
+    // Fetch existing link information
+    useEffect(() => {
+        const fetchExistingLink = async () => {
+            if (!open || !sourceId || sourceType !== "objective") {
+                setExistingLink(null);
+                return;
+            }
+            
+            try {
+                const res = await fetch("/my-links", {
+                    headers: { Accept: "application/json" },
+                });
+                const json = await res.json();
+                
+                if (json.success && json.data) {
+                    // Tìm link hiện tại của Objective này (chỉ lấy approved hoặc pending)
+                    const link = json.data.outgoing?.find(
+                        (l) =>
+                            l.source_type === "objective" &&
+                            l.source_objective_id === sourceId &&
+                            l.status !== "cancelled" &&
+                            l.status !== "rejected" &&
+                            l.status !== "needs_changes"
+                    );
+                    setExistingLink(link || null);
+                }
+            } catch (err) {
+                console.error("Fetch existing link error:", err);
+                setExistingLink(null);
+            }
+        };
+        
+        fetchExistingLink();
+    }, [open, sourceId, sourceType]);
 
     useEffect(() => {
         if (open) {
@@ -204,23 +251,67 @@ export default function LinkOkrModal({
                             {sourceType === "objective" ? source?.obj_title : source?.kr_title}
                         </h3>
                         <p className="text-sm text-slate-500">
-                            Nguồn: {sourceType === "objective" ? "Objective" : "Key Result"} • Cấp{" "}
-                            {sourceLevel?.toUpperCase()}
+                            {existingLink ? (
+                                <>
+                                    Đã liên kết đến:{" "}
+                                    {existingLink.target_type === "objective"
+                                        ? (existingLink.target_objective?.obj_title || existingLink.targetObjective?.obj_title || `Objective (ID: ${existingLink.target_objective_id})`)
+                                        : existingLink.target_kr || existingLink.targetKr
+                                        ? ((existingLink.target_kr || existingLink.targetKr)?.kr_title || `Key Result (ID: ${existingLink.target_kr_id})`)
+                                        : `OKR (ID: ${existingLink.target_objective_id || existingLink.target_kr_id})`}
+                                </>
+                            ) : (
+                                "Chưa liên kết"
+                            )}
                         </p>
                     </div>
-                    <button
-                        className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
-                        onClick={onClose}
-                    >
-                        <svg className="h-5 w-5" viewBox="0 0 24 24" stroke="currentColor" fill="none">
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
-                            />
-                        </svg>
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {existingLink && onCancelLink && (
+                            <button
+                                onClick={() => {
+                                    setConfirmModal({
+                                        show: true,
+                                        title: "Hủy liên kết",
+                                        message: `Bạn có chắc chắn muốn hủy liên kết với "${existingLink.target_type === "objective" ? (existingLink.target_objective?.obj_title || existingLink.targetObjective?.obj_title || "Objective") : ((existingLink.target_kr || existingLink.targetKr)?.kr_title || "Key Result")}"?`,
+                                        confirmText: "Hủy liên kết",
+                                        cancelText: "Hủy",
+                                        onConfirm: () => {
+                                            setCancellingLink(true);
+                                            try {
+                                                onCancelLink(existingLink.link_id || existingLink.id, "", true);
+                                                setExistingLink(null);
+                                                setConfirmModal({ show: false });
+                                                setTimeout(() => {
+                                                    onClose?.();
+                                                }, 500);
+                                            } catch (err) {
+                                                console.error("Cancel link error:", err);
+                                            } finally {
+                                                setCancellingLink(false);
+                                            }
+                                        },
+                                    });
+                                }}
+                                disabled={cancellingLink}
+                                className="rounded-lg px-4 py-2 text-sm font-semibold text-orange-600 hover:bg-orange-50 disabled:opacity-50"
+                            >
+                                {cancellingLink ? "Đang hủy..." : "Hủy liên kết"}
+                            </button>
+                        )}
+                        <button
+                            className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
+                            onClick={onClose}
+                        >
+                            <svg className="h-5 w-5" viewBox="0 0 24 24" stroke="currentColor" fill="none">
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex flex-col gap-5 px-6 py-5 overflow-y-auto max-h-[calc(90vh-260px)]">
@@ -469,6 +560,12 @@ export default function LinkOkrModal({
             </div>
         </div>
             </div>
+            <ConfirmationModal
+                confirmModal={confirmModal}
+                closeConfirm={() => {
+                    setConfirmModal({ show: false });
+                }}
+            />
         </div>
     );
 }

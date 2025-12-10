@@ -455,54 +455,25 @@ class CheckInController extends Controller
      */
     private function canCheckIn($user, $keyResult): bool
     {
-        // Đảm bảo lấy giá trị mới nhất từ database cho assigned_to
-        // Nhưng không refresh toàn bộ để tránh mất relationship
-        $freshAssignedTo = KeyResult::where('kr_id', $keyResult->kr_id)
-            ->value('assigned_to');
-        
-        // Debug logging
-        Log::info('Checking check-in permission', [
-            'user_id' => $user->user_id,
-            'kr_id' => $keyResult->kr_id,
-            'kr_user_id' => $keyResult->user_id,
-            'kr_assigned_to' => $keyResult->assigned_to,
-            'fresh_assigned_to' => $freshAssignedTo,
-            'objective_user_id' => $keyResult->objective?->user_id,
-        ]);
+        // Nếu Key Result đã được gán cho người khác (assigned_to != null)
+        if ($keyResult->assigned_to !== null) {
+            // Chỉ người được gán mới có quyền check-in
+            if ($keyResult->assigned_to == $user->user_id) {
+                return true;
+            }
+            // Người sở hữu Key Result hoặc Objective không có quyền khi đã gán cho người khác
+            return false;
+        }
 
+        // Nếu Key Result chưa được gán (assigned_to == null)
         // 1. Người sở hữu Key Result có thể check-in
         if ($keyResult->user_id && (int)$keyResult->user_id === (int)$user->user_id) {
             Log::info('Check-in allowed: User is owner of Key Result');
             return true;
         }
 
-        // 2. Người được giao Key Result có thể check-in
-        // Sử dụng giá trị fresh từ database để đảm bảo chính xác
-        $assignedTo = $freshAssignedTo ?? $keyResult->assigned_to;
-        if ($assignedTo !== null && $assignedTo !== '') {
-            // So sánh cả string và int để đảm bảo chính xác
-            $assignedToStr = (string)$assignedTo;
-            $userIdStr = (string)$user->user_id;
-            $assignedToInt = (int)$assignedTo;
-            $userIdInt = (int)$user->user_id;
-            
-            if ($assignedToStr === $userIdStr || $assignedToInt === $userIdInt) {
-                Log::info('Check-in allowed: User is assigned to Key Result', [
-                    'assigned_to' => $assignedTo,
-                    'assigned_to_str' => $assignedToStr,
-                    'assigned_to_int' => $assignedToInt,
-                    'user_id' => $user->user_id,
-                    'user_id_str' => $userIdStr,
-                    'user_id_int' => $userIdInt,
-                ]);
-                return true;
-            }
-        }
-
-        // 3. Người sở hữu Objective chứa Key Result có thể check-in
-        if ($keyResult->objective && $keyResult->objective->user_id && 
-            (int)$keyResult->objective->user_id === (int)$user->user_id) {
-            Log::info('Check-in allowed: User is owner of Objective');
+        // 2. Người sở hữu Objective chứa Key Result có thể check-in (khi chưa gán)
+        if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
             return true;
         }
 
