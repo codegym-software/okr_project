@@ -40,6 +40,15 @@ RUN npm run build
 # Install composer dependencies
 RUN composer install --no-dev --optimize-autoloader
 
+# Clear and cache Laravel config/views/routes
+RUN php artisan config:clear
+RUN php artisan cache:clear
+RUN php artisan view:clear
+RUN php artisan route:clear
+RUN php artisan config:cache
+RUN php artisan event:cache
+
+
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
