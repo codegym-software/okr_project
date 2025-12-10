@@ -269,46 +269,48 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* KHU VỰC 1: CỦA TÔI (Highlight) */}
-            <section>
-                <div className="mb-4 flex items-center justify-between">
-                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                            🚀
-                        </span>
-                        Mục tiêu của tôi
-                    </h2>
-                    <div className="flex gap-2">
-                         <a 
-                            href="/my-objectives" 
-                            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                            Check-in ngay
-                        </a>
-                        <a href="/my-objectives" className="sm:hidden text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center">
-                            Xem tất cả &rarr;
-                        </a>
+            {/* KHU VỰC 1: CỦA TÔI (Highlight) - Ẩn với CEO */}
+            {data.user?.role?.role_name?.toLowerCase() !== 'ceo' && (
+                <section>
+                    <div className="mb-4 flex items-center justify-between">
+                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                                🚀
+                            </span>
+                            Mục tiêu của tôi
+                        </h2>
+                        <div className="flex gap-2">
+                             <a 
+                                href="/my-objectives" 
+                                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                                Check-in ngay
+                            </a>
+                            <a href="/my-objectives" className="sm:hidden text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center">
+                                Xem tất cả &rarr;
+                            </a>
+                        </div>
                     </div>
-                </div>
-                
-                {(data.myOkrs || []).length > 0 ? (
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 divide-y divide-slate-100 p-6">
-                        {(data.myOkrs || []).map((okr) => (
-                            <MyOkrRow key={okr.objective_id} okr={okr} />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-10 text-center">
-                        <p className="text-slate-500 mb-4">Bạn chưa có OKR nào trong chu kỳ này.</p>
-                        <a href="/my-objectives/create" className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
-                            + Tạo OKR Mới
-                        </a>
-                    </div>
-                )}
-            </section>
+                    
+                    {(data.myOkrs || []).length > 0 ? (
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 divide-y divide-slate-100 p-6">
+                            {(data.myOkrs || []).map((okr) => (
+                                <MyOkrRow key={okr.objective_id} okr={okr} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+                            <p className="text-slate-500 mb-4">Bạn chưa có OKR nào trong chu kỳ này.</p>
+                            <a href="/my-objectives/create" className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
+                                + Tạo OKR Mới
+                            </a>
+                        </div>
+                    )}
+                </section>
+            )}
 
             <div className="grid gap-10 md:grid-cols-2">
                 {/* KHU VỰC 2: PHÒNG BAN (Read Only) */}
