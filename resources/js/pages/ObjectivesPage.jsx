@@ -1082,6 +1082,8 @@ export default function ObjectivesPage() {
                     keyResult={checkInModal.keyResult}
                     objectiveId={checkInModal.keyResult?.objective_id}
                     onSuccess={handleCheckInSuccess}
+                    objective={items.find(obj => obj.objective_id === checkInModal.keyResult?.objective_id)}
+                    currentUser={currentUser}
                 />
             </ErrorBoundary>
 

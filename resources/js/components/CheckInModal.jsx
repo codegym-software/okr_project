@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './ui';
 import CheckInProgressChart from './CheckInProgressChart';
+import { canCheckInKeyResult } from '../utils/checkinPermissions';
 
 export default function CheckInModal({
     open,
@@ -8,7 +9,9 @@ export default function CheckInModal({
     keyResult,
     objectiveId,
     onSuccess,
-    initialTab = 'chart' // Add new prop with default value
+    initialTab = 'chart', // Add new prop with default value
+    objective = null, // Thêm prop objective để kiểm tra quyền
+    currentUser = null // Thêm prop currentUser để kiểm tra quyền
 }) {
     // ... (rest of the component)
 
@@ -137,6 +140,20 @@ export default function CheckInModal({
         }
     }, [formData.progress_value, keyResult?.target_value]);
 
+    // Kiểm tra quyền check-in khi modal mở
+    useEffect(() => {
+        if (open && keyResult && objective && currentUser) {
+            const hasPermission = canCheckInKeyResult(currentUser, keyResult, objective);
+            if (!hasPermission) {
+                setError('Bạn không có quyền check-in cho Key Result này.');
+                // Đóng modal sau 2 giây
+                setTimeout(() => {
+                    onClose();
+                }, 2000);
+            }
+        }
+    }, [open, keyResult, objective, currentUser, onClose]);
+
     // Null check for keyResult - hiển thị message thay vì return null
     // Phải đặt sau tất cả hooks để tuân thủ Rules of Hooks
     if (!keyResult) {
@@ -154,6 +171,11 @@ export default function CheckInModal({
             </Modal>
         );
     }
+
+    // Kiểm tra quyền trước khi render form
+    const hasPermission = currentUser && objective 
+        ? canCheckInKeyResult(currentUser, keyResult, objective)
+        : true; // Nếu không có currentUser hoặc objective, để backend xử lý
 
     const handleInputChange = (field, value) => {
         console.log('🔧 handleInputChange called:', { field, value, type: typeof value });
@@ -214,6 +236,16 @@ export default function CheckInModal({
             setError('Không tìm thấy Key Result ID');
             setLoading(false);
             return;
+        }
+
+        // Kiểm tra quyền check-in trước khi submit
+        if (currentUser && objective) {
+            const hasPermission = canCheckInKeyResult(currentUser, keyResult, objective);
+            if (!hasPermission) {
+                setError('Bạn không có quyền check-in cho Key Result này.');
+                setLoading(false);
+                return;
+            }
         }
 
         if (formData.progress_value < 0) {
@@ -284,7 +316,13 @@ export default function CheckInModal({
 
     return (
         <Modal open={open} onClose={onClose} title="Cập nhật tiến độ Key Result">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3 -m-2">
+                {/* Disable form nếu không có quyền */}
+                {!hasPermission && (
+                    <div className="rounded-md bg-red-50 p-3 text-red-700 text-sm mb-4">
+                        Bạn không có quyền check-in cho Key Result này.
+                    </div>
+                )}
                 {error && (
                     <div className="rounded-md bg-red-50 p-3 text-red-700 text-sm">
                         {error}
@@ -337,9 +375,10 @@ export default function CheckInModal({
                                 }
                             }}
                             onBlur={() => setIsInputFocused(false)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
                             placeholder="Nhập giá trị..."
                             required
+                            disabled={!hasPermission}
                         />
                     </div>
                     <div>
@@ -389,7 +428,7 @@ export default function CheckInModal({
                                     <CheckInProgressChart
                                         checkIns={checkIns}
                                         width={700}
-                                        height={280}
+                                        height={200}
                                         keyResult={keyResult}
                                     />
                                 </div>
@@ -401,7 +440,7 @@ export default function CheckInModal({
                         </>
                     )}
                     {activeTab === 'history' && (
-                        <div className="max-h-64 overflow-y-auto">
+                        <div className="max-h-48 overflow-y-auto">
                             <table className="min-w-full divide-y divide-slate-200">
                                 <thead className="bg-slate-50">
                                     <tr>
@@ -433,10 +472,11 @@ export default function CheckInModal({
                     <textarea
                         value={formData.notes}
                         onChange={(e) => handleInputChange('notes', e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
                         placeholder="Mô tả ngắn về tiến độ công việc..."
-                        rows={3}
+                        rows={2}
                         maxLength={1000}
+                        disabled={!hasPermission}
                     />
                     <div className="text-xs text-slate-500 mt-1">
                         {formData.notes.length}/1000 ký tự
@@ -454,8 +494,8 @@ export default function CheckInModal({
                     </button>
                     <button
                         type="submit"
-                        disabled={loading}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                        disabled={loading || !hasPermission}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {loading ? 'Đang lưu...' : 'Cập nhật'}
                     </button>

@@ -332,17 +332,23 @@ class CheckInController extends Controller
      */
     private function canCheckIn($user, $keyResult): bool
     {
+        // Nếu Key Result đã được gán cho người khác (assigned_to != null)
+        if ($keyResult->assigned_to !== null) {
+            // Chỉ người được gán mới có quyền check-in
+            if ($keyResult->assigned_to == $user->user_id) {
+                return true;
+            }
+            // Người sở hữu Key Result hoặc Objective không có quyền khi đã gán cho người khác
+            return false;
+        }
+
+        // Nếu Key Result chưa được gán (assigned_to == null)
         // 1. Người sở hữu Key Result có thể check-in
         if ($keyResult->user_id == $user->user_id) {
             return true;
         }
 
-        // 2. Người được giao Key Result có thể check-in
-        if ($keyResult->assigned_to == $user->user_id) {
-            return true;
-        }
-
-        // 3. Người sở hữu Objective chứa Key Result có thể check-in
+        // 2. Người sở hữu Objective chứa Key Result có thể check-in (khi chưa gán)
         if ($keyResult->objective && $keyResult->objective->user_id == $user->user_id) {
             return true;
         }

@@ -345,12 +345,16 @@ export default function OKRTable({
                                                             <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-lg">
                                                                 <span className="text-sm font-bold text-blue-700">{calculatedPercentage.toFixed(2)}%</span>
                                                             </div>
-                                                            {/* Nút Check-in cho Key Result - chỉ hiển thị khi onCheckIn được cung cấp */}
-                                                            {onCheckIn && canCheckIn(kr, item) && (
+                                                            {/* Nút Check-in cho Key Result - luôn hiển thị nhưng disable khi không có quyền */}
+                                                            {onCheckIn && (
                                                                 <button
-                                                                    onClick={() => onCheckIn?.({ ...kr, objective_id: item.objective_id })}
-                                                                    className="p-1 rounded hover:bg-blue-50 transition-colors"
-                                                                    title="Check-In Kết Quả Chính"
+                                                                    onClick={() => {
+                                                                        if (!canCheckIn(kr, item)) return;
+                                                                        onCheckIn?.({ ...kr, objective_id: item.objective_id });
+                                                                    }}
+                                                                    className="p-1 rounded hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    title={canCheckIn(kr, item) ? "Check-In Kết Quả Chính" : "Bạn không có quyền check-in"}
+                                                                    disabled={!canCheckIn(kr, item)}
                                                                 >
                                                                     <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />

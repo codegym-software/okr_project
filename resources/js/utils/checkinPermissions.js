@@ -35,14 +35,23 @@ export const canCheckInKeyResult = (currentUser, keyResult, objective) => {
     // KHÔNG chặn check-in dựa trên objective.status vì nó có thể là từ tính toán
     // Chỉ check-in dựa trên quyền và keyResult.status
 
-    // Nếu user đã đăng nhập và status không phải completed/closed, cho phép check-in
-    // Backend sẽ validate quyền chi tiết hơn
+    // Nếu Key Result đã được gán cho người khác (assigned_to != null)
+    if (keyResult.assigned_to !== null && keyResult.assigned_to !== undefined) {
+        // Chỉ người được gán mới có quyền check-in
+        if (String(keyResult.assigned_to) === String(currentUser.user_id || currentUser.id)) {
+            return true;
+        }
+        // Người sở hữu Key Result hoặc Objective không có quyền khi đã gán cho người khác
+        return false;
+    }
+
+    // Nếu Key Result chưa được gán (assigned_to == null)
     // Kiểm tra user có phải owner của Key Result không
     if (keyResult.user_id && String(keyResult.user_id) === String(currentUser.user_id || currentUser.id)) {
         return true;
     }
 
-    // Kiểm tra user có phải owner của Objective không
+    // Kiểm tra user có phải owner của Objective không (khi chưa gán)
     if (objective.user_id && String(objective.user_id) === String(currentUser.user_id || currentUser.id)) {
         return true;
     }
@@ -82,16 +91,15 @@ export const canCheckInKeyResult = (currentUser, keyResult, objective) => {
         return true;
     }
 
-    // Kiểm tra Key Result có cùng department với user không
+    // Kiểm tra Key Result có cùng department với user không (khi chưa gán)
     if (currentUser.department_id && keyResult.department_id && 
         String(currentUser.department_id) === String(keyResult.department_id)) {
         return true;
     }
 
-    // Nếu không có điều kiện nào match, vẫn cho phép check-in (frontend)
+    // Nếu không có điều kiện nào match, không cho phép check-in
     // Backend sẽ validate quyền chính xác hơn
-    // Để đảm bảo nút luôn hiển thị cho user đã đăng nhập
-    return true;
+    return false;
 };
 
 /**

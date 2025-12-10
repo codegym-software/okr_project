@@ -428,18 +428,19 @@ export default function KeyResultRow({
                         </div>
                     ) : (
                         <div className="flex items-center justify-end gap-1">
-                            {canCheckInKR(kr) && openCheckInModal && (
+                            {openCheckInModal && (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
+                                        if (!canCheckInKR(kr) || disableActions) return;
                                         openCheckInModal({
                                             ...kr,
                                             objective_id: objective.objective_id,
                                         });
                                     }}
                                     className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Check-in"
-                                    disabled={disableActions}
+                                    title={canCheckInKR(kr) ? "Check-in" : "Bạn không có quyền check-in"}
+                                    disabled={!canCheckInKR(kr) || disableActions}
                                 >
                                     <svg
                                         className="h-4 w-4"
