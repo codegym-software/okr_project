@@ -213,15 +213,9 @@ class CheckInController extends Controller
                 ]);
 
                 // IMPORTANT: Trigger chain reaction calculation
-                // This will save progress to DB and propagate to parents
+                // This will save progress to DB and propagate to parents (including Objective)
                 $keyResult->refresh();
-                $keyResult->updateProgress(); // New recursive method
-
-                // Tự động cập nhật progress của Objective từ KeyResults
-                // (Redundant if updateProgress() calls objective->updateProgress(), but keeps logic safe)
-                if ($keyResult->objective) {
-                    $keyResult->objective->updateProgress();
-                }
+                $keyResult->updateProgress(); // This already propagates to parent Objective
 
                 Log::info('Check-in created', [
                     'check_in_id' => $checkIn->check_in_id,
