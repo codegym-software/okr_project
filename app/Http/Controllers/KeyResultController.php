@@ -88,8 +88,16 @@ class KeyResultController extends Controller
         $validated['department_id'] = $objective->department_id;
         
         // Tự động gán cycle_id từ Objective nếu không có
-        if (empty($validated['cycle_id']) && !empty($objective->cycle_id)) {
-            $validated['cycle_id'] = $objective->cycle_id;
+        if (empty($validated['cycle_id'])) {
+            if (!empty($objective->cycle_id)) {
+                $validated['cycle_id'] = $objective->cycle_id;
+            } else {
+                // Nếu Objective cũng không có cycle_id, lấy current cycle
+                $currentCycle = $this->getCurrentCycle();
+                if ($currentCycle) {
+                    $validated['cycle_id'] = $currentCycle->cycle_id;
+                }
+            }
         }
 
         // Tính % tiến độ (nếu có current_value)
@@ -289,5 +297,38 @@ class KeyResultController extends Controller
         // to view this key result. For now, we'll assume it's public for logged-in users.
 
         return response()->json(['success' => true, 'data' => $kr]);
+    }
+
+    /**
+     * Lấy chu kỳ hiện tại (active cycle)
+     */
+    private function getCurrentCycle(): ?\App\Models\Cycle
+    {
+        $now = \Carbon\Carbon::now('Asia/Ho_Chi_Minh');
+        
+        // Tìm cycle đang active (start_date <= now <= end_date)
+        $currentCycle = \App\Models\Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->where('status', 'active')
+            ->first();
+
+        if ($currentCycle) {
+            return $currentCycle;
+        }
+
+        // Nếu không tìm thấy, tìm theo tên cycle (Quý X năm Y)
+        $year = $now->year;
+        $quarter = ceil($now->month / 3);
+        $possibleNames = [
+            "Quý {$quarter} năm {$year}",
+            "Q{$quarter} {$year}",
+            "Q{$quarter} - {$year}",
+        ];
+
+        $currentCycle = \App\Models\Cycle::whereIn('cycle_name', $possibleNames)
+            ->where('status', 'active')
+            ->first();
+
+        return $currentCycle;
     }
 }

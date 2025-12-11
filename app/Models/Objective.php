@@ -261,14 +261,25 @@ class Objective extends Model
             $newProgress = round($avgProgress, 2);
         }
 
+        // 3.5. Tự động tính status dựa trên progress và chu kỳ
+        // Đảm bảo cycle được load
+        if (!$this->relationLoaded('cycle')) {
+            $this->load('cycle');
+        }
+        $newStatus = $this->calculateStatusFromProgress($newProgress);
+
         // 4. Lưu vào Database
         // Sử dụng DB::table để update nhanh và tránh trigger events nếu không cần thiết
         \DB::table('objectives')
             ->where('objective_id', $this->objective_id)
-            ->update(['progress_percent' => $newProgress]);
+            ->update([
+                'progress_percent' => $newProgress,
+                'status' => $newStatus
+            ]);
         
         // Cập nhật attribute của instance hiện tại
         $this->attributes['progress_percent'] = $newProgress;
+        $this->attributes['status'] = $newStatus;
 
         // 5. Lan truyền lên trên (Propagate Upwards)
         // Tìm các link mà Objective này là SOURCE (tức là nó đang đóng góp cho ai?)
@@ -325,16 +336,98 @@ class Objective extends Model
             $newProgress = round($avgProgress, 2);
         }
         
-        // Chỉ cập nhật progress_percent, không cập nhật updated_at
+        // Tự động tính status dựa trên progress và chu kỳ
+        // Đảm bảo cycle được load
+        if (!$this->relationLoaded('cycle')) {
+            $this->load('cycle');
+        }
+        $newStatus = $this->calculateStatusFromProgress($newProgress);
+        
+        // Chỉ cập nhật progress_percent và status, không cập nhật updated_at
         // Sử dụng DB::table để update trực tiếp mà không trigger timestamps
         \DB::table('objectives')
             ->where('objective_id', $this->objective_id)
-            ->update(['progress_percent' => $newProgress]);
+            ->update([
+                'progress_percent' => $newProgress,
+                'status' => $newStatus
+            ]);
         
         // Cập nhật attribute trong model để đồng bộ
         $this->attributes['progress_percent'] = $newProgress;
+        $this->attributes['status'] = $newStatus;
         
         return true;
+    }
+
+    /**
+     * Tính trạng thái Objective dựa trên tiến độ và thời gian trong chu kỳ
+     * 
+     * @param float $progress Tiến độ (0-100)
+     * @return string Trạng thái: on_track, at_risk, behind, completed
+     */
+    private function calculateStatusFromProgress(float $progress): string
+    {
+        // Nếu đã hoàn thành 100%
+        if ($progress >= 100) {
+            return 'completed';
+        }
+        
+        // Lấy thông tin chu kỳ
+        $cycle = $this->relationLoaded('cycle') ? $this->cycle : $this->cycle()->first();
+        
+        if (!$cycle || !$cycle->start_date || !$cycle->end_date) {
+            // Nếu không có chu kỳ, dùng logic cũ dựa trên progress
+            if ($progress >= 80) {
+                return 'on_track';
+            }
+            if ($progress >= 50) {
+                return 'at_risk';
+            }
+            return 'behind';
+        }
+        
+        $now = Carbon::now('Asia/Ho_Chi_Minh');
+        $startDate = Carbon::parse($cycle->start_date);
+        $endDate = Carbon::parse($cycle->end_date);
+        
+        // Tính % thời gian đã trôi qua trong chu kỳ
+        $totalDays = $startDate->diffInDays($endDate);
+        if ($totalDays <= 0) {
+            // Chu kỳ đã kết thúc hoặc không hợp lệ
+            if ($progress >= 100) {
+                return 'completed';
+            }
+            return 'behind';
+        }
+        
+        $elapsedDays = $startDate->diffInDays($now);
+        $expectedProgress = min(100, max(0, ($elapsedDays / $totalDays) * 100));
+        
+        // Nếu thời gian đã trôi qua < 10% và progress = 0%, coi như đúng tiến độ (mới tạo)
+        if ($expectedProgress < 10 && $progress == 0) {
+            return 'on_track';
+        }
+        
+        // Nếu thời gian đã trôi qua < 5%, luôn là đúng tiến độ (quá sớm để đánh giá)
+        if ($expectedProgress < 5) {
+            return 'on_track';
+        }
+        
+        // So sánh progress thực tế với progress mong đợi
+        $difference = $progress - $expectedProgress;
+        
+        // Đúng tiến độ: progress >= expected - 5% (có buffer nhỏ)
+        if ($difference >= -5) {
+            return 'on_track';
+        }
+        
+        // Có nguy cơ: progress < expected - 5% nhưng >= expected - 20%
+        if ($difference >= -20) {
+            return 'at_risk';
+        }
+        
+        // Chậm tiến độ: progress < expected - 20%
+        return 'behind';
     }
 
 

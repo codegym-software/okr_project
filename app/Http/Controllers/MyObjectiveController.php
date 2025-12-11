@@ -199,18 +199,30 @@ class MyObjectiveController extends Controller
             'obj_title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'level' => 'required|in:company,unit,team,person',
-            'status' => 'required|in:draft,active,completed',
-            'cycle_id' => 'required|exists:cycles,cycle_id',
+            'status' => 'nullable|in:on_track,at_risk,behind,completed',
+            'cycle_id' => 'nullable|exists:cycles,cycle_id',
             'department_id' => 'nullable|exists:departments,department_id',
             'key_results' => 'nullable|array',
             'key_results.*.kr_title' => 'required|string|max:255',
             'key_results.*.target_value' => 'required|numeric|min:0',
             'key_results.*.current_value' => 'nullable|numeric|min:0',
             'key_results.*.unit' => 'required|in:number,percent,currency,completion',
-            'key_results.*.status' => 'required|in:draft,active,completed',
+            'key_results.*.status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
+
+        // Tự động lấy current cycle nếu không có cycle_id
+        if (empty($validated['cycle_id'])) {
+            $currentCycle = $this->getCurrentCycle();
+            if ($currentCycle) {
+                $validated['cycle_id'] = $currentCycle->cycle_id;
+            } else {
+                return $request->expectsJson()
+                    ? response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ hiện tại. Vui lòng chọn chu kỳ.'], 422)
+                    : redirect()->back()->withErrors(['error' => 'Không tìm thấy chu kỳ hiện tại. Vui lòng chọn chu kỳ.']);
+            }
+        }
 
         // Đảm bảo user có role, nếu không có thì gán role mặc định
         if (!$user->role) {
@@ -286,14 +298,20 @@ class MyObjectiveController extends Controller
 
         try {
             $objective = DB::transaction(function () use ($validated, $user) {
+                // Tự động tính status từ progress và chu kỳ
+                $initialProgress = 0.0;
+                $cycle = Cycle::find($validated['cycle_id']);
+                $initialStatus = $this->calculateStatusFromProgress($initialProgress, $cycle);
+                
                 $objective = Objective::create([
                     'obj_title' => $validated['obj_title'],
                     'description' => $validated['description'] ?? null,
                     'level' => $validated['level'],
-                    'status' => $validated['status'],
+                    'status' => $validated['status'] ?? $initialStatus, // Tự động tính nếu không có
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['department_id'] ?? null,
                     'user_id' => $user->user_id,
+                    'progress_percent' => $initialProgress,
                 ]);
 
                 if (isset($validated['key_results'])) {
@@ -317,6 +335,12 @@ class MyObjectiveController extends Controller
                     }
                     // Cập nhật updated_at của Objective khi tạo KR mới
                     $objective->touch();
+                }
+
+                // Tự động tính lại progress và status từ KeyResults (nếu có)
+                if (isset($validated['key_results']) && count($validated['key_results']) > 0) {
+                    $objective->refresh();
+                    $objective->updateProgressFromKeyResults();
                 }
 
                 // Gán người dùng
@@ -372,19 +396,37 @@ class MyObjectiveController extends Controller
             'obj_title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'level' => 'required|in:company,unit,team,person',
-            'status' => 'required|in:draft,active,completed',
-            'cycle_id' => 'required|exists:cycles,cycle_id',
+            'status' => 'nullable|in:on_track,at_risk,behind,completed',
+            'cycle_id' => 'nullable|exists:cycles,cycle_id',
             'department_id' => 'nullable|exists:departments,department_id',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
 
-    // Chặn sửa nếu chu kỳ đã đóng (status != active)
-    $cycle = Cycle::find($validated['cycle_id']);
-    if ($cycle && strtolower((string)$cycle->status) !== 'active') {
+        // Tự động lấy current cycle nếu không có cycle_id (giữ nguyên cycle cũ nếu đang sửa)
+        if (empty($validated['cycle_id'])) {
+            // Khi sửa, giữ nguyên cycle_id của Objective hiện tại
+            $validated['cycle_id'] = $objective->cycle_id;
+            
+            // Nếu Objective cũng không có cycle_id, lấy current cycle
+            if (empty($validated['cycle_id'])) {
+                $currentCycle = $this->getCurrentCycle();
+                if ($currentCycle) {
+                    $validated['cycle_id'] = $currentCycle->cycle_id;
+                } else {
+                    return $request->expectsJson()
+                        ? response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ hiện tại. Vui lòng chọn chu kỳ.'], 422)
+                        : redirect()->back()->withErrors(['error' => 'Không tìm thấy chu kỳ hiện tại. Vui lòng chọn chu kỳ.']);
+                }
+            }
+        }
+
+        // Chặn sửa nếu chu kỳ đã đóng (status != active)
+        $cycle = Cycle::find($validated['cycle_id']);
+        if ($cycle && strtolower((string)$cycle->status) !== 'active') {
             return $request->expectsJson()
-        ? response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.'], 403)
-        : redirect()->back()->withErrors(['error' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.']);
+                ? response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.'], 403)
+                : redirect()->back()->withErrors(['error' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.']);
         }
 
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
@@ -430,11 +472,19 @@ class MyObjectiveController extends Controller
 
         try {
             $objective = DB::transaction(function () use ($validated, $objective, $user) {
+                // Tự động tính status từ progress và chu kỳ hiện tại nếu không có status trong request
+                $status = $validated['status'] ?? null;
+                if (!$status) {
+                    $currentProgress = $objective->progress_percent ?? 0.0;
+                    $cycle = $objective->cycle ?? $objective->cycle()->first();
+                    $status = $this->calculateStatusFromProgress($currentProgress, $cycle);
+                }
+                
                 $objective->update([
                     'obj_title' => $validated['obj_title'],
                     'description' => $validated['description'] ?? null,
                     'level' => $validated['level'],
-                    'status' => $validated['status'],
+                    'status' => $status,
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['department_id'] ?? null,
                 ]);
@@ -797,5 +847,107 @@ class MyObjectiveController extends Controller
                 'message' => 'Có lỗi xảy ra khi lấy thông báo nhắc nhở: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Lấy chu kỳ hiện tại (active cycle)
+     */
+    private function getCurrentCycle(): ?Cycle
+    {
+        $now = Carbon::now('Asia/Ho_Chi_Minh');
+        
+        // Tìm cycle đang active (start_date <= now <= end_date)
+        $currentCycle = Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->where('status', 'active')
+            ->first();
+
+        if ($currentCycle) {
+            return $currentCycle;
+        }
+
+        // Nếu không tìm thấy, tìm theo tên cycle (Quý X năm Y)
+        $year = $now->year;
+        $quarter = ceil($now->month / 3);
+        $possibleNames = [
+            "Quý {$quarter} năm {$year}",
+            "Q{$quarter} {$year}",
+            "Q{$quarter} - {$year}",
+        ];
+
+        $currentCycle = Cycle::whereIn('cycle_name', $possibleNames)
+            ->where('status', 'active')
+            ->first();
+
+        return $currentCycle;
+    }
+
+    /**
+     * Tính trạng thái Objective dựa trên tiến độ và thời gian trong chu kỳ
+     * 
+     * @param float $progress Tiến độ (0-100)
+     * @param \App\Models\Cycle|null $cycle Chu kỳ của Objective
+     * @return string Trạng thái: on_track, at_risk, behind, completed
+     */
+    private function calculateStatusFromProgress(float $progress, ?\App\Models\Cycle $cycle = null): string
+    {
+        // Nếu đã hoàn thành 100%
+        if ($progress >= 100) {
+            return 'completed';
+        }
+        
+        // Nếu không có chu kỳ, dùng logic cũ dựa trên progress
+        if (!$cycle || !$cycle->start_date || !$cycle->end_date) {
+            if ($progress >= 80) {
+                return 'on_track';
+            }
+            if ($progress >= 50) {
+                return 'at_risk';
+            }
+            return 'behind';
+        }
+        
+        $now = \Carbon\Carbon::now('Asia/Ho_Chi_Minh');
+        $startDate = \Carbon\Carbon::parse($cycle->start_date);
+        $endDate = \Carbon\Carbon::parse($cycle->end_date);
+        
+        // Tính % thời gian đã trôi qua trong chu kỳ
+        $totalDays = $startDate->diffInDays($endDate);
+        if ($totalDays <= 0) {
+            // Chu kỳ đã kết thúc hoặc không hợp lệ
+            if ($progress >= 100) {
+                return 'completed';
+            }
+            return 'behind';
+        }
+        
+        $elapsedDays = $startDate->diffInDays($now);
+        $expectedProgress = min(100, max(0, ($elapsedDays / $totalDays) * 100));
+        
+        // Nếu thời gian đã trôi qua < 10% và progress = 0%, coi như đúng tiến độ (mới tạo)
+        if ($expectedProgress < 10 && $progress == 0) {
+            return 'on_track';
+        }
+        
+        // Nếu thời gian đã trôi qua < 5%, luôn là đúng tiến độ (quá sớm để đánh giá)
+        if ($expectedProgress < 5) {
+            return 'on_track';
+        }
+        
+        // So sánh progress thực tế với progress mong đợi
+        $difference = $progress - $expectedProgress;
+        
+        // Đúng tiến độ: progress >= expected - 5% (có buffer nhỏ)
+        if ($difference >= -5) {
+            return 'on_track';
+        }
+        
+        // Có nguy cơ: progress < expected - 5% nhưng >= expected - 20%
+        if ($difference >= -20) {
+            return 'at_risk';
+        }
+        
+        // Chậm tiến độ: progress < expected - 20%
+        return 'behind';
     }
 }

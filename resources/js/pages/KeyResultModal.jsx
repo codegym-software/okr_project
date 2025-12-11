@@ -17,7 +17,7 @@ export default function KeyResultModal({
         target_value: 0,
         current_value: 0,
         unit: "",
-        status: "draft",
+        status: "not_start", // Bản nháp
         cycle_id: "", // Sẽ được gán tự động
         department_id: "",
     });
@@ -38,7 +38,7 @@ export default function KeyResultModal({
                 target_value: 0,
                 current_value: 0,
                 unit: "",
-                status: "draft",
+                status: "not_start", // Bản nháp
                 cycle_id: creatingFor.cycle_id || "",
                 department_id: creatingFor.department_id || "",
                 assigned_to: currentUser?.user_id || null, // Mặc định là người tạo

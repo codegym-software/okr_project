@@ -6,10 +6,9 @@ export const formatPercent = (value) => {
 
 export const getStatusText = (status) => {
     switch ((status || "").toLowerCase()) {
-        
+        // Key Result statuses
         case "not_start":
             return "Bản nháp";
-        case "active":
         case "on_track":
             return "Đang thực hiện";
         case "at_risk":
@@ -18,6 +17,17 @@ export const getStatusText = (status) => {
             return "Gặp vấn đề";
         case "completed":
             return "Hoàn thành";
+        
+        // Objective statuses
+        case "behind":
+            return "Chậm tiến độ";
+        
+        // Legacy statuses (for backward compatibility)
+        case "active":
+            return "Đang thực hiện";
+        case "draft":
+            return "Bản nháp";
+        
         default:
             return status || "";
     }

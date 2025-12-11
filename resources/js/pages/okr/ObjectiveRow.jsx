@@ -36,6 +36,54 @@ export default function ObjectiveRow({
     const owner = obj.user;
     const progress = Math.max(0, Math.min(100, obj.progress_percent || 0));
 
+    // Hàm tự động expand tất cả child OKRs
+    const expandAllChildren = (objective) => {
+        const updates = {};
+        
+        // Expand tất cả KR trực tiếp có linked_objectives
+        objective.key_results?.forEach((kr) => {
+            if (kr.linked_objectives?.length > 0) {
+                updates[`kr_${kr.kr_id}`] = true;
+                
+                // Expand tất cả linked objectives của KR này
+                kr.linked_objectives.forEach((linkedObj) => {
+                    if (linkedObj.key_results?.length > 0) {
+                        updates[`linked_obj_${linkedObj.objective_id}_${kr.kr_id}`] = true;
+                    }
+                });
+            }
+        });
+
+        // Expand tất cả virtual KRs từ O->O links (có key_results)
+        objective.key_results?.forEach((kr) => {
+            if (kr.isLinkedObjective && kr.key_results?.length > 0) {
+                updates[`linked_obj_kr_${kr.kr_id}`] = true;
+            }
+        });
+
+        return updates;
+    };
+
+    const handleToggleExpand = () => {
+        const isCurrentlyExpanded = openObj[obj.objective_id];
+        const newState = !isCurrentlyExpanded;
+        
+        setOpenObj((prev) => {
+            const updated = {
+                ...prev,
+                [obj.objective_id]: newState,
+            };
+
+            // Nếu đang expand, tự động expand tất cả child OKRs
+            if (newState) {
+                const childExpansions = expandAllChildren(obj);
+                Object.assign(updated, childExpansions);
+            }
+
+            return updated;
+        });
+    };
+
     return (
         <>
             <tr 
@@ -48,13 +96,7 @@ export default function ObjectiveRow({
                             <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
                                 {hasKRs && (
                                     <button
-                                        onClick={() =>
-                                            setOpenObj((prev) => ({
-                                                ...prev,
-                                                [obj.objective_id]:
-                                                    !prev[obj.objective_id],
-                                            }))
-                                        }
+                                        onClick={handleToggleExpand}
                                         className="p-2 rounded-lg hover:bg-slate-100 transition-all group"
                                     >
                                         <svg
