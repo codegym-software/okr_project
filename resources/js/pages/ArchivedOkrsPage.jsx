@@ -311,7 +311,6 @@ export default function ArchivedOkrsPage() {
 
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
-            <h1 className="text-2xl font-bold mb-4">OKR Lưu trữ</h1>
             <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <CycleDropdown
