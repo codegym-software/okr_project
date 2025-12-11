@@ -77,7 +77,7 @@ class MyKeyResultController extends Controller
                 },
             ],
             'unit' => 'required|in:number,percent,completion,bai,num,bài',
-            'status' => 'required|in:draft,active,completed',
+            'status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'assigned_to' => 'nullable|exists:users,user_id',
@@ -119,6 +119,15 @@ class MyKeyResultController extends Controller
                 }
 
                 // === TẠO KEY RESULT ===
+                // Lấy cycle_id từ Objective, nếu không có thì lấy current cycle
+                $cycleId = $objective->cycle_id;
+                if (empty($cycleId)) {
+                    $currentCycle = $this->getCurrentCycle();
+                    if ($currentCycle) {
+                        $cycleId = $currentCycle->cycle_id;
+                    }
+                }
+
                 $keyResult = KeyResult::create([
                     'kr_title' => $validated['kr_title'],
                     'target_value' => $target,
@@ -128,7 +137,7 @@ class MyKeyResultController extends Controller
                     'weight' => $validated['weight'] ?? 0,
                     'progress_percent' => $validated['progress_percent'] ?? $progress,
                     'objective_id' => $objective->objective_id,
-                    'cycle_id' => $objective->cycle_id ?? null,
+                    'cycle_id' => $cycleId,
                     'department_id' => $objective->department_id ?? null,
                     'user_id' => $user->user_id,
                     'archived_at' => null,
@@ -225,7 +234,7 @@ class MyKeyResultController extends Controller
                 },
             ],
             'unit' => 'required|in:number,percent,completion,bai,num,bài',
-            'status' => 'required|in:draft,active,completed',
+            'status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'assigned_to' => 'nullable|exists:users,user_id',
@@ -518,5 +527,38 @@ class MyKeyResultController extends Controller
         }
 
         return redirect()->back()->withErrors(['error' => $message])->withInput();
+    }
+
+    /**
+     * Lấy chu kỳ hiện tại (active cycle)
+     */
+    private function getCurrentCycle(): ?\App\Models\Cycle
+    {
+        $now = \Carbon\Carbon::now('Asia/Ho_Chi_Minh');
+        
+        // Tìm cycle đang active (start_date <= now <= end_date)
+        $currentCycle = \App\Models\Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->where('status', 'active')
+            ->first();
+
+        if ($currentCycle) {
+            return $currentCycle;
+        }
+
+        // Nếu không tìm thấy, tìm theo tên cycle (Quý X năm Y)
+        $year = $now->year;
+        $quarter = ceil($now->month / 3);
+        $possibleNames = [
+            "Quý {$quarter} năm {$year}",
+            "Q{$quarter} {$year}",
+            "Q{$quarter} - {$year}",
+        ];
+
+        $currentCycle = \App\Models\Cycle::whereIn('cycle_name', $possibleNames)
+            ->where('status', 'active')
+            ->first();
+
+        return $currentCycle;
     }
 }

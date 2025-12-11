@@ -200,17 +200,29 @@ class MyObjectiveController extends Controller
             'description' => 'nullable|string',
             'level' => 'required|in:company,unit,team,person',
             'status' => 'required|in:draft,active,completed',
-            'cycle_id' => 'required|exists:cycles,cycle_id',
+            'cycle_id' => 'nullable|exists:cycles,cycle_id',
             'department_id' => 'nullable|exists:departments,department_id',
             'key_results' => 'nullable|array',
             'key_results.*.kr_title' => 'required|string|max:255',
             'key_results.*.target_value' => 'required|numeric|min:0',
             'key_results.*.current_value' => 'nullable|numeric|min:0',
             'key_results.*.unit' => 'required|in:number,percent,currency,completion',
-            'key_results.*.status' => 'required|in:draft,active,completed',
+            'key_results.*.status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
+
+        // Tự động lấy current cycle nếu không có cycle_id
+        if (empty($validated['cycle_id'])) {
+            $currentCycle = $this->getCurrentCycle();
+            if ($currentCycle) {
+                $validated['cycle_id'] = $currentCycle->cycle_id;
+            } else {
+                return $request->expectsJson()
+                    ? response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ hiện tại. Vui lòng chọn chu kỳ.'], 422)
+                    : redirect()->back()->withErrors(['error' => 'Không tìm thấy chu kỳ hiện tại. Vui lòng chọn chu kỳ.']);
+            }
+        }
 
         // Đảm bảo user có role, nếu không có thì gán role mặc định
         if (!$user->role) {
@@ -373,18 +385,36 @@ class MyObjectiveController extends Controller
             'description' => 'nullable|string',
             'level' => 'required|in:company,unit,team,person',
             'status' => 'required|in:draft,active,completed',
-            'cycle_id' => 'required|exists:cycles,cycle_id',
+            'cycle_id' => 'nullable|exists:cycles,cycle_id',
             'department_id' => 'nullable|exists:departments,department_id',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
         ]);
 
-    // Chặn sửa nếu chu kỳ đã đóng (status != active)
-    $cycle = Cycle::find($validated['cycle_id']);
-    if ($cycle && strtolower((string)$cycle->status) !== 'active') {
+        // Tự động lấy current cycle nếu không có cycle_id (giữ nguyên cycle cũ nếu đang sửa)
+        if (empty($validated['cycle_id'])) {
+            // Khi sửa, giữ nguyên cycle_id của Objective hiện tại
+            $validated['cycle_id'] = $objective->cycle_id;
+            
+            // Nếu Objective cũng không có cycle_id, lấy current cycle
+            if (empty($validated['cycle_id'])) {
+                $currentCycle = $this->getCurrentCycle();
+                if ($currentCycle) {
+                    $validated['cycle_id'] = $currentCycle->cycle_id;
+                } else {
+                    return $request->expectsJson()
+                        ? response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ hiện tại. Vui lòng chọn chu kỳ.'], 422)
+                        : redirect()->back()->withErrors(['error' => 'Không tìm thấy chu kỳ hiện tại. Vui lòng chọn chu kỳ.']);
+                }
+            }
+        }
+
+        // Chặn sửa nếu chu kỳ đã đóng (status != active)
+        $cycle = Cycle::find($validated['cycle_id']);
+        if ($cycle && strtolower((string)$cycle->status) !== 'active') {
             return $request->expectsJson()
-        ? response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.'], 403)
-        : redirect()->back()->withErrors(['error' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.']);
+                ? response()->json(['success' => false, 'message' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.'], 403)
+                : redirect()->back()->withErrors(['error' => 'Chu kỳ đã đóng. Không thể chỉnh sửa Objective.']);
         }
 
         $allowedLevels = $this->getAllowedLevels($user->role->role_name);
@@ -797,5 +827,38 @@ class MyObjectiveController extends Controller
                 'message' => 'Có lỗi xảy ra khi lấy thông báo nhắc nhở: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Lấy chu kỳ hiện tại (active cycle)
+     */
+    private function getCurrentCycle(): ?Cycle
+    {
+        $now = Carbon::now('Asia/Ho_Chi_Minh');
+        
+        // Tìm cycle đang active (start_date <= now <= end_date)
+        $currentCycle = Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->where('status', 'active')
+            ->first();
+
+        if ($currentCycle) {
+            return $currentCycle;
+        }
+
+        // Nếu không tìm thấy, tìm theo tên cycle (Quý X năm Y)
+        $year = $now->year;
+        $quarter = ceil($now->month / 3);
+        $possibleNames = [
+            "Quý {$quarter} năm {$year}",
+            "Q{$quarter} {$year}",
+            "Q{$quarter} - {$year}",
+        ];
+
+        $currentCycle = Cycle::whereIn('cycle_name', $possibleNames)
+            ->where('status', 'active')
+            ->first();
+
+        return $currentCycle;
     }
 }

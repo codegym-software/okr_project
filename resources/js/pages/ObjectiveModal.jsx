@@ -18,7 +18,7 @@ export default function ObjectiveModal({
                   obj_title: "",
                   description: "",
                   level: "",
-                  status: "draft",
+                  status: "not_start", // Bản nháp
                   cycle_id: "",
                   department_id: "",
                   key_results: [],
@@ -47,7 +47,7 @@ export default function ObjectiveModal({
                 obj_title: "",
                 description: "",
                 level: "",
-                status: "draft",
+                status: "not_start", // Bản nháp
                 cycle_id: "",
                 department_id: "",
                 key_results: [],
@@ -200,7 +200,7 @@ export default function ObjectiveModal({
                     target_value: 0,
                     current_value: 0,
                     unit: "",
-                    status: "draft",
+                    status: "not_start", // Bản nháp
                     department_id: prev.department_id,
                     cycle_id: prev.cycle_id,
                 },
