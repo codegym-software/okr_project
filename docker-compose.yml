@@ -1,38 +1,56 @@
-version: '3.8'
-
 services:
-  app:
-    build: .
-    ports:
-      - "8000:8000"
-    volumes:
-      - .:/var/www
-      - ./storage:/var/www/storage
-    environment:
-      - APP_ENV=local
-      - APP_DEBUG=true
-      - DB_CONNECTION=mysql
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_DATABASE=okr_project
-      - DB_USERNAME=okr_user
-      - DB_PASSWORD=okr_password
-      - CACHE_STORE=file
-      - SESSION_DRIVER=file
-    depends_on:
-      - mysql
+    app:
+        build: .
+        ports:
+            - "8000:8000"
+        volumes:
+            - ./storage:/var/www/storage
+        environment:
+            - APP_KEY=base64:h0cq6MtBD8Co6TuE6hTWBtuh/SOKO3DDefjymO48sH8=
+            - APP_ENV=local
+            - APP_DEBUG=true
+            - DB_CONNECTION=mysql
+            - DB_HOST=mysql
+            - DB_PORT=3306
+            - DB_DATABASE=okr_project
+            - DB_USERNAME=okr_user
+            - DB_PASSWORD=okr_password
+            - CACHE_STORE=file
+            - SESSION_DRIVER=file
+            - AWS_COGNITO_REGION=ap-southeast-2
+            - AWS_COGNITO_USER_POOL_ID=ap-southeast-2_rQIg6bh9c
+            - AWS_COGNITO_CLIENT_ID=3ar8acocnqav49qof9qetdj2dj
+            - AWS_COGNITO_CLIENT_SECRET=${AWS_COGNITO_CLIENT_SECRET}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - AWS_DEFAULT_REGION=ap-southeast-2
+            - AWS_COGNITO_DOMAIN=https://ap-southeast-2rqig6bh9c.auth.ap-southeast-2.amazoncognito.com
+            - COGNITO_REDIRECT_URI=http://localhost:8000/auth/callback
+            - APP_URL=http://localhost:8000
+            - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+            - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+            - GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google-callback
+        depends_on:
+            mysql:
+                condition: service_healthy
+        init: true
 
-  mysql:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: okr_project
-      MYSQL_USER: okr_user
-      MYSQL_PASSWORD: okr_password
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
+    mysql:
+        image: mysql:8.0
+        environment:
+            MYSQL_ROOT_PASSWORD: password
+            MYSQL_DATABASE: okr_project
+            MYSQL_USER: okr_user
+            MYSQL_PASSWORD: okr_password
+        ports:
+            - "3307:3306"
+        volumes:
+            - mysql_data:/var/lib/mysql
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+            timeout: 20s
+            retries: 10
 
 volumes:
-  mysql_data:
+    mysql_data:
+    app_storage:
