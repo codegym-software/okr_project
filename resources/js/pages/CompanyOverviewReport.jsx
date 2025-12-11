@@ -38,7 +38,7 @@ export default function CompanyOverviewReport() {
     });
     const [showSnapshotModal, setShowSnapshotModal] = useState(false);
     const [snapshotTitleInput, setSnapshotTitleInput] = useState('');
-    const [snapshotCreateLevel, setSnapshotCreateLevel] = useState('departments');
+    const [snapshotCreateLevel, setSnapshotCreateLevel] = useState('company');
     const [modalCycleFilter, setModalCycleFilter] = useState('');
     const [toast, setToast] = useState(null);
     const [isReportReady, setIsReportReady] = useState(false);
@@ -725,14 +725,12 @@ export default function CompanyOverviewReport() {
                 onClose={() => {
                     setShowSnapshotModal(false);
                     setSnapshotTitleInput('');
-                    setSnapshotCreateLevel('departments');
+                    setSnapshotCreateLevel('company');
                 }}
                 title={snapshotTitleInput}
                 onTitleChange={setSnapshotTitleInput}
                 onSubmit={confirmCreateSnapshot}
                 isSubmitting={isCreatingSnapshot}
-                level={snapshotCreateLevel}
-                onLevelChange={setSnapshotCreateLevel}
             />
 
             {showSnapshots && (
