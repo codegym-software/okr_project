@@ -76,6 +76,20 @@ export default function CompanyOkrList() {
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
+                // Đọc các bộ lọc từ URL query params
+                const urlParams = new URLSearchParams(window.location.search);
+                const cycleIdFromUrl = urlParams.get('cycle_id');
+                const filterTypeFromUrl = urlParams.get('filter_type');
+                const departmentIdFromUrl = urlParams.get('department_id');
+                
+                // Restore filterType và selectedDepartment từ URL nếu có
+                if (filterTypeFromUrl && ['company', 'department'].includes(filterTypeFromUrl)) {
+                    setFilterType(filterTypeFromUrl);
+                }
+                if (departmentIdFromUrl && filterTypeFromUrl === 'department') {
+                    setSelectedDepartment(departmentIdFromUrl);
+                }
+                
                 const [userRes, cyclesRes, deptsRes] = await Promise.all([
                     fetch("/api/profile"),
                     fetch("/cycles", {
@@ -99,6 +113,15 @@ export default function CompanyOkrList() {
                     const cyclesJson = await cyclesRes.json();
                     cycles = cyclesJson.data || [];
                     setCyclesList(cycles);
+
+                    // Nếu có cycle_id từ URL, sử dụng nó
+                    if (cycleIdFromUrl) {
+                        const cycleFromUrl = cycles.find(c => String(c.cycle_id) === String(cycleIdFromUrl));
+                        if (cycleFromUrl) {
+                            setCycleFilter(cycleFromUrl.cycle_id);
+                            return;
+                        }
+                    }
 
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
@@ -267,10 +290,28 @@ export default function CompanyOkrList() {
         );
     }, [treeNodes, treeRootId]);
 
-    // Đồng bộ tree state vào query params
+    // Đồng bộ các bộ lọc vào query params
     useEffect(() => {
         try {
             const url = new URL(window.location.href);
+            
+            // Sync cycleFilter
+            if (cycleFilter) {
+                url.searchParams.set("cycle_id", String(cycleFilter));
+            } else {
+                url.searchParams.delete("cycle_id");
+            }
+            
+            // Sync filterType và selectedDepartment
+            if (filterType === "department" && selectedDepartment) {
+                url.searchParams.set("filter_type", "department");
+                url.searchParams.set("department_id", String(selectedDepartment));
+            } else {
+                url.searchParams.set("filter_type", "company");
+                url.searchParams.delete("department_id");
+            }
+            
+            // Sync displayMode, treeRootId, treeLayout
             if (displayMode === "tree") {
                 url.searchParams.set("display", "tree");
                 if (treeRootId) {
@@ -287,11 +328,12 @@ export default function CompanyOkrList() {
                 url.searchParams.delete("root_objective_id");
                 url.searchParams.delete("tree_layout");
             }
+            
             window.history.replaceState({}, "", url.toString());
         } catch (e) {
-            console.error("Failed to sync company tree params", e);
+            console.error("Failed to sync company filter params", e);
         }
-    }, [displayMode, treeRootId, treeLayout]);
+    }, [cycleFilter, filterType, selectedDepartment, displayMode, treeRootId, treeLayout]);
 
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">

@@ -83,6 +83,16 @@ export default function ObjectivesPage() {
     useEffect(() => {
         const selectDefaultCycle = async () => {
             try {
+                // Đọc cycle_id từ URL query params
+                const urlParams = new URLSearchParams(window.location.search);
+                const cycleIdFromUrl = urlParams.get('cycle_id');
+                const viewModeFromUrl = urlParams.get('view_mode');
+                
+                // Restore viewMode từ URL nếu có
+                if (viewModeFromUrl && ['levels', 'personal'].includes(viewModeFromUrl)) {
+                    setViewMode(viewModeFromUrl);
+                }
+                
                 const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
                 const res = await fetch("/cycles", {
                     headers: { Accept: "application/json", "X-CSRF-TOKEN": token },
@@ -96,6 +106,15 @@ export default function ObjectivesPage() {
 
                 const cycles = json.data;
                 setCyclesList(cycles);
+
+                // Nếu có cycle_id từ URL, sử dụng nó
+                if (cycleIdFromUrl) {
+                    const cycleFromUrl = cycles.find(c => String(c.cycle_id) === String(cycleIdFromUrl));
+                    if (cycleFromUrl) {
+                        setCycleFilter(cycleFromUrl.cycle_id);
+                        return;
+                    }
+                }
 
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
@@ -805,13 +824,13 @@ export default function ObjectivesPage() {
         [enrichedItems]
     );
 
-    // Đồng bộ displayMode, treeRootId, treeLayout vào query params
+    // Đồng bộ các bộ lọc vào query params
     useEffect(() => {
         try {
             const url = new URL(window.location.href);
             
-            // Giữ lại các query params quan trọng khác (highlight_link, objective_id, highlight_kr, cycle_id, view_mode)
-            const preserveParams = ['highlight_link', 'objective_id', 'highlight_kr', 'cycle_id', 'view_mode'];
+            // Giữ lại các query params quan trọng khác (highlight_link, objective_id, highlight_kr)
+            const preserveParams = ['highlight_link', 'objective_id', 'highlight_kr'];
             const preservedValues = {};
             preserveParams.forEach(param => {
                 const value = url.searchParams.get(param);
@@ -820,6 +839,21 @@ export default function ObjectivesPage() {
                 }
             });
             
+            // Sync cycleFilter
+            if (cycleFilter) {
+                url.searchParams.set("cycle_id", String(cycleFilter));
+            } else {
+                url.searchParams.delete("cycle_id");
+            }
+            
+            // Sync viewMode
+            if (viewMode && viewMode !== 'levels') {
+                url.searchParams.set("view_mode", viewMode);
+            } else {
+                url.searchParams.delete("view_mode");
+            }
+            
+            // Sync displayMode, treeRootId, treeLayout
             if (displayMode === "tree") {
                 url.searchParams.set("display", "tree");
                 if (treeRootId) {
@@ -841,9 +875,9 @@ export default function ObjectivesPage() {
             
             window.history.replaceState({}, "", url.toString());
         } catch (e) {
-            console.error("Failed to sync tree params", e);
+            console.error("Failed to sync filter params", e);
         }
-    }, [displayMode, treeRootId, treeLayout]);
+    }, [cycleFilter, viewMode, displayMode, treeRootId, treeLayout]);
 
     useEffect(() => {
         if (!enrichedItems.length) {
