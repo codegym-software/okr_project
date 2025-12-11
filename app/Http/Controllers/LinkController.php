@@ -298,6 +298,20 @@ class LinkController extends Controller
             return $link->load($this->defaultRelations());
         });
 
+        // Cập nhật tiến độ của target sau khi approve link
+        try {
+            if ($link->target_type === 'objective' && $link->targetObjective) {
+                $link->targetObjective->updateProgress();
+            } elseif ($link->target_type === 'kr' && $link->targetKr) {
+                $link->targetKr->updateProgress();
+            }
+        } catch (\Exception $e) {
+            Log::warning('Error updating progress after approving link', [
+                'link_id' => $link->link_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         $this->notifyRequester(
             $link,
             'đã chấp thuận liên kết',
@@ -414,7 +428,8 @@ class LinkController extends Controller
         ]);
 
         $eventAction = null;
-        $link = DB::transaction(function () use ($link, $user, $validated, $keepOwnership, &$eventAction) {
+        $wasApproved = $link->isApproved(); // Lưu trạng thái trước khi update
+        $link = DB::transaction(function () use ($link, $user, $validated, $keepOwnership, $wasApproved, &$eventAction) {
             $link->update([
                 'status' => OkrLink::STATUS_CANCELLED,
                 'decision_note' => $validated['reason'] ?? null,
@@ -422,16 +437,32 @@ class LinkController extends Controller
                 'is_active' => false,
             ]);
 
-            if ($link->isApproved()) {
+            if ($wasApproved) {
                 $this->revokeOwnership($link, $keepOwnership === true);
             }
 
-            $eventAction = $link->isApproved() ? 'unlinked' : 'cancelled';
+            $eventAction = $wasApproved ? 'unlinked' : 'cancelled';
             $this->recordEvent($link, $eventAction, $user->user_id, $validated['reason'] ?? null);
             $this->logAudit($user->user_id, $eventAction, $link->link_id);
 
             return $link->load($this->defaultRelations());
         });
+
+        // Cập nhật tiến độ của target sau khi cancel link (chỉ khi link đã được approved trước đó)
+        if ($wasApproved) {
+            try {
+                if ($link->target_type === 'objective' && $link->targetObjective) {
+                    $link->targetObjective->updateProgress();
+                } elseif ($link->target_type === 'kr' && $link->targetKr) {
+                    $link->targetKr->updateProgress();
+                }
+            } catch (\Exception $e) {
+                Log::warning('Error updating progress after cancelling link', [
+                    'link_id' => $link->link_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         if ($eventAction) {
             $this->notifyCounterPart(
