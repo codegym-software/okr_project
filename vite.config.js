@@ -12,4 +12,7 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
+    optimizeDeps: {
+        include: ['jspdf', 'jspdf-autotable'],
+    },
 });

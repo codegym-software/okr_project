@@ -12,6 +12,8 @@ class ReportSnapshotController extends Controller
     {
         $snapshots = ReportSnapshot::with(['cycle', 'creator'])
             ->when($request->cycle_id, fn($q, $id) => $q->where('cycle_id', $id))
+            ->when($request->level, fn($q, $level) => $q->where('data_snapshot->level', $level))
+            ->when($request->department_name, fn($q, $name) => $q->where('data_snapshot->department_name', $name))
             ->latest('snapshotted_at')
             ->paginate(20);
 
@@ -28,6 +30,33 @@ class ReportSnapshotController extends Controller
             'title' => 'required|string|max:255',
             'data_snapshot' => 'required|array',
         ]);
+
+        $user = Auth::user();
+        $userRole = strtolower($user->role->role_name ?? '');
+        $dataSnapshot = $validated['data_snapshot'];
+        $level = $dataSnapshot['level'] ?? 'departments'; // Default to departments if not set
+
+        // Logic phân quyền
+        if ($level === 'company') {
+            // Cấp công ty: Chỉ Admin/CEO
+            if (!in_array($userRole, ['admin', 'ceo'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền tạo báo cáo cấp Công ty.'
+                ], 403);
+            }
+        } else {
+            // Cấp phòng ban (unit/departments): Admin/CEO hoặc Manager
+            $isManager = in_array($userRole, ['manager', 'trưởng phòng', 'giám đốc']);
+            $isAdminOrCeo = in_array($userRole, ['admin', 'ceo']);
+            
+            if (!$isManager && !$isAdminOrCeo) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bạn không có quyền tạo báo cáo cấp Phòng ban.'
+                ], 403);
+            }
+        }
 
         $cycle = \App\Models\Cycle::find($validated['cycle_id']);
 

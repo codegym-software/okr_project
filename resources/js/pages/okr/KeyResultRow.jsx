@@ -1,10 +1,12 @@
 // src/components/okr/KeyResultRow.jsx
 import React from "react";
-import { FaKey, FaBullseye, FaLink, FaLongArrowAltLeft, FaUserEdit } from "react-icons/fa";
+import { FaKey, FaBullseye, FaLongArrowAltLeft, FaUserEdit } from "react-icons/fa";
+import { RiAlignItemVerticalCenterLine } from "react-icons/ri";
 import { LuAlignCenterHorizontal } from "react-icons/lu";
 import LinkedChildObjectiveRow from "./LinkedChildObjectiveRow";
 import KRActionsMenu from "./KRActionsMenu";
 import AlignmentBadge from "./AlignmentBadge";
+import ObjectiveActionsMenu from "./ObjectiveActionsMenu";
 
 export default function KeyResultRow({
     kr,
@@ -26,6 +28,11 @@ export default function KeyResultRow({
     openCheckInHistory,
     colSpanForKRs,
     disableActions = false,
+    setCreatingFor,
+    onOpenLinkModal,
+    handleArchive,
+    setEditingObjective,
+    archiving,
 }) {
     const isLinkedKR = kr.isLinked;
     const isLinkedObjective = kr.isLinkedObjective; // O→O
@@ -88,48 +95,120 @@ export default function KeyResultRow({
                             )}
                         </div>
                     </td>
-                    {/* Cột Người thực hiện (Trống) */}
-                    <td className="px-3 py-3 text-center"></td>
-                    {/* Cột Tiến độ (Trống) */}
-                    <td className="px-3 py-3 text-center"></td>
+                    {/* Cột Người sở hữu */}
+                    <td className="px-3 py-3 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                            {kr.link?.sourceObjective?.user ? (
+                                <>
+                                    {kr.link.sourceObjective.user.avatar_url ? (
+                                        <img
+                                            src={kr.link.sourceObjective.user.avatar_url}
+                                            alt={kr.link.sourceObjective.user.full_name}
+                                            className="h-7 w-7 rounded-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="h-7 w-7 rounded-full bg-slate-200 flex items-center justify-center text-xs">
+                                            {kr.link.sourceObjective.user.full_name?.[0] || "?"}
+                                        </div>
+                                    )}
+                                    <span className="text-sm truncate max-w-[120px]">
+                                        {kr.link.sourceObjective.user.full_name}
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-xs text-slate-400">Chưa có</span>
+                            )}
+                        </div>
+                    </td>
+                    {/* Cột Tiến độ */}
+                    <td className="px-3 py-3 text-center">
+                        
+                    </td>
                     {/* Cột Hành động */}
                     <td className="px-3 py-3 text-center">
-                        <button
-                            onClick={() => {
-                                if (
-                                    window.confirm(
-                                        `Hủy liên kết với "${kr.kr_title}"?`
-                                    )
-                                ) {
-                                    const keep = window.confirm(
-                                        "Giữ quyền sở hữu cho OKR cấp cao?"
-                                    );
-                                    onCancelLink?.(kr.link.link_id, "", keep);
-                                }
-                            }}
-                            className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Hủy liên kết"
-                            disabled={disableActions}
-                        >
-                            <svg
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
+                        <div className="flex items-center justify-end gap-1">
+                            <button
+                                onClick={() => setCreatingFor?.(kr)}
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Thêm KR"
+                                disabled={true}
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M6 18L18 6M6 6l12 12"
+                                <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <circle
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        fill="none"
+                                    />
+                                    <path
+                                        d="M12 7V17M7 12H17"
+                                        stroke="currentColor"
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (disableActions || kr.level === "company") {
+                                        return;
+                                    }
+                                    onOpenLinkModal?.({
+                                        sourceType: "objective",
+                                        source: kr.link?.sourceObjective || kr.link?.source_objective || kr,
+                                    });
+                                }}
+                                disabled={true}
+                                title="Liên kết OKR"
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                            <RiAlignItemVerticalCenterLine className="h-4 w-4" />
+                            </button>
+                            {disableActions ? (
+                                <button
+                                    onClick={() => handleArchive?.(kr.link?.sourceObjective?.objective_id)}
+                                    className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Lưu trữ"
+                                    disabled={archiving === kr.link?.sourceObjective?.objective_id}
+                                >
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                    </svg>
+                                </button>
+                            ) : (
+                                <ObjectiveActionsMenu
+                                    obj={kr.link?.sourceObjective || kr.link?.source_objective || {
+                                        objective_id: kr.link?.link_id,
+                                        obj_title: kr.kr_title,
+                                        level: kr.link?.sourceObjective?.level || kr.link?.source_objective?.level || "unit",
+                                    }}
+                                    onOpenLinkModal={onOpenLinkModal}
+                                    handleArchive={handleArchive}
+                                    archiving={archiving}
+                                    menuRefs={menuRefs}
+                                    openObj={openObj}
+                                    setOpenObj={setOpenObj}
+                                    disableActions={disableActions}
+                                    setEditingObjective={setEditingObjective}
+                                    onCancelLink={onCancelLink}
+                                    linkId={kr.link?.link_id}
                                 />
-                            </svg>
-                        </button>
+                            )}
+                        </div>
                     </td>
                 </tr>
                 {isExpanded &&
                     kr.key_results?.map((sourceKr) => {
                         const info = getAssigneeInfo(sourceKr);
+                        const actionsDisabled = true; // KR con của O liên kết: chỉ hiển thị, không thao tác
                         return (
                             <tr
                                 key={`source_kr_${sourceKr.kr_id}`}
@@ -219,7 +298,54 @@ export default function KeyResultRow({
                                         </span>
                                     </div>
                                 </td>
-                                <td className="px-3 py-3 text-center"></td>
+                                <td className="px-3 py-3 text-center">
+                                    <div className="flex items-center justify-end gap-1">
+                                        {openCheckInModal && ( 
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    return; // khóa thao tác
+                                                }}
+                                                disabled
+                                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title="Check-in"
+                                            >
+                                                <svg
+                                                    className="h-4 w-4"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => {
+                                                return; // khóa thao tác
+                                            }}
+                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="Giao việc"
+                                            disabled
+                                        >
+                                            <FaUserEdit className="h-4 w-4" />
+                                        </button>
+                                        <KRActionsMenu
+                                            kr={sourceKr}
+                                            objective={kr.link?.sourceObjective}
+                                            setEditingKR={setEditingKR}
+                                            handleArchiveKR={handleArchiveKR}
+                                            canCheckIn={false}
+                                            openCheckInModal={openCheckInModal}
+                                            openCheckInHistory={openCheckInHistory}
+                                            setAssignModal={setAssignModal}
+                                            menuRefs={menuRefs}
+                                            openObj={openObj}
+                                            setOpenObj={setOpenObj}
+                                            disableActions={true} 
+                                        />
+                                    </div>
+                                </td>
                             </tr>
                         );
                     })}
@@ -319,6 +445,7 @@ export default function KeyResultRow({
                     )}
                 </td>
 
+
                 <td className="px-3 py-3 text-center">
                     <div className="flex flex-col items-center gap-1.5">
                         <div className="w-full bg-slate-100 rounded-full h-5 relative overflow-hidden border border-slate-200">
@@ -326,8 +453,12 @@ export default function KeyResultRow({
                                 className={`h-full rounded-full absolute left-0 transition-all duration-300 ${
                                     kr.status === "completed"
                                         ? "bg-emerald-600"
-                                        : kr.status === "active"
+                                        : kr.status === "on_track" || kr.status === "active"
                                         ? "bg-blue-600"
+                                        : kr.status === "at_risk"
+                                        ? "bg-amber-500"
+                                        : kr.status === "in_trouble"
+                                        ? "bg-rose-600"
                                         : "bg-slate-500"
                                 }`}
                                 style={{ width: `${Math.max(0, Math.min(100, kr.progress_percent || 0))}%` }}
@@ -344,8 +475,12 @@ export default function KeyResultRow({
                             className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                 kr.status === "completed"
                                     ? "text-emerald-700 bg-emerald-50"
-                                    : kr.status === "active"
+                                    : kr.status === "on_track" || kr.status === "active"
                                     ? "text-blue-700 bg-blue-50"
+                                    : kr.status === "at_risk"
+                                    ? "text-amber-700 bg-amber-50"
+                                    : kr.status === "in_trouble"
+                                    ? "text-rose-700 bg-rose-50"
                                     : "text-slate-600 bg-slate-50"
                             }`}
                         >
@@ -388,55 +523,12 @@ export default function KeyResultRow({
                         </button>
                     ) : disableActions ? (
                         <div className="flex items-center justify-end gap-1">
-                            <button
-                                onClick={() => setAssignModal({ show: true, kr, objective, email: "", loading: false })}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Giao việc"
-                                disabled={disableActions}
-                            >
-                                <FaUserEdit className="h-4 w-4" />
-                            </button>
-                            <button
-                                onClick={() => setEditingKR(kr)}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Sửa"
-                                disabled={disableActions}
-                            >
-                                <svg
-                                    className="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                </svg>
-                            </button>
-                            <button
-                                onClick={() => handleArchiveKR(kr.kr_id)}
-                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Lưu trữ"
-                            >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                </svg>
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-end gap-1">
-                            {canCheckInKR(kr) && openCheckInModal && (
+                            {openCheckInModal && (
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        openCheckInModal({
-                                            ...kr,
-                                            objective_id: objective.objective_id,
-                                        });
-                                    }}
+                                    onClick={() => openCheckInModal({
+                                        ...kr,
+                                        objective_id: objective.objective_id,
+                                    })}
                                     className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Check-in"
                                     disabled={disableActions}
@@ -446,6 +538,7 @@ export default function KeyResultRow({
                                         fill="none"
                                         viewBox="0 0 24 24"
                                         stroke="currentColor"
+                                        strokeWidth="2"
                                     >
                                         <path
                                             strokeLinecap="round"
@@ -462,6 +555,77 @@ export default function KeyResultRow({
                                 title="Giao việc"
                                 disabled={disableActions}
                             >
+                                <FaUserEdit className="h-4 w-4" />
+                            </button>
+                            <KRActionsMenu
+                                kr={kr}
+                                objective={objective}
+                                setEditingKR={setEditingKR}
+                                handleArchiveKR={handleArchiveKR}
+                                canCheckIn={canCheckInKR(kr)}
+                                openCheckInModal={openCheckInModal}
+                                openCheckInHistory={openCheckInHistory}
+                                setAssignModal={setAssignModal}
+                                menuRefs={menuRefs}
+                                openObj={openObj}
+                                setOpenObj={setOpenObj}
+                                disableActions={disableActions}
+                            />
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-end gap-1">
+                            {openCheckInModal && (
+                                hasLinkedChildren ? (
+                                    <div className="group relative">
+                                        <button
+                                            disabled
+                                            className="p-1 text-amber-500 cursor-help opacity-80"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                            </svg>
+                                        </button>
+                                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center">
+                                            Tiến độ được cập nhật tự động từ {kr.linked_objectives.length} mục tiêu liên kết. Không thể check-in thủ công.
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (!canCheckInKR(kr) || disableActions) return;
+                                            openCheckInModal({
+                                                ...kr,
+                                                objective_id: objective.objective_id,
+                                            });
+                                        }}
+                                        className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={canCheckInKR(kr) ? "Check-in" : "Bạn không có quyền check-in"}
+                                        disabled={!canCheckInKR(kr) || disableActions}
+                                    >
+                                        <svg
+                                            className="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M5 13l4 4L19 7"
+                                            />
+                                        </svg>
+                                    </button>
+                                )
+                            )}
+                            <button
+                                onClick={() => setAssignModal({ show: true, kr, objective, email: "", loading: false })}
+                                className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Giao việc"
+                                disabled={disableActions}
+                            >
+
                                 <FaUserEdit className="h-4 w-4" />
                             </button>
                             <KRActionsMenu
@@ -500,6 +664,18 @@ export default function KeyResultRow({
                         getStatusText={getStatusText}
                         getUnitText={getUnitText}
                         disableActions={disableActions}
+                        setCreatingFor={setCreatingFor}
+                        onOpenLinkModal={onOpenLinkModal}
+                        handleArchive={handleArchive}
+                        setEditingObjective={setEditingObjective}
+                        menuRefs={menuRefs}
+                        archiving={archiving}
+                        setEditingKR={setEditingKR}
+                        handleArchiveKR={handleArchiveKR}
+                        canCheckInKR={canCheckInKR}
+                        openCheckInModal={openCheckInModal}
+                        openCheckInHistory={openCheckInHistory}
+                        setAssignModal={setAssignModal}
                     />
                 ))}
         </>

@@ -1,5 +1,3 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
 
 /**
@@ -12,6 +10,14 @@ import ExcelJS from 'exceljs';
  */
 export async function exportToPDF(companyData, departmentsData, currentCycleMeta, onSuccess, onError) {
     try {
+        // Dynamic import to avoid build-time resolution issues
+        const jspdfModule = await import('jspdf');
+        const autoTableModule = await import('jspdf-autotable');
+        
+        // Handle different export formats
+        const jsPDF = jspdfModule.default || jspdfModule.jsPDF || jspdfModule;
+        const autoTable = autoTableModule.default || autoTableModule;
+        
         const pdf = new jsPDF('p', 'mm', 'a4');
 
         // Load font Noto Sans hỗ trợ tiếng Việt từ jsDelivr CDN (TTF format)
@@ -953,6 +959,289 @@ export async function exportToExcel(companyData, departmentsData, currentCycleMe
     } catch (error) {
         console.error('Lỗi khi xuất file báo cáo:', error);
         onError('✕ Xuất file báo cáo thất bại. Vui lòng thử lại.');
+    }
+}
+
+/**
+ * Export team report to Excel
+ * @param {Object} reportData - { team_okrs, members, expected_progress, ... }
+ * @param {String} departmentName
+ * @param {String} cycleName
+ * @param {Function} onSuccess
+ * @param {Function} onError
+ */
+export async function exportTeamReportToExcel(reportData, departmentName, cycleName, onSuccess, onError) {
+    try {
+        const workbook = new ExcelJS.Workbook();
+
+        // Helper function to apply styling to cells
+        const applyHeaderStyle = (cell) => {
+            cell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF2563EB' } // Blue
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FF1E40AF' } },
+                left: { style: 'thin', color: { argb: 'FF1E40AF' } },
+                bottom: { style: 'thin', color: { argb: 'FF1E40AF' } },
+                right: { style: 'thin', color: { argb: 'FF1E40AF' } }
+            };
+        };
+
+        const applySectionTitleStyle = (cell) => {
+            cell.font = { bold: true, size: 13, color: { argb: 'FF1E40AF' } };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFEFF6FF' } // Light blue
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'left' };
+        };
+
+        const applyDataCellStyle = (cell) => {
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        };
+
+        const applyStatusStyle = (cell, status) => {
+            applyDataCellStyle(cell);
+            if (['completed', 'on_track', 'Hoàn thành', 'Đúng tiến độ'].includes(status)) {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFD1FAE5' } // Light green
+                };
+                cell.font = { color: { argb: 'FF059669' }, bold: true };
+            } else if (['at_risk', 'Rủi ro'].includes(status)) {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFFEF3C7' } // Light yellow
+                };
+                cell.font = { color: { argb: 'FFD97706' }, bold: true };
+            } else if (['behind', 'Chậm trễ'].includes(status)) {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFFEE2E2' } // Light red
+                };
+                cell.font = { color: { argb: 'FFDC2626' }, bold: true };
+            }
+        };
+
+        // --- SHEET 1: TỔNG QUAN & OKRs ---
+        const worksheet = workbook.addWorksheet('Tổng quan & OKRs');
+        let currentRow = 1;
+
+        // Header - Title
+        const titleCell = worksheet.getCell(currentRow, 1);
+        titleCell.value = `BÁO CÁO OKR - ${departmentName || 'TEAM'}`.toUpperCase();
+        titleCell.font = { bold: true, size: 16, color: { argb: 'FF1E40AF' } };
+        worksheet.mergeCells(currentRow, 1, currentRow, 6);
+        currentRow++;
+
+        // Info rows
+        worksheet.getCell(currentRow, 1).value = 'Chu kỳ';
+        worksheet.getCell(currentRow, 2).value = cycleName || 'N/A';
+        worksheet.getCell(currentRow, 1).font = { bold: true };
+        currentRow++;
+        worksheet.getCell(currentRow, 1).value = 'Ngày xuất';
+        worksheet.getCell(currentRow, 2).value = new Date().toLocaleDateString('vi-VN');
+        worksheet.getCell(currentRow, 1).font = { bold: true };
+        currentRow += 2;
+
+        // Calculate metrics
+        const activeOkrs = (reportData.team_okrs || []).filter(okr => okr.status !== 'archived' && okr.level === 'unit');
+        let onTrack = 0, atRisk = 0, behind = 0, completed = 0;
+        let totalProgressSum = 0;
+        activeOkrs.forEach(okr => {
+            totalProgressSum += (Number(okr.progress) || 0);
+            const s = okr.status;
+            if (s === 'completed') completed++;
+            else if (s === 'on_track') onTrack++;
+            else if (s === 'at_risk') atRisk++;
+            else if (s === 'behind') behind++;
+        });
+        const avgProgress = activeOkrs.length > 0 ? (totalProgressSum / activeOkrs.length) : 0;
+
+        // STATS SECTION
+        worksheet.getCell(currentRow, 1).value = 'THỐNG KÊ TỔNG QUAN';
+        applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+        worksheet.mergeCells(currentRow, 1, currentRow, 2);
+        currentRow++;
+
+        const stats = [
+            ['Tổng số OKR', activeOkrs.length],
+            ['Tiến độ trung bình', avgProgress.toFixed(1) + '%'],
+            ['Kế hoạch (Time-based)', (reportData.expected_progress || 0).toFixed(1) + '%'],
+            ['Hoàn thành', completed],
+            ['Đúng tiến độ', onTrack],
+            ['Rủi ro', atRisk],
+            ['Chậm trễ', behind],
+        ];
+
+        stats.forEach(([label, value]) => {
+            worksheet.getCell(currentRow, 1).value = label;
+            worksheet.getCell(currentRow, 2).value = value;
+            applyDataCellStyle(worksheet.getCell(currentRow, 1));
+            applyDataCellStyle(worksheet.getCell(currentRow, 2));
+            currentRow++;
+        });
+        currentRow++;
+
+        // OKR DETAILS SECTION
+        worksheet.getCell(currentRow, 1).value = 'CHI TIẾT OKRS';
+        applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+        worksheet.mergeCells(currentRow, 1, currentRow, 6);
+        currentRow++;
+
+        const okrHeaders = ['Mục tiêu (Objective)', 'Cấp độ', 'Số KRs', 'Hoàn thành KRs', 'Tiến độ (%)', 'Trạng thái'];
+        okrHeaders.forEach((header, idx) => {
+            const cell = worksheet.getCell(currentRow, idx + 1);
+            cell.value = header;
+            applyHeaderStyle(cell);
+        });
+        currentRow++;
+
+        activeOkrs.forEach(okr => {
+             // Map status key to display text
+             const statusMap = {
+                completed: 'Hoàn thành',
+                on_track: 'Đúng tiến độ',
+                at_risk: 'Rủi ro',
+                behind: 'Chậm trễ',
+                pending: 'Chưa bắt đầu'
+            };
+            const statusText = statusMap[okr.status] || okr.status || 'N/A';
+
+            const rowData = [
+                okr.obj_title || 'N/A',
+                okr.level === 'unit' ? 'Phòng ban' : (okr.level === 'team' ? 'Nhóm' : 'Cá nhân'),
+                okr.key_results_count || 0,
+                okr.completed_kr_count || 0,
+                (Number(okr.progress) || 0) + '%',
+                statusText
+            ];
+
+            rowData.forEach((value, idx) => {
+                const cell = worksheet.getCell(currentRow, idx + 1);
+                cell.value = value;
+                if (idx === rowData.length - 1) {
+                    applyStatusStyle(cell, statusText);
+                } else {
+                    applyDataCellStyle(cell);
+                    if (idx === 0) {
+                        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+                    } else {
+                        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                    }
+                }
+            });
+            currentRow++;
+        });
+
+        // Set column widths for Sheet 1
+        worksheet.columns = [
+            { width: 50 }, // Objective Name / Member Name
+            { width: 20 }, // Level / Role
+            { width: 15 }, // KRs Count / Contributions
+            { width: 15 }, // Completed KRs / Progress
+            { width: 20 }, // Progress / Status
+            { width: 25 }, // Status / Checkin
+        ];
+
+        // --- SECTION 2: THÀNH VIÊN (Merged into Sheet 1) ---
+        currentRow += 3; // Add spacing
+
+        worksheet.getCell(currentRow, 1).value = 'HIỆU SUẤT THÀNH VIÊN';
+        applySectionTitleStyle(worksheet.getCell(currentRow, 1));
+        worksheet.mergeCells(currentRow, 1, currentRow, 6);
+        currentRow++;
+
+        const memHeaders = ['Tên thành viên', 'Vai trò', 'Đóng góp (KRs)', 'Tiến độ TB (%)', 'Trạng thái'];
+        memHeaders.forEach((header, idx) => {
+            const cell = worksheet.getCell(currentRow, idx + 1);
+            cell.value = header;
+            applyHeaderStyle(cell);
+        });
+        currentRow++;
+
+        const members = reportData.members || [];
+        members.forEach(mem => {
+             // Calculate status if missing
+            let status = mem.status;
+            if (!status) {
+                const avg = mem.average_completion || 0;
+                if (avg >= 70) status = 'on_track';
+                else if (avg >= 40) status = 'at_risk';
+                else status = 'behind';
+            }
+
+            const statusMap = {
+                completed: 'Hoàn thành',
+                on_track: 'Đúng tiến độ',
+                at_risk: 'Rủi ro',
+                behind: 'Chậm trễ',
+                pending: 'Chưa bắt đầu'
+            };
+            const statusText = statusMap[status] || status || 'N/A';
+
+            const rowData = [
+                mem.full_name || 'N/A',
+                mem.role || 'Member',
+                mem.total_kr_contributed || 0,
+                (mem.average_completion || 0).toFixed(1) + '%',
+                statusText
+            ];
+
+            rowData.forEach((value, idx) => {
+                const cell = worksheet.getCell(currentRow, idx + 1);
+                cell.value = value;
+                
+                if (idx === 4) { // Status column
+                     applyStatusStyle(cell, statusText);
+                } else {
+                     applyDataCellStyle(cell);
+                     if (idx === 0) {
+                          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                     } else {
+                          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                     }
+                }
+            });
+            currentRow++;
+        });
+
+        // Save Excel
+        const sanitizedDept = (departmentName || 'Team')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9]/g, '_');
+        const now = new Date();
+        const dateStr = `${String(now.getDate()).padStart(2, '0')}_${String(now.getMonth() + 1).padStart(2, '0')}_${now.getFullYear()}`;
+        const filename = `Bao_cao_${sanitizedDept}_${dateStr}.xlsx`;
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        window.URL.revokeObjectURL(url);
+
+        onSuccess('✓ Xuất file báo cáo thành công!');
+
+    } catch (error) {
+        console.error('Lỗi khi xuất file báo cáo team:', error);
+        onError('✕ Xuất file báo cáo thất bại.');
     }
 }
 

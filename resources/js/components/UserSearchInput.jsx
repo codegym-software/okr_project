@@ -20,11 +20,35 @@ export default function UserSearchInput({ onUserSelect, initialUser, objectiveDe
     }, [initialUser]);
 
     const loadOptions = (inputValue, callback) => {
+        const params = {};
+        
+        // Nếu có department_id và không có query, load tất cả users trong phòng ban
+        if (objectiveDepartmentId && !inputValue) {
+            params.department_id = objectiveDepartmentId;
+            // Load tất cả users trong phòng ban (không cần query)
+            axios.get('/api/users/search', { params: { ...params, q: '' } })
+                .then(response => {
+                    // Nếu không có users, thử với query rỗng nhưng có department_id
+                    const users = response.data.data.map(user => ({
+                        value: user.user_id,
+                        label: user.full_name + ' (' + user.email + ')',
+                        user: user
+                    }));
+                    callback(users);
+                })
+                .catch(() => {
+                    // Nếu API không hỗ trợ, chỉ trả về empty
+                    callback([]);
+                });
+            return;
+        }
+        
+        // Nếu không có inputValue, không load gì
         if (!inputValue) {
             return callback([]);
         }
 
-        const params = { q: inputValue };
+        params.q = inputValue;
         if (objectiveDepartmentId && currentUserRole && !['admin', 'ceo'].includes(currentUserRole.toLowerCase())) {
             params.department_id = objectiveDepartmentId;
         }

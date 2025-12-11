@@ -108,6 +108,9 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     // Route dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
 
+    // Dashboard Data API
+    Route::get('/api/dashboard/overview', [DashboardController::class, 'getData'])->middleware('auth')->name('api.dashboard.overview');
+
     //Routes cho Cycle
     Route::get('/cycles',[CycleController::class,'index'])->name('cycles.index');
     Route::post('/cycles',[CycleController::class,'store'])->middleware('auth','admin')->name('cycles.store');
@@ -254,6 +257,10 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/user-levels', [MyObjectiveController::class, 'getUserLevels'])
             ->middleware('auth')
             ->name('my-objectives.user-levels');
+        Route::get('/check-in-reminders', [MyObjectiveController::class, 'getCheckInReminders'])
+            ->middleware('auth')
+            ->name('my-objectives.check-in-reminders');
+        // Routes với {id} phải đặt sau các route cụ thể
         Route::post('/{id}/archive', [MyObjectiveController::class, 'archive'])
             ->middleware('auth')
             ->name('my-objectives.archive');
@@ -284,9 +291,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('my-key-results.unarchive');
             Route::post('/{objectiveId}/{keyResultId}/assign', [MyKeyResultController::class, 'assign'])
             ->name('my-key-results.assign');
-        Route::delete('/{id}', [MyKeyResultController::class, 'destroy'])  
-            ->middleware('auth')
-            ->name('my-key-result.destroy');
     });
 
     // Company OKR Routes - yêu cầu đăng nhập
@@ -320,7 +324,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
     });
 
     // Reports API (Admin hoặc CEO)
-    Route::prefix('api/reports')->middleware(['auth', \App\Http\Middleware\AdminOrCeo::class])->group(function () {
+    Route::prefix('api/reports')->middleware(['auth'])->group(function () {
         Route::get('/company-overview', [\App\Http\Controllers\ReportController::class, 'companyOverview'])
             ->name('api.reports.company-overview');
         Route::get('/okr-company', [\App\Http\Controllers\ReportController::class, 'companyOkrReport'])

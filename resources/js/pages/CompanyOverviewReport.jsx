@@ -28,7 +28,7 @@ export default function CompanyOverviewReport() {
     const [snapshots, setSnapshots] = useState([]);
     const [showSnapshots, setShowSnapshots] = useState(false);
     const [selectedSnapshot, setSelectedSnapshot] = useState(null);
-    const [snapshotLevelFilter, setSnapshotLevelFilter] = useState('all'); // 'all', 'company', 'departments'
+    const [snapshotLevelFilter, setSnapshotLevelFilter] = useState('all'); 
     const [snapshotPage, setSnapshotPage] = useState(1);
     const [snapshotPagination, setSnapshotPagination] = useState({
         current_page: 1,
@@ -37,6 +37,8 @@ export default function CompanyOverviewReport() {
     });
     const [showSnapshotModal, setShowSnapshotModal] = useState(false);
     const [snapshotTitleInput, setSnapshotTitleInput] = useState('');
+    const [snapshotCreateLevel, setSnapshotCreateLevel] = useState('departments');
+    const [modalCycleFilter, setModalCycleFilter] = useState('');
     const [toast, setToast] = useState(null);
     const [isReportReady, setIsReportReady] = useState(false);
 
@@ -49,7 +51,7 @@ export default function CompanyOverviewReport() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [report, setReport] = useState({
-        overall: { totalObjectives: 0, averageProgress: 0, statusCounts: { onTrack:0, atRisk:0, offTrack:0 }, statusDistribution: { onTrack:0, atRisk:0, offTrack:0 } },
+        overall: { totalObjectives: 0, averageProgress: 0, statusCounts: { onTrack: 0, atRisk: 0, offTrack: 0 }, statusDistribution: { onTrack: 0, atRisk: 0, offTrack: 0 } },
         departments: [],
         trend: [],
         risks: [],
@@ -62,7 +64,6 @@ export default function CompanyOverviewReport() {
         checkIns: [],
     });
 
-    // User role state
     const [userRole, setUserRole] = useState(null);
     const [isAdminOrCeo, setIsAdminOrCeo] = useState(false);
 
@@ -76,7 +77,6 @@ export default function CompanyOverviewReport() {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    // API trả về data.user.role, không phải data.role
                     const role = data.user?.role?.role_name?.toLowerCase() || '';
                     setUserRole(role);
                     setIsAdminOrCeo(role === 'admin' || role === 'ceo');
@@ -138,9 +138,9 @@ export default function CompanyOverviewReport() {
         (async () => {
             try {
                 const [rCycles, rDepts, rUsers] = await Promise.all([
-                    fetch('/cycles', { headers: { Accept: 'application/json' }}),
-                    fetch('/departments', { headers: { Accept: 'application/json' }}),
-                    fetch('/users?per_page=1000', { headers: { Accept: 'application/json' }})
+                    fetch('/cycles', { headers: { Accept: 'application/json' } }),
+                    fetch('/departments', { headers: { Accept: 'application/json' } }),
+                    fetch('/users?per_page=1000', { headers: { Accept: 'application/json' } })
                 ]);
                 const dCycles = await rCycles.json();
                 const dDepts = await rDepts.json();
@@ -198,7 +198,7 @@ export default function CompanyOverviewReport() {
                 if (filters.cycleId) params.set('cycle_id', filters.cycleId);
                 if (filters.departmentId) params.set('department_id', filters.departmentId);
                 if (filters.ownerId) params.set('owner_id', filters.ownerId);
-                if (level) params.set('level', level); // Add level filter
+                if (level) params.set('level', level); 
                 const url = `/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`;
                 const res = await fetch(url, { headers: { Accept: 'application/json' } });
                 const json = await res.json();
@@ -227,13 +227,13 @@ export default function CompanyOverviewReport() {
             if (filters.ownerId) params.set('owner_id', filters.ownerId);
             if (level) params.set('level', level); // Add level filter to auto-refresh
             const url = `/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`;
-            fetch(url, { headers: { Accept: 'application/json', 'Cache-Control': 'no-store' }})
+            fetch(url, { headers: { Accept: 'application/json', 'Cache-Control': 'no-store' } })
                 .then(r => r.json().then(j => ({ ok: r.ok, j })))
                 .then(({ ok, j }) => { if (ok && j.success) setReport(j.data); })
-                .catch(() => {});
+                .catch(() => { });
         }, 60000); 
         return () => clearInterval(timer);
-    }, [filters.cycleId, filters.departmentId, filters.ownerId, level]); // Add level to dependencies
+    }, [filters.cycleId, filters.departmentId, filters.ownerId, level]);
 
     // Đồng bộ filters với query params
     useEffect(() => {
@@ -355,39 +355,41 @@ export default function CompanyOverviewReport() {
     // Mở modal Chốt + nhập tên
     const openSnapshotModal = () => {
         if (!filters.cycleId) {
-            showNotification('error', '⚠ Vui lòng chọn chu kỳ trước khi Tạo báo cáo');
+            showNotification('error', 'Vui lòng chọn chu kỳ trước khi Tạo báo cáo');
             return;
         }
         setSnapshotTitleInput('');
+        setSnapshotCreateLevel('company');
         setShowSnapshotModal(true);
     };
 
     const confirmCreateSnapshot = async () => {
         if (!snapshotTitleInput.trim()) {
-            showNotification('error', '�Warning Vui lòng nhập tên báo cáo chốt kỳ');
+            showNotification('error', 'Vui lòng nhập tên báo cáo chốt kỳ');
             return;
         }
 
         setIsCreatingSnapshot(true);
         try {
             const baseTitle = snapshotTitleInput.trim();
+            const levelToCreate = snapshotCreateLevel || 'departments';
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-            // Fetch dữ liệu cho cả hai level
-            const fetchDataForLevel = async (levelToFetch) => {
+            // Fetch dữ liệu cho cấp độ được chọn
+            const fetchDataForLevel = async (level) => {
                 // Fetch report data
                 const params = new URLSearchParams();
                 if (filters.cycleId) params.set('cycle_id', filters.cycleId);
                 if (filters.departmentId) params.set('department_id', filters.departmentId);
                 if (filters.ownerId) params.set('owner_id', filters.ownerId);
-                params.set('level', levelToFetch);
+                params.set('level', level);
                 
                 const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
                     headers: { Accept: 'application/json' }
                 });
                 const reportJson = await reportRes.json();
                 if (!reportRes.ok || !reportJson.success) {
-                    throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
+                    throw new Error(`Không thể tải dữ liệu cho ${level === 'company' ? 'công ty' : 'phòng ban'}`);
                 }
 
                 // Fetch detailed data
@@ -395,7 +397,7 @@ export default function CompanyOverviewReport() {
                     filters.cycleId,
                     filters.departmentId,
                     filters.ownerId,
-                    levelToFetch
+                    level
                 );
 
                 return {
@@ -404,49 +406,28 @@ export default function CompanyOverviewReport() {
                 };
             };
 
-            // Tạo snapshot cho cả hai level
-            const [companyData, departmentsData] = await Promise.all([
-                fetchDataForLevel('company'),
-                fetchDataForLevel('departments'),
-            ]);
+            // Lấy dữ liệu chỉ cho cấp độ được chọn
+            const selectedLevelData = await fetchDataForLevel(levelToCreate);
 
-            // Tạo snapshot cho công ty
-            const companySnapshotData = {
-                overall: companyData.report.overall,
-                departments: companyData.report.departmentsHierarchy?.length > 0 
-                    ? companyData.report.departmentsHierarchy 
-                    : (companyData.report.departments || []),
-                trend: companyData.report.trend || [],
-                risks: companyData.report.risks || [],
+            // Tạo snapshot cho cấp độ được chọn
+            const snapshotData = {
+                overall: selectedLevelData.report.overall,
+                departments: selectedLevelData.report.departmentsHierarchy?.length > 0
+                    ? selectedLevelData.report.departmentsHierarchy
+                    : (selectedLevelData.report.departments || []),
+                trend: selectedLevelData.report.trend || [],
+                risks: selectedLevelData.report.risks || [],
                 detailedData: {
-                    objectives: companyData.detailedData.objectives || [],
-                    keyResults: companyData.detailedData.keyResults || [],
-                    owners: companyData.detailedData.owners || [],
-                    checkIns: companyData.detailedData.checkIns || [],
+                    objectives: selectedLevelData.detailedData.objectives || [],
+                    keyResults: selectedLevelData.detailedData.keyResults || [],
+                    owners: selectedLevelData.detailedData.owners || [],
+                    checkIns: selectedLevelData.detailedData.checkIns || [],
                 },
-                level: 'company',
+                level: levelToCreate,
             };
 
-            // Tạo snapshot cho phòng ban
-            const departmentsSnapshotData = {
-                overall: departmentsData.report.overall,
-                departments: departmentsData.report.departmentsHierarchy?.length > 0 
-                    ? departmentsData.report.departmentsHierarchy 
-                    : (departmentsData.report.departments || []),
-                trend: departmentsData.report.trend || [],
-                risks: departmentsData.report.risks || [],
-                detailedData: {
-                    objectives: departmentsData.detailedData.objectives || [],
-                    keyResults: departmentsData.detailedData.keyResults || [],
-                    owners: departmentsData.detailedData.owners || [],
-                    checkIns: departmentsData.detailedData.checkIns || [],
-                },
-                level: 'departments',
-            };
-
-            // Tạo cả hai snapshot
-            const [companyResponse, departmentsResponse] = await Promise.all([
-                fetch('/api/reports/snapshot', {
+            // Tạo snapshot
+            const response = await fetch('/api/reports/snapshot', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -456,38 +437,20 @@ export default function CompanyOverviewReport() {
                 body: JSON.stringify({
                     cycle_id: filters.cycleId,
                         title: baseTitle,
-                        data_snapshot: companySnapshotData,
-                    }),
+                    data_snapshot: snapshotData,
                 }),
-                fetch('/api/reports/snapshot', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                    body: JSON.stringify({
-                        cycle_id: filters.cycleId,
-                        title: baseTitle,
-                        data_snapshot: departmentsSnapshotData,
-                    }),
-                }),
-            ]);
+            });
 
-            const companyDataResult = await companyResponse.json();
-            const departmentsDataResult = await departmentsResponse.json();
+            const result = await response.json();
 
-            if (!companyResponse.ok || !companyDataResult.success) {
-                throw new Error(companyDataResult.message || 'Không thể tạo snapshot cho công ty');
-            }
-
-            if (!departmentsResponse.ok || !departmentsDataResult.success) {
-                throw new Error(departmentsDataResult.message || 'Không thể tạo snapshot cho phòng ban');
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Không thể tạo báo cáo');
             }
 
             showNotification('success', 'Tạo báo cáo thành công!');
+            setLevel('company');
             setSnapshotPage(1);
-            loadSnapshots(1);
+            await loadSnapshots(1);
 
             setIsReportReady(true);
 
@@ -495,54 +458,76 @@ export default function CompanyOverviewReport() {
             setSnapshotTitleInput('');
         } catch (error) {
             console.error('Lỗi khi Tạo báo cáo:', error);
-            showNotification('error', '✗ ' + (error.message || 'Đã có lỗi xảy ra'));
+            showNotification('error', (error.message || 'Đã có lỗi xảy ra'));
         } finally {
             setIsCreatingSnapshot(false);
         }
     };
 
-    const loadSnapshots = async (page = 1) => {
-        const result = await loadSnapshotsUtil(filters.cycleId, page);
+    const loadSnapshots = async (page = 1, cycleId = null) => {
+        try {
+            const useCycle = cycleId || filters.cycleId || modalCycleFilter || '';
+            console.log('Loading snapshots for cycle:', useCycle, 'page:', page);
+            const result = await loadSnapshotsUtil(useCycle, page);
+            console.log('Snapshots loaded:', result);
         setSnapshots(result.snapshots);
         setSnapshotPagination(result.pagination);
+        } catch (error) {
+            console.error('Error in loadSnapshots:', error);
+            setSnapshots([]);
+            setSnapshotPagination({ current_page: 1, last_page: 1, total: 0 });
+            showNotification('error', 'Lỗi khi tải danh sách báo cáo');
+        }
     };
 
     const loadSnapshot = async (snapshotId) => {
+        try {
+            console.log('Loading snapshot:', snapshotId);
         const snapshot = await loadSnapshotUtil(snapshotId);
+            console.log('Snapshot loaded:', snapshot);
         if (snapshot) {
             setSelectedSnapshot(snapshot);
+            } else {
+                showNotification('error', 'Không thể tải chi tiết báo cáo');
+            }
+        } catch (error) {
+            console.error('Error in loadSnapshot:', error);
+            showNotification('error', 'Lỗi khi tải chi tiết báo cáo');
         }
     };
 
     const handleViewSnapshots = () => {
         if (!showSnapshots) {
-            // Mở modal
             setShowSnapshots(true);
             setSnapshotPage(1);
-            loadSnapshots(1);
+            setSelectedSnapshot(null);
+
+            // Khởi tạo modalCycleFilter = filters.cycleId (đồng bộ chu kỳ)
+            const initialCycle = filters.cycleId || modalCycleFilter;
+            setModalCycleFilter(initialCycle);
+
+            loadSnapshots(1, initialCycle || undefined);
+
         } else {
-            // Đóng modal - reset về trang 1 và xóa query params
             setShowSnapshots(false);
             setSelectedSnapshot(null);
             setSnapshotPage(1);
         }
     };
 
-    // Export Excel từ snapshot đang chọn (hoặc snapshot mới nhất)
     const exportSnapshotToExcel = async (snapshot) => {
         let targetSnapshot = snapshot || selectedSnapshot;
 
-        // Nếu chưa chọn snapshot (từ modal), lấy snapshot mới nhất theo chu kỳ hiện tại (hoặc mới nhất tổng thể)
         if (!targetSnapshot) {
             if (!snapshots || snapshots.length === 0) {
                 showNotification('error', '⚠ Chưa có báo cáo để xuất file');
-                return;
+            return;
             }
             const filtered = filters.cycleId
                 ? snapshots.filter(s => String(s.cycle_id) === String(filters.cycleId))
                 : snapshots;
             if (filtered.length === 0) {
-                showNotification('error', '⚠ Chưa có báo cáo cho chu kỳ hiện tại');
+                showNotification('error', 'Chưa có báo cáo cho chu kỳ hiện tại');
                 return;
             }
             targetSnapshot = [...filtered].sort((a, b) => new Date(b.snapshotted_at || b.created_at) - new Date(a.snapshotted_at || a.created_at))[0];
@@ -551,7 +536,6 @@ export default function CompanyOverviewReport() {
         try {
             const cycleId = targetSnapshot.cycle_id;
 
-            // Ưu tiên dùng dữ liệu có sẵn trong snapshots (nhanh, không gọi API)
             const snapsSameCycle = snapshots?.filter(s => String(s.cycle_id) === String(cycleId)) || [];
             const companySnap = snapsSameCycle.find(s => (s.data_snapshot?.level || 'departments') === 'company');
             const deptSnap = snapsSameCycle.find(s => (s.data_snapshot?.level || 'departments') === 'departments');
@@ -560,7 +544,6 @@ export default function CompanyOverviewReport() {
             let departmentsData;
 
             if (companySnap && deptSnap) {
-                // Dùng thẳng data_snapshot đã lưu
                 companyData = {
                     report: companySnap.data_snapshot,
                     detailedData: companySnap.data_snapshot?.detailedData || {},
@@ -571,30 +554,30 @@ export default function CompanyOverviewReport() {
                 };
             } else {
                 // Trường hợp thiếu snapshot một trong hai cấp, fallback gọi API như cũ
-                const fetchDataForLevel = async (levelToFetch) => {
-                    const params = new URLSearchParams();
+            const fetchDataForLevel = async (levelToFetch) => {
+                const params = new URLSearchParams();
                     if (cycleId) params.set('cycle_id', cycleId);
-                    params.set('level', levelToFetch);
-                    const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
-                        headers: { Accept: 'application/json' }
-                    });
-                    const reportJson = await reportRes.json();
-                    if (!reportRes.ok || !reportJson.success) {
-                        throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
-                    }
-                    const detailedData = await fetchDetailedDataForSnapshot(
+                params.set('level', levelToFetch);
+                const reportRes = await fetch(`/api/reports/okr-company${params.toString() ? `?${params.toString()}` : ''}`, {
+                    headers: { Accept: 'application/json' }
+                });
+                const reportJson = await reportRes.json();
+                if (!reportRes.ok || !reportJson.success) {
+                    throw new Error(`Không thể tải dữ liệu cho ${levelToFetch === 'company' ? 'công ty' : 'phòng ban'}`);
+                }
+                const detailedData = await fetchDetailedDataForSnapshot(
                         cycleId,
                         null,
                         null,
-                        levelToFetch
-                    );
+                    levelToFetch
+                );
                     return { report: reportJson.data, detailedData };
                 };
 
                 [companyData, departmentsData] = await Promise.all([
-                    fetchDataForLevel('company'),
-                    fetchDataForLevel('departments'),
-                ]);
+                fetchDataForLevel('company'),
+                fetchDataForLevel('departments'),
+            ]);
             }
 
             exportToExcelUtil(
@@ -629,8 +612,8 @@ export default function CompanyOverviewReport() {
                         {isCreatingSnapshot ? (
                             <>
                                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.507 3 7.938l3-2.647z"/>
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.507 3 7.938l3-2.647z" />
                                 </svg>
                                 Đang tạo...
                             </>
@@ -640,7 +623,7 @@ export default function CompanyOverviewReport() {
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                 </svg>
-                                Tạo báo cáo
+                                        Tạo Báo cáo
                             </>
                         )}
                     </button>
@@ -649,16 +632,15 @@ export default function CompanyOverviewReport() {
                     {/* Nút Xem lịch sử kết chuyển */}
                     <button
                         onClick={handleViewSnapshots}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-all duration-200"
+                            className="flex items-center justify-center gap-2 px-4 h-10 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 active:bg-gray-100 transition-all duration-200 min-w-48 whitespace-nowrap"
                     >
-                        {/* Icon: lịch sử / danh sách báo cáo */}
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                         </svg>
-                        Lịch sử 
+                            Danh sách Báo cáo
                     </button>
 
-                        {/* Filter chu kỳ */} 
+                        {/* Filter chu kỳ */}
                         <div className="flex items-center gap-4">
                             <div className="flex flex-col gap-1">
                                 <span className="text-xs font-semibold text-slate-600 leading-none">
@@ -678,8 +660,7 @@ export default function CompanyOverviewReport() {
                             <button
                             onClick={() => exportSnapshotToExcel()}
                             disabled={!isReportReady || snapshots.length === 0}
-                            className={`p-2.5 rounded-lg transition-colors ${
-                                !isReportReady || snapshots.length === 0
+                            className={`p-2.5 rounded-lg transition-colors ${!isReportReady || snapshots.length === 0
                                     ? 'opacity-50 cursor-not-allowed'
                                     : 'hover:bg-slate-100 cursor-pointer'
                             }`}
@@ -690,8 +671,7 @@ export default function CompanyOverviewReport() {
                             }
                         >
                             <svg 
-                                className={`h-5 w-5 ${
-                                    !isReportReady || snapshots.length === 0
+                                className={`h-5 w-5 ${!isReportReady || snapshots.length === 0
                                         ? 'text-slate-400'
                                         : 'text-slate-600'
                                 }`} 
@@ -702,9 +682,9 @@ export default function CompanyOverviewReport() {
                                 strokeLinecap="round" 
                                 strokeLinejoin="round"
                             >
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
                                 </svg>
                                             </button>
                     </div>
@@ -741,21 +721,15 @@ export default function CompanyOverviewReport() {
             ) : (
                 /* ===================== TRƯỚC KHI TẠO BÁO CÁO - CHỈ HIỂN THỊ THÔNG BÁO ===================== */
                 <div className="flex flex-col items-center justify-center py-32 text-center">
-                    <div className="w-32 h-32 flex items-center justify-center mb-8 rounded-xl border-2 border-gray-300 bg-gray-50">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                            className="w-20 h-20 text-gray-500"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth="1.8">
-                            <path strokeLinecap="round" strokeLinejoin="round"
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                     </div>
-                    <h3 className="text-2xl font-bold text-slate-800 mb-3">Chưa có báo cáo</h3>
+                    <h3 className="text-xl font-bold text-slate-800 mb-3">Chưa có Báo cáo nào</h3>
                     <p className="text-slate-600 max-w-md leading-relaxed">
-                        Nhấn <strong className="text-blue-600">Tạo báo cáo</strong> để tạo báo cáo chính thức.<br/>
-                        Nội dung báo cáo sẽ hiển thị tại đây sau khi hoàn tất.
+                        Nhấn <strong className="text-blue-600">Tạo Báo cáo</strong> để tạo Báo cáo chính thức.<br />
+                        Nội dung Báo cáo sẽ hiển thị tại đây sau khi hoàn tất.
                     </p>
                 </div>
             )}
@@ -766,18 +740,20 @@ export default function CompanyOverviewReport() {
                 onClose={() => {
                     setShowSnapshotModal(false);
                     setSnapshotTitleInput('');
+                    setSnapshotCreateLevel('departments');
                 }}
                 title={snapshotTitleInput}
                 onTitleChange={setSnapshotTitleInput}
                 onSubmit={confirmCreateSnapshot}
                 isSubmitting={isCreatingSnapshot}
+                level={snapshotCreateLevel}
+                onLevelChange={setSnapshotCreateLevel}
             />
 
-            {/* Snapshots Modal (lịch sử + chi tiết) */}
             {showSnapshots && (
                 <SnapshotHistoryModal
                     isOpen={showSnapshots}
-                    onClose={() => { 
+                    onClose={() => {
                         setShowSnapshots(false);
                         setSelectedSnapshot(null);
                                     setSnapshotPage(1);
@@ -787,11 +763,14 @@ export default function CompanyOverviewReport() {
                     onSnapshotLevelChange={setSnapshotLevelFilter}
                     snapshotPage={snapshotPage}
                     snapshotPagination={snapshotPagination}
-                    onPageChange={(page) => { setSnapshotPage(page); loadSnapshots(page); }}
+                    onPageChange={(page) => { setSnapshotPage(page); loadSnapshots(page, modalCycleFilter || filters.cycleId); }}
                     onLoadSnapshot={(id) => loadSnapshot(id)}
                     selectedSnapshot={selectedSnapshot}
                     onBackToList={() => setSelectedSnapshot(null)}
                     onExportSnapshot={exportSnapshotToExcel}
+                    modalCycleFilter={modalCycleFilter}
+                    onModalCycleFilterChange={setModalCycleFilter}
+                    cyclesList={cycles}
                 />
             )}     
         </div>

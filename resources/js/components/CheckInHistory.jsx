@@ -154,7 +154,7 @@ export default function CheckInHistory({
     if (!open) return null;
 
     const displayKr = krInfo || keyResult;
-    
+
     console.log('🔍 CheckInHistory rendering:', { 
         open,
         keyResult, 

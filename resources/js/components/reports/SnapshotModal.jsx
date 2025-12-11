@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function SnapshotModal({ 
     isOpen, 
@@ -7,7 +7,10 @@ export default function SnapshotModal({
     onTitleChange, 
     onSubmit, 
     isSubmitting 
+    , level, onLevelChange,
+    showLevelSelector = true
 }) {
+    const [levelDropdownOpen, setLevelDropdownOpen] = useState(false);
     if (!isOpen) return null;
 
     return (
@@ -50,6 +53,56 @@ export default function SnapshotModal({
                                 autoFocus
                             />
                         </div>
+
+                    {showLevelSelector && (
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Cấp độ Báo cáo <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                            <button
+                                onClick={() => setLevelDropdownOpen(v => !v)}
+                                className="flex items-center justify-between gap-3 w-full px-4 h-10 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                            >
+                                <span>
+                                    {level === 'company' ? 'Công ty' : 'Phòng ban'}
+                                </span>
+                                <svg
+                                    className={`w-4 h-4 transition-transform flex-shrink-0 ${levelDropdownOpen ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            {levelDropdownOpen && (
+                                <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-[65] overflow-hidden">
+                                    <button
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 first:rounded-t-lg"
+                                        onClick={() => {
+                                            onLevelChange('company');
+                                            setLevelDropdownOpen(false);
+                                        }}
+                                    >
+                                        Công ty
+                                    </button>
+                                    <button
+                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 last:rounded-b-lg"
+                                        onClick={() => {
+                                            onLevelChange('departments');
+                                            setLevelDropdownOpen(false);
+                                        }}
+                                    >
+                                        Phòng ban
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    )}
+
                     </div>
 
                     <div className="flex justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">

@@ -132,7 +132,11 @@ class KeyResultController extends Controller
         }
 
         $objective = Objective::findOrFail($objectiveId);
-        $kr = KeyResult::findOrFail($krId);
+        
+        // Tìm KeyResult với điều kiện objective_id để đảm bảo an toàn
+        $kr = KeyResult::where('kr_id', $krId)
+            ->where('objective_id', $objectiveId)
+            ->firstOrFail();
 
         // Kiểm tra quyền
         if (!$this->canManageKeyResult($user, $objective)) {

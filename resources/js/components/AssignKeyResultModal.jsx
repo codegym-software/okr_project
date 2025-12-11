@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Modal } from "./ui";
 import UserSearchInput from './UserSearchInput';
 import { FaBullseye, FaKey } from "react-icons/fa";
+import axios from 'axios';
 
 export default function AssignKeyResultModal({
     show,
@@ -11,8 +12,92 @@ export default function AssignKeyResultModal({
     onConfirm,
     onClose,
     currentUserRole,
+    currentUser,
+    departments = [],
 }) {
     const [selectedAssignee, setSelectedAssignee] = useState(null);
+    const [selectedDepartmentId, setSelectedDepartmentId] = useState(null);
+    const [departmentUsers, setDepartmentUsers] = useState([]);
+    const [loadingUsers, setLoadingUsers] = useState(false);
+    
+    // Xác định role của user
+    const userRole = currentUser?.role?.role_name?.toLowerCase() || currentUserRole?.role_name?.toLowerCase() || '';
+    const isAdminOrCeo = ['admin', 'ceo'].includes(userRole);
+    const isManager = userRole === 'manager';
+    
+    // Manager chỉ thấy phòng ban của họ
+    const managerDepartmentId = isManager ? currentUser?.department_id : null;
+    const effectiveDepartmentId = isManager ? managerDepartmentId : selectedDepartmentId;
+    
+    // Load users trong phòng ban khi chọn phòng ban (Admin/CEO) hoặc khi là Manager
+    useEffect(() => {
+        if (effectiveDepartmentId) {
+            setLoadingUsers(true);
+            axios.get('/api/users/search', { 
+                params: { 
+                    q: '', // Query rỗng để lấy tất cả
+                    department_id: effectiveDepartmentId 
+                } 
+            })
+            .then(response => {
+                // Đảm bảo role được load đầy đủ
+                const users = (response.data.data || []).map(user => ({
+                    ...user,
+                    role: user.role || null
+                }));
+                console.log('Loaded department users:', {
+                    departmentId: effectiveDepartmentId,
+                    totalUsers: users.length,
+                    usersWithRoles: users.filter(u => u.role).length,
+                    users: users.map(u => ({
+                        name: u.full_name,
+                        role: u.role?.role_name || 'No role'
+                    }))
+                });
+                setDepartmentUsers(users);
+            })
+            .catch(error => {
+                console.error('Error loading department users:', error);
+                setDepartmentUsers([]);
+            })
+            .finally(() => {
+                setLoadingUsers(false);
+            });
+        } else {
+            setDepartmentUsers([]);
+        }
+    }, [effectiveDepartmentId]);
+    
+    // Reset selectedAssignee khi đổi phòng ban
+    useEffect(() => {
+        setSelectedAssignee(null);
+    }, [selectedDepartmentId]);
+
+    // Sắp xếp users: Manager trước, sau đó Member, sau đó các role khác
+    const sortedUsers = [...departmentUsers].sort((a, b) => {
+        const aRole = a.role?.role_name?.toLowerCase() || '';
+        const bRole = b.role?.role_name?.toLowerCase() || '';
+        
+        // Manager luôn lên trên
+        if (aRole === 'manager' && bRole !== 'manager') return -1;
+        if (aRole !== 'manager' && bRole === 'manager') return 1;
+        
+        // Nếu cùng role hoặc không có role, sắp xếp theo tên
+        return (a.full_name || '').localeCompare(b.full_name || '');
+    });
+
+    // Format role name để hiển thị
+    const formatRoleName = (roleName) => {
+        if (!roleName) return '';
+        const lowerRole = roleName.toLowerCase();
+        const roleMap = {
+            'admin': 'Admin',
+            'ceo': 'CEO',
+            'manager': 'Quản lý',
+            'member': 'Thành viên'
+        };
+        return roleMap[lowerRole] || roleName;
+    };
 
     // Dynamic title and button text based on context
     const isCurrentlyAssigned = kr && kr.assigned_user;
@@ -39,7 +124,7 @@ export default function AssignKeyResultModal({
     if (!show || !kr || !objective) return null;
 
     return (
-        <Modal open={show} onClose={onClose} title={modalTitle}>
+        <Modal open={show} onClose={onClose} title={modalTitle} maxHeight="max-h-[90vh]">
             <div className="space-y-4">
                 <div className="mb-4 space-y-2">
                     <div className="flex items-center gap-2">
@@ -82,17 +167,84 @@ export default function AssignKeyResultModal({
                     </div>
                 </div>
 
-                {/* Replace email input with UserSearchInput */}
+                {/* Dropdown phòng ban cho Admin/CEO */}
+                {isAdminOrCeo && (
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Phòng ban:
+                        </label>
+                        <select
+                            value={selectedDepartmentId || ''}
+                            onChange={(e) => setSelectedDepartmentId(e.target.value || null)}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">-- Chọn phòng ban --</option>
+                            {departments.map((dept) => (
+                                <option key={dept.department_id} value={dept.department_id}>
+                                    {dept.department_name || dept.d_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                {/* Dropdown thành viên */}
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                         Giao cho:
                     </label>
-                    <UserSearchInput
-                        onUserSelect={setSelectedAssignee}
-                        initialUser={null} // Default to null (empty) as per user request
-                        objectiveDepartmentId={objective.department_id}
-                        currentUserRole={currentUserRole?.role_name}
-                    />
+                    {isAdminOrCeo && !selectedDepartmentId ? (
+                        <div className="p-3 border border-slate-300 rounded-lg bg-slate-50 text-slate-500 text-sm">
+                            Vui lòng chọn phòng ban trước
+                        </div>
+                    ) : effectiveDepartmentId ? (
+                        <select
+                            value={selectedAssignee?.user_id || ''}
+                            onChange={(e) => {
+                                const userId = e.target.value;
+                                if (userId) {
+                                    const user = departmentUsers.find(u => u.user_id == userId);
+                                    setSelectedAssignee(user ? {
+                                        user_id: user.user_id,
+                                        full_name: user.full_name,
+                                        email: user.email,
+                                        avatar_url: user.avatar_url,
+                                        role: user.role
+                                    } : null);
+                                } else {
+                                    setSelectedAssignee(null);
+                                }
+                            }}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={loadingUsers}
+                        >
+                            <option value="">-- Chọn thành viên --</option>
+                            {loadingUsers ? (
+                                <option disabled>Đang tải...</option>
+                            ) : sortedUsers.length === 0 ? (
+                                <option disabled>Không có thành viên</option>
+                            ) : (
+                                sortedUsers.map((user) => {
+                                    const roleLabel = user.role ? formatRoleName(user.role.role_name) : '';
+                                    const displayText = roleLabel 
+                                        ? `[${roleLabel}] ${user.full_name}`
+                                        : user.full_name;
+                                    return (
+                                        <option key={user.user_id} value={user.user_id}>
+                                            {displayText}
+                                        </option>
+                                    );
+                                })
+                            )}
+                        </select>
+                    ) : (
+                        <UserSearchInput
+                            onUserSelect={setSelectedAssignee}
+                            initialUser={null}
+                            objectiveDepartmentId={objective.department_id}
+                            currentUserRole={currentUserRole?.role_name}
+                        />
+                    )}
                 </div>
 
                 <div className="flex justify-end gap-2 mt-6">

@@ -235,6 +235,7 @@ class LinkController extends Controller
 
         // Kiểm tra xem source Objective đã có link approved khác chưa (đảm bảo quy tắc 1:1)
         $existingApprovedLink = OkrLink::query()
+            ->with(['targetObjective', 'targetKr.objective'])
             ->where('source_type', 'objective')
             ->where('source_objective_id', $link->source_objective_id)
             ->where('status', OkrLink::STATUS_APPROVED)
@@ -242,14 +243,38 @@ class LinkController extends Controller
             ->first();
 
         if ($existingApprovedLink) {
-            $targetType = $existingApprovedLink->target_type === 'objective' ? 'Objective' : 'Key Result';
-            $targetId = $existingApprovedLink->target_type === 'objective' 
-                ? $existingApprovedLink->target_objective_id 
-                : $existingApprovedLink->target_kr_id;
+            $targetName = null;
+            
+            if ($existingApprovedLink->target_type === 'objective' && $existingApprovedLink->targetObjective) {
+                $targetName = $existingApprovedLink->targetObjective->obj_title;
+            } elseif ($existingApprovedLink->target_type === 'kr' && $existingApprovedLink->targetKr) {
+                $targetName = $existingApprovedLink->targetKr->kr_title;
+                if ($existingApprovedLink->targetKr->objective) {
+                    $targetName = $existingApprovedLink->targetKr->objective->obj_title . ' › ' . $targetName;
+                }
+            }
+            
+            // Nếu không lấy được tên, thử load lại hoặc lấy từ database
+            if (!$targetName) {
+                if ($existingApprovedLink->target_type === 'objective' && $existingApprovedLink->target_objective_id) {
+                    $targetObj = Objective::find($existingApprovedLink->target_objective_id);
+                    $targetName = $targetObj ? $targetObj->obj_title : null;
+                } elseif ($existingApprovedLink->target_type === 'kr' && $existingApprovedLink->target_kr_id) {
+                    $targetKr = KeyResult::with('objective')->find($existingApprovedLink->target_kr_id);
+                    if ($targetKr) {
+                        $targetName = $targetKr->kr_title;
+                        if ($targetKr->objective) {
+                            $targetName = $targetKr->objective->obj_title . ' › ' . $targetName;
+                        }
+                    }
+                }
+            }
+            
+            $targetDisplay = $targetName ? "\"{$targetName}\"" : "một OKR khác";
             
             return response()->json([
                 'success' => false, 
-                'message' => "Không thể chấp thuận liên kết này. Objective này đã có liên kết được chấp thuận đến một {$targetType} khác (ID: {$targetId}). Mỗi Objective chỉ có thể liên kết đến một đích duy nhất."
+                'message' => "Không thể chấp thuận liên kết này. Objective này đã được liên kết với {$targetDisplay}. Mỗi Objective chỉ có thể liên kết đến một đích duy nhất. Nếu muốn liên kết với đích khác, bạn cần hủy liên kết hiện tại trước."
             ], 422);
         }
 
@@ -481,6 +506,7 @@ class LinkController extends Controller
             'sourceObjective.keyResults' => fn($q) => $q->with(['assignedUser.role', 'assignedUser.department'])->whereNull('archived_at'),
             // sourceKr không cần vì source luôn là Objective
             'targetObjective.user.department',
+            'targetKr.objective',
             'targetKr.assignedUser.department',
             'targetKr.assignedUser.role',
             'requester.department',
@@ -566,6 +592,7 @@ class LinkController extends Controller
         // Bước 1: Kiểm tra xem source Objective đã có liên kết đến bất kỳ target nào chưa (1:1)
         // Chỉ kiểm tra các liên kết đã approved hoặc đang pending (bỏ qua cancelled, rejected, needs_changes)
         $existingLink = OkrLink::query()
+            ->with(['targetObjective', 'targetKr.objective'])
             ->where('source_type', 'objective')
             ->where('source_objective_id', $source->objective_id)
             ->whereNotIn('status', [
@@ -577,14 +604,38 @@ class LinkController extends Controller
 
         if ($existingLink) {
             // Source Objective đã có liên kết đến một target khác
-            $targetType = $existingLink->target_type === 'objective' ? 'Objective' : 'Key Result';
-            $targetId = $existingLink->target_type === 'objective' 
-                ? $existingLink->target_objective_id 
-                : $existingLink->target_kr_id;
+            $targetName = null;
+            
+            if ($existingLink->target_type === 'objective' && $existingLink->targetObjective) {
+                $targetName = $existingLink->targetObjective->obj_title;
+            } elseif ($existingLink->target_type === 'kr' && $existingLink->targetKr) {
+                $targetName = $existingLink->targetKr->kr_title;
+                if ($existingLink->targetKr->objective) {
+                    $targetName = $existingLink->targetKr->objective->obj_title . ' › ' . $targetName;
+                }
+            }
+            
+            // Nếu không lấy được tên, thử load lại hoặc lấy từ database
+            if (!$targetName) {
+                if ($existingLink->target_type === 'objective' && $existingLink->target_objective_id) {
+                    $targetObj = Objective::find($existingLink->target_objective_id);
+                    $targetName = $targetObj ? $targetObj->obj_title : null;
+                } elseif ($existingLink->target_type === 'kr' && $existingLink->target_kr_id) {
+                    $targetKr = KeyResult::with('objective')->find($existingLink->target_kr_id);
+                    if ($targetKr) {
+                        $targetName = $targetKr->kr_title;
+                        if ($targetKr->objective) {
+                            $targetName = $targetKr->objective->obj_title . ' › ' . $targetName;
+                        }
+                    }
+                }
+            }
+            
+            $targetDisplay = $targetName ? "\"{$targetName}\"" : "một OKR khác";
             
             abort(response()->json([
                 'success' => false, 
-                'message' => "Objective này đã có liên kết đến một {$targetType} khác (ID: {$targetId}). Mỗi Objective chỉ có thể liên kết đến một đích duy nhất."
+                'message' => "Objective này đã được liên kết với {$targetDisplay}. Mỗi Objective chỉ có thể liên kết đến một đích duy nhất. Nếu muốn liên kết với đích khác, bạn cần hủy liên kết hiện tại trước."
             ], 422));
         }
 

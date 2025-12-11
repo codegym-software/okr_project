@@ -281,15 +281,24 @@ export default function NotificationBell() {
                                     const isCheckIn = notification.type === 'check_in' || 
                                         notification.message?.includes('đã check-in');
                                     
-                                    // Check if this is a comment notification
-                                    const isComment = notification.type === 'comment' || 
-                                        notification.message?.includes('đã bình luận') ||
-                                        notification.message?.includes('đã trả lời bình luận');
+                                    // Check if this is a KR assigned notification
+                                    const isKrAssigned = notification.type === 'kr_assigned' ||
+                                        notification.type === 'kr_assignment' ||
+                                        notification.message?.includes('đã giao cho bạn') ||
+                                        notification.message?.includes('Key Result');
                                     
                                     // Check if this notification is clickable (has action)
-                                    const isClickable = isLinkRequest || isCheckIn || isComment || notification.action_url;
+                                    const isClickable = isLinkRequest || isCheckIn || isKrAssigned || notification.action_url;
                                     
                                     const handleNotificationClick = () => {
+                                        // Debug log
+                                        console.log('🔔 Notification clicked:', {
+                                            id: notification.notification_id,
+                                            type: notification.type,
+                                            action_url: notification.action_url,
+                                            message: notification.message
+                                        });
+                                        
                                         // Mark as read first
                                         if (!notification.is_read) {
                                             markAsRead(notification.notification_id);
@@ -302,19 +311,40 @@ export default function NotificationBell() {
                                         let searchParams = '';
                                         
                                         if (targetUrl) {
-                                            // action_url đã là path + query params, không cần parse URL
-                                            const urlParts = targetUrl.split('?');
-                                            targetPath = urlParts[0];
-                                            searchParams = urlParts[1] ? `?${urlParts[1]}` : '';
+                                            const url = new URL(targetUrl, window.location.origin);
+                                            targetPath = url.pathname;
+                                            searchParams = url.search;
+                                        }
+                                        
+                                        // Check if already on the target page
+                                        const currentPath = window.location.pathname;
+                                        const isOnTargetPage = currentPath === targetPath || 
+                                            currentPath === '/my-objectives' && targetPath.includes('/my-objectives');
+                                        
+                                        if (isOnTargetPage && searchParams) {
+                                            // Already on the page - dispatch custom event to handle navigation without reload
+                                            setIsOpen(false);
+                                            const params = new URLSearchParams(searchParams);
+                                            
+                                            // Dispatch custom event for in-page navigation
+                                            window.dispatchEvent(new CustomEvent('okr-navigate', {
+                                                detail: {
+                                                    highlight_kr: params.get('highlight_kr'),
+                                                    highlight_link: params.get('highlight_link'),
+                                                    objective_id: params.get('objective_id'),
+                                                    action: params.get('action') // Thêm action parameter
+                                                }
+                                            }));
+                                            return;
                                         }
                                         
                                         // Navigate to the page
                                         setIsOpen(false);
                                         if (targetUrl) {
-                                            // Always navigate to ensure query params are applied and components re-render
+                                            console.log('🔔 Navigating with action_url:', targetPath + searchParams);
                                             window.location.href = targetPath + searchParams;
-                                        } else if (isLinkRequest || isCheckIn || isComment) {
-                                            // Fallback: navigate to my-objectives for comment notifications without action_url
+                                        } else if (isLinkRequest || isCheckIn || isKrAssigned) {
+                                            console.log('🔔 Navigating without action_url (old notification)');
                                             window.location.href = '/my-objectives';
                                         }
                                     };
