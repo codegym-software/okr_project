@@ -37,4 +37,4 @@
 </html>
 
 
-<?php /**PATH D:\Thuc_tap\New folder (2)\OKR_Project\resources\views/app.blade.php ENDPATH**/ ?>
+<?php /**PATH C:\Users\VTC\Desktop\OKR_Project_main\resources\views/app.blade.php ENDPATH**/ ?>
