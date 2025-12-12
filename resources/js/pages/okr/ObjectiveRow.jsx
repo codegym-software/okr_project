@@ -139,7 +139,34 @@ export default function ObjectiveRow({
                 <td className="px-3 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
                         {owner ? (
-                            <>
+                            <div
+                                className="flex items-center justify-center gap-2 cursor-pointer"
+                                onMouseEnter={(e) => {
+                                    if (setAssigneeTooltip) {
+                                        // Sử dụng getAssigneeInfo với format tương tự KR assignee
+                                        const ownerInfo = getAssigneeInfo ? getAssigneeInfo({ assigned_user: owner, assignedUser: owner, assignee: owner }) : {
+                                            name: owner.full_name || owner.fullName || owner.name || "",
+                                            avatar: owner.avatar_url || owner.avatar || "",
+                                            department: owner.department?.d_name || owner.department?.name || owner.department?.department_name || owner.department_name || null,
+                                            email: owner.email || "",
+                                            role: owner.role?.role_name?.toLowerCase() || "",
+                                        };
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setAssigneeTooltip({
+                                            info: ownerInfo,
+                                            position: {
+                                                x: rect.left + rect.width / 2 + window.scrollX,
+                                                y: rect.top + window.scrollY,
+                                            },
+                                        });
+                                    }
+                                }}
+                                onMouseLeave={() => {
+                                    if (setAssigneeTooltip) {
+                                        setAssigneeTooltip(null);
+                                    }
+                                }}
+                            >
                                 {owner.avatar_url ? (
                                     <img
                                         src={owner.avatar_url}
@@ -154,7 +181,7 @@ export default function ObjectiveRow({
                                 <span className="text-sm truncate max-w-[120px]">
                                     {owner.full_name}
                                 </span>
-                            </>
+                            </div>
                         ) : (
                             <span className="text-xs text-slate-400">Chưa có</span>
                         )}
