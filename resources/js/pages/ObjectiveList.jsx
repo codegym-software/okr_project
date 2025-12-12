@@ -52,6 +52,7 @@ export default function ObjectiveList({
     departments = [],
     isCycleClosed = false,
     currentCycle = null,
+    cycleStatus = null,
 }) {
     const [toast, setToast] = useState(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -374,13 +375,19 @@ export default function ObjectiveList({
                                 <span className="text-xs font-semibold text-slate-600 leading-none">
                                     Chu kỳ OKR
                                 </span>
-                                {currentCycle && (
+                                {currentCycle && cycleStatus && (
                                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                                        isCycleClosed 
-                                            ? 'bg-red-100 text-red-700' 
-                                            : 'bg-green-100 text-green-700'
+                                        cycleStatus.color === 'red' 
+                                            ? 'bg-red-100 text-red-700'
+                                            : cycleStatus.color === 'green'
+                                            ? 'bg-green-100 text-green-700'
+                                            : cycleStatus.color === 'orange'
+                                            ? 'bg-orange-100 text-orange-700'
+                                            : cycleStatus.color === 'blue'
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : 'bg-gray-100 text-gray-700'
                                     }`}>
-                                        {isCycleClosed ? 'Đã đóng' : 'Đang hoạt động'}
+                                        {cycleStatus.label}
                                     </span>
                                 )}
                             </div>

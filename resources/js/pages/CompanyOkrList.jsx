@@ -296,10 +296,84 @@ export default function CompanyOkrList() {
         return cyclesList.find(c => String(c.cycle_id) === String(cycleFilter));
     }, [cycleFilter, cyclesList]);
 
-    const isCycleClosed = useMemo(() => {
-        if (!currentCycle) return false;
-        return currentCycle.status && String(currentCycle.status).toLowerCase() !== 'active';
+    // Tính trạng thái chu kỳ dựa trên status và ngày tháng
+    const cycleStatus = useMemo(() => {
+        if (!currentCycle) return null;
+        
+        const status = String(currentCycle.status || '').toLowerCase();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Đã đóng: status = inactive
+        if (status === 'inactive') {
+            return {
+                type: 'closed',
+                label: 'Đã đóng',
+                color: 'red',
+                allowActions: false
+            };
+        }
+        
+        const startDate = currentCycle.start_date ? new Date(currentCycle.start_date) : null;
+        const endDate = currentCycle.end_date ? new Date(currentCycle.end_date) : null;
+        
+        if (startDate) startDate.setHours(0, 0, 0, 0);
+        if (endDate) {
+            endDate.setHours(23, 59, 59, 999);
+        }
+        
+        // Sắp diễn ra: chưa đến ngày bắt đầu
+        if (startDate && today < startDate) {
+            return {
+                type: 'upcoming',
+                label: 'Sắp diễn ra',
+                color: 'blue',
+                allowActions: false // Chưa bắt đầu, không cho phép hành động
+            };
+        }
+        
+        // Quá hạn: đã qua ngày kết thúc nhưng status vẫn là active
+        if (endDate && today > endDate && status === 'active') {
+            return {
+                type: 'overdue',
+                label: 'Quá hạn',
+                color: 'orange',
+                allowActions: false // Quá hạn, không cho phép hành động
+            };
+        }
+        
+        // Đang diễn ra: trong khoảng thời gian và status = active
+        if (startDate && endDate && today >= startDate && today <= endDate && status === 'active') {
+            return {
+                type: 'ongoing',
+                label: 'Đang diễn ra',
+                color: 'green',
+                allowActions: true
+            };
+        }
+        
+        // Draft: status = draft
+        if (status === 'draft') {
+            return {
+                type: 'draft',
+                label: 'Bản nháp',
+                color: 'gray',
+                allowActions: false
+            };
+        }
+        
+        // Mặc định: không cho phép hành động
+        return {
+            type: 'unknown',
+            label: 'Không xác định',
+            color: 'gray',
+            allowActions: false
+        };
     }, [currentCycle]);
+
+    const isCycleClosed = useMemo(() => {
+        return cycleStatus ? !cycleStatus.allowActions : false;
+    }, [cycleStatus]);
 
     // Đồng bộ các bộ lọc vào query params
     useEffect(() => {
@@ -489,13 +563,19 @@ export default function CompanyOkrList() {
                                 <span className="text-xs font-semibold text-slate-600 leading-none">
                                     Chu kỳ OKR
                                 </span>
-                                {currentCycle && (
+                                {currentCycle && cycleStatus && (
                                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                                        isCycleClosed 
-                                            ? 'bg-red-100 text-red-700' 
-                                            : 'bg-green-100 text-green-700'
+                                        cycleStatus.color === 'red' 
+                                            ? 'bg-red-100 text-red-700'
+                                            : cycleStatus.color === 'green'
+                                            ? 'bg-green-100 text-green-700'
+                                            : cycleStatus.color === 'orange'
+                                            ? 'bg-orange-100 text-orange-700'
+                                            : cycleStatus.color === 'blue'
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : 'bg-gray-100 text-gray-700'
                                     }`}>
-                                        {isCycleClosed ? 'Đã đóng' : 'Đang hoạt động'}
+                                        {cycleStatus.label}
                                     </span>
                                 )}
                             </div>
@@ -582,6 +662,7 @@ export default function CompanyOkrList() {
                     disableActions={isCycleClosed}
                     isCycleClosed={isCycleClosed}
                     currentCycle={currentCycle}
+                    cycleStatus={cycleStatus}
                 />
             ) : (
                 <OkrTreeCanvas
