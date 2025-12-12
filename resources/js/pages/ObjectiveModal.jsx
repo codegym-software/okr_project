@@ -273,9 +273,21 @@ export default function ObjectiveModal({
                 throw new Error(json.message || "Tạo thất bại");
             const created = json.data;
 
+            // Đảm bảo có user data nếu backend không trả về
+            const createdWithUser = {
+                ...created,
+                key_results: created.key_results || [],
+                user: created.user || (currentUser ? {
+                    user_id: currentUser.user_id,
+                    full_name: currentUser.full_name,
+                    email: currentUser.email,
+                    avatar_url: currentUser.avatar_url,
+                } : null),
+            };
+
             setItems((prev) => [
                 ...prev,
-                { ...created, key_results: created.key_results || [] },
+                createdWithUser,
             ]);
 
             setCreatingObjective(false);

@@ -356,7 +356,7 @@ class MyObjectiveController extends Controller
                     }
                 }
 
-                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role']);
+                return $objective->load(['keyResults', 'department', 'cycle', 'user', 'assignments.user', 'assignments.role']);
             });
 
             return $request->expectsJson()
@@ -509,7 +509,7 @@ class MyObjectiveController extends Controller
                     }
                 }
 
-                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role']);
+                return $objective->load(['keyResults', 'department', 'cycle', 'user', 'assignments.user', 'assignments.role']);
             });
 
             return $request->expectsJson()
