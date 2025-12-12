@@ -50,6 +50,8 @@ export default function ObjectiveList({
     hideFilters = false,
     disableActions = false,
     departments = [],
+    isCycleClosed = false,
+    currentCycle = null,
 }) {
     const [toast, setToast] = useState(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -368,9 +370,20 @@ export default function ObjectiveList({
             <div className="mb-4 flex w-full items-center justify-between">
                 <div className="flex items-center gap-4">
                         <div className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-600 leading-none">
-                                Chu kỳ OKR
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-600 leading-none">
+                                    Chu kỳ OKR
+                                </span>
+                                {currentCycle && (
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                        isCycleClosed 
+                                            ? 'bg-red-100 text-red-700' 
+                                            : 'bg-green-100 text-green-700'
+                                    }`}>
+                                        {isCycleClosed ? 'Đã đóng' : 'Đang hoạt động'}
+                                    </span>
+                                )}
+                            </div>
                     <CycleDropdown
                         cyclesList={cyclesList}
                         cycleFilter={cycleFilter}
@@ -398,6 +411,7 @@ export default function ObjectiveList({
                     </div>
                 <Tabs
                     setCreatingObjective={setCreatingObjective}
+                    isCycleClosed={isCycleClosed}
                 />
             </div>
             )}
@@ -492,7 +506,7 @@ export default function ObjectiveList({
                                     getUnitText={getUnitText}
                                     getAssigneeInfo={getAssigneeInfo}
                                     // The ObjectiveRow itself will now handle its colSpan based on props
-                                    disableActions={disableActions}
+                                    disableActions={disableActions || isCycleClosed}
                                 />
 
                             ))}

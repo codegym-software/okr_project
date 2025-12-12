@@ -855,6 +855,17 @@ export default function ObjectivesPage() {
         [enrichedItems]
     );
 
+    // Kiểm tra trạng thái chu kỳ hiện tại
+    const currentCycle = useMemo(() => {
+        if (!cycleFilter || !cyclesList || cyclesList.length === 0) return null;
+        return cyclesList.find(c => String(c.cycle_id) === String(cycleFilter));
+    }, [cycleFilter, cyclesList]);
+
+    const isCycleClosed = useMemo(() => {
+        if (!currentCycle) return false;
+        return currentCycle.status && String(currentCycle.status).toLowerCase() !== 'active';
+    }, [currentCycle]);
+
     // Đồng bộ các bộ lọc vào query params
     useEffect(() => {
         try {
@@ -1423,6 +1434,8 @@ export default function ObjectivesPage() {
                 onOpenLinkModal={handleOpenLinkModal}
                 onCancelLink={handleCancelLink}
                 reloadData={load}
+                isCycleClosed={isCycleClosed}
+                currentCycle={currentCycle}
             />
             ) : (
                 <OkrTreeCanvas

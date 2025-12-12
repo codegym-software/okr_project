@@ -290,6 +290,17 @@ export default function CompanyOkrList() {
         );
     }, [treeNodes, treeRootId]);
 
+    // Kiểm tra trạng thái chu kỳ hiện tại
+    const currentCycle = useMemo(() => {
+        if (!cycleFilter || !cyclesList || cyclesList.length === 0) return null;
+        return cyclesList.find(c => String(c.cycle_id) === String(cycleFilter));
+    }, [cycleFilter, cyclesList]);
+
+    const isCycleClosed = useMemo(() => {
+        if (!currentCycle) return false;
+        return currentCycle.status && String(currentCycle.status).toLowerCase() !== 'active';
+    }, [currentCycle]);
+
     // Đồng bộ các bộ lọc vào query params
     useEffect(() => {
         try {
@@ -474,9 +485,20 @@ export default function CompanyOkrList() {
                 <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <div className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-600 leading-none">
-                                Chu kỳ OKR
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-600 leading-none">
+                                    Chu kỳ OKR
+                                </span>
+                                {currentCycle && (
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                        isCycleClosed 
+                                            ? 'bg-red-100 text-red-700' 
+                                            : 'bg-green-100 text-green-700'
+                                    }`}>
+                                        {isCycleClosed ? 'Đã đóng' : 'Đang hoạt động'}
+                                    </span>
+                                )}
+                            </div>
                             <CycleDropdown
                                 cyclesList={cyclesList}
                                 cycleFilter={cycleFilter}
@@ -519,8 +541,18 @@ export default function CompanyOkrList() {
                     </div>
                     {isCeo && (
                         <button
-                            onClick={() => setCreatingObjective(true)}
-                            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm transition-all duration-200"
+                            onClick={() => {
+                                if (!isCycleClosed) {
+                                    setCreatingObjective(true);
+                                }
+                            }}
+                            disabled={isCycleClosed}
+                            className={`rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-200 ${
+                                isCycleClosed
+                                    ? 'bg-gray-400 cursor-not-allowed opacity-60'
+                                    : 'bg-indigo-600 hover:bg-indigo-700'
+                            }`}
+                            title={isCycleClosed ? 'Chu kỳ đã đóng, không thể thêm Objective' : 'Thêm Objective'}
                         >
                             Thêm Objective
                         </button>
@@ -547,7 +579,9 @@ export default function CompanyOkrList() {
                     onOpenLinkModal={() => {}}
                     onCancelLink={() => {}}
                     hideFilters={true}
-                    disableActions={true}
+                    disableActions={isCycleClosed}
+                    isCycleClosed={isCycleClosed}
+                    currentCycle={currentCycle}
                 />
             ) : (
                 <OkrTreeCanvas

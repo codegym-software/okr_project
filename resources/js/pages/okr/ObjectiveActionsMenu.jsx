@@ -80,13 +80,13 @@ export default function ObjectiveActionsMenu({
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            if (hasLink) return;
+                            if (disableActions || hasLink) return;
                             handleArchive(obj.objective_id);
                             setOpenObj((prev) => ({ ...prev, [menuKey]: false }));
                         }}
-                        disabled={archiving === obj.objective_id || hasLink}
+                        disabled={disableActions || archiving === obj.objective_id || hasLink}
                         className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-rose-600 ${
-                            hasLink 
+                            disableActions || hasLink 
                                 ? "opacity-50 cursor-not-allowed" 
                                 : "hover:bg-rose-50"
                         } disabled:opacity-40`}
