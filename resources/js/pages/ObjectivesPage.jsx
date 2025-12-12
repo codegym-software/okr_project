@@ -63,6 +63,7 @@ export default function ObjectivesPage() {
     const urlParamsHandledRef = React.useRef(false);
     const [userDepartmentName, setUserDepartmentName] = useState('');
     const [cycleFilter, setCycleFilter] = useState(null);
+    const [departmentFilter, setDepartmentFilter] = useState(null);
 
     const [myOKRFilter, setMyOKRFilter] = useState(false);
     const [viewMode, setViewMode] = useState('levels'); // 'levels' or 'personal'
@@ -76,8 +77,31 @@ export default function ObjectivesPage() {
     useEffect(() => {
         if (currentUser?.role?.role_name?.toLowerCase() === 'member') {
             setViewMode('personal');
+            setDepartmentFilter(null);
         }
     }, [currentUser?.user_id]);
+
+    // Tự động set departmentFilter khi viewMode thay đổi (chỉ khi không có từ URL)
+    useEffect(() => {
+        // Chỉ chạy khi đã load xong user data
+        if (!currentUser) return;
+        
+        // Kiểm tra xem có department_id trong URL không
+        const urlParams = new URLSearchParams(window.location.search);
+        const departmentIdFromUrl = urlParams.get('department_id');
+        
+        if (viewMode === 'levels' && currentUser?.department_id) {
+            // Nếu chưa có departmentFilter và không có từ URL, tự động set từ currentUser
+            if (!departmentFilter && !departmentIdFromUrl) {
+                setDepartmentFilter(String(currentUser.department_id));
+            }
+        } else if (viewMode === 'personal') {
+            // Khi chuyển sang personal, xóa department filter (trừ khi có trong URL - giữ nguyên)
+            if (!departmentIdFromUrl) {
+                setDepartmentFilter(null);
+            }
+        }
+    }, [viewMode, currentUser?.department_id, currentUser]);
 
     // Effect to select the default cycle on initial load
     useEffect(() => {
@@ -87,10 +111,16 @@ export default function ObjectivesPage() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const cycleIdFromUrl = urlParams.get('cycle_id');
                 const viewModeFromUrl = urlParams.get('view_mode');
+                const departmentIdFromUrl = urlParams.get('department_id');
                 
                 // Restore viewMode từ URL nếu có
                 if (viewModeFromUrl && ['levels', 'personal'].includes(viewModeFromUrl)) {
                     setViewMode(viewModeFromUrl);
+                }
+                
+                // Restore department_id từ URL nếu có (ưu tiên URL params)
+                if (departmentIdFromUrl) {
+                    setDepartmentFilter(departmentIdFromUrl);
                 }
                 
                 const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
@@ -155,7 +185,7 @@ export default function ObjectivesPage() {
     }, []);
 
 
-    const load = async (pageNum = 1, cycle, myOKR = false, view = 'levels') => {
+    const load = async (pageNum = 1, cycle, myOKR = false, view = 'levels', departmentId = null) => {
         if (cycle === null) {
             setLoading(false);
             return;
@@ -172,6 +202,7 @@ export default function ObjectivesPage() {
             let url = `/my-objectives?page=${pageNum}&view_mode=${view}`;
             if (cycle) url += `&cycle_id=${cycle}`;
             if (myOKR) url += `&my_okr=true`;
+            if (departmentId) url += `&department_id=${departmentId}`;
 
             const [resObj, resDept, resUser, resLinks] = await Promise.all([
                 fetch(url, { headers: { Accept: "application/json", "X-CSRF-TOKEN": token } }),
@@ -219,14 +250,14 @@ export default function ObjectivesPage() {
     // Main data loading effect
     useEffect(() => {
         if (cycleFilter !== null) {
-            load(page, cycleFilter, myOKRFilter, viewMode);
+            load(page, cycleFilter, myOKRFilter, viewMode, departmentFilter);
         }
-    }, [page, cycleFilter, myOKRFilter, viewMode]);
+    }, [page, cycleFilter, myOKRFilter, viewMode, departmentFilter]);
 
     // Reset page to 1 when filters change
     useEffect(() => {
         if (page !== 1) setPage(1);
-    }, [cycleFilter, myOKRFilter, viewMode]);
+    }, [cycleFilter, myOKRFilter, viewMode, departmentFilter]);
 
     // Auto-open check-in modal nếu có thông tin từ CheckInReminderBanner
     useEffect(() => {
@@ -853,6 +884,13 @@ export default function ObjectivesPage() {
                 url.searchParams.delete("view_mode");
             }
             
+            // Sync departmentFilter
+            if (departmentFilter) {
+                url.searchParams.set("department_id", String(departmentFilter));
+            } else {
+                url.searchParams.delete("department_id");
+            }
+            
             // Sync displayMode, treeRootId, treeLayout
             if (displayMode === "tree") {
                 url.searchParams.set("display", "tree");
@@ -877,7 +915,7 @@ export default function ObjectivesPage() {
         } catch (e) {
             console.error("Failed to sync filter params", e);
         }
-    }, [cycleFilter, viewMode, displayMode, treeRootId, treeLayout]);
+    }, [cycleFilter, viewMode, departmentFilter, displayMode, treeRootId, treeLayout]);
 
     useEffect(() => {
         if (!enrichedItems.length) {
@@ -1334,6 +1372,8 @@ export default function ObjectivesPage() {
                 userDepartmentName={userDepartmentName}
                 cycleFilter={cycleFilter}
                 setCycleFilter={setCycleFilter}
+                departmentFilter={departmentFilter}
+                setDepartmentFilter={setDepartmentFilter}
                 myOKRFilter={myOKRFilter}
                 setMyOKRFilter={setMyOKRFilter}
                 viewMode={viewMode}

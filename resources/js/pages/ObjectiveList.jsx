@@ -36,6 +36,8 @@ export default function ObjectiveList({
     linksLoading = false,
     cycleFilter,
     setCycleFilter,
+    departmentFilter,
+    setDepartmentFilter,
     viewMode,
     setViewMode,
     userDepartmentName,
@@ -252,6 +254,7 @@ export default function ObjectiveList({
         async (token) => {
             const baseParams = new URLSearchParams();
             if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
+            if (departmentFilter) baseParams.append("department_id", departmentFilter);
 
             // Fetch Active Objectives
             const activeRes = await fetch(`/my-objectives?${baseParams}`, {
@@ -262,7 +265,7 @@ export default function ObjectiveList({
                 setItems(activeJson.data.data || []);
             }
         },
-        [cycleFilter, setItems]
+        [cycleFilter, departmentFilter, setItems]
     );
 
     // === LƯU TRỮ OKR ===
@@ -388,6 +391,7 @@ export default function ObjectiveList({
                                     setDropdownOpen={setViewModeDropdownOpen}
                                     currentUser={currentUser}
                                     userDepartmentName={userDepartmentName}
+                                    setDepartmentFilter={setDepartmentFilter}
                                 />
                             </div>
                         )}

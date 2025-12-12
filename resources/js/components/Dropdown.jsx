@@ -304,6 +304,7 @@ export function ViewModeDropdown({
     setDropdownOpen,
     currentUser,
     userDepartmentName,
+    setDepartmentFilter,
 }) {
     const role = currentUser?.role?.role_name?.toLowerCase();
 
@@ -324,6 +325,13 @@ export function ViewModeDropdown({
 
     const handleSelect = (mode) => {
         setViewMode(mode);
+        // Khi chọn "levels", tự động set department_id của user
+        if (mode === 'levels' && currentUser?.department_id) {
+            setDepartmentFilter?.(String(currentUser.department_id));
+        } else if (mode === 'personal') {
+            // Khi chọn "personal", xóa department filter
+            setDepartmentFilter?.(null);
+        }
         setDropdownOpen(false);
     };
 
