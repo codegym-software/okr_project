@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import ConfirmationModal from "./ConfirmationModal";
+import { getStatusText, formatPercent } from "../pages/okr/utils/formatters";
 
 const LEVEL_OPTIONS = [
     { value: "", label: "Tất cả cấp bậc" },
     { value: "company", label: "Cấp công ty" },
     { value: "unit", label: "Phòng ban" },
-    { value: "team", label: "Nhóm" },
     { value: "person", label: "Cá nhân" },
 ];
 
@@ -25,8 +25,6 @@ export default function LinkOkrModal({
     onCancelLink,
 }) {
     const [filters, setFilters] = useState({
-        level: "",
-        status: "",
         keyword: "",
     });
     const [page, setPage] = useState(1);
@@ -37,6 +35,7 @@ export default function LinkOkrModal({
     const [selectedTarget, setSelectedTarget] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [note, setNote] = useState("");
+    const noteTextareaRef = useRef(null);
     const [existingLink, setExistingLink] = useState(null);
     const [cancellingLink, setCancellingLink] = useState(false);
     const [confirmModal, setConfirmModal] = useState({
@@ -93,14 +92,6 @@ export default function LinkOkrModal({
                 page: page.toString(),
             });
 
-            // Chỉ filter level nếu level đó được phép liên kết
-            if (filters.level && (allowedTargetLevels.length === 0 || allowedTargetLevels.includes(filters.level))) {
-                params.append("level", filters.level);
-            } else if (allowedTargetLevels.length > 0) {
-                // Nếu có level được phép, tự động filter theo level đầu tiên
-                params.append("level", allowedTargetLevels[0]);
-            }
-            if (filters.status) params.append("status", filters.status);
             if (filters.keyword) params.append("keyword", filters.keyword);
 
             const res = await fetch(`/my-links/available-targets?${params.toString()}`, {
@@ -169,7 +160,7 @@ export default function LinkOkrModal({
     useEffect(() => {
         fetchTargets();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, page, filters.level, filters.status, allowedTargetLevels]);
+    }, [open, page, filters.keyword, sourceId, sourceType, sourceLevel]);
 
     const handleKeywordSearch = (e) => {
         e.preventDefault();
@@ -208,6 +199,47 @@ export default function LinkOkrModal({
 
         if (!selectedTarget.id) {
             setError("Không thể xác định ID của OKR đã chọn. Vui lòng chọn lại.");
+            return;
+        }
+
+        if (!note || note.trim() === "") {
+            setError("Vui lòng nhập thông điệp gửi chủ OKR cấp cao.");
+            // Scroll và focus vào textarea với offset để không che phần "Đã chọn"
+            if (noteTextareaRef.current) {
+                setTimeout(() => {
+                    const textareaElement = noteTextareaRef.current;
+                    // Tìm scroll container (modal content area)
+                    const scrollContainer = textareaElement.closest('.overflow-y-auto');
+                    
+                    if (scrollContainer) {
+                        const containerRect = scrollContainer.getBoundingClientRect();
+                        const textareaRect = textareaElement.getBoundingClientRect();
+                        
+                        // Tính toán vị trí scroll với offset để phần "Đã chọn" (ở bottom) vẫn hiển thị
+                        // Offset = chiều cao ước tính của phần "Đã chọn" + padding
+                        const offset = 150;
+                        const relativeTop = textareaRect.top - containerRect.top + scrollContainer.scrollTop;
+                        const targetScrollTop = relativeTop - offset;
+                        
+                        scrollContainer.scrollTo({
+                            top: Math.max(0, targetScrollTop),
+                            behavior: 'smooth'
+                        });
+                    } else {
+                        // Fallback: dùng scrollIntoView với block: 'start' và offset
+                        textareaElement.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'start',
+                            inline: 'nearest'
+                        });
+                    }
+                    
+                    // Đợi scroll xong rồi mới focus
+                    setTimeout(() => {
+                        noteTextareaRef.current?.focus();
+                    }, 400);
+                }, 100);
+            }
             return;
         }
 
@@ -341,84 +373,62 @@ export default function LinkOkrModal({
                 </div>
 
                 <div className="flex flex-col gap-5 px-6 py-5 overflow-y-auto max-h-[calc(90vh-260px)]">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-slate-700">Bộ lọc liên kết</p>
-                        </div>
-                        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="space-y-5">
                             <div>
-                                <label className="text-xs font-medium text-slate-500">Cấp bậc</label>
-                                <select
-                                    value={filters.level}
-                                    onChange={(e) =>
-                                        setFilters((prev) => ({ ...prev, level: e.target.value }))
-                                    }
-                                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                                <form
+                                    onSubmit={handleKeywordSearch}
                                 >
-                                    {LEVEL_OPTIONS.map((item) => {
-                                        // Chỉ hiển thị các level được phép liên kết
-                                        if (item.value && allowedTargetLevels.length > 0 && !allowedTargetLevels.includes(item.value)) {
-                                            return null;
-                                        }
-                                        return (
-                                            <option key={item.value} value={item.value}>
-                                                {item.label}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                        Tìm kiếm OKR
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={filters.keyword}
+                                            onChange={(e) =>
+                                                setFilters((prev) => ({ ...prev, keyword: e.target.value }))
+                                            }
+                                            placeholder="Nhập tên Objective hoặc Key Result để tìm kiếm"
+                                            className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        />
+                                        <button
+                                            type="submit"
+                                            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+                                        >
+                                            Tìm
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
                             <div>
-                                <label className="text-xs font-medium text-slate-500">Trạng thái</label>
-                                <select
-                                    value={filters.status}
-                                    onChange={(e) =>
-                                        setFilters((prev) => ({ ...prev, status: e.target.value }))
-                                    }
-                                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                >
-                                    {STATUS_OPTIONS.map((item) => (
-                                        <option key={item.value} value={item.value}>
-                                            {item.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <form
-                                onSubmit={handleKeywordSearch}
-                                className="md:col-span-2 lg:col-span-2"
-                            >
-                                <label className="text-xs font-medium text-slate-500">Từ khóa</label>
-                                <div className="mt-1 flex items-center gap-2">
-                                    <input
-                                        type="text"
-                                        value={filters.keyword}
-                                        onChange={(e) =>
-                                            setFilters((prev) => ({ ...prev, keyword: e.target.value }))
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                    Thông điệp gửi chủ OKR cấp cao
+                                    <span className="ml-1 text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    ref={noteTextareaRef}
+                                    value={note}
+                                    onChange={(e) => {
+                                        setNote(e.target.value);
+                                        if (error && e.target.value.trim() !== "") {
+                                            setError("");
                                         }
-                                        placeholder="Tên Objective hoặc Key Result"
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                    />
-                                    <button
-                                        type="submit"
-                                        className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-900"
-                                    >
-                                        Tìm
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                        <div className="mt-4">
-                            <label className="text-xs font-medium text-slate-500">
-                                Thông điệp gửi chủ OKR cấp cao
-                            </label>
-                            <textarea
-                                value={note}
-                                onChange={(e) => setNote(e.target.value)}
-                                rows={3}
-                                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                                placeholder="Ví dụ: Chúng tôi sẽ đóng góp vào mục tiêu tăng doanh thu..."
-                            />
+                                    }}
+                                    rows={4}
+                                    required
+                                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-y"
+                                    placeholder="Ví dụ: Chúng tôi sẽ đóng góp vào mục tiêu tăng doanh thu..."
+                                />
+                                {error && error.includes("thông điệp") && (
+                                    <p className="mt-1.5 text-sm text-red-600 font-medium">
+                                        {error}
+                                    </p>
+                                )}
+                                <p className="mt-1.5 text-xs text-slate-500">
+                                    Vui lòng mô tả cách OKR của bạn sẽ đóng góp vào OKR cấp cao hơn
+                                </p>
+                            </div>
                         </div>
                     </div>
 
@@ -436,98 +446,156 @@ export default function LinkOkrModal({
                                 </div>
                             )}
 
-                            {items.map((objective) => (
-                                <div
-                                    key={objective.objective_id}
-                                    className={`rounded-2xl border ${
-                                        selectedTarget?.id === objective.objective_id &&
-                                        selectedTarget?.type === "objective"
-                                            ? "border-indigo-500 bg-indigo-50/70"
-                                            : "border-slate-200 bg-white"
-                                    } p-4 shadow-sm`}
-                                >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div>
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                [{objective.level?.toUpperCase() || "LEVEL"}]{" "}
-                                                {objective.status || "Chưa xác định"}
-                                            </p>
-                                            <h4 className="text-base font-semibold text-slate-900">
-                                                {objective.obj_title}
-                                            </h4>
-                                            <p className="text-sm text-slate-500">
-                                                Người sở hữu: {objective.user?.full_name || "Không rõ"}
-                                            </p>
-                                        </div>
-                                        <div className="flex flex-col gap-2">
-                                            <button
-                                                onClick={() => handleSelectTarget("objective", objective)}
-                                                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                                                    selectedTarget?.id === objective.objective_id &&
-                                                    selectedTarget?.type === "objective"
-                                                        ? "bg-indigo-600 text-white"
-                                                        : "bg-slate-900 text-white hover:bg-slate-700"
-                                                }`}
-                                            >
-                                                Chọn Objective
-                                            </button>
-                                        </div>
-                                    </div>
+                            {items.map((objective) => {
+                                const getLevelText = (level) => {
+                                    const levelMap = {
+                                        'company': 'Công ty',
+                                        'unit': 'Phòng ban',
+                                        'person': 'Cá nhân'
+                                    };
+                                    return levelMap[level?.toLowerCase()] || level?.toUpperCase() || 'Cấp độ';
+                                };
 
-                                    {objective.key_results?.length > 0 && (
-                                        <div className="mt-4 rounded-lg bg-slate-50 p-3">
-                                            <p className="text-xs font-semibold uppercase text-slate-500 mb-2">
-                                                Key Results
-                                            </p>
-                                            <div className="space-y-2">
-                                                {objective.key_results
-                                                    .filter((kr) => kr.kr_id != null) // Filter out KRs without ID
-                                                    .map((kr) => {
-                                                        const isSelected =
-                                                            selectedTarget?.id === kr.kr_id &&
-                                                            selectedTarget?.type === "kr";
-                                                        return (
-                                                            <div
-                                                                key={kr.kr_id}
-                                                                className={`rounded-lg border px-3 py-2 text-sm ${
-                                                                    isSelected
-                                                                        ? "border-indigo-500 bg-white"
-                                                                        : "border-transparent"
-                                                                } flex items-center justify-between gap-3`}
-                                                            >
-                                                                <div>
-                                                                    <p className="font-semibold text-slate-800">
-                                                                        {kr.kr_title}
-                                                                    </p>
-                                                                    <p className="text-xs text-slate-500">
-                                                                        Trạng thái: {kr.status || "Không rõ"} • Tiến độ{" "}
-                                                                        {Number(kr.progress_percent || 0).toFixed(0)}%
-                                                                    </p>
-                                                                </div>
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleSelectTarget("kr", {
-                                                                            ...kr,
-                                                                            obj_title: objective.obj_title,
-                                                                            level: objective.level,
-                                                                        })
-                                                                    }
-                                                                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                                                                        isSelected
-                                                                            ? "border-indigo-500 bg-indigo-500 text-white"
-                                                                            : "border-slate-300 text-slate-700 hover:border-indigo-500 hover:text-indigo-600"
-                                                                    }`}
-                                                                >
-                                                                    Chọn KR
-                                                                </button>
-                                                            </div>
-                                                        );
-                                                    })}
+                                const isObjectiveSelected = selectedTarget?.id === objective.objective_id &&
+                                    selectedTarget?.type === "objective";
+
+                                return (
+                                    <div
+                                        key={objective.objective_id}
+                                        className={`rounded-xl border-2 transition-all ${
+                                            isObjectiveSelected
+                                                ? "border-indigo-500 bg-indigo-50/50 shadow-md"
+                                                : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                                        } p-5`}
+                                    >
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                                                        {getLevelText(objective.level)}
+                                                    </span>
+                                                    <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold ${
+                                                        objective.status === 'on_track' || objective.status === 'active'
+                                                            ? 'bg-blue-100 text-blue-700'
+                                                            : objective.status === 'at_risk'
+                                                            ? 'bg-amber-100 text-amber-700'
+                                                            : objective.status === 'behind'
+                                                            ? 'bg-red-100 text-red-700'
+                                                            : objective.status === 'completed'
+                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                            : 'bg-slate-100 text-slate-700'
+                                                    }`}>
+                                                        {getStatusText(objective.status) || "Chưa xác định"}
+                                                    </span>
+                                                </div>
+                                                <h4 className="text-lg font-bold text-slate-900 mb-2">
+                                                    {objective.obj_title}
+                                                </h4>
+                                                <div className="flex items-center gap-2 text-sm text-slate-600">
+                                                    <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                    </svg>
+                                                    <span>{objective.user?.full_name || "Chưa có người sở hữu"}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex-shrink-0">
+                                                <button
+                                                    onClick={() => handleSelectTarget("objective", objective)}
+                                                    className={`rounded-lg border-2 px-5 py-2.5 text-sm font-semibold transition-all ${
+                                                        isObjectiveSelected
+                                                            ? "border-indigo-500 bg-indigo-600 text-white shadow-sm"
+                                                            : "border-slate-300 bg-white text-slate-700 hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600"
+                                                    }`}
+                                                >
+                                                    Chọn Mục tiêu
+                                                </button>
                                             </div>
                                         </div>
-                                    )}
-                                </div>
-                            ))}
+
+                                        {objective.key_results?.length > 0 && (
+                                            <div className="mt-4 pt-4 border-t border-slate-200">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <svg className="h-4 w-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                                    </svg>
+                                                    <p className="text-sm font-semibold text-slate-700">
+                                                        Kết quả then chốt
+                                                    </p>
+                                                    <span className="text-xs text-slate-500">
+                                                        ({objective.key_results.filter(kr => kr.kr_id != null).length})
+                                                    </span>
+                                                </div>
+                                                <div className="space-y-2.5">
+                                                    {objective.key_results
+                                                        .filter((kr) => kr.kr_id != null)
+                                                        .map((kr) => {
+                                                            const isSelected =
+                                                                selectedTarget?.id === kr.kr_id &&
+                                                                selectedTarget?.type === "kr";
+                                                            return (
+                                                                <div
+                                                                    key={kr.kr_id}
+                                                                    className={`rounded-lg border-2 px-4 py-3 transition-all ${
+                                                                        isSelected
+                                                                            ? "border-indigo-500 bg-indigo-50/50 shadow-sm"
+                                                                            : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white"
+                                                                    } flex items-center justify-between gap-4`}
+                                                                >
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="font-semibold text-slate-900 mb-1">
+                                                                            {kr.kr_title}
+                                                                        </p>
+                                                                        <div className="flex items-center gap-3 text-xs text-slate-600">
+                                                                            <span className="flex items-center gap-1">
+                                                                                <span className="font-medium">Trạng thái:</span>
+                                                                                <span className={`font-semibold ${
+                                                                                    kr.status === 'on_track' || kr.status === 'active'
+                                                                                        ? 'text-blue-600'
+                                                                                        : kr.status === 'at_risk'
+                                                                                        ? 'text-amber-600'
+                                                                                        : kr.status === 'in_trouble'
+                                                                                        ? 'text-red-600'
+                                                                                        : kr.status === 'completed'
+                                                                                        ? 'text-emerald-600'
+                                                                                        : 'text-slate-600'
+                                                                                }`}>
+                                                                                    {getStatusText(kr.status) || "Không rõ"}
+                                                                                </span>
+                                                                            </span>
+                                                                            <span className="text-slate-400">•</span>
+                                                                            <span className="flex items-center gap-1">
+                                                                                <span className="font-medium">Tiến độ:</span>
+                                                                                <span className="font-semibold text-indigo-600">
+                                                                                    {formatPercent(kr.progress_percent || 0)}
+                                                                                </span>
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            handleSelectTarget("kr", {
+                                                                                ...kr,
+                                                                                obj_title: objective.obj_title,
+                                                                                level: objective.level,
+                                                                            })
+                                                                        }
+                                                                        className={`rounded-lg border-2 px-4 py-2 text-xs font-semibold transition-all flex-shrink-0 ${
+                                                                            isSelected
+                                                                                ? "border-indigo-500 bg-indigo-600 text-white shadow-sm"
+                                                                                : "border-slate-300 bg-white text-slate-700 hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-600"
+                                                                        }`}
+                                                                    >
+                                                                        Chọn Kết quả
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         {meta.last_page > 1 && (
@@ -557,17 +625,31 @@ export default function LinkOkrModal({
                 </div>
 
         <div className="flex flex-col gap-2 border-t border-slate-200 px-6 py-4">
-            {error && <p className="text-sm text-rose-600">{error}</p>}
+            {error && !error.includes("thông điệp") && <p className="text-sm text-rose-600">{error}</p>}
             {selectedTarget ? (
                 <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                    <p className="font-semibold text-slate-900">Đã chọn</p>
-                    <p>
-                        {selectedTarget.type === "objective" ? "Objective" : "Key Result"}:{" "}
-                        <span className="font-medium">{selectedTarget.label}</span>
+                    <p className="font-semibold text-slate-900 mb-2">Đã chọn</p>
+                    <p className="mb-1">
+                        {selectedTarget.type === "objective" ? "Mục tiêu" : "Kết quả then chốt"}:{" "}
+                        <span className="font-medium text-slate-900">{selectedTarget.label}</span>
                     </p>
-                    <p className="text-xs text-slate-500">
-                        Cấp {selectedTarget.level?.toUpperCase()} • Trạng thái {selectedTarget.status}
-                    </p>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <span>
+                            Cấp: <span className="font-semibold text-slate-700">
+                                {selectedTarget.level === 'company' ? 'Công ty' :
+                                 selectedTarget.level === 'unit' ? 'Phòng ban' :
+                                 selectedTarget.level === 'team' ? 'Nhóm' :
+                                 selectedTarget.level === 'person' ? 'Cá nhân' :
+                                 selectedTarget.level?.toUpperCase() || 'N/A'}
+                            </span>
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span>
+                            Trạng thái: <span className="font-semibold text-slate-700">
+                                {getStatusText(selectedTarget.status) || selectedTarget.status || 'Chưa xác định'}
+                            </span>
+                        </span>
+                    </div>
                 </div>
             ) : (
                 <p className="text-sm text-slate-500">

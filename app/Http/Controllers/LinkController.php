@@ -128,15 +128,35 @@ class LinkController extends Controller
         }
         
         $sourceLevelRank = self::LEVEL_ORDER[$validated['source_level']];
+        $sourceLevel = $validated['source_level'];
         $levelFilter = $validated['level'] ?? null;
         $perPage = (int) $request->integer('per_page', 10);
 
-        $higherLevels = array_keys(array_filter(self::LEVEL_ORDER, function ($rank, $level) use ($sourceLevelRank, $levelFilter) {
-            if ($levelFilter) {
-                return $level === $levelFilter && self::LEVEL_ORDER[$level] > $sourceLevelRank;
+        // Áp dụng quy tắc liên kết cụ thể:
+        // 1. Phòng ban (unit) chỉ được liên kết lên công ty (company)
+        // 2. Cá nhân (person) chỉ được liên kết lên phòng ban (unit)
+        $allowedTargetLevels = [];
+        if ($sourceLevel === 'unit') {
+            $allowedTargetLevels = ['company'];
+        } elseif ($sourceLevel === 'person') {
+            $allowedTargetLevels = ['unit'];
+        } else {
+            // Các level khác: lấy tất cả level cao hơn
+            $allowedTargetLevels = array_keys(array_filter(self::LEVEL_ORDER, function ($rank) use ($sourceLevelRank) {
+                return $rank > $sourceLevelRank;
+            }));
+        }
+
+        // Nếu có levelFilter, chỉ lấy level đó nếu nó nằm trong allowedTargetLevels
+        if ($levelFilter) {
+            if (in_array($levelFilter, $allowedTargetLevels)) {
+                $higherLevels = [$levelFilter];
+            } else {
+                $higherLevels = [];
             }
-            return $rank > $sourceLevelRank;
-        }, ARRAY_FILTER_USE_BOTH));
+        } else {
+            $higherLevels = $allowedTargetLevels;
+        }
 
         if (empty($higherLevels)) {
             return response()->json([
