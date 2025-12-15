@@ -132,6 +132,7 @@ class ReportController extends Controller
                 'date' => $weekEnd->format('d/m'),
                 'full_date' => $snap->week_end_date,
                 'avg_progress' => (float) $snap->avg_progress,
+                'okr_count' => (int) $snap->okr_count,
                 'week_label' => 'Tuần ' . $snap->week_number,
                 'source' => 'snapshot'
             ];

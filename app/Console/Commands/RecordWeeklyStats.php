@@ -107,18 +107,19 @@ class RecordWeeklyStats extends Command
 
     /**
      * Tính toán chỉ số của phòng ban tại thời điểm quá khứ (snapshotDate)
-     * Logic: Tính trung bình cộng tiến độ của các OBJECTIVE cấp Unit (giống logic hiển thị trên UI)
+     * Logic: Tính trung bình cộng tiến độ của các OBJECTIVE cấp Unit
      */
     private function calculateStatsForWeek($departmentId, $cycleId, Carbon $snapshotDate)
     {
-        // 1. Lấy danh sách Objective cấp Unit của phòng ban
+        // 1. Lấy danh sách Objective cấp Unit của phòng ban tồn tại tại thời điểm đó
         $objectives = \App\Models\Objective::where('department_id', $departmentId)
             ->where('cycle_id', $cycleId)
             ->where('level', 'unit') // Chỉ tính cấp phòng ban
-            ->whereNull('archived_at')
-            ->with(['keyResults' => function($q) {
-                $q->whereNull('archived_at');
-            }])
+            ->where('created_at', '<=', $snapshotDate) // Phải được tạo trước thời điểm snapshot
+            ->where(function($q) use ($snapshotDate) {
+                $q->whereNull('archived_at')
+                  ->orWhere('archived_at', '>', $snapshotDate); // Chưa bị lưu trữ TẠI THỜI ĐIỂM ĐÓ
+            })
             ->get();
 
         if ($objectives->isEmpty()) {
@@ -129,33 +130,7 @@ class RecordWeeklyStats extends Command
         $objectiveCount = $objectives->count();
 
         foreach ($objectives as $obj) {
-            $krs = $obj->keyResults;
-            if ($krs->isEmpty()) {
-                // Nếu Objective không có KR, tiến độ mặc định là 0 (hoặc lấy progress_percent cũ nếu muốn, nhưng ở đây tính strict)
-                $totalObjectiveProgress += 0;
-                continue;
-            }
-
-            $krProgressSum = 0;
-            $krCount = $krs->count();
-
-            foreach ($krs as $kr) {
-                // Tìm check-in mới nhất của KR tính đến thời điểm snapshotDate
-                $lastCheckIn = CheckIn::where('kr_id', $kr->kr_id)
-                    ->where('created_at', '<=', $snapshotDate)
-                    ->orderByDesc('created_at')
-                    ->first();
-
-                if ($lastCheckIn) {
-                    $krProgressSum += $lastCheckIn->progress_percent;
-                } else {
-                    $krProgressSum += 0;
-                }
-            }
-
-            // Tiến độ của 1 Objective = TB cộng các KR của nó
-            $objProgress = $krCount > 0 ? ($krProgressSum / $krCount) : 0;
-            $totalObjectiveProgress += $objProgress;
+            $totalObjectiveProgress += $this->calculateSingleObjectiveProgress($obj->objective_id, $snapshotDate);
         }
 
         // Tiến độ phòng ban = TB cộng các Objective
@@ -165,5 +140,64 @@ class RecordWeeklyStats extends Command
             'avg_progress' => $deptAvg,
             'okr_count' => $objectiveCount
         ];
+    }
+
+    /**
+     * Helper: Tính tiến độ của 1 Objective tại thời điểm quá khứ
+     * Bao gồm: Key Results trực tiếp + Child Objectives (liên kết)
+     */
+    private function calculateSingleObjectiveProgress($objectiveId, Carbon $snapshotDate, $depth = 0)
+    {
+        if ($depth > 5) return 0; // Tránh đệ quy quá sâu
+
+        $progressValues = [];
+
+        // A. Key Results trực tiếp
+        // Logic: Có tồn tại và chưa bị lưu trữ TẠI THỜI ĐIỂM ĐÓ
+        $krs = KeyResult::where('objective_id', $objectiveId)
+            ->where('created_at', '<=', $snapshotDate)
+            ->where(function($q) use ($snapshotDate) {
+                $q->whereNull('archived_at')
+                  ->orWhere('archived_at', '>', $snapshotDate);
+            })
+            ->get();
+
+        foreach ($krs as $kr) {
+            // Tìm check-in mới nhất của KR tính đến thời điểm snapshotDate
+            $lastCheckIn = CheckIn::where('kr_id', $kr->kr_id)
+                ->where('created_at', '<=', $snapshotDate)
+                ->orderByDesc('created_at')
+                ->first();
+
+            $progressValues[] = $lastCheckIn ? (float) $lastCheckIn->progress_percent : 0;
+        }
+
+        // B. Child Objectives (Liên kết từ dưới lên)
+        // Tìm các link mà Objective này là TARGET (Obj con trỏ vào Obj này)
+        $childLinks = \App\Models\OkrLink::where('target_objective_id', $objectiveId)
+            ->where('target_type', 'objective') // Chỉ tính liên kết Obj -> Obj
+            ->where('source_type', 'objective')
+            ->where('status', 'approved')
+            ->where('created_at', '<=', $snapshotDate)
+            ->get();
+
+        foreach ($childLinks as $link) {
+            // Kiểm tra Objective con (active TẠI THỜI ĐIỂM ĐÓ)
+            $childObj = \App\Models\Objective::find($link->source_objective_id);
+            if ($childObj && 
+                $childObj->created_at <= $snapshotDate && 
+                ($childObj->archived_at == null || $childObj->archived_at > $snapshotDate)
+            ) {
+                 // Đệ quy tính tiến độ của Objective con
+                 $progressValues[] = $this->calculateSingleObjectiveProgress($childObj->objective_id, $snapshotDate, $depth + 1);
+            }
+        }
+
+        if (empty($progressValues)) {
+            return 0;
+        }
+
+        // Trung bình cộng (Average)
+        return array_sum($progressValues) / count($progressValues);
     }
 }

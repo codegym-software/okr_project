@@ -397,7 +397,32 @@ export default function ReportPage() {
                                             options={{
                                                 responsive: true,
                                                 maintainAspectRatio: false,
-                                                plugins: { legend: { position: 'bottom' } },
+                                                plugins: { 
+                                                    legend: { position: 'bottom' },
+                                                    tooltip: {
+                                                        callbacks: {
+                                                            label: function(context) {
+                                                                let label = context.dataset.label || '';
+                                                                if (label) {
+                                                                    label += ': ';
+                                                                }
+                                                                if (context.parsed.y !== null) {
+                                                                    label += context.parsed.y + '%';
+                                                                }
+                                                                
+                                                                // Show OKR Count for "Thực tế" dataset
+                                                                // datasetIndex 0 is "Thực tế" based on creation order in useMemo
+                                                                if (context.datasetIndex === 0 && trendData && trendData[context.dataIndex]) {
+                                                                     const count = trendData[context.dataIndex].okr_count;
+                                                                     if (count !== undefined) {
+                                                                         return [label, `Số lượng OKR: ${count}`];
+                                                                     }
+                                                                }
+                                                                return label;
+                                                            }
+                                                        }
+                                                    }
+                                                },
                                                 scales: { y: { beginAtZero: true, max: 100 } }
                                             }}
                                         />
