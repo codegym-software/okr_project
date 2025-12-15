@@ -107,43 +107,63 @@ class RecordWeeklyStats extends Command
 
     /**
      * Tính toán chỉ số của phòng ban tại thời điểm quá khứ (snapshotDate)
+     * Logic: Tính trung bình cộng tiến độ của các OBJECTIVE cấp Unit (giống logic hiển thị trên UI)
      */
     private function calculateStatsForWeek($departmentId, $cycleId, Carbon $snapshotDate)
     {
-        // 1. Lấy các KR thuộc về phòng ban trong chu kỳ này
-        $krIds = KeyResult::whereHas('objective', function($q) use ($departmentId, $cycleId) {
-            $q->where('department_id', $departmentId)
-              ->where('cycle_id', $cycleId)
-              ->whereNull('archived_at');
-        })->pluck('kr_id');
+        // 1. Lấy danh sách Objective cấp Unit của phòng ban
+        $objectives = \App\Models\Objective::where('department_id', $departmentId)
+            ->where('cycle_id', $cycleId)
+            ->where('level', 'unit') // Chỉ tính cấp phòng ban
+            ->whereNull('archived_at')
+            ->with(['keyResults' => function($q) {
+                $q->whereNull('archived_at');
+            }])
+            ->get();
 
-        if ($krIds->isEmpty()) {
+        if ($objectives->isEmpty()) {
             return ['avg_progress' => 0, 'okr_count' => 0];
         }
 
-        // 2. Với mỗi KR, tìm check-in mới nhất TÍNH ĐẾN thời điểm snapshotDate
-        $totalProgress = 0;
-        $count = $krIds->count();
+        $totalObjectiveProgress = 0;
+        $objectiveCount = $objectives->count();
 
-        foreach ($krIds as $krId) {
-            $lastCheckIn = CheckIn::where('kr_id', $krId)
-                ->where('created_at', '<=', $snapshotDate) // Quan trọng: Chỉ lấy dữ liệu quá khứ
-                ->orderByDesc('created_at')
-                ->first();
-
-            if ($lastCheckIn) {
-                $totalProgress += $lastCheckIn->progress_percent;
-            } else {
-                // Nếu chưa có check-in nào tính đến lúc đó -> 0%
-                $totalProgress += 0;
+        foreach ($objectives as $obj) {
+            $krs = $obj->keyResults;
+            if ($krs->isEmpty()) {
+                // Nếu Objective không có KR, tiến độ mặc định là 0 (hoặc lấy progress_percent cũ nếu muốn, nhưng ở đây tính strict)
+                $totalObjectiveProgress += 0;
+                continue;
             }
+
+            $krProgressSum = 0;
+            $krCount = $krs->count();
+
+            foreach ($krs as $kr) {
+                // Tìm check-in mới nhất của KR tính đến thời điểm snapshotDate
+                $lastCheckIn = CheckIn::where('kr_id', $kr->kr_id)
+                    ->where('created_at', '<=', $snapshotDate)
+                    ->orderByDesc('created_at')
+                    ->first();
+
+                if ($lastCheckIn) {
+                    $krProgressSum += $lastCheckIn->progress_percent;
+                } else {
+                    $krProgressSum += 0;
+                }
+            }
+
+            // Tiến độ của 1 Objective = TB cộng các KR của nó
+            $objProgress = $krCount > 0 ? ($krProgressSum / $krCount) : 0;
+            $totalObjectiveProgress += $objProgress;
         }
 
-        $avg = $count > 0 ? round($totalProgress / $count, 2) : 0;
+        // Tiến độ phòng ban = TB cộng các Objective
+        $deptAvg = $objectiveCount > 0 ? round($totalObjectiveProgress / $objectiveCount, 2) : 0;
 
         return [
-            'avg_progress' => $avg,
-            'okr_count' => $count
+            'avg_progress' => $deptAvg,
+            'okr_count' => $objectiveCount
         ];
     }
 }
