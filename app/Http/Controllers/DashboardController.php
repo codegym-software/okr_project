@@ -17,34 +17,28 @@ class DashboardController extends Controller
 
     public function getData(Request $request)
     {
-        // Eager load role to ensure we can check permissions in frontend
         $user = auth()->user()->load('role');
 
-        // 1. My OKRs (Active)
-        // OKRs owned by user
-        // STRICTLY filter by 'person' level as requested
         $myOkrs = Objective::where('user_id', $user->user_id)
             ->where('level', 'person')
             ->whereNull('archived_at')
             ->with([
-                'keyResults.childObjectives', // Load this to check if KR is a container (has links)
+                'keyResults.childObjectives', 
                 'sourceLinks.targetObjective', 
                 'sourceLinks.targetObjective.department',
-                'cycle', // Add cycle for deadline
+                'cycle', 
             ])
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // 2. Department OKRs
         $deptOkrs = [];
         $isCeoOrAdmin = $user->role && in_array(strtolower($user->role->role_name), ['admin', 'ceo']);
 
         if ($isCeoOrAdmin) {
-            // CEO/Admin: View ALL Unit OKRs from ALL Departments
             $deptOkrs = Objective::where('level', 'unit')
                 ->whereNull('archived_at')
                 ->with([
-                    'keyResults.childObjectives.sourceObjective', // Load deep for KR auto-calculation
+                    'keyResults.childObjectives.sourceObjective', 
                     'sourceLinks.targetObjective',
                     'department',
                     'childObjectives'
@@ -53,12 +47,11 @@ class DashboardController extends Controller
                 ->limit(50)
                 ->get();
         } elseif ($user->department_id) {
-            // Normal User: View ONLY their Department's Unit OKRs
             $deptOkrs = Objective::where('department_id', $user->department_id)
                 ->where('level', 'unit')
                 ->whereNull('archived_at')
                 ->with([
-                    'keyResults.childObjectives.sourceObjective', // Load deep
+                    'keyResults.childObjectives.sourceObjective', 
                     'sourceLinks.targetObjective',
                     'childObjectives'
                 ])
@@ -67,21 +60,18 @@ class DashboardController extends Controller
                 ->get();
         }
 
-        // 3. Company OKRs
         $companyOkrs = [];
         
         if ($isCeoOrAdmin) {
-            // CEO/Admin: View ALL Company OKRs
             $companyOkrs = Objective::where('level', 'company')
                 ->whereNull('archived_at')
                 ->with([
-                    'keyResults.childObjectives.sourceObjective', // Load deep
+                    'keyResults.childObjectives.sourceObjective', 
                     'childObjectives'
                 ])
                 ->orderBy('created_at', 'desc')
                 ->get();
         } elseif (!empty($deptOkrs) && $deptOkrs->count() > 0) {
-            // Normal User: View Aligned Company OKRs only
             $deptObjIds = $deptOkrs->pluck('objective_id')->toArray();
 
             $companyOkrs = Objective::where('level', 'company')
@@ -92,16 +82,13 @@ class DashboardController extends Controller
                 })
                 ->whereNull('archived_at')
                 ->with([
-                    'keyResults.childObjectives.sourceObjective', // Load deep
+                    'keyResults.childObjectives.sourceObjective', 
                     'childObjectives'
                 ])
                 ->orderBy('created_at', 'desc')
                 ->get();
         }
 
-        // Calculate Company-wide Average Progress (Global)
-        // This is separate from the 'companyOkrs' list which might be filtered for alignment
-        // We get ALL company objectives to calculate the true average
         $allCompanyOkrs = Objective::where('level', 'company')
             ->whereNull('archived_at')
             ->get();
@@ -110,7 +97,6 @@ class DashboardController extends Controller
         $count = 0;
         
         foreach ($allCompanyOkrs as $okr) {
-            // Force calculation or use accessor
             $val = $okr->calculated_progress ?? $okr->progress_percent ?? 0;
             $totalProgress += (float)$val;
             $count++;
@@ -118,33 +104,72 @@ class DashboardController extends Controller
         
         $companyGlobalAvg = $count > 0 ? round($totalProgress / $count, 1) : 0;
 
-        // Calculate overdue KRs (progress < 50%)
+        $riskKrs = [];
         $overdueKrs = [];
         foreach ($myOkrs as $okr) {
+            $cycle = $okr->cycle;
+            $now = Carbon::now();
+            $start = $cycle ? Carbon::parse($cycle->start_date) : $now->startOfYear();
+            $end = $cycle ? Carbon::parse($cycle->end_date) : $now->endOfYear();
+
+            if ($end->lte($now)) continue; 
+
+            $totalDays = $start->diffInDays($end);
+            $elapsedDays = $start->diffInDays($now);
+            $timeRatio = $totalDays > 0 ? $elapsedDays / $totalDays : 0;
+            $daysLeft = $now->diffInDays($end, false); 
+
             foreach ($okr->keyResults as $kr) {
-                if (($kr->calculated_progress ?? $kr->progress_percent ?? 0) < 50) {
+                $krProgress = $kr->calculated_progress ?? $kr->progress_percent ?? 0;
+
+                // Skip risk evaluation for KRs that have never been checked-in
+                $lastCheckIn = CheckIn::where('kr_id', $kr->kr_id)->latest()->first();
+                if (!$lastCheckIn) {
+                    continue;
+                }
+
+                $isRisk = false;
+
+                if ($timeRatio > 0.5 && $krProgress < 30) {
+                    $isRisk = true;
+                }
+
+                if ($krProgress < 50 && $daysLeft < 21) {
+                    $isRisk = true;
+                }
+
+                if ($isRisk) {
+                    $riskKrs[] = [
+                        'kr_id' => $kr->kr_id,
+                        'kr_title' => $kr->kr_title,
+                        'progress_percent' => $krProgress,
+                        'objective_id' => $okr->objective_id,
+                        'deadline' => $end->toDateString(),
+                    ];
+
+                    // Include in overdue list regardless of creation age once the KR has at least one check-in
                     $overdueKrs[] = [
                         'kr_id' => $kr->kr_id,
                         'kr_title' => $kr->kr_title,
-                        'progress_percent' => $kr->calculated_progress ?? $kr->progress_percent ?? 0,
+                        'progress_percent' => $krProgress,
                         'objective_id' => $okr->objective_id,
-                        'deadline' => $okr->cycle->end_date ?? null, // Assuming deadline from cycle
+                        'deadline' => $end->toDateString(),
                     ];
                 }
             }
         }
 
-        // Calculate weekly summary
         $weekStart = Carbon::now()->startOfWeek();
         $weekEnd = Carbon::now()->endOfWeek();
 
-        // KR checked in this week
+        $myKrIds = collect($myOkrs)->pluck('keyResults')->flatten()->pluck('kr_id')->unique()->toArray();
+
         $checkedInKrs = CheckIn::where('user_id', $user->user_id)
+            ->whereIn('kr_id', $myKrIds)
             ->whereBetween('created_at', [$weekStart, $weekEnd])
             ->distinct('kr_id')
             ->count('kr_id');
 
-        // Total active KR (progress < 100)
         $totalActiveKrs = 0;
         $needCheckIn = 0;
         $totalConfidence = 0;
@@ -152,6 +177,18 @@ class DashboardController extends Controller
         $totalRisks = 0;
 
         foreach ($myOkrs as $okr) {
+            $cycle = $okr->cycle;
+            $now = Carbon::now();
+            $start = $cycle ? Carbon::parse($cycle->start_date) : $now->startOfYear();
+            $end = $cycle ? Carbon::parse($cycle->end_date) : $now->endOfYear();
+
+            if ($end->lte($now)) continue; 
+
+            $totalDays = $start->diffInDays($end);
+            $elapsedDays = $start->diffInDays($now);
+            $timeRatio = $totalDays > 0 ? $elapsedDays / $totalDays : 0;
+            $daysLeft = $now->diffInDays($end, false); 
+
             foreach ($okr->keyResults as $kr) {
                 $krProgress = $kr->calculated_progress ?? $kr->progress_percent ?? 0;
                 
@@ -159,23 +196,30 @@ class DashboardController extends Controller
                     $totalActiveKrs++;
                 }
                 
-                // For need check-in: manual KR, not completed, overdue check-in (7 days)
-                if (!$kr->childObjectives || $kr->childObjectives->isEmpty()) { // Manual KR
+                if (!$kr->childObjectives || $kr->childObjectives->isEmpty()) {
                     $lastCheckIn = CheckIn::where('kr_id', $kr->kr_id)->latest()->first();
                     $isOverdue = !$lastCheckIn || $lastCheckIn->created_at < Carbon::now()->subDays(7);
                     if ($krProgress < 100 && $isOverdue) {
                         $needCheckIn++;
                     }
                 }
-                
-                // For confidence: average confidence from latest check-in
+
                 $lastCheckIn = CheckIn::where('kr_id', $kr->kr_id)->latest()->first();
-                $confidence = $lastCheckIn ? $lastCheckIn->progress_percent : 100; // Default 100 if no check-in
+                $confidence = $lastCheckIn ? $lastCheckIn->progress_percent : 100;
                 $totalConfidence += $confidence;
                 $confidenceCount++;
-                
-                // For risks: KR with progress < 50 (temporary, until Risk table is implemented)
-                if ($krProgress < 50) {
+
+                // Only evaluate risk for KRs that have at least one check-in
+                $isRisk = false;
+                if ($lastCheckIn) {
+                    if ($timeRatio > 0.5 && $krProgress < 30) {
+                        $isRisk = true;
+                    }
+                    if ($krProgress < 50 && $daysLeft < 21) {
+                        $isRisk = true;
+                    }
+                }
+                if ($isRisk) {
                     $totalRisks++;
                 }
             }
@@ -197,6 +241,7 @@ class DashboardController extends Controller
             'deptOkrs' => $deptOkrs,
             'companyOkrs' => $companyOkrs,
             'companyGlobalAvg' => $companyGlobalAvg,
+            'riskKrs' => $riskKrs,
             'overdueKrs' => $overdueKrs,
             'weeklySummary' => $weeklySummary,
         ]);
