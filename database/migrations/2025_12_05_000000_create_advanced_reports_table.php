@@ -6,19 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up(): void
     {
-        Schema::create('advanced_reports', function (Blueprint $table) {
-            $table->id('report_id');
-            $table->string('report_type'); // 'team', 'manager', 'company'
-            $table->string('report_name')->nullable(); // Tên báo cáo (tùy chọn)
-            $table->json('snapshot_data'); // Dữ liệu snapshot của báo cáo
-            $table->foreignId('user_id')->constrained('users','user_id')->cascadeOnDelete(); // Người tạo
-            $table->foreignId('cycle_id')->nullable()->constrained('cycles','cycle_id')->nullOnDelete();
-            $table->integer('department_id')->nullable(); // Phòng ban (nếu có)
-            $table->text('notes')->nullable(); // Ghi chú của người tạo
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('advanced_reports')) {
+            Schema::create('advanced_reports', function (Blueprint $table) {
+                $table->id('report_id');
+                $table->string('report_type'); // 'team', 'manager', 'company'
+                $table->string('report_name')->nullable();
+                $table->json('snapshot_data'); // Dữ liệu báo cáo tại thời điểm tạo
+                
+                $table->unsignedBigInteger('user_id'); // Người tạo
+                $table->unsignedBigInteger('cycle_id')->nullable();
+                $table->integer('department_id')->nullable();
+                
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function down()

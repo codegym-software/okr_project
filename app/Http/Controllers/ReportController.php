@@ -95,7 +95,8 @@ class ReportController extends Controller
     }
 
     /**
-     * Biểu đồ xu hướng tiến độ của nhóm theo tuần.
+     * Biểu đồ xu hướng tiến độ tích lũy của nhóm theo tuần.
+     * Chỉ sử dụng dữ liệu snapshot từ bảng report_snapshots_weekly.
      */
     public function getTeamProgressTrend(Request $request)
     {
@@ -116,23 +117,32 @@ class ReportController extends Controller
             ], 404);
         }
 
-        $trend = CheckIn::query()
-            ->select([
-                DB::raw("DATE_FORMAT(check_ins.created_at, '%Y-%u') as bucket"),
-                DB::raw('AVG(check_ins.progress_percent) as avg_progress'),
-            ])
-            ->join('key_results as kr', 'kr.kr_id', '=', 'check_ins.kr_id')
-            ->join('objectives as obj', 'obj.objective_id', '=', 'kr.objective_id')
-            ->where('obj.department_id', $user->department_id)
-            ->where('obj.cycle_id', $cycle->cycle_id)
-            ->whereNotNull('check_ins.progress_percent')
-            ->groupBy('bucket')
-            ->orderBy('bucket')
-            ->get()
-            ->map(fn ($row) => [
-                'bucket' => $row->bucket,
-                'avg_progress' => $this->clampProgress((float) $row->avg_progress),
-            ]);
+        // 1. Lấy dữ liệu từ bảng Snapshot
+        $snapshots = DB::table('report_snapshots_weekly')
+            ->where('department_id', $user->department_id)
+            ->where('cycle_id', $cycle->cycle_id)
+            ->orderBy('year')
+            ->orderBy('week_number')
+            ->get();
+
+        $trendData = [];
+        foreach ($snapshots as $snap) {
+            $weekEnd = \Carbon\Carbon::parse($snap->week_end_date);
+            $trendData[] = [
+                'date' => $weekEnd->format('d/m'),
+                'full_date' => $snap->week_end_date,
+                'avg_progress' => (float) $snap->avg_progress,
+                'week_label' => 'Tuần ' . $snap->week_number,
+                'source' => 'snapshot'
+            ];
+        }
+
+        // 2. Đánh lại nhãn tuần tự (Tuần 1, Tuần 2, ...) bắt đầu từ đầu chu kỳ
+        $finalData = [];
+        foreach ($trendData as $index => $item) {
+            $item['week_name'] = "Tuần " . ($index + 1);
+            $finalData[] = $item;
+        }
 
         return response()->json([
             'success' => true,
@@ -141,7 +151,7 @@ class ReportController extends Controller
                 'cycle_id' => $cycle->cycle_id,
                 'cycle_name' => $cycle->cycle_name,
             ],
-            'data' => $trend,
+            'data' => $finalData,
         ]);
     }
 

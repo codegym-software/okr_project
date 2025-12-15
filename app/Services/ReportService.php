@@ -63,9 +63,71 @@ class ReportService
             ->where('department_id', $departmentId)
             ->with('role')
             ->get(['user_id', 'full_name', 'email', 'avatar_url', 'role_id']); 
+        
+        $memberIds = $members->pluck('user_id');
 
-        $memberStats = $members->map(function ($member) use ($objectiveStats, $departmentId, $cycleId, $expectedProgress) {
-            return $this->calculateMemberStats($member, $departmentId, $cycleId, $expectedProgress);
+        // OPTIMIZATION: Load KRs without checkIns first (limit(2) inside with() is ineffective)
+        $allKrs = KeyResult::query()
+            ->where('cycle_id', $cycleId)
+            ->whereNull('archived_at')
+            ->where(function($q) use ($memberIds) {
+                $q->whereIn('user_id', $memberIds)
+                  ->orWhereIn('assigned_to', $memberIds);
+            })
+            ->get();
+
+        // OPTIMIZATION: Fetch top 2 CheckIns for each KR using Window Function (MySQL 8.0+)
+        // This avoids N+1 and avoids loading ALL check-ins into memory
+        $krIds = $allKrs->pluck('kr_id')->toArray();
+        if (!empty($krIds)) {
+            $placeholders = implode(',', $krIds);
+            // Use raw query for performance
+            $rawQuery = "
+                SELECT * FROM (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY kr_id ORDER BY created_at DESC) as rn
+                    FROM check_ins
+                    WHERE kr_id IN ($placeholders)
+                ) as ranked
+                WHERE rn <= 2
+            ";
+            
+            try {
+                $checkIns = DB::select($rawQuery);
+                $checkInsGrouped = collect($checkIns)->groupBy('kr_id');
+                
+                foreach ($allKrs as $kr) {
+                    $krData = $checkInsGrouped->get($kr->kr_id) ?? collect();
+                    // Hydrate raw objects to CheckIn models
+                    $kr->setRelation('checkIns', CheckIn::hydrate($krData->toArray()));
+                }
+            } catch (\Exception $e) {
+                // Fallback for older MySQL versions or errors: Load all checkins (slower but safe)
+                $allKrs->load(['checkIns' => function($q) {
+                    $q->orderByDesc('created_at');
+                }]);
+            }
+        }
+
+        // OPTIMIZATION: Eager load Latest CheckIn for each member
+        $latestCheckIns = CheckIn::whereIn('user_id', $memberIds)
+            ->whereHas('keyResult', function($q) use ($cycleId) {
+                $q->where('cycle_id', $cycleId);
+            })
+            ->select('check_in_id', 'user_id', 'created_at')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->unique('user_id');
+
+        $memberStats = $members->map(function ($member) use ($allKrs, $latestCheckIns, $departmentId, $cycleId, $expectedProgress) {
+            // Filter KRs for this member from the collection
+            $myKrs = $allKrs->filter(function($kr) use ($member) {
+                return $kr->user_id === $member->user_id || $kr->assigned_to === $member->user_id;
+            });
+            
+            // Get last checkin
+            $myLastCheckIn = $latestCheckIns->firstWhere('user_id', $member->user_id);
+
+            return $this->calculateMemberStats($member, $myKrs, $myLastCheckIn, $expectedProgress);
         })->sortBy(function($member) {
              // Logic sort: Ưu tiên role_id nhỏ (thường là Manager/Admin)
              $rolePriority = 99;
@@ -166,22 +228,12 @@ class ReportService
 
     /**
      * Tính toán chỉ số chi tiết cho 1 Member
+     * @param User $member
+     * @param Collection $userKrs Pre-loaded KRs
+     * @param CheckIn|null $lastCheckIn Pre-loaded last CheckIn
      */
-    private function calculateMemberStats(User $member, int $departmentId, int $cycleId, float $expectedProgress): array
+    private function calculateMemberStats(User $member, Collection $userKrs, ?CheckIn $lastCheckIn, float $expectedProgress): array
     {
-        // 1. Lấy các KR mà user này liên quan (Owner hoặc Assigned) trong cycle hiện tại
-        $userKrs = KeyResult::query()
-            ->where('cycle_id', $cycleId)
-            ->whereNull('archived_at') // Exclude archived KRs
-            ->where(function($q) use ($member) {
-                $q->where('user_id', $member->user_id)
-                  ->orWhere('assigned_to', $member->user_id);
-            })
-            ->with(['checkIns' => function($q) {
-                $q->orderByDesc('created_at')->limit(2);
-            }])
-            ->get();
-
         // 2. Tính tiến độ trung bình dựa trên KRs
         $totalKrsCount = $userKrs->count();
         $avgProgress = 0.0;
@@ -204,14 +256,7 @@ class ReportService
         }
 
         // 3. Phân tích Check-in (Velocity & Trend)
-        // 3a. Lấy ngày check-in cuối cùng (Chỉ lấy check-in thuộc cycle hiện tại)
-        $lastCheckIn = CheckIn::where('user_id', $member->user_id)
-            ->whereHas('keyResult', function($q) use ($cycleId) {
-                $q->where('cycle_id', $cycleId);
-            })
-            ->latest('created_at')
-            ->first();
-        
+        // 3a. Lấy ngày check-in cuối cùng (đã được pre-load)
         $lastCheckInDate = $lastCheckIn ? $lastCheckIn->created_at : null;
 
         // 3b. Tính Confidence Trend

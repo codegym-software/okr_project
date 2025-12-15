@@ -32,6 +32,7 @@ export default function ReportPage() {
     const [cycles, setCycles] = useState([]);
     const [selectedCycle, setSelectedCycle] = useState("");
     const [reportData, setReportData] = useState(null);
+    const [trendData, setTrendData] = useState([]); // New state for trend
     const [departmentName, setDepartmentName] = useState("");
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState("performance");
@@ -44,6 +45,7 @@ export default function ReportPage() {
         setLoading(true);
         setError(null);
         try {
+            // Load main report
             const res = await fetch(`/api/reports/my-team?cycle_id=${cycleId}`, { headers: { Accept: "application/json" } });
             const json = await res.json();
             if (json.success) {
@@ -52,11 +54,27 @@ export default function ReportPage() {
             } else {
                 setError(json.message);
             }
+
+            // Load trend data
+            await fetchTrendData(cycleId);
+
         } catch (e) {
             console.error("Error loading report:", e);
             setError("Lỗi kết nối server");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchTrendData = async (cycleId) => {
+        try {
+            const res = await fetch(`/api/reports/progress-trend?cycle_id=${cycleId}`, { headers: { Accept: "application/json" } });
+            const json = await res.json();
+            if (json.success) {
+                setTrendData(json.data || []);
+            }
+        } catch (e) {
+            console.error("Error loading trend:", e);
         }
     };
 
@@ -148,25 +166,67 @@ export default function ReportPage() {
             ]
         };
 
-        // Line Chart: Progress vs Ideal
-        // Simulating a timeline since we might not have daily history
-        const idealProgress = reportData.expected_progress || 0;
-        const currentProgress = stats.avgProgress;
+        // Line Chart: Progress vs Ideal using Trend Data
+        let lineLabels = [];
+        let actualData = [];
+        let idealData = [];
+
+        // Tìm thông tin chu kỳ hiện tại để tính tổng số tuần
+        const currentCycleInfo = cycles.find(c => String(c.cycle_id) === String(selectedCycle));
+        
+        if (currentCycleInfo && currentCycleInfo.start_date && currentCycleInfo.end_date) {
+            const start = new Date(currentCycleInfo.start_date);
+            const end = new Date(currentCycleInfo.end_date);
+            const diffTime = Math.abs(end - start);
+            const totalWeeks = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 7)); // Tổng số tuần
+
+            // Tạo nhãn Tuần 1 -> Tuần N
+            lineLabels = Array.from({ length: totalWeeks }, (_, i) => `Tuần ${i + 1}`);
+            
+            // Tạo đường Ideal (0 -> 100 chia đều cho số tuần)
+            const step = 100 / (totalWeeks > 0 ? totalWeeks : 1);
+            idealData = Array.from({ length: totalWeeks }, (_, i) => Math.min(100, (i + 1) * step));
+
+            // Map dữ liệu thực tế (trendData) vào
+            if (trendData && trendData.length > 0) {
+                actualData = trendData.map(d => d.avg_progress);
+            } else {
+                // Fallback: Nếu không có dữ liệu lịch sử, hiển thị đường nối từ 0 -> hiện tại
+                const now = new Date();
+                actualData = Array(totalWeeks).fill(null);
+                actualData[0] = 0; // Điểm bắt đầu luôn là 0
+
+                if (now >= start) {
+                    const elapsed = Math.abs(now - start);
+                    const currentWeekIndex = Math.floor(elapsed / (1000 * 60 * 60 * 24 * 7));
+                    const targetIndex = Math.min(currentWeekIndex, totalWeeks - 1);
+                    actualData[targetIndex] = stats.avgProgress;
+                } else {
+                    actualData = []; 
+                }
+            }
+        } else {
+            // Fallback cũ nếu không có thông tin chu kỳ
+            lineLabels = ['Bắt đầu', 'Hiện tại', 'Kết thúc'];
+            actualData = [0, stats.avgProgress, null];
+            idealData = [0, reportData.expected_progress || 0, 100];
+        }
         
         const lineData = {
-            labels: ['Bắt đầu', 'Hiện tại', 'Kết thúc'],
+            labels: lineLabels,
             datasets: [
                 {
                     label: 'Thực tế',
-                    data: [0, currentProgress, null], // Null for end if not reached
+                    data: actualData,
                     borderColor: 'rgba(59, 130, 246, 1)',
                     backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                    tension: 0.3,
-                    fill: true
+                    tension: 0.1, // Giảm độ cong để đường nối thẳng hơn khi ít điểm
+                    fill: true,
+                    spanGaps: true // QUAN TRỌNG: Tự động nối qua các điểm null
                 },
                 {
-                    label: 'Kế hoạch (Ideal)',
-                    data: [0, idealProgress, 100],
+                    label: 'Kế hoạch (Lý tưởng)',
+                    data: idealData,
                     borderColor: 'rgba(148, 163, 184, 1)', // Slate-400
                     borderDash: [5, 5],
                     tension: 0,
@@ -176,7 +236,7 @@ export default function ReportPage() {
         };
 
         return { bar: barData, line: lineData };
-    }, [reportData, stats]);
+    }, [reportData, stats, trendData, cycles, selectedCycle]);
 
     const getOwner = (userId) => {
         if (!reportData?.members) return { name: 'Unknown', avatar: null };

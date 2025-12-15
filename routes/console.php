@@ -29,3 +29,11 @@ Schedule::command('okr:send-checkin-reminders --days=3')
     ->timezone('Asia/Ho_Chi_Minh')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/checkin-reminders.log'));
+
+// Tự động snapshot dữ liệu báo cáo tuần (Chạy mỗi giờ để backfill nếu server bị tắt)
+// Chỉ tính toán và lưu những tuần chưa có dữ liệu
+Schedule::command('reports:sync-weekly')
+    ->hourly()
+    ->timezone('Asia/Ho_Chi_Minh')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/weekly-stats.log'));
