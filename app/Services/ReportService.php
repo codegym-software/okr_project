@@ -111,7 +111,7 @@ class ReportService
                 'progress' => $progress,
                 'key_results_count' => 0,
                 'completed_kr_count' => 0,
-                'status' => $this->determineTimeBasedStatus($progress, $expectedProgress),
+                'status' => ($objective->status === 'draft') ? 'draft' : $this->determineTimeBasedStatus($progress, $expectedProgress),
                 'last_updated' => $objective->updated_at,
             ];
         }
@@ -147,7 +147,7 @@ class ReportService
             'progress' => $avgProgress,
             'key_results_count' => $totalItemsCount, // Gộp cả Obj con vào số lượng KR hiển thị
             'completed_kr_count' => $completedKrs + $completedChildObjs,
-            'status' => $this->determineTimeBasedStatus($avgProgress, $expectedProgress),
+            'status' => ($objective->status === 'draft') ? 'draft' : $this->determineTimeBasedStatus($avgProgress, $expectedProgress),
             'last_updated' => $objective->updated_at,
         ];
     }
