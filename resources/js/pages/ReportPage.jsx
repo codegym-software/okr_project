@@ -124,9 +124,9 @@ export default function ReportPage() {
         });
         const atRiskRate = unitOkrs.length > 0 ? (riskCount / unitOkrs.length) * 100 : 0;
 
-        // 3. Avg Contribution / User
-        const totalContribution = members.reduce((acc, m) => acc + (Number(m.total_kr_contributed) || 0), 0);
-        const avgContribution = members.length > 0 ? (totalContribution / members.length) : 0;
+        // 3. Avg Contribution / User (Average Personal Progress)
+        const totalPersonalProgress = members.reduce((acc, m) => acc + (Number(m.average_completion) || 0), 0);
+        const avgContribution = members.length > 0 ? (totalPersonalProgress / members.length) : 0;
 
         return { avgProgress, atRiskRate, avgContribution };
     }, [reportData]);
@@ -297,7 +297,7 @@ export default function ReportPage() {
                                         <FiUsers className="w-5 h-5" />
                                     </div>
                                 </div>
-                                <div className="text-3xl font-bold text-slate-900">{stats.avgContribution.toFixed(1)}</div>
+                                <div className="text-3xl font-bold text-slate-900">{stats.avgContribution.toFixed(1)}%</div>
                             </div>
                         </div>
 
