@@ -388,7 +388,7 @@ export default function ArchivedOkrsPage() {
                                         } hover:bg-slate-50/70`}
                                     >
                                         {/* Cột "Tiêu đề" (kéo dài 3 cột) */}
-                                        <td colSpan={3} className="px-3 py-3">
+                                        <td colSpan={4} className="px-3 py-3">
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
