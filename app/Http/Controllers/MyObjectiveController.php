@@ -107,18 +107,23 @@ class MyObjectiveController extends Controller
 
 
         // Filter by view_mode: 'levels' or 'personal'
-        $viewMode = $request->input('view_mode', 'levels'); 
-        if ($viewMode === 'personal') {
-            $query->where('level', 'person');
-        } else { // 'levels'
-            $query->whereIn('level', ['company', 'unit', 'team']);
+        // Chỉ áp dụng filter level khi KHÔNG phải là trang lưu trữ
+        if (!$request->has('archived') || $request->archived != '1') {
+            $viewMode = $request->input('view_mode', 'levels'); 
+            if ($viewMode === 'personal') {
+                $query->where('level', 'person');
+            } else { // 'levels'
+                $query->whereIn('level', ['company', 'unit', 'team']);
+            }
         }
 
         if ($request->has('archived') && $request->archived == '1') {
-            $query->whereNotNull('archived_at')
-                ->orWhereHas('keyResults', function ($q) {
-                    $q->whereNotNull('archived_at');
-                });
+            $query->where(function($subQuery) {
+                $subQuery->whereNotNull('archived_at')
+                    ->orWhereHas('keyResults', function ($q) {
+                        $q->whereNotNull('archived_at');
+                    });
+            });
         } else {
             $query->whereNull('archived_at');
         }

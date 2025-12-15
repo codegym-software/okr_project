@@ -204,7 +204,7 @@ export default function ReportPage() {
                 {/* 1. HEADER & CONTROLS */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Department Statistical Report</h1>
+                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Báo cáo Thống kê Phòng ban</h1>
                         {departmentName && <p className="text-slate-500 text-sm mt-1">{departmentName}</p>}
                     </div>
 
@@ -223,7 +223,7 @@ export default function ReportPage() {
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors text-sm font-medium disabled:opacity-50"
                         >
                             <FiDownload className="w-4 h-4" />
-                            <span>Export Data</span>
+                            <span>Xuất Dữ liệu</span>
                         </button>
                     </div>
                 </div>
@@ -231,19 +231,17 @@ export default function ReportPage() {
                 {/* 2. NAVIGATION TABS */}
                 <div className="border-b border-slate-200 mb-8">
                     <nav className="flex space-x-8" aria-label="Tabs">
-                        {['Performance', 'Process Compliance', 'Quality & Structure'].map((tab) => {
-                            const key = tab.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-'); // simple slug
-                            const isActive = activeTab === (key === 'performance' ? 'performance' : key); // default logic
-                            // Actually just mapping strings for simplicity
-                            const tabKey = tab === 'Performance' ? 'performance' : (tab === 'Process Compliance' ? 'compliance' : 'quality');
+                        {['Hiệu suất', 'Tuân thủ Quy trình', 'Chất lượng & Cấu trúc'].map((tab) => {
+                            const key = tab === 'Hiệu suất' ? 'performance' : (tab === 'Tuân thủ Quy trình' ? 'compliance' : 'quality');
+                            const isActive = activeTab === key;
                             
                             return (
                                 <button
                                     key={tab}
-                                    onClick={() => setActiveTab(tabKey)}
+                                    onClick={() => setActiveTab(key)}
                                     className={`
                                         whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors
-                                        ${activeTab === tabKey
+                                        ${isActive
                                             ? 'border-blue-600 text-blue-600'
                                             : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}
                                     `}
@@ -269,7 +267,7 @@ export default function ReportPage() {
                             {/* Card 1 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Avg. Dept Progress</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Tiến độ TB Phòng ban</h3>
                                     <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
                                         <FiActivity className="w-5 h-5" />
                                     </div>
@@ -280,21 +278,21 @@ export default function ReportPage() {
                             {/* Card 2 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">At Risk Rate</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Tỷ lệ Rủi ro</h3>
                                     <div className="p-2 bg-yellow-50 rounded-lg text-yellow-600">
                                         <FiAlertTriangle className="w-5 h-5" />
                                     </div>
                                 </div>
                                 <div className="flex items-end gap-2">
                                     <span className="text-3xl font-bold text-slate-900">{stats.atRiskRate.toFixed(1)}%</span>
-                                    <span className="text-sm text-slate-400 mb-1">of total OKRs</span>
+                                    <span className="text-sm text-slate-400 mb-1">trên tổng số OKR</span>
                                 </div>
                             </div>
 
                             {/* Card 3 */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Avg. Contrib/User</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Đóng góp TB/Thành viên</h3>
                                     <div className="p-2 bg-green-50 rounded-lg text-green-600">
                                         <FiUsers className="w-5 h-5" />
                                     </div>
@@ -307,7 +305,7 @@ export default function ReportPage() {
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             {/* Bar Chart */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                <h3 className="text-lg font-bold text-slate-800 mb-6">Progress Ranking by Member</h3>
+                                <h3 className="text-lg font-bold text-slate-800 mb-6">Xếp hạng Tiến độ theo Thành viên</h3>
                                 <div className="h-64">
                                     {chartData.bar && (
                                         <Bar 
@@ -325,11 +323,17 @@ export default function ReportPage() {
 
                             {/* Line Chart */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                                <h3 className="text-lg font-bold text-slate-800 mb-6">Department Progress vs. Ideal Line</h3>
+                                <h3 className="text-lg font-bold text-slate-800 mb-6">Tiến độ Phòng ban vs Kế hoạch</h3>
                                 <div className="h-64">
                                     {chartData.line && (
                                         <Line 
-                                            data={chartData.line}
+                                            data={{
+                                                ...chartData.line,
+                                                datasets: chartData.line.datasets.map(ds => ({
+                                                    ...ds,
+                                                    label: ds.label === 'Kế hoạch (Ideal)' ? 'Kế hoạch (Lý tưởng)' : ds.label
+                                                }))
+                                            }}
                                             options={{
                                                 responsive: true,
                                                 maintainAspectRatio: false,
@@ -345,94 +349,81 @@ export default function ReportPage() {
                         {/* DETAILED DATA TABLE */}
                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                             <div className="px-6 py-4 border-b border-slate-200">
-                                <h3 className="text-lg font-bold text-slate-800">Detailed Performance Data</h3>
+                                <h3 className="text-lg font-bold text-slate-800">Chi tiết Hiệu suất (OKR Phòng ban)</h3>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider font-semibold">
-                                            <th className="px-6 py-4">Objective/KR Name</th>
-                                            <th className="px-6 py-4">Owner</th>
-                                            <th className="px-6 py-4">Level</th>
-                                            <th className="px-6 py-4 w-1/6">Progress</th>
-                                            <th className="px-6 py-4">Health Status</th>
-                                            <th className="px-6 py-4 text-center">Confidence</th>
-                                            <th className="px-6 py-4">Linked To</th>
-                                            <th className="px-6 py-4 text-center">Action</th>
+                                            <th className="px-6 py-4">Tên Mục tiêu</th>
+                                            <th className="px-6 py-4">Chủ sở hữu</th>
+                                            <th className="px-6 py-4">Cấp độ</th>
+                                            <th className="px-6 py-4 w-1/6">Tiến độ</th>
+                                            <th className="px-6 py-4">Trạng thái</th>
+                                            <th className="px-6 py-4">Liên kết</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {reportData?.team_okrs?.map((okr, index) => {
-                                            const owner = getOwner(okr.user_id); // Assuming okr has user_id, or need to map
-                                            // Fallback if user_id not present on okr object directly in this endpoint
-                                            // In my-team endpoint, usually team_okrs has user_id? 
-                                            // If not, we might check how it was displayed before.
-                                            // TeamReportContent didn't explicitly show owner per OKR row, it grouped by Dept.
-                                            
-                                            return (
-                                                <tr key={index} className="hover:bg-slate-50 transition-colors text-sm">
-                                                    <td className="px-6 py-4">
-                                                        <a href="#" className="font-medium text-blue-600 hover:underline line-clamp-2" title={okr.obj_title}>
-                                                            {okr.obj_title}
-                                                        </a>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <img 
-                                                                src={owner.avatar || `https://ui-avatars.com/api/?name=${owner.name || 'U'}&background=random`} 
-                                                                alt={owner.name} 
-                                                                className="w-6 h-6 rounded-full"
-                                                            />
-                                                            <span className="text-slate-700 truncate max-w-[100px]" title={owner.name}>
-                                                                {owner.name}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
-                                                            okr.level === 'unit' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-600 border-slate-100'
-                                                        }`}>
-                                                            {okr.level === 'unit' ? 'DEPT' : 'PERS'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                                <div 
-                                                                    className={`h-full rounded-full ${okr.progress >= 70 ? 'bg-green-500' : okr.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} 
-                                                                    style={{ width: `${okr.progress}%` }}
-                                                                ></div>
+                                        {reportData?.team_okrs
+                                            ?.filter(okr => (okr.level || '').toLowerCase() === 'unit')
+                                            .map((okr, index) => {
+                                                const owner = getOwner(okr.user_id);
+                                                
+                                                return (
+                                                    <tr key={index} className="hover:bg-slate-50 transition-colors text-sm">
+                                                        <td className="px-6 py-4">
+                                                            <a href="#" className="font-medium text-blue-600 hover:underline line-clamp-2" title={okr.obj_title}>
+                                                                {okr.obj_title}
+                                                            </a>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <img 
+                                                                    src={owner.avatar || `https://ui-avatars.com/api/?name=${owner.name || 'U'}&background=random`} 
+                                                                    alt={owner.name} 
+                                                                    className="w-6 h-6 rounded-full"
+                                                                />
+                                                                <span className="text-slate-700 truncate max-w-[100px]" title={owner.name}>
+                                                                    {owner.name}
+                                                                </span>
                                                             </div>
-                                                            <span className="text-xs font-bold text-slate-700">{okr.progress}%</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <StatusBadge status={okr.status} />
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center text-slate-600">
-                                                        {/* Placeholder for Confidence Score if not in API */}
-                                                        {okr.confidence_score || 8}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-slate-500 text-xs">
-                                                        {/* Placeholder for Linked To */}
-                                                        {okr.parent_objective_title ? (
-                                                            <span className="text-blue-600 cursor-pointer" title={okr.parent_objective_title}>View Link</span>
-                                                        ) : (
-                                                            <span className="text-slate-400">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <button className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50">
-                                                            <FiEye className="w-4 h-4" />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border bg-indigo-50 text-indigo-600 border-indigo-100">
+                                                                P.BAN
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className={`h-full rounded-full ${okr.progress >= 70 ? 'bg-green-500' : okr.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                                                                        style={{ width: `${okr.progress}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                                <span className="text-xs font-bold text-slate-700">{okr.progress}%</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <StatusBadge status={okr.status} />
+                                                        </td>
+                                                        <td className="px-6 py-4 text-slate-500 text-xs">
+                                                            {/* Placeholder for Linked To */}
+                                                            {okr.parent_objective_title ? (
+                                                                <span className="text-blue-600 cursor-pointer block truncate max-w-[150px]" title={okr.parent_objective_title}>
+                                                                    {okr.parent_objective_title}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-400">-</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
                                         })}
-                                        {(!reportData?.team_okrs || reportData.team_okrs.length === 0) && (
+                                        {(!reportData?.team_okrs || reportData.team_okrs.filter(okr => (okr.level || '').toLowerCase() === 'unit').length === 0) && (
                                             <tr>
-                                                <td colSpan="8" className="px-6 py-12 text-center text-slate-400">
-                                                    No OKR data available for this cycle.
+                                                <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
+                                                    Không có dữ liệu OKR phòng ban nào trong chu kỳ này.
                                                 </td>
                                             </tr>
                                         )}
@@ -445,8 +436,8 @@ export default function ReportPage() {
                 ) : (
                     <div className="h-96 flex items-center justify-center bg-white rounded-xl border border-slate-200 border-dashed">
                         <div className="text-center text-slate-400">
-                            <p className="text-lg font-medium mb-1">Coming Soon</p>
-                            <p className="text-sm">This module is under development.</p>
+                            <p className="text-lg font-medium mb-1">Sắp ra mắt</p>
+                            <p className="text-sm">Chức năng này đang được phát triển.</p>
                         </div>
                     </div>
                 )}

@@ -39,9 +39,12 @@ class ReportService
             ->where('department_id', $departmentId)
             ->where('cycle_id', $cycleId)
             ->whereNull('archived_at')
-            ->with(['keyResults.checkIns' => function ($query) {
-                $query->orderByDesc('created_at')->limit(2);
-            }])
+            ->with([
+                'keyResults.checkIns' => function ($query) {
+                    $query->orderByDesc('created_at')->limit(2);
+                },
+                'sourceLinks.targetObjective'
+            ])
             ->get();
 
         // 2. Tính toán chỉ số từng Objective (có so sánh với expectedProgress)
@@ -92,11 +95,18 @@ class ReportService
         $krs = $objective->keyResults;
         
         // Lấy các Objective con (Linked Objectives) đã approved
-        // Objective con là SOURCE trong bảng okr_links, trỏ tới Objective cha là TARGET ($objective)
         $childObjectives = Objective::whereHas('sourceLinks', function($q) use ($objective) {
             $q->where('target_objective_id', $objective->objective_id)
               ->where('status', 'approved');
         })->get();
+
+        // Lấy Parent Objective (được liên kết tới)
+        $parentLink = $objective->sourceLinks->first(function($link) {
+            return $link->status === 'approved' && $link->target_type === 'objective';
+        });
+        $parentObjectiveTitle = $parentLink && $parentLink->targetObjective 
+            ? $parentLink->targetObjective->obj_title 
+            : null;
 
         $totalItemsCount = $krs->count() + $childObjectives->count();
         
@@ -113,6 +123,7 @@ class ReportService
                 'completed_kr_count' => 0,
                 'status' => ($objective->status === 'draft') ? 'draft' : $this->determineTimeBasedStatus($progress, $expectedProgress),
                 'last_updated' => $objective->updated_at,
+                'parent_objective_title' => $parentObjectiveTitle,
             ];
         }
 
@@ -149,6 +160,7 @@ class ReportService
             'completed_kr_count' => $completedKrs + $completedChildObjs,
             'status' => ($objective->status === 'draft') ? 'draft' : $this->determineTimeBasedStatus($avgProgress, $expectedProgress),
             'last_updated' => $objective->updated_at,
+            'parent_objective_title' => $parentObjectiveTitle,
         ];
     }
 
@@ -160,6 +172,7 @@ class ReportService
         // 1. Lấy các KR mà user này liên quan (Owner hoặc Assigned) trong cycle hiện tại
         $userKrs = KeyResult::query()
             ->where('cycle_id', $cycleId)
+            ->whereNull('archived_at') // Exclude archived KRs
             ->where(function($q) use ($member) {
                 $q->where('user_id', $member->user_id)
                   ->orWhere('assigned_to', $member->user_id);
