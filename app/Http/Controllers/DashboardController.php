@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Objective;
+use App\Models\KeyResult;
+use App\Models\CheckIn;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
@@ -26,7 +29,8 @@ class DashboardController extends Controller
             ->with([
                 'keyResults.childObjectives', // Load this to check if KR is a container (has links)
                 'sourceLinks.targetObjective', 
-                'sourceLinks.targetObjective.department'
+                'sourceLinks.targetObjective.department',
+                'cycle', // Add cycle for deadline
             ])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -114,12 +118,87 @@ class DashboardController extends Controller
         
         $companyGlobalAvg = $count > 0 ? round($totalProgress / $count, 1) : 0;
 
+        // Calculate overdue KRs (progress < 50%)
+        $overdueKrs = [];
+        foreach ($myOkrs as $okr) {
+            foreach ($okr->keyResults as $kr) {
+                if (($kr->calculated_progress ?? $kr->progress_percent ?? 0) < 50) {
+                    $overdueKrs[] = [
+                        'kr_id' => $kr->kr_id,
+                        'kr_title' => $kr->kr_title,
+                        'progress_percent' => $kr->calculated_progress ?? $kr->progress_percent ?? 0,
+                        'objective_id' => $okr->objective_id,
+                        'deadline' => $okr->cycle->end_date ?? null, // Assuming deadline from cycle
+                    ];
+                }
+            }
+        }
+
+        // Calculate weekly summary
+        $weekStart = Carbon::now()->startOfWeek();
+        $weekEnd = Carbon::now()->endOfWeek();
+
+        // KR checked in this week
+        $checkedInKrs = CheckIn::where('user_id', $user->user_id)
+            ->whereBetween('created_at', [$weekStart, $weekEnd])
+            ->distinct('kr_id')
+            ->count('kr_id');
+
+        // Total active KR (progress < 100)
+        $totalActiveKrs = 0;
+        $needCheckIn = 0;
+        $totalConfidence = 0;
+        $confidenceCount = 0;
+        $totalRisks = 0;
+
+        foreach ($myOkrs as $okr) {
+            foreach ($okr->keyResults as $kr) {
+                $krProgress = $kr->calculated_progress ?? $kr->progress_percent ?? 0;
+                
+                if ($krProgress < 100) {
+                    $totalActiveKrs++;
+                }
+                
+                // For need check-in: manual KR, not completed, overdue check-in (7 days)
+                if (!$kr->childObjectives || $kr->childObjectives->isEmpty()) { // Manual KR
+                    $lastCheckIn = CheckIn::where('kr_id', $kr->kr_id)->latest()->first();
+                    $isOverdue = !$lastCheckIn || $lastCheckIn->created_at < Carbon::now()->subDays(7);
+                    if ($krProgress < 100 && $isOverdue) {
+                        $needCheckIn++;
+                    }
+                }
+                
+                // For confidence: average confidence from latest check-in
+                $lastCheckIn = CheckIn::where('kr_id', $kr->kr_id)->latest()->first();
+                $confidence = $lastCheckIn ? $lastCheckIn->progress_percent : 100; // Default 100 if no check-in
+                $totalConfidence += $confidence;
+                $confidenceCount++;
+                
+                // For risks: KR with progress < 50 (temporary, until Risk table is implemented)
+                if ($krProgress < 50) {
+                    $totalRisks++;
+                }
+            }
+        }
+
+        $checkedInDisplay = $totalActiveKrs > 0 ? "$checkedInKrs/$totalActiveKrs" : "0";
+        $confidence = $confidenceCount > 0 ? round($totalConfidence / $confidenceCount, 1) : 0;
+
+        $weeklySummary = [
+            'checkedIn' => $checkedInDisplay,
+            'needCheckIn' => $needCheckIn,
+            'confidence' => $confidence,
+            'risks' => $totalRisks,
+        ];
+
         return response()->json([
             'user' => $user,
             'myOkrs' => $myOkrs,
             'deptOkrs' => $deptOkrs,
             'companyOkrs' => $companyOkrs,
-            'companyGlobalAvg' => $companyGlobalAvg // New field
+            'companyGlobalAvg' => $companyGlobalAvg,
+            'overdueKrs' => $overdueKrs,
+            'weeklySummary' => $weeklySummary,
         ]);
     }
 }

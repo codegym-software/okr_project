@@ -90,15 +90,23 @@ function MyOkrRow({ okr }) {
                             const isContainer = kr.child_objectives && kr.child_objectives.length > 0;
 
                             return (
-                                <div key={kr.kr_id || kr.id} className={`grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 items-center ${isContainer ? 'opacity-90 bg-slate-50/50' : ''}`}>
-                                    {/* Title */}
-                                    <div className="sm:col-span-5">
+                                <div 
+                                    key={kr.kr_id || kr.id} 
+                                    className={`grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-4 items-center ${isContainer ? 'opacity-90 bg-slate-50/50' : ''} ${krProgress < 50 ? 'border-l-4 border-amber-400 bg-amber-50/30' : ''}`}
+                                >
+                                    {/* Title - bên trái, chiếm phần lớn không gian */}
+                                    <div className="sm:col-span-7">
                                         <div className="flex items-center gap-2">
+                                            {krProgress < 50 && (
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                </svg>
+                                            )}
                                             <span className="text-sm font-medium text-slate-700 block truncate" title={kr.kr_title}>
                                                 • {kr.kr_title}
                                             </span>
                                             {isContainer && (
-                                                <div className="group relative">
+                                                <div className="group relative flex-shrink-0">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-500 cursor-help" viewBox="0 0 20 20" fill="currentColor">
                                                         <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                                                     </svg>
@@ -110,15 +118,20 @@ function MyOkrRow({ okr }) {
                                         </div>
                                     </div>
 
-                                    {/* Progress Bar & Values */}
-                                    <div className="sm:col-span-7 flex items-center gap-3">
-                                        <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                                            <div 
-                                                className={`h-full ${krColor} rounded-full`} 
-                                                style={{ width: `${krProgress}%` }}
-                                            />
+                                    {/* Progress Bar + Values - bên phải */}
+                                    <div className="sm:col-span-5 flex items-center justify-end gap-4">
+                                        {/* Progress Bar */}
+                                        <div className="w-32 sm:w-40">
+                                            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full ${krColor} rounded-full transition-all duration-300`} 
+                                                    style={{ width: `${krProgress}%` }}
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2 min-w-[50px] justify-end">
+
+                                        {/* Values */}
+                                        <div className="flex-shrink-0">
                                             {isContainer ? (
                                                 <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                                                     AUTO
@@ -153,7 +166,7 @@ function SimpleOkrList({ okrs, emptyText }) {
 
     return (
         <div className="space-y-4">
-            {okrs.map((okr) => {
+            {okrs.slice(0,3).map((okr) => {
                 // Ưu tiên calculated_progress, fallback về progress_percent
                 // Giữ 1 chữ số thập phân
                 const rawProgress = okr.calculated_progress ?? okr.progress_percent ?? 0;
@@ -205,6 +218,9 @@ function SimpleOkrList({ okrs, emptyText }) {
                     </div>
                 );
             })}
+            {okrs.length > 3 && (
+                <p className="text-xs text-slate-400 text-center">Và {okrs.length - 3} mục tiêu khác...</p>
+            )}
         </div>
     );
 }
@@ -215,6 +231,8 @@ export default function Dashboard() {
         myOkrs: [],
         deptOkrs: [],
         companyOkrs: [],
+        weeklySummary: { checkedIn: 0, needCheckIn: 0, confidence: 0, risks: 0 },
+        overdueKrs: [],
     });
     const [loading, setLoading] = useState(true);
 
@@ -284,7 +302,7 @@ export default function Dashboard() {
     const avgCompany = data.companyGlobalAvg ?? calculateAvg(data.companyOkrs);
 
     return (
-        <div className="mx-auto max-w-5xl space-y-10 pb-20">
+        <div className="mx-auto max-w-5xl space-y-10 pb-20 mt-10">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -312,7 +330,6 @@ export default function Dashboard() {
 
             {/* TỔNG QUAN TIẾN ĐỘ */}
             <div className={`grid grid-cols-1 gap-6 ${data.user?.role?.role_name?.toLowerCase() === 'ceo' ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
-                {/* 1. Cá nhân (Ẩn với CEO) */}
                 {data.user?.role?.role_name?.toLowerCase() !== 'ceo' && (
                     <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
                         <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
@@ -322,12 +339,11 @@ export default function Dashboard() {
                         </div>
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Cá nhân</p>
-                            <p className="text-2xl font-bold text-slate-900">{avgPersonal}%</p>
+                            <p className="text-xl font-bold text-slate-900">{avgPersonal}%</p>
                         </div>
                     </div>
                 )}
 
-                {/* 2. Phòng ban */}
                 <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
                     <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -336,11 +352,10 @@ export default function Dashboard() {
                     </div>
                     <div>
                         <p className="text-sm text-slate-500 font-medium">Phòng ban</p>
-                        <p className="text-2xl font-bold text-slate-900">{avgDept}%</p>
+                        <p className="text-xl font-bold text-slate-900">{avgDept}%</p>
                     </div>
                 </div>
 
-                {/* 3. Công ty */}
                 <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
                     <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -349,10 +364,42 @@ export default function Dashboard() {
                     </div>
                     <div>
                         <p className="text-sm text-slate-500 font-medium">Công ty</p>
-                        <p className="text-2xl font-bold text-slate-900">{avgCompany}%</p>
+                        <p className="text-xl font-bold text-slate-900">{avgCompany}%</p>
                     </div>
                 </div>
             </div>
+
+            {/* Khu vực Nợ & Cần hành động ngay */}
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800 mb-4">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-600">⚠️</span>
+                    Nợ & Cần hành động ngay
+                </h2>
+                {data.overdueKrs && data.overdueKrs.length > 0 ? (
+                    <div className="space-y-3">
+                        {data.overdueKrs.map((kr) => (
+                            <div key={kr.kr_id} className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-500" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                <div className="flex-1">
+                                    <p className="text-sm font-medium text-rose-800">{kr.kr_title}</p>
+                                    <p className="text-xs text-rose-600">Tiến độ: {kr.progress_percent}% - Deadline: {kr.deadline}</p>
+                                </div>
+                                <a href={`/my-objectives/details/${kr.objective_id}`} className="text-xs font-bold text-rose-700 hover:text-rose-800">Xem & Check-in</a>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-emerald-500 mx-auto mb-3" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        <p className="text-lg font-bold text-emerald-700">Bạn đang on-track! 🎉</p>
+                        <p className="text-sm text-slate-500">Không có KR nào overdue hoặc sắp overdue.</p>
+                    </div>
+                )}
+            </section>
 
             {/* KHU VỰC 1: CỦA TÔI (Highlight) - Ẩn với CEO */}
             {data.user?.role?.role_name?.toLowerCase() !== 'ceo' && (
@@ -396,6 +443,32 @@ export default function Dashboard() {
                     )}
                 </section>
             )}
+
+            {/* Tóm tắt nhanh tuần này */}
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800 mb-4">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">📊</span>
+                    Tóm tắt nhanh tuần này
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-slate-50 rounded-lg">
+                        <p className="text-xl font-bold text-slate-900">{data.weeklySummary.checkedIn}</p>
+                        <p className="text-sm text-slate-500">KR đã check-in</p>
+                    </div>
+                    <div className="text-center p-4 bg-slate-50 rounded-lg">
+                        <p className="text-xl font-bold text-slate-900">{data.weeklySummary.needCheckIn}</p>
+                        <p className="text-sm text-slate-500">Cần check-in</p>
+                    </div>
+                    <div className="text-center p-4 bg-slate-50 rounded-lg">
+                        <p className="text-xl font-bold text-slate-900">{data.weeklySummary.confidence}%</p>
+                        <p className="text-sm text-slate-500">Confidence</p>
+                    </div>
+                    <div className="text-center p-4 bg-slate-50 rounded-lg">
+                        <p className="text-xl font-bold text-slate-900">{data.weeklySummary.risks}</p>
+                        <p className="text-sm text-slate-500">Rủi ro</p>
+                    </div>
+                </div>
+            </section>
 
             <div className="grid gap-10 md:grid-cols-2">
                 {/* KHU VỰC 2: PHÒNG BAN (Read Only) */}
