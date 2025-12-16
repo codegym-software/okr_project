@@ -8,10 +8,10 @@ use App\Models\Cycle;
 use App\Models\CheckIn;
 use App\Models\KeyResult;
 use App\Models\User;
+use App\Models\Report;
 use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\URL;
 use Spatie\Browsershot\Browsershot;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -96,7 +96,6 @@ class ReportController extends Controller
 
     /**
      * Biểu đồ xu hướng tiến độ tích lũy của nhóm theo tuần.
-     * Chỉ sử dụng dữ liệu snapshot từ bảng report_snapshots_weekly.
      */
     public function getTeamProgressTrend(Request $request)
     {
@@ -154,40 +153,6 @@ class ReportController extends Controller
             ],
             'data' => $finalData,
         ]);
-    }
-
-    /**
-     * Chọn chu kỳ ưu tiên: tham số -> hiện tại -> gần nhất.
-     */
-    protected function resolveCycle(?int $cycleId = null): ?Cycle
-    {
-        if ($cycleId) {
-            return Cycle::find($cycleId);
-        }
-
-        $now = now();
-        $current = Cycle::where('start_date', '<=', $now)
-            ->where('end_date', '>=', $now)
-            ->orderByDesc('start_date')
-            ->first();
-
-        if ($current) {
-            return $current;
-        }
-
-        return Cycle::orderByDesc('start_date')->first();
-    }
-
-    /**
-     * Chuẩn hóa tiến độ về 0 - 100 với 2 chữ số thập phân.
-     */
-    protected function clampProgress(?float $value): float
-    {
-        if ($value === null || !is_finite($value)) {
-            return 0.0;
-        }
-
-        return (float) round(max(0, min(100, $value)), 2);
     }
 
     /**
@@ -1192,6 +1157,38 @@ class ReportController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Đã gửi nhắc nhở thành công']);
     }
+
+    /**
+     * Chuẩn hóa tiến độ về 0 - 100 với 2 chữ số thập phân.
+     */
+    protected function clampProgress(?float $value): float
+    {
+        if ($value === null || !is_finite($value)) {
+            return 0.0;
+        }
+
+        return (float) round(max(0, min(100, $value)), 2);
+    }
+
+    /**
+     * Resolve cycle from ID or current
+     */
+    protected function resolveCycle(?int $cycleId = null): ?Cycle
+    {
+        if ($cycleId) {
+            return Cycle::find($cycleId);
+        }
+
+        $now = now();
+        $current = Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->orderByDesc('start_date')
+            ->first();
+
+        if ($current) {
+            return $current;
+        }
+
+        return Cycle::orderByDesc('start_date')->first();
+    }
 }
-
-
