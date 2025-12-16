@@ -65,29 +65,80 @@ class ReportService
         $memberIds = $members->pluck('user_id');
 
         // --- NEW: PROCESS COMPLIANCE METRICS ---
-        // Now $memberIds is available!
         $now = now();
-        $sevenDaysAgo = $now->copy()->subDays(7);
+        // Change logic: Current Week (Monday to Now) instead of Rolling 7 Days
+        $startOfWeek = $now->copy()->startOfWeek(Carbon::MONDAY);
 
         // A. Dept Check-in Rate
-        $activeObjectives = $objectiveStats->filter(function($obj) {
-            return ($obj['progress'] ?? 0) < 100 && ($obj['status'] ?? '') !== 'draft';
-        });
-        $totalActive = $activeObjectives->count();
-        $checkedInCount = $activeObjectives->filter(function($obj) use ($sevenDaysAgo) {
-            return !empty($obj['last_checkin_date']) && Carbon::parse($obj['last_checkin_date'])->gte($sevenDaysAgo);
-        })->count();
-        $deptCheckinRate = $totalActive > 0 ? round(($checkedInCount / $totalActive) * 100, 1) : 0;
+        $totalComplianceItems = 0;
+        $checkedInItems = 0;
+        $missedItems = 0;
 
-        // B. Missed Check-ins
-        $missedCheckinsCount = $activeObjectives->filter(function($obj) use ($sevenDaysAgo) {
-            $createdAt = isset($obj['created_at']) ? Carbon::parse($obj['created_at']) : now();
-            if ($createdAt->gte($sevenDaysAgo)) return false; 
-            if (empty($obj['last_checkin_date'])) return true; 
-            return Carbon::parse($obj['last_checkin_date'])->lt($sevenDaysAgo);
-        })->count();
+        foreach ($objectives as $obj) {
+            // Skip draft objectives
+            if (($obj->status ?? '') === 'draft') continue;
+            
+            // Only consider UNIT level objectives as roots
+            if (strtolower($obj->level ?? '') !== 'unit') continue;
 
-        // C. Alignment Rate
+            // 1. Direct Key Results
+            $activeKrs = $obj->keyResults->filter(function($kr) {
+                return ($kr->progress_percent ?? 0) < 100 && $kr->archived_at === null;
+            });
+
+            foreach ($activeKrs as $kr) {
+                $totalComplianceItems++;
+                
+                $lastCheckin = $kr->checkIns->first();
+                $lastCheckinDate = $lastCheckin ? $lastCheckin->created_at : null;
+                
+                // Checked in THIS WEEK?
+                $isCheckedIn = $lastCheckinDate && $lastCheckinDate->gte($startOfWeek);
+                
+                if ($isCheckedIn) {
+                    $checkedInItems++;
+                } else {
+                    // Missed if created BEFORE this week and not checked in THIS week
+                    $created = $kr->created_at ?: $obj->created_at;
+                    if ($created->lt($startOfWeek)) {
+                        $missedItems++;
+                    }
+                }
+            }
+
+            // 2. Linked Child Objectives
+            $childObjectives = Objective::whereHas('sourceLinks', function($q) use ($obj) {
+                $q->where('target_objective_id', $obj->objective_id)
+                  ->where('status', 'approved');
+            })->whereNull('archived_at')->get();
+
+            foreach ($childObjectives as $child) {
+                if (($child->progress_percent ?? 0) >= 100) continue; 
+
+                $totalComplianceItems++;
+                
+                $lastChildCheckin = CheckIn::whereHas('keyResult', function($q) use ($child) {
+                    $q->where('objective_id', $child->objective_id);
+                })->orderByDesc('created_at')->value('created_at');
+                
+                $lastCheckinDate = $lastChildCheckin ? Carbon::parse($lastChildCheckin) : null;
+                
+                $isCheckedIn = $lastCheckinDate && $lastCheckinDate->gte($startOfWeek);
+                
+                if ($isCheckedIn) {
+                    $checkedInItems++;
+                } else {
+                    if ($child->created_at->lt($startOfWeek)) {
+                        $missedItems++;
+                    }
+                }
+            }
+        }
+
+        $deptCheckinRate = $totalComplianceItems > 0 ? round(($checkedInItems / $totalComplianceItems) * 100, 1) : 0;
+        $missedCheckinsCount = $missedItems;
+
+        // B. Alignment Rate
         $unitObjsCount = $objectives->filter(fn($o) => strtolower($o->level ?? '') === 'unit')->count();
         $linkedUnitObjsCount = $objectives->filter(function($obj) {
             return strtolower($obj->level ?? '') === 'unit' && $obj->sourceLinks->contains(function($link) {
@@ -96,8 +147,8 @@ class ReportService
         })->count();
         $alignmentRate = $unitObjsCount > 0 ? round(($linkedUnitObjsCount / $unitObjsCount) * 100, 1) : 0;
 
-        // D. Members without Check-in
-        $recentCheckinUserIds = CheckIn::where('created_at', '>=', $sevenDaysAgo)
+        // C. Members without Check-in
+        $recentCheckinUserIds = CheckIn::where('created_at', '>=', $startOfWeek)
             ->whereIn('user_id', $memberIds)
             ->pluck('user_id')
             ->unique()

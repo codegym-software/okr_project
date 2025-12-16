@@ -724,7 +724,7 @@ export default function ReportPage() {
                             {/* Card 3: Alignment Rate */}
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Tỷ lệ Căn chỉnh</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Tỷ lệ Liên kết</h3>
                                     <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
                                         <FiLink className="w-5 h-5" />
                                     </div>
