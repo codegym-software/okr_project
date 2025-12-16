@@ -3,7 +3,7 @@ import StatCard from './StatCard';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend } from 'chart.js';
 import EmptyState from './EmptyState';
-import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare, FiLink, FiGitMerge, FiRepeat } from 'react-icons/fi';
+import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare, FiLink, FiLayers, FiRepeat } from 'react-icons/fi';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend);
 
@@ -147,7 +147,7 @@ export default function ProcessTab({ data }) {
                     tooltip="Tỷ lệ phần trăm các Mục tiêu (không phải cấp công ty) được căn chỉnh/liên kết với một Mục tiêu khác."
                 />
                 <StatCard 
-                    icon={<FiGitMerge className="w-6 h-6" />}
+                    icon={<FiLayers className="w-6 h-6" />}
                     title="Tỷ lệ Hoàn thành Thiết lập" 
                     value={`${statCards.setup_completion_rate}%`}
                     tooltip="Tỷ lệ phần trăm các Mục tiêu có ít nhất một Key Result được định nghĩa."

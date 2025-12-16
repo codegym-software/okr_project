@@ -9,7 +9,7 @@ import SnapshotModal from '../components/reports/SnapshotModal';
 import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
 import { fetchDetailedData, fetchDetailedDataForSnapshot, createSnapshot } from '../utils/reports/dataFetchers';
 import { loadSnapshots as loadSnapshotsUtil } from '../utils/reports/snapshotHelpers';
-import { FiDownload, FiArchive, FiList, FiTrendingUp, FiCheckCircle, FiGitMerge, FiFilter, FiClock, FiX } from "react-icons/fi";
+import { FiDownload, FiArchive, FiList, FiTrendingUp, FiCheckCircle, FiShield, FiFilter, FiClock, FiX } from "react-icons/fi";
 import { Dropdown } from '../components/Dropdown';
 
 export default function CompanyOverviewReport() {
@@ -203,7 +203,7 @@ export default function CompanyOverviewReport() {
     const tabConfig = [
         { id: 'performance', label: 'Hiệu suất', icon: FiTrendingUp },
         { id: 'process', label: 'Quy trình', icon: FiCheckCircle },
-        { id: 'quality', label: 'Chất lượng & Cấu trúc', icon: FiGitMerge },
+        { id: 'quality', label: 'Chất lượng & Cấu trúc', icon: FiShield },
     ];
 
     return (

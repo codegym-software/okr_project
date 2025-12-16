@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiBarChart2, FiTrendingDown, FiActivity, FiCheckCircle, FiHeart } from 'react-icons/fi';
+import { FiBarChart2, FiTrendingDown, FiTrendingUp, FiCheckCircle, FiSmile } from 'react-icons/fi';
 
 import StatCard from './StatCard';
 import ProgressOverTimeChart from './ProgressOverTimeChart';
@@ -19,7 +19,7 @@ export default function PerformanceTab({ data }) {
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 <StatCard
-                    icon={<FiActivity className="w-6 h-6" />}
+                    icon={<FiTrendingUp className="w-6 h-6" />}
                     title="Tiến độ TB các O Cấp Công ty"
                     value={`${statCards.avg_company_progress || 0}%`}
                     tooltip="Tiến độ trung bình của tất cả các Mục tiêu cấp công ty trong chu kỳ này."
@@ -31,7 +31,7 @@ export default function PerformanceTab({ data }) {
                     tooltip="Tỷ lệ phần trăm các Mục tiêu được coi là 'Hoàn thành' (tiến độ đạt trên 70%)."
                 />
                 <StatCard
-                    icon={<FiHeart className="w-6 h-6" />}
+                    icon={<FiSmile className="w-6 h-6" />}
                     title="Tổng Điểm Tự tin TB"
                     value={statCards.avg_confidence_score || 'N/A'}
                     tooltip="Điểm tự tin trung bình được báo cáo từ các lần check-in gần nhất của các thành viên."

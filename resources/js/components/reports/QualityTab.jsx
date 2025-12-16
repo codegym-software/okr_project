@@ -2,7 +2,7 @@ import React from 'react';
 import StatCard from './StatCard';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js';
-import { FiTarget, FiAward, FiHash } from 'react-icons/fi';
+import { FiAward, FiStar, FiClipboard } from 'react-icons/fi';
 
 ChartJS.register(ArcElement, Tooltip, Legend, Title);
 
@@ -134,19 +134,19 @@ export default function QualityTab({ data }) {
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 <StatCard 
-                    icon={<FiTarget className="w-6 h-6" />}
+                    icon={<FiAward className="w-6 h-6" />}
                     title="Tỷ lệ KR Kết quả" 
                     value={`${statCards.outcome_kr_rate}%`}
                     tooltip="Tỷ lệ phần trăm các Key Result được phân loại là 'Kết quả' (outcome-based) thay vì 'Hoạt động' (activity-based)."
                 />
                 <StatCard 
-                    icon={<FiAward className="w-6 h-6" />}
+                    icon={<FiStar className="w-6 h-6" />}
                     title="Tỷ lệ O Tham vọng" 
                     value={`${statCards.aspirational_rate}%`}
                     tooltip="Tỷ lệ phần trăm các Mục tiêu được đánh dấu là 'Tham vọng', có thể không đạt 100%."
                 />
                 <StatCard 
-                    icon={<FiHash className="w-6 h-6" />}
+                    icon={<FiClipboard className="w-6 h-6" />}
                     title="Số KR TB/O Toàn Công ty" 
                     value={`${statCards.avg_krs_per_objective}`}
                     tooltip="Số lượng Key Result trung bình trên mỗi Mục tiêu. Con số lý tưởng thường là từ 2 đến 5."
