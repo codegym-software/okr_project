@@ -31,12 +31,15 @@ export default function SnapshotHistoryModal({
 
     // Lọc snapshot theo cấp độ
     const filteredSnapshots = (snapshots || []).filter((snap) => {
-        // Filter by level
         if (showLevelFilter && snapshotLevelFilter && snapshotLevelFilter !== 'all') {
-            const snapLevel = snap.data_snapshot?.level || 'departments';
-            if (snapLevel !== snapshotLevelFilter) return false;
+            const isCompanyLevel = !snap.department;
+            if (snapshotLevelFilter === 'company' && !isCompanyLevel) {
+                return false;
+            }
+            if (snapshotLevelFilter === 'departments' && isCompanyLevel) {
+                return false;
+            }
         }
-
         return true;
     });
 
