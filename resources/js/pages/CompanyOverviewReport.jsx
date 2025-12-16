@@ -4,19 +4,19 @@ import { CycleDropdown } from '../components/Dropdown';
 import PerformanceTab from '../components/reports/PerformanceTab';
 import ProcessTab from '../components/reports/ProcessTab';
 import QualityTab from '../components/reports/QualityTab';
-import FilterModal from '../components/reports/FilterModal';
+import FilterDropdown from '../components/reports/FilterDropdown';
 import SnapshotModal from '../components/reports/SnapshotModal';
 import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
 import { fetchDetailedData, fetchDetailedDataForSnapshot, createSnapshot } from '../utils/reports/dataFetchers';
 import { loadSnapshots as loadSnapshotsUtil } from '../utils/reports/snapshotHelpers';
 import { FiDownload, FiArchive, FiList, FiTrendingUp, FiCheckCircle, FiGitMerge, FiFilter, FiClock, FiX } from "react-icons/fi";
+import { Dropdown } from '../components/Dropdown';
 
 export default function CompanyOverviewReport() {
     const [cycles, setCycles] = useState([]);
     const [departments, setDepartments] = useState([]);
     
     // Modal states
-    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
     const [isSnapshotModalOpen, setIsSnapshotModalOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     
@@ -57,7 +57,7 @@ export default function CompanyOverviewReport() {
         params.set('cycle_id', filters.cycleId);
         params.set('tab', currentTab);
         if (filters.departmentId) params.set('department_id', filters.departmentId);
-        if (filters.objectiveLevel && filters.objectiveLevel !== 'all') params.set('objective_level', filters.objectiveLevel);
+        if (filters.objectiveLevel && filters.objectiveLevel !== 'all') params.set('level', filters.objectiveLevel);
         if (filters.dateRange.start) params.set('start_date', filters.dateRange.start);
         if (filters.dateRange.end) params.set('end_date', filters.dateRange.end);
         
@@ -139,7 +139,7 @@ export default function CompanyOverviewReport() {
         const params = new URLSearchParams(window.location.search);
         const cycleId = params.get('cycle_id');
         const departmentId = params.get('department_id');
-        const objectiveLevel = params.get('objective_level');
+        const objectiveLevel = params.get('level');
         
         const initialFilters = { ...filters };
         if (cycleId) initialFilters.cycleId = cycleId;
@@ -209,8 +209,8 @@ export default function CompanyOverviewReport() {
         if (filters.departmentId) params.set('department_id', filters.departmentId);
         else params.delete('department_id');
 
-        if (filters.objectiveLevel && filters.objectiveLevel !== 'all') params.set('objective_level', filters.objectiveLevel);
-        else params.delete('objective_level');
+        if (filters.objectiveLevel && filters.objectiveLevel !== 'all') params.set('level', filters.objectiveLevel);
+        else params.delete('level');
 
         window.history.replaceState({}, '', url.toString());
     }, [filters]);
@@ -245,11 +245,23 @@ export default function CompanyOverviewReport() {
                         </div>
                         {/* Action Buttons */}
                         <div className="flex items-center gap-2 mt-4">
-                             <button onClick={() => setIsFilterModalOpen(true)} className={`relative flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium border rounded-lg transition-colors ${hasActiveFilters ? 'border-blue-300 bg-blue-50 text-blue-700' : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'}`}>
-                                <FiFilter />
-                                Bộ lọc
-                                {hasActiveFilters && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span></span>}
-                            </button>
+                            <Dropdown
+                                position="right"
+                                trigger={
+                                    <button className={`relative flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium border rounded-lg transition-colors ${hasActiveFilters ? 'border-blue-300 bg-blue-50 text-blue-700' : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'}`}>
+                                        <FiFilter />
+                                        Bộ lọc
+                                        {hasActiveFilters && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span></span>}
+                                    </button>
+                                }
+                            >
+                                <FilterDropdown
+                                    filters={filters}
+                                    setFilters={setFilters}
+                                    allDepartments={departments}
+                                />
+                            </Dropdown>
+
                             {isAdminOrCeo && (
                                 <>
                                     <button onClick={() => setIsSnapshotModalOpen(true)} disabled={snapshotContext.isSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -311,7 +323,6 @@ export default function CompanyOverviewReport() {
             </div>
             
             {/* Modals */}
-            <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} filters={filters} setFilters={setFilters} allDepartments={departments} />
             {isAdminOrCeo && (
                 <>
                     <SnapshotModal isOpen={isSnapshotModalOpen} onClose={() => setIsSnapshotModalOpen(false)} onSave={handleSaveSnapshot} />
