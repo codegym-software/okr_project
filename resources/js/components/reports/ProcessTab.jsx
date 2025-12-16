@@ -3,7 +3,7 @@ import StatCard from './StatCard';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend } from 'chart.js';
 import EmptyState from './EmptyState';
-import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare } from 'react-icons/fi';
+import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare, FiLink, FiGitMerge, FiRepeat } from 'react-icons/fi';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend);
 
@@ -134,10 +134,30 @@ export default function ProcessTab({ data }) {
         <div className="space-y-6">
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                <StatCard label="Tỷ lệ Check-in Định kỳ" value={`${statCards.check_in_rate}%`} />
-                <StatCard label="Tỷ lệ OKR đã Căn chỉnh" value={`${statCards.alignment_rate}%`} />
-                <StatCard label="Tỷ lệ Hoàn thành Thiết lập" value={`${statCards.setup_completion_rate}%`} />
-                <StatCard label="Tần suất Check-in TB/Người" value={`${statCards.avg_checkins_per_user}`} />
+                <StatCard 
+                    icon={<FiCheckSquare className="w-6 h-6" />}
+                    title="Tỷ lệ KR có Check-in" 
+                    value={`${statCards.check_in_rate}%`}
+                    tooltip="Tỷ lệ phần trăm các Key Result có ít nhất một lần check-in trong chu kỳ." 
+                />
+                <StatCard 
+                    icon={<FiLink className="w-6 h-6" />}
+                    title="Tỷ lệ OKR đã Căn chỉnh" 
+                    value={`${statCards.alignment_rate}%`}
+                    tooltip="Tỷ lệ phần trăm các Mục tiêu (không phải cấp công ty) được căn chỉnh/liên kết với một Mục tiêu khác."
+                />
+                <StatCard 
+                    icon={<FiGitMerge className="w-6 h-6" />}
+                    title="Tỷ lệ Hoàn thành Thiết lập" 
+                    value={`${statCards.setup_completion_rate}%`}
+                    tooltip="Tỷ lệ phần trăm các Mục tiêu có ít nhất một Key Result được định nghĩa."
+                />
+                <StatCard 
+                    icon={<FiRepeat className="w-6 h-6" />}
+                    title="Tần suất Check-in TB/Người" 
+                    value={`${statCards.avg_checkins_per_user}`}
+                    tooltip="Số lần check-in trung bình trên mỗi người dùng (có sở hữu KR) trong chu kỳ này." 
+                />
             </div>
             
             {/* Charts */}
