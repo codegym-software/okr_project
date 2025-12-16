@@ -60,7 +60,7 @@ class ReportService
         $personalObjs = [];
         
         foreach ($objectiveStats as $obj) {
-            $obj['children'] = []; // Initialize children array
+            $obj['children'] = [];
             if (strtolower($obj['level'] ?? '') === 'unit') {
                 $unitObjs[$obj['objective_id']] = $obj;
             } else {
@@ -72,17 +72,7 @@ class ReportService
 
         foreach ($personalObjs as $pObj) {
             $parentId = null;
-            // Find parent from source links in the original $objectives collection
-            // We need to look up the original model to access relations, or check 'parent_objective_title' logic
-            // Better: lets rely on the fact that we loaded sourceLinks in the query.
-            // But $objectiveStats is an array now. 
-            // We need to re-find the relation.
-            
-            // Optimization: We can't easily track back from array to model here without re-looping.
-            // Let's use the 'parent_objective_title' logic or ID if we stored it.
-            // Wait, we didn't store parent_id in stats.
-            
-            // Let's look at the original $objectives collection to map ID -> ParentID
+            // Look up parent in original collection to find link
             $originalModel = $objectives->firstWhere('objective_id', $pObj['objective_id']);
             if ($originalModel) {
                 $parentLink = $originalModel->sourceLinks->first(function($link) {
@@ -101,7 +91,6 @@ class ReportService
             }
         }
 
-        // Flatten units back to array, followed by unlinked personals
         $teamOkrs = array_merge(array_values($unitObjs), $unlinkedObjs);
 
         // 4. Lấy danh sách thành viên (MOVE UP HERE)
@@ -114,7 +103,6 @@ class ReportService
 
         // --- NEW: PROCESS COMPLIANCE METRICS ---
         $now = now();
-        // Change logic: Current Week (Monday to Now) instead of Rolling 7 Days
         $startOfWeek = $now->copy()->startOfWeek(Carbon::MONDAY);
 
         // A. Dept Check-in Rate
@@ -123,10 +111,7 @@ class ReportService
         $missedItems = 0;
 
         foreach ($objectives as $obj) {
-            // Skip draft objectives
             if (($obj->status ?? '') === 'draft') continue;
-            
-            // Only consider UNIT level objectives as roots
             if (strtolower($obj->level ?? '') !== 'unit') continue;
 
             // 1. Direct Key Results
@@ -136,17 +121,14 @@ class ReportService
 
             foreach ($activeKrs as $kr) {
                 $totalComplianceItems++;
-                
                 $lastCheckin = $kr->checkIns->first();
                 $lastCheckinDate = $lastCheckin ? $lastCheckin->created_at : null;
                 
-                // Checked in THIS WEEK?
                 $isCheckedIn = $lastCheckinDate && $lastCheckinDate->gte($startOfWeek);
                 
                 if ($isCheckedIn) {
                     $checkedInItems++;
                 } else {
-                    // Missed if created BEFORE this week and not checked in THIS week
                     $created = $kr->created_at ?: $obj->created_at;
                     if ($created->lt($startOfWeek)) {
                         $missedItems++;
@@ -164,13 +146,11 @@ class ReportService
                 if (($child->progress_percent ?? 0) >= 100) continue; 
 
                 $totalComplianceItems++;
-                
                 $lastChildCheckin = CheckIn::whereHas('keyResult', function($q) use ($child) {
                     $q->where('objective_id', $child->objective_id);
                 })->orderByDesc('created_at')->value('created_at');
                 
                 $lastCheckinDate = $lastChildCheckin ? Carbon::parse($lastChildCheckin) : null;
-                
                 $isCheckedIn = $lastCheckinDate && $lastCheckinDate->gte($startOfWeek);
                 
                 if ($isCheckedIn) {
@@ -186,7 +166,7 @@ class ReportService
         $deptCheckinRate = $totalComplianceItems > 0 ? round(($checkedInItems / $totalComplianceItems) * 100, 1) : 0;
         $missedCheckinsCount = $missedItems;
 
-        // B. Alignment Rate
+        // B. Alignment Rate (Unit -> Company)
         $unitObjsCount = $objectives->filter(fn($o) => strtolower($o->level ?? '') === 'unit')->count();
         $linkedUnitObjsCount = $objectives->filter(function($obj) {
             return strtolower($obj->level ?? '') === 'unit' && $obj->sourceLinks->contains(function($link) {
@@ -195,7 +175,7 @@ class ReportService
         })->count();
         $alignmentRate = $unitObjsCount > 0 ? round(($linkedUnitObjsCount / $unitObjsCount) * 100, 1) : 0;
 
-        // E. Internal Alignment Rate (Personal -> Unit)
+        // C. Internal Alignment Rate (Personal -> Unit)
         $personalObjs = $objectives->filter(fn($o) => strtolower($o->level ?? '') === 'person');
         $totalPersonalObjs = $personalObjs->count();
         $linkedPersonalObjs = $personalObjs->filter(function($obj) {
@@ -203,7 +183,6 @@ class ReportService
                 return $link->targetObjective && strtolower($link->targetObjective->level ?? '') === 'unit';
             });
         })->count();
-        
         $internalAlignmentRate = $totalPersonalObjs > 0 ? round(($linkedPersonalObjs / $totalPersonalObjs) * 100, 1) : 0;
 
         // D. Members without Check-in
@@ -215,8 +194,7 @@ class ReportService
         $membersWithoutCheckinCount = $memberIds->count() - count($recentCheckinUserIds);
         // ----------------------------------------
 
-        // 5. Tính toán hiệu suất từng thành viên (Optimization Logic)
-        // OPTIMIZATION: Load KRs without checkIns first
+        // 5. Member Stats
         $allKrs = KeyResult::query()
             ->where('cycle_id', $cycleId)
             ->whereNull('archived_at')
@@ -226,18 +204,11 @@ class ReportService
             })
             ->get();
 
-        // OPTIMIZATION: Fetch top 2 CheckIns
+        // Optimization: Fetch checkins
         $krIds = $allKrs->pluck('kr_id')->toArray();
         if (!empty($krIds)) {
             $placeholders = implode(',', $krIds);
-            $rawQuery = "
-                SELECT * FROM (
-                    SELECT *, ROW_NUMBER() OVER (PARTITION BY kr_id ORDER BY created_at DESC) as rn
-                    FROM check_ins
-                    WHERE kr_id IN ($placeholders)
-                ) as ranked
-                WHERE rn <= 2
-            ";
+            $rawQuery = "SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY kr_id ORDER BY created_at DESC) as rn FROM check_ins WHERE kr_id IN ($placeholders)) as ranked WHERE rn <= 2";
             try {
                 $checkIns = DB::select($rawQuery);
                 $checkInsGrouped = collect($checkIns)->groupBy('kr_id');
@@ -250,15 +221,13 @@ class ReportService
             }
         }
 
-        // OPTIMIZATION: Latest CheckIn for member
         $latestCheckIns = CheckIn::whereIn('user_id', $memberIds)
             ->whereHas('keyResult', function($q) use ($cycleId) {
                 $q->where('cycle_id', $cycleId);
             })
             ->select('check_in_id', 'user_id', 'created_at')
             ->orderBy('created_at', 'desc')
-            ->get()
-            ->unique('user_id');
+            ->get()->unique('user_id');
 
         $memberStats = $members->map(function ($member) use ($allKrs, $latestCheckIns, $departmentId, $cycleId, $expectedProgress) {
             $myKrs = $allKrs->filter(function($kr) use ($member) {
@@ -282,7 +251,6 @@ class ReportService
             'team_okrs' => $teamOkrs,
             'members' => $memberStats,
             'expected_progress' => round($expectedProgress, 1),
-            // Compliance Metrics
             'checkin_compliance_rate' => $deptCheckinRate,
             'missed_checkins_count' => $missedCheckinsCount,
             'alignment_rate' => $alignmentRate,
@@ -295,6 +263,7 @@ class ReportService
     {
         $krs = $objective->keyResults;
         
+        // Eager load child objectives
         $childObjectives = Objective::whereHas('sourceLinks', function($q) use ($objective) {
             $q->where('target_objective_id', $objective->objective_id)
               ->where('status', 'approved');
@@ -309,7 +278,6 @@ class ReportService
 
         $totalItemsCount = $krs->count() + $childObjectives->count();
         
-        // Compliance
         $lastCheckinDate = null;
         $lastKrCheckin = $krs->map(fn($kr) => $kr->checkIns->first()?->created_at)->filter()->max();
         $lastChildUpdate = $childObjectives->max('updated_at');
@@ -331,19 +299,62 @@ class ReportService
 
         $createdAt = Carbon::parse($objective->created_at);
         $weeksElapsed = $createdAt->diffInWeeks(now()) ?: 1;
-        
-        // Calculate Unique Weeks with Check-ins
-        // 1. Get all check-in dates for this objective's KRs
-        // Note: Since we only loaded limit(2) checkins, we need to query properly if we want full history accuracy.
-        // However, for performance, querying ALL checkins for EVERY objective is heavy.
-        // Optimization: Use a raw count of "weeks" if possible, or accept the approximation if we stick to eager loading.
-        // BUT, user wants ACCURACY ("spam check-in" problem). So we must query unique weeks.
-        
         $weeksWithCheckin = CheckIn::whereIn('kr_id', $krs->pluck('kr_id'))
             ->distinct()
             ->count(DB::raw("YEARWEEK(created_at, 1)"));
-
         $personalCheckinRate = round(min(100, ($weeksWithCheckin / $weeksElapsed) * 100), 1);
+
+        // Prepare Detailed KR List
+        $krDetails = $krs->map(function($kr) use ($expectedProgress) {
+            $latestCheckIn = $kr->checkIns->first();
+            $progress = $latestCheckIn ? $latestCheckIn->progress_percent : $kr->progress_percent;
+            if ($progress === null && $kr->target_value > 0) {
+                $progress = ($kr->current_value / $kr->target_value) * 100;
+            }
+            $progress = min(100, max(0, (float) $progress));
+            
+            $lastDate = $latestCheckIn ? $latestCheckIn->created_at : $kr->created_at;
+            
+            return [
+                'id' => $kr->kr_id,
+                'title' => $kr->kr_title,
+                'progress' => $progress,
+                'owner_id' => $kr->user_id, 
+                'status' => $this->determineTimeBasedStatus($progress, $expectedProgress),
+                'last_checkin_date' => $lastDate ? $lastDate->toIsoString() : null,
+                'days_overdue' => $lastDate ? $lastDate->diffInDays(now()) : 0,
+                'type' => 'kr'
+            ];
+        })->values();
+
+        // **KEY CHANGE HERE**: Process Child Objectives to include their KRs
+        $childObjectives->each(function($child) use ($expectedProgress) {
+            // Must eager load KRs for children manually here
+            $child->load(['keyResults.checkIns' => function ($query) {
+                $query->orderByDesc('created_at')->limit(1);
+            }]);
+
+            $child->key_results = $child->keyResults->map(function($kr) use ($expectedProgress) {
+                $latestCheckIn = $kr->checkIns->first();
+                $progress = $latestCheckIn ? $latestCheckIn->progress_percent : $kr->progress_percent;
+                if ($progress === null && $kr->target_value > 0) {
+                    $progress = ($kr->current_value / $kr->target_value) * 100;
+                }
+                $progress = min(100, max(0, (float) $progress));
+                $lastDate = $latestCheckIn ? $latestCheckIn->created_at : $kr->created_at;
+                
+                return [
+                    'id' => $kr->kr_id,
+                    'title' => $kr->kr_title,
+                    'progress' => $progress,
+                    'owner_id' => $kr->user_id,
+                    'status' => $this->determineTimeBasedStatus($progress, $expectedProgress),
+                    'last_checkin_date' => $lastDate ? $lastDate->toIsoString() : null,
+                    'days_overdue' => $lastDate ? $lastDate->diffInDays(now()) : 0,
+                    'type' => 'kr'
+                ];
+            })->values();
+        });
 
         if ($totalItemsCount === 0) {
             $progress = (float) ($objective->progress_percent ?? 0);
@@ -363,6 +374,7 @@ class ReportService
                 'last_checkin_date' => $lastCheckinDate ? Carbon::parse($lastCheckinDate)->toIsoString() : null,
                 'days_overdue' => (int) $daysOverdue,
                 'personal_checkin_rate' => $personalCheckinRate,
+                'key_results' => $krDetails,
             ];
         }
 
@@ -400,12 +412,12 @@ class ReportService
             'last_checkin_date' => $lastCheckinDate ? Carbon::parse($lastCheckinDate)->toIsoString() : null,
             'days_overdue' => (int) $daysOverdue,
             'personal_checkin_rate' => $personalCheckinRate,
+            'key_results' => $krDetails,
         ];
     }
 
     private function calculateMemberStats(User $member, Collection $userKrs, ?CheckIn $lastCheckIn, float $expectedProgress): array
     {
-        // 2. Tính tiến độ trung bình dựa trên KRs
         $totalKrsCount = $userKrs->count();
         $avgProgress = 0.0;
         $completedKrCount = 0;
@@ -426,32 +438,8 @@ class ReportService
             $completedKrCount = $userKrs->filter(fn($kr) => $kr->progress_percent >= 100 || ($kr->target_value > 0 && $kr->current_value >= $kr->target_value))->count();
         }
 
-        // 3. Check-in Compliance Score (Current Week)
-        $startOfWeek = now()->startOfWeek(Carbon::MONDAY);
-        
-        // Filter active KRs (unfinished)
-        $activeUserKrs = $userKrs->filter(function($kr) {
-            return ($kr->progress_percent ?? 0) < 100 && $kr->archived_at === null;
-        });
-        
-        $totalActive = $activeUserKrs->count();
-        $checkedInCount = 0;
-        
-        if ($totalActive > 0) {
-            $checkedInCount = $activeUserKrs->filter(function($kr) use ($startOfWeek) {
-                $last = $kr->checkIns->first();
-                return $last && $last->created_at->gte($startOfWeek);
-            })->count();
-            
-            $checkinScore = round(($checkedInCount / $totalActive) * 100, 1);
-        } else {
-            // No active work? Score 100 (Nothing overdue) or 0?
-            // Let's assume 100 means "Fully Compliant with Requirements"
-            $checkinScore = 100;
-        }
-
-        // 4. Other Metadata
         $lastCheckInDate = $lastCheckIn ? $lastCheckIn->created_at : null;
+
         $confidenceTrend = 'stable';
         $totalConfidenceDelta = 0;
         $checkInCount = 0;
@@ -477,6 +465,24 @@ class ReportService
             elseif ($daysSince <= 14) $checkinStatus = 'warning';
             else $checkinStatus = 'late';
         }
+        
+        $startOfWeek = now()->startOfWeek(Carbon::MONDAY);
+        $activeUserKrs = $userKrs->filter(function($kr) {
+            return ($kr->progress_percent ?? 0) < 100 && $kr->archived_at === null;
+        });
+        
+        $totalActive = $activeUserKrs->count();
+        $checkedInCount = 0;
+        
+        if ($totalActive > 0) {
+            $checkedInCount = $activeUserKrs->filter(function($kr) use ($startOfWeek) {
+                $last = $kr->checkIns->first();
+                return $last && $last->created_at->gte($startOfWeek);
+            })->count();
+            $checkinScore = round(($checkedInCount / $totalActive) * 100, 1);
+        } else {
+            $checkinScore = 100; 
+        }
 
         return [
             'user_id' => $member->user_id,
@@ -493,7 +499,7 @@ class ReportService
             'checkin_status' => $checkinStatus,
             'confidence_trend' => $confidenceTrend,
             'status' => $this->determineTimeBasedStatus($avgProgress, $expectedProgress),
-            'checkin_compliance_score' => $checkinScore, // New calculated score
+            'checkin_compliance_score' => $checkinScore,
         ];
     }
 

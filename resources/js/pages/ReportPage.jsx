@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Select } from "../components/ui";
 import ToastNotification from "../components/ToastNotification";
 import { exportTeamReportToExcel } from "../utils/reports/exportHelpers";
-import { FiDownload, FiAlertTriangle, FiEye, FiTrendingUp, FiUsers, FiActivity, FiCheckCircle, FiClock, FiLink, FiUserX, FiSave, FiList, FiTrash2, FiChevronDown, FiChevronRight, FiTarget, FiBell } from "react-icons/fi";
+import { FiDownload, FiAlertTriangle, FiEye, FiTrendingUp, FiUsers, FiActivity, FiCheckCircle, FiClock, FiLink, FiUserX, FiSave, FiList, FiTrash2, FiChevronDown, FiChevronRight, FiTarget, FiBell, FiHexagon } from "react-icons/fi";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -48,10 +48,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, isLoading })
         <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
             <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={!isLoading ? onClose : undefined}></div>
-                
-                {/* Spacer element to center the modal vertically */}
                 <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
                 <div className="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                     <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                         <div className="sm:flex sm:items-start">
@@ -91,79 +88,81 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, isLoading })
 };
 
 // Row Component for Expandable Tree View
-const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
-    const [expanded, setExpanded] = useState(true); 
+const ComplianceRow = ({ item, level = 0, getOwner, onRemind, isLastChild = false }) => {
+    const [expanded, setExpanded] = useState(false); 
     const hasChildren = (item.children && item.children.length > 0) || (item.key_results && item.key_results.length > 0);
     const isUnit = (item.level || '').toLowerCase() === 'unit';
     
-    const paddingLeft = level * 20 + 24; 
+    const basePadding = 24;
+    const levelIndent = 28;
+    const paddingLeft = basePadding + (level * levelIndent);
 
     return (
         <>
-            <tr className={`hover:bg-slate-50 transition-colors text-sm border-b border-slate-100 ${level > 0 ? 'bg-slate-50/30' : 'bg-white'}`}>
-                <td className="py-3 pr-6 text-left" style={{ paddingLeft: `${paddingLeft}px` }}>
-                    <div className="flex items-start gap-2">
+            <tr className={`hover:bg-slate-50 transition-colors text-sm border-b border-slate-100 ${level > 0 ? 'bg-slate-50/30' : 'bg-white'} relative`}>
+                <td className="py-3 pr-6 text-left relative" style={{ paddingLeft: `${paddingLeft}px` }}>
+                    {level > 0 && (
+                        <>
+                            <div className="absolute top-1/2 w-4 border-b border-slate-300" style={{ left: `${paddingLeft - 20}px` }}></div>
+                            <div className="absolute -top-1/2 bottom-1/2 border-l border-slate-300" style={{ left: `${paddingLeft - 20}px` }}></div>
+                            {!isLastChild && <div className="absolute top-1/2 bottom-0 border-l border-slate-300" style={{ left: `${paddingLeft - 20}px` }}></div>}
+                        </>
+                    )}
+
+                    <div className="flex items-start gap-2 relative z-10">
                         {hasChildren ? (
-                            <button 
-                                onClick={() => setExpanded(!expanded)}
-                                className="mt-0.5 text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded hover:bg-slate-200"
-                            >
-                                {expanded ? <FiChevronDown className="w-4 h-4" /> : <FiChevronRight className="w-4 h-4" />}
+                            <button onClick={() => setExpanded(!expanded)} className="mt-0.5 text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded hover:bg-slate-200 z-20 bg-white border border-slate-200">
+                                {expanded ? <FiChevronDown className="w-3 h-3" /> : <FiChevronRight className="w-3 h-3" />}
                             </button>
-                        ) : (
-                            <span className="w-5 h-5 flex-shrink-0"></span> // Spacer
-                        )}
+                        ) : (<span className="w-5 h-5 flex-shrink-0"></span>)}
                         
                         <div>
                             <div className="flex items-center gap-2">
                                 {isUnit && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></span>}
-                                <a href="#" className={`hover:text-blue-600 hover:underline line-clamp-2 ${isUnit ? 'font-bold text-slate-800' : 'font-medium text-slate-700'}`} title={item.obj_title}>
-                                    {item.obj_title}
-                                </a>
+                                {!isUnit && level > 0 && <FiHexagon className="w-3 h-3 text-slate-400" />}
+                                <a href="#" className={`hover:text-blue-600 hover:underline line-clamp-2 ${isUnit ? 'font-bold text-slate-800' : 'font-medium text-slate-700'}`} title={item.obj_title}>{item.obj_title}</a>
                             </div>
-                            <span className="text-[10px] text-slate-400 block font-semibold tracking-wide mt-0.5 ml-3.5 uppercase">{item.level}</span>
+                            <span className="text-[10px] text-slate-400 block font-semibold tracking-wide mt-0.5 ml-3.5 uppercase">{item.level} {level > 0 && !isUnit ? '(Liên kết)' : ''}</span>
                         </div>
                     </div>
                 </td>
+
                 <td className="px-6 py-3">
                     <div className="flex items-center gap-2">
-                        <img 
-                            src={getOwner(item.user_id).avatar || `https://ui-avatars.com/api/?name=${getOwner(item.user_id).name || 'U'}&background=random`} 
-                            alt={getOwner(item.user_id).name} 
-                            className="w-6 h-6 rounded-full border border-white shadow-sm"
-                        />
-                        <span className="text-slate-600 truncate max-w-[100px] text-xs" title={getOwner(item.user_id).name}>
-                            {getOwner(item.user_id).name}
-                        </span>
+                        <img src={getOwner(item.user_id).avatar || `https://ui-avatars.com/api/?name=${getOwner(item.user_id).name || 'U'}&background=random`} alt={getOwner(item.user_id).name} className="w-6 h-6 rounded-full border border-white shadow-sm" />
+                        <span className="text-slate-600 truncate max-w-[100px] text-xs" title={getOwner(item.user_id).name}>{getOwner(item.user_id).name}</span>
                     </div>
                 </td>
+
                 <td className="px-6 py-3"><StatusBadge status={item.status} /></td>
+
+                {/* Progress Bar (Fixed Width) */}
                 <td className="px-6 py-3">
                     <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden flex-none">
                             <div className={`h-full rounded-full ${item.progress >= 70 ? 'bg-green-500' : item.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${item.progress}%` }}></div>
                         </div>
-                        <span className="text-xs font-bold text-slate-700">{item.progress}%</span>
+                        <span className="text-xs font-bold text-slate-700 w-8 text-right flex-none">{item.progress}%</span>
                     </div>
                 </td>
+
+                {/* Check-in Rate Bar (Fixed Width) */}
+                <td className="px-6 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                        <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden flex-none">
+                            <div className={`h-full rounded-full ${item.personal_checkin_rate >= 80 ? 'bg-green-500' : item.personal_checkin_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${item.personal_checkin_rate || 0}%` }}></div>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium w-8 text-right flex-none">{item.personal_checkin_rate || 0}%</span>
+                    </div>
+                </td>
+
                 <td className="px-6 py-3 text-slate-500 text-xs">
                     {item.last_checkin_date ? new Date(item.last_checkin_date).toLocaleDateString('vi-VN') : 'Chưa check-in'}
                 </td>
-                <td className="px-6 py-3 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                        <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${item.personal_checkin_rate >= 80 ? 'bg-green-500' : item.personal_checkin_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${item.personal_checkin_rate || 0}%` }}></div>
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-medium">{item.personal_checkin_rate || 0}%</span>
-                    </div>
-                </td>
+
                 <td className="px-6 py-3 text-center">
                     {!isUnit ? (
-                        <button 
-                            className="text-[10px] px-2 py-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 transition-colors flex items-center gap-1 mx-auto" 
-                            onClick={() => onRemind(item.user_id, getOwner(item.user_id).name)}
-                            title="Gửi thông báo nhắc nhở"
-                        >
+                        <button className="text-[10px] px-2 py-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 transition-colors flex items-center gap-1 mx-auto" onClick={() => onRemind(item.user_id, getOwner(item.user_id).name)} title="Gửi thông báo nhắc nhở">
                             <FiBell className="w-3 h-3" />
                             <span>Nhắc</span>
                         </button>
@@ -176,41 +175,55 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
             {expanded && (
                 <>
                     {/* Render Key Results */}
-                    {(item.key_results || []).map(kr => (
-                        <tr key={`kr-${kr.id}`} className="bg-slate-50/50 hover:bg-slate-100/50 transition-colors text-xs border-b border-slate-100 border-dashed">
-                            <td className="py-2 pr-6 text-left" style={{ paddingLeft: `${paddingLeft + 28}px` }}>
-                                <div className="flex items-center gap-2 text-slate-500">
-                                    <FiTarget className="w-3 h-3 flex-shrink-0 text-slate-400" />
-                                    <span className="truncate max-w-[300px]" title={kr.title}>{kr.title}</span>
-                                    <span className="text-[9px] px-1 bg-slate-100 rounded text-slate-400">KR</span>
-                                </div>
-                            </td>
-                            <td className="px-6 py-2">
-                                <div className="flex items-center gap-2 opacity-75">
-                                    <img src={`https://ui-avatars.com/api/?name=${getOwner(kr.owner_id).name || 'U'}&background=random&size=16`} className="w-4 h-4 rounded-full" />
-                                    <span className="text-slate-500 truncate max-w-[80px]">{getOwner(kr.owner_id).name}</span>
-                                </div>
-                            </td>
-                            <td className="px-6 py-2"><StatusBadge status={kr.status} /></td>
-                            <td className="px-6 py-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className={`h-full rounded-full ${kr.progress >= 70 ? 'bg-green-500' : kr.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${kr.progress}%` }}></div>
+                    {(item.key_results || []).map((kr, idx) => {
+                        const isLastItem = idx === (item.key_results.length - 1) && (!item.children || item.children.length === 0);
+                        return (
+                            <tr key={`kr-${kr.id}`} className="bg-white hover:bg-slate-50 transition-colors text-xs border-b border-slate-100">
+                                <td className="py-2 pr-6 text-left relative" style={{ paddingLeft: `${paddingLeft + levelIndent}px` }}>
+                                    <div className="absolute top-1/2 w-4 border-b border-slate-300" style={{ left: `${paddingLeft + levelIndent - 20}px` }}></div>
+                                    <div className="absolute -top-1/2 bottom-1/2 border-l border-slate-300" style={{ left: `${paddingLeft + levelIndent - 20}px` }}></div>
+                                    {!isLastItem && <div className="absolute top-1/2 bottom-0 border-l border-slate-300" style={{ left: `${paddingLeft + levelIndent - 20}px` }}></div>}
+                                    {!isLastChild && <div className="absolute -top-1/2 bottom-0 border-l border-slate-300" style={{ left: `${paddingLeft - 20}px` }}></div>}
+
+                                    <div className="flex items-center gap-2 text-slate-600 relative z-10">
+                                        <FiTarget className="w-3 h-3 text-slate-400" />
+                                        <span className="truncate max-w-[300px]" title={kr.title}>{kr.title}</span>
+                                        <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-medium">KR</span>
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-500">{kr.progress}%</span>
-                                </div>
-                            </td>
-                            <td className="px-6 py-2 text-slate-400">
-                                {kr.last_checkin_date ? new Date(kr.last_checkin_date).toLocaleDateString('vi-VN') : '-'}
-                            </td>
-                            <td className="px-6 py-2 text-center text-slate-300">-</td>
-                            <td className="px-6 py-2 text-center"></td>
-                        </tr>
-                    ))}
+                                </td>
+                                <td className="px-6 py-2">
+                                    <div className="flex items-center gap-2 opacity-75">
+                                        <img src={`https://ui-avatars.com/api/?name=${getOwner(kr.owner_id).name || 'U'}&background=random&size=16`} className="w-4 h-4 rounded-full" />
+                                        <span className="text-slate-500 truncate max-w-[80px]">{getOwner(kr.owner_id).name}</span>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-2"><StatusBadge status={kr.status} /></td>
+                                
+                                {/* KR Progress */}
+                                <td className="px-6 py-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden flex-none">
+                                            <div className={`h-full rounded-full ${kr.progress >= 70 ? 'bg-green-500' : kr.progress >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${kr.progress}%` }}></div>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-500 w-8 text-right flex-none">{kr.progress}%</span>
+                                    </div>
+                                </td>
+
+                                {/* KR Check-in Rate */}
+                                <td className="px-6 py-2 text-center text-slate-300">-</td>
+
+                                <td className="px-6 py-2 text-slate-400">
+                                    {kr.last_checkin_date ? new Date(kr.last_checkin_date).toLocaleDateString('vi-VN') : '-'}
+                                </td>
+                                
+                                <td className="px-6 py-2 text-center"></td>
+                            </tr>
+                        );
+                    })}
 
                     {/* Render Child Objectives */}
-                    {(item.children || []).map(child => (
-                        <ComplianceRow key={child.objective_id} item={child} level={level + 1} getOwner={getOwner} onRemind={onRemind} />
+                    {(item.children || []).map((child, idx) => (
+                        <ComplianceRow key={child.objective_id} item={child} level={level + 1} getOwner={getOwner} onRemind={onRemind} isLastChild={idx === (item.children.length - 1)} />
                     ))}
                 </>
             )}
@@ -297,7 +310,7 @@ export default function ReportPage() {
         if (selectedCycle) loadReportData(selectedCycle);
     }, [selectedCycle]);
 
-    // --- SNAPSHOT ACTIONS ---
+    // --- ACTIONS ---
     const handleSaveSnapshot = async () => {
         if (!selectedCycle) return;
         setIsSaving(true);
@@ -379,14 +392,7 @@ export default function ReportPage() {
     const handleExportExcel = () => {
         if (!reportData) return;
         const cycleName = cycles.find(c => String(c.cycle_id) === String(selectedCycle))?.cycle_name || "";
-        
-        exportTeamReportToExcel(
-            reportData,
-            departmentName,
-            cycleName,
-            (msg) => setToast({ message: msg, type: 'success' }),
-            (msg) => setToast({ message: msg, type: 'error' })
-        );
+        exportTeamReportToExcel(reportData, departmentName, cycleName, (msg) => setToast({ message: msg, type: 'success' }), (msg) => setToast({ message: msg, type: 'error' }));
     };
 
     const openRemindModal = (userId, userName) => {
@@ -844,8 +850,8 @@ export default function ReportPage() {
                                             <th className="px-6 py-4">Người sở hữu</th>
                                             <th className="px-6 py-4">Tình trạng</th>
                                             <th className="px-6 py-4 w-32">Tiến độ</th>
-                                            <th className="px-6 py-4">Check-in gần nhất</th>
                                             <th className="px-6 py-4 text-center">Tỷ lệ Check-in</th>
+                                            <th className="px-6 py-4">Check-in gần nhất</th>
                                             <th className="px-6 py-4 text-center">Hành động</th>
                                         </tr>
                                     </thead>
@@ -854,7 +860,7 @@ export default function ReportPage() {
                                             <ComplianceRow key={parent.objective_id} item={parent} level={0} getOwner={getOwner} onRemind={openRemindModal} />
                                         ))}
                                         {(!reportData?.team_okrs || reportData.team_okrs.length === 0) && (
-                                            <tr><td colSpan="8" className="px-6 py-12 text-center text-slate-400">Chưa có dữ liệu.</td></tr>
+                                            <tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400">Chưa có dữ liệu.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
