@@ -128,11 +128,20 @@ export default function ProcessTab({ data }) {
             }]
         };
         const complianceByDeptOptions = {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { ...tooltipOptions, callbacks: { label: ctx => `Tuân thủ: ${ctx.parsed.x?.toFixed(2) || 0}%` }} },
-            scales: { x: { beginAtZero: true, max: 100, grid: { drawBorder: false } }, y: { grid: { display: false } } }
+            indexAxis: 'x', // Changed to 'x' for vertical bars
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { ...tooltipOptions, callbacks: { label: ctx => `Tuân thủ: ${ctx.parsed.y?.toFixed(2) || 0}%` }} },
+            scales: { 
+                y: { // Y-axis for values
+                    beginAtZero: true, max: 100, 
+                    ticks: { callback: function(value) { return value + '%'; } },
+                    grid: { drawBorder: false } 
+                }, 
+                x: { // X-axis for categories
+                    grid: { display: false } 
+                } 
+            }
         };
-        const barCanvasHeight = Math.max(320, (complianceByDeptData.labels.length || 1) * 35);
 
         // --- Chart 2: Health Distribution (Doughnut) ---
         const healthDistData = {
@@ -174,10 +183,8 @@ export default function ProcessTab({ data }) {
             {
                 title: 'Xếp hạng Tuân thủ Check-in theo Phòng ban',
                 component: (charts.checkin_compliance_by_dept?.length > 0) ? (
-                    <div className="absolute inset-0 overflow-y-auto pr-2 flex flex-col justify-end">
-                        <div style={{ height: `${barCanvasHeight}px` }}>
-                            <Bar data={complianceByDeptData} options={complianceByDeptOptions} />
-                        </div>
+                    <div className="absolute inset-0">
+                        <Bar data={complianceByDeptData} options={complianceByDeptOptions} />
                     </div>
                 ) : <div className="flex items-center justify-center h-full"><EmptyState icon={FiBarChart2} title="Không có dữ liệu" /></div>
             },
