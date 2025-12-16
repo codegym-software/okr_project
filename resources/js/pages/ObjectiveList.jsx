@@ -36,6 +36,8 @@ export default function ObjectiveList({
     linksLoading = false,
     cycleFilter,
     setCycleFilter,
+    departmentFilter,
+    setDepartmentFilter,
     viewMode,
     setViewMode,
     userDepartmentName,
@@ -48,6 +50,9 @@ export default function ObjectiveList({
     hideFilters = false,
     disableActions = false,
     departments = [],
+    isCycleClosed = false,
+    currentCycle = null,
+    cycleStatus = null,
 }) {
     const [toast, setToast] = useState(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -252,6 +257,7 @@ export default function ObjectiveList({
         async (token) => {
             const baseParams = new URLSearchParams();
             if (cycleFilter) baseParams.append("cycle_id", cycleFilter);
+            if (departmentFilter) baseParams.append("department_id", departmentFilter);
 
             // Fetch Active Objectives
             const activeRes = await fetch(`/my-objectives?${baseParams}`, {
@@ -262,7 +268,7 @@ export default function ObjectiveList({
                 setItems(activeJson.data.data || []);
             }
         },
-        [cycleFilter, setItems]
+        [cycleFilter, departmentFilter, setItems]
     );
 
     // === LƯU TRỮ OKR ===
@@ -365,9 +371,26 @@ export default function ObjectiveList({
             <div className="mb-4 flex w-full items-center justify-between">
                 <div className="flex items-center gap-4">
                         <div className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-600 leading-none">
-                                Chu kỳ OKR
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-600 leading-none">
+                                    Chu kỳ OKR
+                                </span>
+                                {currentCycle && cycleStatus && (
+                                    <span className={`text-xs font-medium px-1.5 py-0 leading-tight rounded-full ${
+                                        cycleStatus.color === 'red' 
+                                            ? 'bg-red-100 text-red-700'
+                                            : cycleStatus.color === 'green'
+                                            ? 'bg-green-100 text-green-700'
+                                            : cycleStatus.color === 'orange'
+                                            ? 'bg-orange-100 text-orange-700'
+                                            : cycleStatus.color === 'blue'
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : 'bg-gray-100 text-gray-700'
+                                    }`}>
+                                        {cycleStatus.label}
+                                    </span>
+                                )}
+                            </div>
                     <CycleDropdown
                         cyclesList={cyclesList}
                         cycleFilter={cycleFilter}
@@ -388,12 +411,14 @@ export default function ObjectiveList({
                                     setDropdownOpen={setViewModeDropdownOpen}
                                     currentUser={currentUser}
                                     userDepartmentName={userDepartmentName}
+                                    setDepartmentFilter={setDepartmentFilter}
                                 />
                             </div>
                         )}
                     </div>
                 <Tabs
                     setCreatingObjective={setCreatingObjective}
+                    isCycleClosed={isCycleClosed}
                 />
             </div>
             )}
@@ -488,7 +513,7 @@ export default function ObjectiveList({
                                     getUnitText={getUnitText}
                                     getAssigneeInfo={getAssigneeInfo}
                                     // The ObjectiveRow itself will now handle its colSpan based on props
-                                    disableActions={disableActions}
+                                    disableActions={disableActions || isCycleClosed}
                                 />
 
                             ))}

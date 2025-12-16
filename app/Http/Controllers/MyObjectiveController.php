@@ -97,7 +97,7 @@ class MyObjectiveController extends Controller
         }
         
         $userId = $user->user_id;
-        $query = Objective::with(['keyResults.assignedUser.department', 'keyResults.assignedUser.role', 'department', 'cycle', 'assignments.user', 'assignments.role', 'user'])
+        $query = Objective::with(['keyResults.assignedUser.department', 'keyResults.assignedUser.role', 'department', 'cycle', 'assignments.user.department', 'assignments.user.role', 'assignments.role', 'user.department', 'user.role'])
             ->where(function ($q) use ($userId) {
                 $q->where('user_id', $userId)
                 ->orWhereHas('keyResults', function ($subQuery) use ($userId) {
@@ -356,7 +356,7 @@ class MyObjectiveController extends Controller
                     }
                 }
 
-                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role']);
+                return $objective->load(['keyResults', 'department', 'cycle', 'user.department', 'user.role', 'assignments.user.department', 'assignments.user.role', 'assignments.role']);
             });
 
             return $request->expectsJson()
@@ -509,7 +509,7 @@ class MyObjectiveController extends Controller
                     }
                 }
 
-                return $objective->load(['keyResults', 'department', 'cycle', 'assignments.user', 'assignments.role']);
+                return $objective->load(['keyResults', 'department', 'cycle', 'user.department', 'user.role', 'assignments.user.department', 'assignments.user.role', 'assignments.role']);
             });
 
             return $request->expectsJson()
@@ -591,7 +591,8 @@ class MyObjectiveController extends Controller
             },
             'department',
             'cycle',
-            'assignments.user',
+            'assignments.user.department',
+            'assignments.user.role',
             'assignments.role',
             'comments',
             'childObjectives' => function ($query) {

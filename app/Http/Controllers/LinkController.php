@@ -21,7 +21,7 @@ class LinkController extends Controller
 {
     private const LEVEL_ORDER = [
         'person' => 1,
-        'team' => 2,
+        
         'unit' => 3,
         'company' => 4,
     ];
@@ -109,16 +109,54 @@ class LinkController extends Controller
         ]);
 
         $user = Auth::user();
+        
+        // Lấy source Objective để lấy cycle_id
+        $sourceObjective = Objective::find($validated['source_id']);
+        if (!$sourceObjective) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy OKR nguồn.',
+            ], 404);
+        }
+        
+        $sourceCycleId = $sourceObjective->cycle_id;
+        if (!$sourceCycleId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OKR nguồn chưa có chu kỳ. Vui lòng chọn chu kỳ trước khi liên kết.',
+            ], 422);
+        }
+        
         $sourceLevelRank = self::LEVEL_ORDER[$validated['source_level']];
+        $sourceLevel = $validated['source_level'];
         $levelFilter = $validated['level'] ?? null;
         $perPage = (int) $request->integer('per_page', 10);
 
-        $higherLevels = array_keys(array_filter(self::LEVEL_ORDER, function ($rank, $level) use ($sourceLevelRank, $levelFilter) {
-            if ($levelFilter) {
-                return $level === $levelFilter && self::LEVEL_ORDER[$level] > $sourceLevelRank;
+        // Áp dụng quy tắc liên kết cụ thể:
+        // 1. Phòng ban (unit) chỉ được liên kết lên công ty (company)
+        // 2. Cá nhân (person) chỉ được liên kết lên phòng ban (unit)
+        $allowedTargetLevels = [];
+        if ($sourceLevel === 'unit') {
+            $allowedTargetLevels = ['company'];
+        } elseif ($sourceLevel === 'person') {
+            $allowedTargetLevels = ['unit'];
+        } else {
+            // Các level khác: lấy tất cả level cao hơn
+            $allowedTargetLevels = array_keys(array_filter(self::LEVEL_ORDER, function ($rank) use ($sourceLevelRank) {
+                return $rank > $sourceLevelRank;
+            }));
+        }
+
+        // Nếu có levelFilter, chỉ lấy level đó nếu nó nằm trong allowedTargetLevels
+        if ($levelFilter) {
+            if (in_array($levelFilter, $allowedTargetLevels)) {
+                $higherLevels = [$levelFilter];
+            } else {
+                $higherLevels = [];
             }
-            return $rank > $sourceLevelRank;
-        }, ARRAY_FILTER_USE_BOTH));
+        } else {
+            $higherLevels = $allowedTargetLevels;
+        }
 
         if (empty($higherLevels)) {
             return response()->json([
@@ -131,10 +169,11 @@ class LinkController extends Controller
         }
 
         $query = Objective::with([
-                'keyResults' => fn($q) => $q->active(),
+                'keyResults' => fn($q) => $q->active()->where('cycle_id', $sourceCycleId),
                 'user'
             ])
             ->whereNull('archived_at')
+            ->where('cycle_id', $sourceCycleId) // Chỉ lấy OKR cùng chu kỳ
             ->whereIn('level', $higherLevels)
             ->where(function ($q) use ($user) {
                 $q->whereNull('department_id')
@@ -192,6 +231,7 @@ class LinkController extends Controller
 
         $this->ensureSourceOwnership($sourceEntity, $user->user_id);
         $this->ensureLinkingLevel($sourceEntity, $targetEntity);
+        $this->ensureSameCycle($sourceEntity, $targetEntity);
         $this->ensureTargetIsActive($targetEntity);
         $this->preventDuplicate($sourceEntity, $targetEntity);
 
@@ -590,8 +630,60 @@ class LinkController extends Controller
             abort(response()->json(['success' => false, 'message' => 'Không xác định được cấp độ OKR.'], 422));
         }
 
+        // Quy tắc liên kết cụ thể:
+        // 1. Phòng ban (unit) chỉ được liên kết lên công ty (company)
+        if ($sourceLevel === 'unit') {
+            if ($targetLevel !== 'company') {
+                abort(response()->json([
+                    'success' => false, 
+                    'message' => 'OKR cấp phòng ban chỉ được liên kết lên OKR cấp công ty.'
+                ], 422));
+            }
+        }
+
+        // 2. Cá nhân (person) chỉ được liên kết lên phòng ban (unit)
+        if ($sourceLevel === 'person') {
+            if ($targetLevel !== 'unit') {
+                abort(response()->json([
+                    'success' => false, 
+                    'message' => 'OKR cấp cá nhân chỉ được liên kết lên OKR cấp phòng ban.'
+                ], 422));
+            }
+        }
+
+        // Kiểm tra cấp độ chung: target phải cao hơn source
         if ((self::LEVEL_ORDER[$targetLevel] ?? 0) <= (self::LEVEL_ORDER[$sourceLevel] ?? 0)) {
             abort(response()->json(['success' => false, 'message' => 'OKR đích phải có cấp độ cao hơn.'], 422));
+        }
+    }
+
+    private function ensureSameCycle($source, $target): void
+    {
+        if (!($source instanceof Objective)) {
+            abort(response()->json(['success' => false, 'message' => 'Source phải là Objective.'], 422));
+        }
+
+        $sourceCycleId = $source->cycle_id;
+        
+        $targetCycleId = null;
+        if ($target instanceof Objective) {
+            $targetCycleId = $target->cycle_id;
+        } elseif ($target instanceof KeyResult) {
+            $targetCycleId = $target->objective->cycle_id ?? $target->cycle_id;
+        }
+
+        if (!$sourceCycleId || !$targetCycleId) {
+            abort(response()->json([
+                'success' => false, 
+                'message' => 'Không xác định được chu kỳ của OKR.'
+            ], 422));
+        }
+
+        if ($sourceCycleId !== $targetCycleId) {
+            abort(response()->json([
+                'success' => false, 
+                'message' => 'Chỉ có thể liên kết tới những OKR có cùng chu kỳ với OKR của bạn.'
+            ], 422));
         }
     }
 

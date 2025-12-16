@@ -47,6 +47,7 @@ export default function CompanyOkrList() {
     const [openObj, setOpenObj] = useState({});
     const [cyclesList, setCyclesList] = useState([]);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [scopeDropdownOpen, setScopeDropdownOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     const [childLinks, setChildLinks] = useState([]);
     const [linksLoading, setLinksLoading] = useState(false);
@@ -290,6 +291,91 @@ export default function CompanyOkrList() {
         );
     }, [treeNodes, treeRootId]);
 
+    // Kiểm tra trạng thái chu kỳ hiện tại
+    const currentCycle = useMemo(() => {
+        if (!cycleFilter || !cyclesList || cyclesList.length === 0) return null;
+        return cyclesList.find(c => String(c.cycle_id) === String(cycleFilter));
+    }, [cycleFilter, cyclesList]);
+
+    // Tính trạng thái chu kỳ dựa trên status và ngày tháng
+    const cycleStatus = useMemo(() => {
+        if (!currentCycle) return null;
+        
+        const status = String(currentCycle.status || '').toLowerCase();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Đã đóng: status = inactive
+        if (status === 'inactive') {
+            return {
+                type: 'closed',
+                label: 'Đã đóng',
+                color: 'red',
+                allowActions: false
+            };
+        }
+        
+        const startDate = currentCycle.start_date ? new Date(currentCycle.start_date) : null;
+        const endDate = currentCycle.end_date ? new Date(currentCycle.end_date) : null;
+        
+        if (startDate) startDate.setHours(0, 0, 0, 0);
+        if (endDate) {
+            endDate.setHours(23, 59, 59, 999);
+        }
+        
+        // Sắp diễn ra: chưa đến ngày bắt đầu
+        if (startDate && today < startDate) {
+            return {
+                type: 'upcoming',
+                label: 'Sắp diễn ra',
+                color: 'blue',
+                allowActions: false // Chưa bắt đầu, không cho phép hành động
+            };
+        }
+        
+        // Quá hạn: đã qua ngày kết thúc nhưng status vẫn là active
+        if (endDate && today > endDate && status === 'active') {
+            return {
+                type: 'overdue',
+                label: 'Quá hạn',
+                color: 'orange',
+                allowActions: false // Quá hạn, không cho phép hành động
+            };
+        }
+        
+        // Đang diễn ra: trong khoảng thời gian và status = active
+        if (startDate && endDate && today >= startDate && today <= endDate && status === 'active') {
+            return {
+                type: 'ongoing',
+                label: 'Đang diễn ra',
+                color: 'green',
+                allowActions: true
+            };
+        }
+        
+        // Draft: status = draft
+        if (status === 'draft') {
+            return {
+                type: 'draft',
+                label: 'Bản nháp',
+                color: 'gray',
+                allowActions: false
+            };
+        }
+        
+        // Mặc định: không cho phép hành động
+        return {
+            type: 'unknown',
+            label: 'Không xác định',
+            color: 'gray',
+            allowActions: false
+        };
+    }, [currentCycle]);
+
+    const isCycleClosed = useMemo(() => {
+        return cycleStatus ? !cycleStatus.allowActions : false;
+    }, [cycleStatus]);
+
     // Đồng bộ các bộ lọc vào query params
     useEffect(() => {
         try {
@@ -474,9 +560,26 @@ export default function CompanyOkrList() {
                 <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <div className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold text-slate-600 leading-none">
-                                Chu kỳ OKR
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-600 leading-none">
+                                    Chu kỳ OKR
+                                </span>
+                                {currentCycle && cycleStatus && (
+                                    <span className={`text-xs font-medium px-1.5 py-0 leading-tight rounded-full ${
+                                        cycleStatus.color === 'red' 
+                                            ? 'bg-red-100 text-red-700'
+                                            : cycleStatus.color === 'green'
+                                            ? 'bg-green-100 text-green-700'
+                                            : cycleStatus.color === 'orange'
+                                            ? 'bg-orange-100 text-orange-700'
+                                            : cycleStatus.color === 'blue'
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : 'bg-gray-100 text-gray-700'
+                                    }`}>
+                                        {cycleStatus.label}
+                                    </span>
+                                )}
+                            </div>
                             <CycleDropdown
                                 cyclesList={cyclesList}
                                 cycleFilter={cycleFilter}
@@ -485,42 +588,104 @@ export default function CompanyOkrList() {
                                 setDropdownOpen={setDropdownOpen}
                             />
                         </div>
-                        <div className="relative flex flex-col gap-1">
+                        <div className="flex flex-col gap-1">
                             <span className="text-xs font-semibold text-slate-600 leading-none">
                                 Phạm vi OKR
                             </span>
-                            <select
-                                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-blue-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                value={
-                                    filterType === "company"
-                                        ? "company"
-                                        : selectedDepartment
-                                }
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === "company") {
-                                        handleFilterChange("company");
-                                    } else {
-                                        handleFilterChange("department", val);
-                                    }
-                                }}
-                            >
-                                <option value="company">Công ty</option>
-                                {departments.map((dept) => (
-                                    <option
-                                        key={dept.department_id}
-                                        value={dept.department_id}
+                            <div className="relative w-52">
+                                <button
+                                    onClick={() => setScopeDropdownOpen((prev) => !prev)}
+                                    className="flex w-full h-10 items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-gray-50 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150"
+                                >
+                                    <span className="truncate">
+                                        {filterType === "company" 
+                                            ? "Công ty"
+                                            : departments.find(d => String(d.department_id) === String(selectedDepartment))?.d_name || "Chọn phạm vi"
+                                        }
+                                    </span>
+                                    <svg
+                                        className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${
+                                            scopeDropdownOpen ? "rotate-180" : ""
+                                        }`}
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
                                     >
-                                        {dept.d_name}
-                                    </option>
-                                ))}
-                            </select>
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                {scopeDropdownOpen && (
+                                    <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
+                                        <label
+                                            className={`flex items-start gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
+                                                filterType === "company"
+                                                    ? "bg-blue-50 border-l-4 border-l-blue-500"
+                                                    : ""
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="scope"
+                                                value="company"
+                                                checked={filterType === "company"}
+                                                onChange={(e) => {
+                                                    handleFilterChange("company");
+                                                    setScopeDropdownOpen(false);
+                                                }}
+                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div className="flex-1 flex flex-col">
+                                                <p className="text-sm font-medium text-slate-900">
+                                                    Công ty
+                                                </p>
+                                            </div>
+                                        </label>
+                                        {departments.map((dept) => (
+                                            <label
+                                                key={dept.department_id}
+                                                className={`flex items-start gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
+                                                    filterType === "department" && String(selectedDepartment) === String(dept.department_id)
+                                                        ? "bg-blue-50 border-l-4 border-l-blue-500"
+                                                        : ""
+                                                }`}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="scope"
+                                                    value={dept.department_id}
+                                                    checked={filterType === "department" && String(selectedDepartment) === String(dept.department_id)}
+                                                    onChange={(e) => {
+                                                        handleFilterChange("department", e.target.value);
+                                                        setScopeDropdownOpen(false);
+                                                    }}
+                                                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <div className="flex-1 flex flex-col">
+                                                    <p className="text-sm font-medium text-slate-900">
+                                                        {dept.d_name}
+                                                    </p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                     {isCeo && (
                         <button
-                            onClick={() => setCreatingObjective(true)}
-                            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm transition-all duration-200"
+                            onClick={() => {
+                                if (!isCycleClosed) {
+                                    setCreatingObjective(true);
+                                }
+                            }}
+                            disabled={isCycleClosed}
+                            className={`rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-200 ${
+                                isCycleClosed
+                                    ? 'bg-gray-400 cursor-not-allowed opacity-60'
+                                    : 'bg-indigo-600 hover:bg-indigo-700'
+                            }`}
+                            title={isCycleClosed ? 'Chu kỳ đã đóng, không thể thêm Objective' : 'Thêm Objective'}
                         >
                             Thêm Objective
                         </button>
@@ -547,7 +712,10 @@ export default function CompanyOkrList() {
                     onOpenLinkModal={() => {}}
                     onCancelLink={() => {}}
                     hideFilters={true}
-                    disableActions={true}
+                    disableActions={isCycleClosed}
+                    isCycleClosed={isCycleClosed}
+                    currentCycle={currentCycle}
+                    cycleStatus={cycleStatus}
                 />
             ) : (
                 <OkrTreeCanvas

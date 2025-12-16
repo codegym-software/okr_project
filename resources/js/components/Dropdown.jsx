@@ -304,6 +304,7 @@ export function ViewModeDropdown({
     setDropdownOpen,
     currentUser,
     userDepartmentName,
+    setDepartmentFilter,
 }) {
     const role = currentUser?.role?.role_name?.toLowerCase();
 
@@ -324,20 +325,27 @@ export function ViewModeDropdown({
 
     const handleSelect = (mode) => {
         setViewMode(mode);
+        // Khi chọn "levels", tự động set department_id của user
+        if (mode === 'levels' && currentUser?.department_id) {
+            setDepartmentFilter?.(String(currentUser.department_id));
+        } else if (mode === 'personal') {
+            // Khi chọn "personal", xóa department filter
+            setDepartmentFilter?.(null);
+        }
         setDropdownOpen(false);
     };
 
     return (
-        <div className="relative">
+        <div className="relative w-52">
             <button
                 onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="flex w-full h-10 items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-gray-50 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150"
             >
-                <span className="flex items-center gap-2 truncate">
+                <span className="truncate">
                     {options[viewMode]}
                 </span>
                 <svg
-                    className={`h-4 w-4 transform transition-transform ${
+                    className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${
                         dropdownOpen ? "rotate-180" : ""
                     }`}
                     fill="none"
@@ -354,19 +362,30 @@ export function ViewModeDropdown({
             </button>
 
             {dropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg z-50">
+                <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
                     {Object.entries(options).map(([key, label]) => (
-                        <div
+                        <label
                             key={key}
-                            onClick={() => handleSelect(key)}
-                            className={`cursor-pointer px-3 py-2 text-sm font-medium hover:bg-blue-50 ${
+                            className={`flex items-start gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
                                 viewMode === key
-                                    ? "text-blue-600"
-                                    : "text-slate-900"
+                                    ? "bg-blue-50 border-l-4 border-l-blue-500"
+                                    : ""
                             }`}
                         >
-                            {label}
-                        </div>
+                            <input
+                                type="radio"
+                                name="viewMode"
+                                value={key}
+                                checked={viewMode === key}
+                                onChange={() => handleSelect(key)}
+                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <div className="flex-1 flex flex-col">
+                                <p className="text-sm font-medium text-slate-900">
+                                    {label}
+                                </p>
+                            </div>
+                        </label>
                     ))}
                 </div>
             )}

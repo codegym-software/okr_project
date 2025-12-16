@@ -79,8 +79,9 @@ export const getAssigneeInfo = (kr) => {
             department:
                 user.department?.d_name ||
                 user.department?.name ||
+                user.department?.department_name ||
                 user.department_name ||
-                user.department ||
+                (typeof user.department === 'string' ? user.department : null) ||
                 null,
             email: user.email || "",
             role: roleName,
@@ -93,5 +94,46 @@ export const getAssigneeInfo = (kr) => {
         department: null,
         email: "",
         role: "",
+    };
+};
+
+/**
+ * Get owner info for Objective (similar to getAssigneeInfo for KR)
+ */
+export const getOwnerInfo = (user) => {
+    if (!user) {
+        return {
+            name: "",
+            avatar: DEFAULT_AVATAR_URL,
+            department: null,
+            email: "",
+            role: "",
+        };
+    }
+
+    const roleName = user.role?.role_name?.toLowerCase() || "";
+    return {
+        name:
+            user.full_name ||
+            user.fullName ||
+            user.name ||
+            user.username ||
+            user.email ||
+            `User ${user.user_id || ""}`,
+        avatar:
+            user.avatar_url ||
+            user.avatar ||
+            user.profile_photo_url ||
+            user.profile_photo_path ||
+            user.photo_url ||
+            DEFAULT_AVATAR_URL,
+        department:
+            user.department?.d_name ||
+            user.department?.name ||
+            user.department_name ||
+            user.department ||
+            null,
+        email: user.email || "",
+        role: roleName,
     };
 };

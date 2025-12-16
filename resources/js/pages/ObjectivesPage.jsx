@@ -63,6 +63,7 @@ export default function ObjectivesPage() {
     const urlParamsHandledRef = React.useRef(false);
     const [userDepartmentName, setUserDepartmentName] = useState('');
     const [cycleFilter, setCycleFilter] = useState(null);
+    const [departmentFilter, setDepartmentFilter] = useState(null);
 
     const [myOKRFilter, setMyOKRFilter] = useState(false);
     const [viewMode, setViewMode] = useState('levels'); // 'levels' or 'personal'
@@ -76,8 +77,31 @@ export default function ObjectivesPage() {
     useEffect(() => {
         if (currentUser?.role?.role_name?.toLowerCase() === 'member') {
             setViewMode('personal');
+            setDepartmentFilter(null);
         }
     }, [currentUser?.user_id]);
+
+    // Tự động set departmentFilter khi viewMode thay đổi (chỉ khi không có từ URL)
+    useEffect(() => {
+        // Chỉ chạy khi đã load xong user data
+        if (!currentUser) return;
+        
+        // Kiểm tra xem có department_id trong URL không
+        const urlParams = new URLSearchParams(window.location.search);
+        const departmentIdFromUrl = urlParams.get('department_id');
+        
+        if (viewMode === 'levels' && currentUser?.department_id) {
+            // Nếu chưa có departmentFilter và không có từ URL, tự động set từ currentUser
+            if (!departmentFilter && !departmentIdFromUrl) {
+                setDepartmentFilter(String(currentUser.department_id));
+            }
+        } else if (viewMode === 'personal') {
+            // Khi chuyển sang personal, xóa department filter (trừ khi có trong URL - giữ nguyên)
+            if (!departmentIdFromUrl) {
+                setDepartmentFilter(null);
+            }
+        }
+    }, [viewMode, currentUser?.department_id, currentUser]);
 
     // Effect to select the default cycle on initial load
     useEffect(() => {
@@ -87,10 +111,16 @@ export default function ObjectivesPage() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const cycleIdFromUrl = urlParams.get('cycle_id');
                 const viewModeFromUrl = urlParams.get('view_mode');
+                const departmentIdFromUrl = urlParams.get('department_id');
                 
                 // Restore viewMode từ URL nếu có
                 if (viewModeFromUrl && ['levels', 'personal'].includes(viewModeFromUrl)) {
                     setViewMode(viewModeFromUrl);
+                }
+                
+                // Restore department_id từ URL nếu có (ưu tiên URL params)
+                if (departmentIdFromUrl) {
+                    setDepartmentFilter(departmentIdFromUrl);
                 }
                 
                 const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
@@ -155,7 +185,7 @@ export default function ObjectivesPage() {
     }, []);
 
 
-    const load = async (pageNum = 1, cycle, myOKR = false, view = 'levels') => {
+    const load = async (pageNum = 1, cycle, myOKR = false, view = 'levels', departmentId = null) => {
         if (cycle === null) {
             setLoading(false);
             return;
@@ -172,6 +202,7 @@ export default function ObjectivesPage() {
             let url = `/my-objectives?page=${pageNum}&view_mode=${view}`;
             if (cycle) url += `&cycle_id=${cycle}`;
             if (myOKR) url += `&my_okr=true`;
+            if (departmentId) url += `&department_id=${departmentId}`;
 
             const [resObj, resDept, resUser, resLinks] = await Promise.all([
                 fetch(url, { headers: { Accept: "application/json", "X-CSRF-TOKEN": token } }),
@@ -219,14 +250,14 @@ export default function ObjectivesPage() {
     // Main data loading effect
     useEffect(() => {
         if (cycleFilter !== null) {
-            load(page, cycleFilter, myOKRFilter, viewMode);
+            load(page, cycleFilter, myOKRFilter, viewMode, departmentFilter);
         }
-    }, [page, cycleFilter, myOKRFilter, viewMode]);
+    }, [page, cycleFilter, myOKRFilter, viewMode, departmentFilter]);
 
     // Reset page to 1 when filters change
     useEffect(() => {
         if (page !== 1) setPage(1);
-    }, [cycleFilter, myOKRFilter, viewMode]);
+    }, [cycleFilter, myOKRFilter, viewMode, departmentFilter]);
 
     // Auto-open check-in modal nếu có thông tin từ CheckInReminderBanner
     useEffect(() => {
@@ -824,13 +855,98 @@ export default function ObjectivesPage() {
         [enrichedItems]
     );
 
+    // Kiểm tra trạng thái chu kỳ hiện tại
+    const currentCycle = useMemo(() => {
+        if (!cycleFilter || !cyclesList || cyclesList.length === 0) return null;
+        return cyclesList.find(c => String(c.cycle_id) === String(cycleFilter));
+    }, [cycleFilter, cyclesList]);
+
+    // Tính trạng thái chu kỳ dựa trên status và ngày tháng
+    const cycleStatus = useMemo(() => {
+        if (!currentCycle) return null;
+        
+        const status = String(currentCycle.status || '').toLowerCase();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Đã đóng: status = inactive
+        if (status === 'inactive') {
+            return {
+                type: 'closed',
+                label: 'Đã đóng',
+                color: 'red',
+                allowActions: false
+            };
+        }
+        
+        const startDate = currentCycle.start_date ? new Date(currentCycle.start_date) : null;
+        const endDate = currentCycle.end_date ? new Date(currentCycle.end_date) : null;
+        
+        if (startDate) startDate.setHours(0, 0, 0, 0);
+        if (endDate) {
+            endDate.setHours(23, 59, 59, 999);
+        }
+        
+        // Sắp diễn ra: chưa đến ngày bắt đầu
+        if (startDate && today < startDate) {
+            return {
+                type: 'upcoming',
+                label: 'Sắp diễn ra',
+                color: 'blue',
+                allowActions: false // Chưa bắt đầu, không cho phép hành động
+            };
+        }
+        
+        // Quá hạn: đã qua ngày kết thúc nhưng status vẫn là active
+        if (endDate && today > endDate && status === 'active') {
+            return {
+                type: 'overdue',
+                label: 'Quá hạn',
+                color: 'orange',
+                allowActions: false // Quá hạn, không cho phép hành động
+            };
+        }
+        
+        // Đang diễn ra: trong khoảng thời gian và status = active
+        if (startDate && endDate && today >= startDate && today <= endDate && status === 'active') {
+            return {
+                type: 'ongoing',
+                label: 'Đang diễn ra',
+                color: 'green',
+                allowActions: true
+            };
+        }
+        
+        // Draft: status = draft
+        if (status === 'draft') {
+            return {
+                type: 'draft',
+                label: 'Bản nháp',
+                color: 'gray',
+                allowActions: false
+            };
+        }
+        
+        // Mặc định: không cho phép hành động
+        return {
+            type: 'unknown',
+            label: 'Không xác định',
+            color: 'gray',
+            allowActions: false
+        };
+    }, [currentCycle]);
+
+    const isCycleClosed = useMemo(() => {
+        return cycleStatus ? !cycleStatus.allowActions : false;
+    }, [cycleStatus]);
+
     // Đồng bộ các bộ lọc vào query params
     useEffect(() => {
         try {
             const url = new URL(window.location.href);
             
-            // Giữ lại các query params quan trọng khác (highlight_link, objective_id, highlight_kr)
-            const preserveParams = ['highlight_link', 'objective_id', 'highlight_kr'];
+            // Giữ lại các query params quan trọng khác (highlight_link, objective_id, highlight_kr, link_modal, source_id, source_type, target_id, target_type)
+            const preserveParams = ['highlight_link', 'objective_id', 'highlight_kr', 'link_modal', 'source_id', 'source_type', 'target_id', 'target_type'];
             const preservedValues = {};
             preserveParams.forEach(param => {
                 const value = url.searchParams.get(param);
@@ -851,6 +967,13 @@ export default function ObjectivesPage() {
                 url.searchParams.set("view_mode", viewMode);
             } else {
                 url.searchParams.delete("view_mode");
+            }
+            
+            // Sync departmentFilter
+            if (departmentFilter) {
+                url.searchParams.set("department_id", String(departmentFilter));
+            } else {
+                url.searchParams.delete("department_id");
             }
             
             // Sync displayMode, treeRootId, treeLayout
@@ -877,7 +1000,33 @@ export default function ObjectivesPage() {
         } catch (e) {
             console.error("Failed to sync filter params", e);
         }
-    }, [cycleFilter, viewMode, displayMode, treeRootId, treeLayout]);
+    }, [cycleFilter, viewMode, departmentFilter, displayMode, treeRootId, treeLayout]);
+
+    // Xử lý query params để mở modal liên kết
+    useEffect(() => {
+        if (items.length === 0 || loading) return;
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const linkModalParam = urlParams.get('link_modal');
+        const sourceIdParam = urlParams.get('source_id');
+        const sourceTypeParam = urlParams.get('source_type') || 'objective';
+        
+        // Chỉ xử lý nếu modal chưa mở
+        if (linkModalParam === 'open' && sourceIdParam && !linkModal.open) {
+            // Tìm objective trong danh sách
+            const foundObjective = items.find(obj => String(obj.objective_id) === String(sourceIdParam));
+            if (foundObjective) {
+                setLinkModal({
+                    open: true,
+                    source: foundObjective,
+                    sourceType: sourceTypeParam,
+                });
+            } else {
+                // Nếu không tìm thấy, có thể cần load từ API
+                console.warn('Objective not found in current list:', sourceIdParam);
+            }
+        }
+    }, [items, loading, linkModal.open]);
 
     useEffect(() => {
         if (!enrichedItems.length) {
@@ -1079,6 +1228,13 @@ export default function ObjectivesPage() {
             source: payload.source,
             sourceType: payload.sourceType,
         });
+        
+        // Cập nhật URL với query params
+        const url = new URL(window.location.href);
+        url.searchParams.set('link_modal', 'open');
+        url.searchParams.set('source_id', String(payload.source?.objective_id || payload.source?.kr_id || ''));
+        url.searchParams.set('source_type', payload.sourceType || 'objective');
+        window.history.replaceState({}, '', url.toString());
     };
 
     const closeLinkModal = () => {
@@ -1087,6 +1243,15 @@ export default function ObjectivesPage() {
             source: null,
             sourceType: "objective",
         });
+        
+        // Xóa query params khi đóng modal
+        const url = new URL(window.location.href);
+        url.searchParams.delete('link_modal');
+        url.searchParams.delete('source_id');
+        url.searchParams.delete('source_type');
+        url.searchParams.delete('target_id');
+        url.searchParams.delete('target_type');
+        window.history.replaceState({}, '', url.toString());
     };
 
     const handleLinkRequestSuccess = (link) => {
@@ -1334,6 +1499,8 @@ export default function ObjectivesPage() {
                 userDepartmentName={userDepartmentName}
                 cycleFilter={cycleFilter}
                 setCycleFilter={setCycleFilter}
+                departmentFilter={departmentFilter}
+                setDepartmentFilter={setDepartmentFilter}
                 myOKRFilter={myOKRFilter}
                 setMyOKRFilter={setMyOKRFilter}
                 viewMode={viewMode}
@@ -1341,6 +1508,9 @@ export default function ObjectivesPage() {
                 onOpenLinkModal={handleOpenLinkModal}
                 onCancelLink={handleCancelLink}
                 reloadData={load}
+                isCycleClosed={isCycleClosed}
+                currentCycle={currentCycle}
+                cycleStatus={cycleStatus}
             />
             ) : (
                 <OkrTreeCanvas
