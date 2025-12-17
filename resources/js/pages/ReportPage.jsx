@@ -217,18 +217,7 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
                 </td>
 
                 <td className="px-6 py-3 text-center">
-                    {!isUnit ? (
-                        <button 
-                            className="text-[10px] px-2 py-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 transition-colors flex items-center gap-1 mx-auto whitespace-nowrap w-fit" 
-                            onClick={() => onRemind(item.user_id, getOwner(item.user_id).name)}
-                            title="Gửi thông báo nhắc nhở"
-                        >
-                            <FiBell className="w-3 h-3" />
-                            <span>Nhắc nhở</span>
-                        </button>
-                    ) : (
-                        <span className="text-[10px] text-slate-300 italic">Quản lý</span>
-                    )}
+                    <span className="text-[10px] text-slate-300 italic">{isUnit ? 'Quản lý' : '-'}</span>
                 </td>
             </tr>
 
@@ -269,7 +258,16 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
                                     {kr.last_checkin_date ? new Date(kr.last_checkin_date).toLocaleDateString('vi-VN') : '-'}
                                 </td>
                                 
-                                <td className="px-6 py-2 text-center"></td>
+                                <td className="px-6 py-2 text-center">
+                                    <button 
+                                        className="text-[10px] px-2 py-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 transition-colors flex items-center gap-1 mx-auto whitespace-nowrap w-fit" 
+                                        onClick={() => onRemind(kr.owner_id || item.user_id, getOwner(kr.owner_id || item.user_id).name)}
+                                        title="Gửi thông báo nhắc nhở"
+                                    >
+                                        <FiBell className="w-3 h-3" />
+                                        <span>Nhắc nhở</span>
+                                    </button>
+                                </td>
                             </tr>
                         );
                     })}
@@ -846,7 +844,7 @@ export default function ReportPage() {
                                                         </td>
                                                         <td className="px-6 py-4"><StatusBadge status={okr.status} /></td>
                                                         <td className="px-6 py-4 text-slate-500 text-xs">
-                                                            {okr.parent_objective_title ? <span className="text-blue-600 cursor-pointer block truncate max-w-[150px]" title={okr.parent_objective_title}>{okr.parent_objective_title}</span> : <span className="text-slate-400">-</span>}
+                                                            {okr.parent_objective_title ? <span className="text-blue-600 cursor-pointer block truncate max-w-[150px]" title={okr.parent_objective_title}>{okr.parent_objective_title}</span> : <span className="text-slate-400 italic">Chưa có liên kết</span>}
                                                         </td>
                                                     </tr>
                                                 );
@@ -880,7 +878,7 @@ export default function ReportPage() {
                             </div>
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <div><h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Liên kết Cá nhân với Phòng ban">Liên kết Nội bộ</h3><p className="text-[10px] text-slate-400 mt-0.5">(Độ phủ liên kết)</p></div>
+                                    <div><h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Liên kết Cá nhân với Phòng ban">Liên kết Nội bộ</h3><p className="text-[10px] text-slate-400 mt-0.5">(Tỷ lệ liên kết với phòng ban)</p></div>
                                     <div className="p-2 bg-blue-50 rounded-lg text-blue-600 flex-shrink-0"><FiLink className="w-5 h-5" /></div>
                                 </div>
                                 <div className="text-3xl font-bold text-slate-900">{reportData?.internal_alignment_rate || 0}%</div>
@@ -909,7 +907,7 @@ export default function ReportPage() {
                         {/* DETAILED COMPLIANCE TABLE */}
                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                             <div className="px-6 py-4 border-b border-slate-200">
-                                <h3 className="text-lg font-bold text-slate-800">Chi tiết Tuân thủ & Sức khỏe Mục tiêu</h3>
+                                <h3 className="text-lg font-bold text-slate-800">Chi tiết Sức khỏe Mục tiêu</h3>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
