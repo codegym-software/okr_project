@@ -13,7 +13,6 @@ use App\Models\Report; // Added this line
 use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\URL;
 use Spatie\Browsershot\Browsershot;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Carbon\Carbon;
@@ -98,7 +97,7 @@ class ReportController extends Controller
     }
 
     /**
-     * Biểu đồ xu hướng tiến độ của nhóm theo tuần.
+     * Biểu đồ xu hướng tiến độ tích lũy của nhóm theo tuần.
      */
     public function getTeamProgressTrend(Request $request)
     {
@@ -119,23 +118,33 @@ class ReportController extends Controller
             ], 404);
         }
 
-        $trend = CheckIn::query()
-            ->select([
-                DB::raw("DATE_FORMAT(check_ins.created_at, '%Y-%u') as bucket"),
-                DB::raw('AVG(check_ins.progress_percent) as avg_progress'),
-            ])
-            ->join('key_results as kr', 'kr.kr_id', '=', 'check_ins.kr_id')
-            ->join('objectives as obj', 'obj.objective_id', '=', 'kr.objective_id')
-            ->where('obj.department_id', $user->department_id)
-            ->where('obj.cycle_id', $cycle->cycle_id)
-            ->whereNotNull('check_ins.progress_percent')
-            ->groupBy('bucket')
-            ->orderBy('bucket')
-            ->get()
-            ->map(fn ($row) => [
-                'bucket' => $row->bucket,
-                'avg_progress' => $this->clampProgress((float) $row->avg_progress),
-            ]);
+        // 1. Lấy dữ liệu từ bảng Snapshot
+        $snapshots = DB::table('report_snapshots_weekly')
+            ->where('department_id', $user->department_id)
+            ->where('cycle_id', $cycle->cycle_id)
+            ->orderBy('year')
+            ->orderBy('week_number')
+            ->get();
+
+        $trendData = [];
+        foreach ($snapshots as $snap) {
+            $weekEnd = \Carbon\Carbon::parse($snap->week_end_date);
+            $trendData[] = [
+                'date' => $weekEnd->format('d/m'),
+                'full_date' => $snap->week_end_date,
+                'avg_progress' => (float) $snap->avg_progress,
+                'okr_count' => (int) $snap->okr_count,
+                'week_label' => 'Tuần ' . $snap->week_number,
+                'source' => 'snapshot'
+            ];
+        }
+
+        // 2. Đánh lại nhãn tuần tự (Tuần 1, Tuần 2, ...) bắt đầu từ đầu chu kỳ
+        $finalData = [];
+        foreach ($trendData as $index => $item) {
+            $item['week_name'] = "Tuần " . ($index + 1);
+            $finalData[] = $item;
+        }
 
         return response()->json([
             'success' => true,
@@ -144,42 +153,8 @@ class ReportController extends Controller
                 'cycle_id' => $cycle->cycle_id,
                 'cycle_name' => $cycle->cycle_name,
             ],
-            'data' => $trend,
+            'data' => $finalData,
         ]);
-    }
-
-    /**
-     * Chọn chu kỳ ưu tiên: tham số -> hiện tại -> gần nhất.
-     */
-    protected function resolveCycle(?int $cycleId = null): ?Cycle
-    {
-        if ($cycleId) {
-            return Cycle::find($cycleId);
-        }
-
-        $now = now();
-        $current = Cycle::where('start_date', '<=', $now)
-            ->where('end_date', '>=', $now)
-            ->orderByDesc('start_date')
-            ->first();
-
-        if ($current) {
-            return $current;
-        }
-
-        return Cycle::orderByDesc('start_date')->first();
-    }
-
-    /**
-     * Chuẩn hóa tiến độ về 0 - 100 với 2 chữ số thập phân.
-     */
-    protected function clampProgress(?float $value): float
-    {
-        if ($value === null || !is_finite($value)) {
-            return 0.0;
-        }
-
-        return (float) round(max(0, min(100, $value)), 2);
     }
 
     /**
@@ -1515,5 +1490,39 @@ default:
         );
 
         return response()->json(['success' => true, 'message' => 'Đã gửi nhắc nhở thành công']);
+    }
+
+    /**
+     * Chuẩn hóa tiến độ về 0 - 100 với 2 chữ số thập phân.
+     */
+    protected function clampProgress(?float $value): float
+    {
+        if ($value === null || !is_finite($value)) {
+            return 0.0;
+        }
+
+        return (float) round(max(0, min(100, $value)), 2);
+    }
+
+    /**
+     * Resolve cycle from ID or current
+     */
+    protected function resolveCycle(?int $cycleId = null): ?Cycle
+    {
+        if ($cycleId) {
+            return Cycle::find($cycleId);
+        }
+
+        $now = now();
+        $current = Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->orderByDesc('start_date')
+            ->first();
+
+        if ($current) {
+            return $current;
+        }
+
+        return Cycle::orderByDesc('start_date')->first();
     }
 }
