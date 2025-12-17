@@ -679,8 +679,8 @@ class MyObjectiveController extends Controller
     private function getAllowedLevels(string $roleName): array
     {
         return match (strtolower($roleName)) {
-            'admin' => ['company'],  
-            'ceo' => ['company'],
+            'admin' => ['company', 'unit', 'person'],  
+            'ceo' => ['company', 'person'],
             'manager' => ['unit', 'person'],  
             'member' => ['person'],  
             default => ['person'],
