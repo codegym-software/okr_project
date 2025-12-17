@@ -188,41 +188,6 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
                 ->name('users.index')
                 ->middleware(\App\Http\Middleware\RestrictToAdminOrUnitManager::class);
 
-    // Route::get('/users2', [UserController::class, 'index2']);
-
-    // // Objectives Routes
-    // Route::resource('objectives', ObjectiveController::class);
-    // // Route::get('/dashboard', [ObjectiveController::class, 'dashboard'])->name('dashboard');
-
-    // // Key Results Routes
-    // Route::get('/objectives/{objective}/key-results', 
-    // [KeyResultController::class, 'index'])
-    // ->name('key_results.index');
-
-    // Route::get('/objectives/{objective}/key-results/{key_result}', 
-    // [KeyResultController::class, 'show'])
-    // ->whereNumber('key_result')
-    // ->name('key_results.show');
-
-    // // Form tạo mới Key Result
-    // Route::get('/objectives/{objective}/key-results/create',
-    //     [KeyResultController::class, 'create']
-    // )->name('key_results.create');
-
-    // // Lưu Key Result
-    // Route::post('/objectives/{objective}/key-results',
-    //     [KeyResultController::class, 'store']
-    // )->name('key_results.store');
-
-    // // Cập nhật Key Result
-    // Route::put('/objectives/{objective}/key-results/{kr}',
-    //     [KeyResultController::class, 'update']
-    // )->name('key_results.update');
-
-    // Route::delete('/objectives/{objective}/key-results/{kr}',
-    //     [KeyResultController::class, 'destroy']
-    // )->name('key_results.destroy');
-
     Route::prefix('my-objectives')->group(function () {
         Route::get('/', [MyObjectiveController::class, 'index'])
             ->middleware('auth')
@@ -329,8 +294,8 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
             ->name('api.reports.snapshots.create');
         Route::get('/list', [\App\Http\Controllers\ReportController::class, 'getReportsList'])
             ->name('api.reports.snapshots.list');
-        Route::get('/{reportId}', [\App\Http\Controllers\ReportController::class, 'getReportSnapshot'])
-            ->name('api.reports.snapshots.show');
+        Route::get('/detail/{reportId}', [\App\Http\Controllers\ReportController::class, 'getReportSnapshot'])
+            ->name('api.reports.snapshots.detail');
         Route::delete('/{reportId}', [\App\Http\Controllers\ReportController::class, 'deleteReport'])
             ->name('api.reports.snapshots.delete');
     });
@@ -348,6 +313,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::get('/snapshots', [\App\Http\Controllers\ReportSnapshotController::class, 'index'])
             ->name('api.reports.snapshots.index');
         Route::get('/snapshots/{id}', [\App\Http\Controllers\ReportSnapshotController::class, 'show'])
+            ->where('id', '[0-9]+')
             ->name('api.reports.snapshots.show');
     });
 
@@ -414,4 +380,3 @@ Route::get('/storage/{path}', function ($path) {
     
     return $response;
 })->where('path', '.*');
-

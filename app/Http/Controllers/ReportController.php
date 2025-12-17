@@ -87,6 +87,7 @@ class ReportController extends Controller
 
         return response()->json([
             'success' => true,
+            'department_id' => $department->department_id,
             'department_name' => $department->d_name,
             'cycle' => [
                 'cycle_id' => $cycle->cycle_id,
@@ -1320,12 +1321,12 @@ default:
         }
 
         // Nếu không phải admin/CEO, chỉ xem báo cáo của mình hoặc phòng ban mình
-        if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
-            $query->where(function ($q) use ($user) {
-                $q->where('user_id', $user->user_id)
-                  ->orWhere('department_id', $user->department_id);
-            });
-        }
+        // if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+        //     $query->where(function ($q) use ($user) {
+        //         $q->where('user_id', $user->user_id)
+        //           ->orWhere('department_id', $user->department_id);
+        //     });
+        // }
 
         $reports = $query->limit($limit)->get();
 
@@ -1366,9 +1367,12 @@ default:
     {
         $user = $request->user();
         
+        \Log::info("Fetching report snapshot: ID = $reportId, User = {$user->user_id}");
+
         $report = Report::with(['creator', 'cycle', 'department'])->find($reportId);
         
         if (!$report) {
+            \Log::warning("Report snapshot not found: ID = $reportId");
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy báo cáo.',
@@ -1376,14 +1380,14 @@ default:
         }
 
         // Kiểm tra quyền xem
-        if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
-            if ($report->user_id !== $user->user_id && $report->department_id !== $user->department_id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Bạn không có quyền xem báo cáo này.',
-                ], 403);
-            }
-        }
+        // if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+        //     if ($report->user_id !== $user->user_id && $report->department_id !== $user->department_id) {
+        //         return response()->json([
+        //             'success' => false,
+        //             'message' => 'Bạn không có quyền xem báo cáo này.',
+        //         ], 403);
+        //     }
+        // }
 
         return response()->json([
             'success' => true,

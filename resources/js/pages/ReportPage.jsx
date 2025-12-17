@@ -87,6 +87,66 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, isLoading })
     );
 };
 
+// History Modal Component
+const HistoryModal = ({ isOpen, onClose, reports, onView, onDelete }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={onClose}></div>
+                <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div className="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">Lịch sử Báo cáo đã lưu</h3>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-500 focus:outline-none">
+                                <span className="text-2xl">&times;</span>
+                            </button>
+                        </div>
+                        
+                        <div className="mt-2 max-h-96 overflow-y-auto">
+                            {reports.length === 0 ? (
+                                <p className="text-center text-gray-500 py-8">Chưa có báo cáo nào được lưu.</p>
+                            ) : (
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian lưu</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chu kỳ</th>
+                                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {reports.map((report) => (
+                                            <tr key={report.report_id}>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {new Date(report.created_at).toLocaleString('vi-VN')}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {report.cycle?.cycle_name || 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <button onClick={() => onView(report.report_id)} className="text-indigo-600 hover:text-indigo-900 mr-4">Xem lại</button>
+                                                    <button onClick={() => onDelete(report.report_id)} className="text-red-600 hover:text-red-900">Xóa</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                    <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                        <button type="button" className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={onClose}>
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Row Component for Expandable Tree View (CLEAN TOGGLE - NO CONNECTORS)
 const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
     const [expanded, setExpanded] = useState(false); // Default Collapsed
@@ -157,18 +217,7 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
                 </td>
 
                 <td className="px-6 py-3 text-center">
-                    {!isUnit ? (
-                        <button 
-                            className="text-[10px] px-2 py-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 transition-colors flex items-center gap-1 mx-auto whitespace-nowrap w-fit" 
-                            onClick={() => onRemind(item.user_id, getOwner(item.user_id).name)}
-                            title="Gửi thông báo nhắc nhở"
-                        >
-                            <FiBell className="w-3 h-3" />
-                            <span>Nhắc nhở</span>
-                        </button>
-                    ) : (
-                        <span className="text-[10px] text-slate-300 italic">Quản lý</span>
-                    )}
+                    <span className="text-[10px] text-slate-300 italic">{isUnit ? 'Quản lý' : '-'}</span>
                 </td>
             </tr>
 
@@ -209,7 +258,16 @@ const ComplianceRow = ({ item, level = 0, getOwner, onRemind }) => {
                                     {kr.last_checkin_date ? new Date(kr.last_checkin_date).toLocaleDateString('vi-VN') : '-'}
                                 </td>
                                 
-                                <td className="px-6 py-2 text-center"></td>
+                                <td className="px-6 py-2 text-center">
+                                    <button 
+                                        className="text-[10px] px-2 py-1 bg-white border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50 transition-colors flex items-center gap-1 mx-auto whitespace-nowrap w-fit" 
+                                        onClick={() => onRemind(kr.owner_id || item.user_id, getOwner(kr.owner_id || item.user_id).name)}
+                                        title="Gửi thông báo nhắc nhở"
+                                    >
+                                        <FiBell className="w-3 h-3" />
+                                        <span>Nhắc nhở</span>
+                                    </button>
+                                </td>
                             </tr>
                         );
                     })}
@@ -237,6 +295,7 @@ export default function ReportPage() {
     const [reportData, setReportData] = useState(null);
     const [trendData, setTrendData] = useState([]); 
     const [departmentName, setDepartmentName] = useState("");
+    const [departmentId, setDepartmentId] = useState(null);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState("performance");
 
@@ -265,6 +324,7 @@ export default function ReportPage() {
             if (json.success) {
                 setReportData(json.data);
                 setDepartmentName(json.department_name);
+                setDepartmentId(json.department_id);
             } else {
                 setError(json.message);
             }
@@ -324,6 +384,7 @@ export default function ReportPage() {
                 body: JSON.stringify({
                     report_type: 'team',
                     cycle_id: selectedCycle,
+                    department_id: departmentId
                 })
             });
             const json = await res.json();
@@ -356,12 +417,16 @@ export default function ReportPage() {
         setLoading(true);
         setShowHistoryModal(false);
         try {
-            const res = await fetch(`/api/reports/snapshots/${reportId}`);
+            const res = await fetch(`/api/reports/snapshots/detail/${reportId}`);
             const json = await res.json();
             if (json.success) {
-                setReportData(json.data.snapshot_data);
+                const snap = json.data.snapshot_data;
+                // Handle nested 'data' structure from API response snapshot
+                setReportData(snap.data || snap);
+                if (snap.department_name) setDepartmentName(snap.department_name);
+
                 setSelectedSnapshot(json.data); 
-                setToast({ message: `Đang xem: ${json.data.report_name}`, type: 'info' });
+                setToast({ message: `Đang xem: ${json.data.report_name}`, type: 'success' });
             }
         } catch (e) {
             setToast({ message: "Lỗi tải báo cáo lưu trữ", type: 'error' });
@@ -621,8 +686,8 @@ export default function ReportPage() {
                         <div className="flex items-center gap-3">
                             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Báo cáo Thống kê Phòng ban</h1>
                             {selectedSnapshot && (
-                                <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200">
-                                    Đang xem bản lưu: {new Date(selectedSnapshot.created_at).toLocaleString('vi-VN')}
+                                <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200">
+                                    Đang xem: {selectedSnapshot.report_name}
                                 </span>
                             )}
                         </div>
@@ -640,8 +705,9 @@ export default function ReportPage() {
                                         placeholder="Chọn chu kỳ"
                                     />
                                 </div>
-                                <button onClick={fetchSavedReports} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Lịch sử báo cáo">
-                                    <FiList className="w-5 h-5" />
+                                <button onClick={fetchSavedReports} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
+                                    <FiList className="w-4 h-4" />
+                                    <span>Lịch sử</span>
                                 </button>
                                 <button onClick={handleSaveSnapshot} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-sm transition-colors text-sm font-medium">
                                     {isSaving ? <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></span> : <FiSave className="w-4 h-4" />}
@@ -778,7 +844,7 @@ export default function ReportPage() {
                                                         </td>
                                                         <td className="px-6 py-4"><StatusBadge status={okr.status} /></td>
                                                         <td className="px-6 py-4 text-slate-500 text-xs">
-                                                            {okr.parent_objective_title ? <span className="text-blue-600 cursor-pointer block truncate max-w-[150px]" title={okr.parent_objective_title}>{okr.parent_objective_title}</span> : <span className="text-slate-400">-</span>}
+                                                            {okr.parent_objective_title ? <span className="text-blue-600 cursor-pointer block truncate max-w-[150px]" title={okr.parent_objective_title}>{okr.parent_objective_title}</span> : <span className="text-slate-400 italic">Chưa có liên kết</span>}
                                                         </td>
                                                     </tr>
                                                 );
@@ -812,7 +878,7 @@ export default function ReportPage() {
                             </div>
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
                                 <div className="flex justify-between items-start">
-                                    <div><h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Liên kết Cá nhân với Phòng ban">Liên kết Nội bộ</h3><p className="text-[10px] text-slate-400 mt-0.5">(Độ phủ liên kết)</p></div>
+                                    <div><h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider" title="Tỷ lệ Liên kết Cá nhân với Phòng ban">Liên kết Nội bộ</h3><p className="text-[10px] text-slate-400 mt-0.5">(Tỷ lệ liên kết với phòng ban)</p></div>
                                     <div className="p-2 bg-blue-50 rounded-lg text-blue-600 flex-shrink-0"><FiLink className="w-5 h-5" /></div>
                                 </div>
                                 <div className="text-3xl font-bold text-slate-900">{reportData?.internal_alignment_rate || 0}%</div>
@@ -841,7 +907,7 @@ export default function ReportPage() {
                         {/* DETAILED COMPLIANCE TABLE */}
                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                             <div className="px-6 py-4 border-b border-slate-200">
-                                <h3 className="text-lg font-bold text-slate-800">Chi tiết Tuân thủ & Sức khỏe Mục tiêu</h3>
+                                <h3 className="text-lg font-bold text-slate-800">Chi tiết Sức khỏe Mục tiêu</h3>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
@@ -878,6 +944,7 @@ export default function ReportPage() {
                 )}
                 <ToastNotification toast={toast} onClose={() => setToast({ message: null, type: null })} />
                 <ConfirmModal isOpen={remindModalOpen} onClose={() => setRemindModalOpen(false)} onConfirm={confirmRemind} title="Xác nhận nhắc nhở" message={`Bạn có chắc chắn muốn gửi thông báo nhắc nhở check-in đến ${userToRemind.name} không?`} isLoading={isReminding} />
+                <HistoryModal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} reports={savedReports} onView={loadSnapshot} onDelete={deleteReport} />
             </div>
         </div>
     );
