@@ -57,7 +57,7 @@ export const getAssigneeInfo = (kr) => {
             email: "",
             role: "",
         };
-    const user = kr.assigned_user || kr.assignedUser || kr.assignee || null;
+    const user = kr.assigned_user || kr.assignedUser || kr.assignee || kr.user || null;
 
     if (user) {
         const roleName = user.role?.role_name?.toLowerCase() || "";

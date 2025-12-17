@@ -427,7 +427,7 @@ export default function KeyResultRow({
                                                         </div>
                                                     </td>
                                                     <td className="px-3 py-3 text-center">
-                    {kr.assigned_to ? (
+                    {assigneeInfo.name ? (
                         <div
                             className="flex items-center justify-center gap-2 cursor-pointer"
                             onMouseEnter={(e) =>

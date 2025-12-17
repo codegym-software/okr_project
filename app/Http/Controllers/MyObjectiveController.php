@@ -97,7 +97,7 @@ class MyObjectiveController extends Controller
         }
         
         $userId = $user->user_id;
-        $query = Objective::with(['keyResults.assignedUser.department', 'keyResults.assignedUser.role', 'department', 'cycle', 'assignments.user.department', 'assignments.user.role', 'assignments.role', 'user.department', 'user.role'])
+        $query = Objective::with(['keyResults.assignedUser.department', 'keyResults.assignedUser.role', 'keyResults.user', 'department', 'cycle', 'assignments.user.department', 'assignments.user.role', 'assignments.role', 'user.department', 'user.role'])
             ->where(function ($q) use ($userId) {
                 $q->where('user_id', $userId)
                 ->orWhereHas('keyResults', function ($subQuery) use ($userId) {
@@ -335,7 +335,8 @@ class MyObjectiveController extends Controller
                             'objective_id' => $objective->objective_id,
                             'cycle_id' => $objective->cycle_id ?? null, 
                             'department_id' => $objective->department_id ?? null,
-                            'user_id' => $user->user_id, 
+                            'user_id' => $user->user_id,
+                            'assigned_to' => $user->user_id, 
                         ]);
                     }
                     // Cập nhật updated_at của Objective khi tạo KR mới

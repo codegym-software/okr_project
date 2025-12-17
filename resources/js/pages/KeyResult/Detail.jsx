@@ -156,7 +156,7 @@ const KrOverviewSection = ({ keyResult }) => {
                     </dt>
                     <dd>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(status)}`}>
-                            {(status || '').replace('_', ' ').toUpperCase()}
+                            {typeof status === 'string' ? status.replace('_', ' ').toUpperCase() : 'N/A'}
                         </span>
                     </dd>
                 </div>
