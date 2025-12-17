@@ -181,8 +181,8 @@ export default function ObjectiveModal({
                 }
             }
 
-            // Khi chuyển sang company → xóa department_id
-            if (field === "level" && value === "company") {
+            // Khi chuyển sang company hoặc person → xóa department_id
+            if (field === "level" && (value === "company" || value === "person")) {
                 newForm.department_id = null;
             }
 
@@ -250,7 +250,7 @@ export default function ObjectiveModal({
             const body = {
                 ...createForm,
                 department_id:
-                    createForm.level === "company"
+                    createForm.level === "company" || createForm.level === "person"
                         ? null
                         : createForm.department_id,
                 key_results: createForm.key_results.map((kr) => ({
