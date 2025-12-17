@@ -27,6 +27,7 @@ class KeyResult extends Model
         'current_value',
         'unit',
         'status',
+        'type',
         'weight',
         'department_id',
         'objective_id',

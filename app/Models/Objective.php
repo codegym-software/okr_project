@@ -24,6 +24,8 @@ class Objective extends Model
         'level',
         'description',
         'status',
+        'is_aspirational',
+        'tags',
         'progress_percent',
         'user_id',
         'cycle_id',
@@ -37,6 +39,8 @@ class Objective extends Model
         protected $casts = [
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
+            'is_aspirational' => 'boolean',
+            'tags' => 'array',
         ];
 
     /**
