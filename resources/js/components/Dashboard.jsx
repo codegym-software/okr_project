@@ -129,6 +129,17 @@ export default function Dashboard() {
             });
     }, []);
 
+    // Auto-expand objectives with at-risk KRs
+    useEffect(() => {
+        const newExpanded = {};
+        (data.myOkrs || []).forEach(okr => {
+            if (okr.key_results?.some(kr => isKrAtRisk(kr))) {
+                newExpanded[okr.objective_id] = true;
+            }
+        });
+        setExpandedObjectives(newExpanded);
+    }, [data.myOkrs, data.overdueKrs]);
+
     if (loading) {
         return (
             <div className="flex h-64 items-center justify-center text-slate-500">
