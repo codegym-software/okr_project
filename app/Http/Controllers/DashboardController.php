@@ -316,7 +316,6 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
 
-        // Allow overriding current date for testing (pass ?date=YYYY-MM-DD)
         $dateParam = $request->input('date');
         try {
             $now = $dateParam ? Carbon::parse($dateParam) : Carbon::now();
@@ -324,7 +323,6 @@ class DashboardController extends Controller
             $now = Carbon::now();
         }
 
-        // Lấy cycle hiện tại dựa trên thời gian (ngày hiện tại nằm trong cycle)
         $cycle = \App\Models\Cycle::whereRaw('DATE(start_date) <= ?', [$now->toDateString()])
             ->whereRaw('DATE(end_date) >= ?', [$now->toDateString()])
             ->first();
@@ -347,14 +345,12 @@ class DashboardController extends Controller
             ]);
         }
 
-        // Check if user has objectives in the current cycle
         $hasObjectivesInCurrentCycle = \App\Models\Objective::where('cycle_id', $cycle->cycle_id)
             ->where('user_id', $user->user_id)
             ->whereNull('archived_at')
             ->exists();
 
         if (!$hasObjectivesInCurrentCycle) {
-            // Nếu không có objectives trong cycle hiện tại, trả về data trống
             return response()->json([
                 'weeks' => [],
                 'actual' => [],
@@ -372,7 +368,6 @@ class DashboardController extends Controller
             ]);
         }
 
-        // Lấy objectives của user hiện tại trong cycle này
         $objectives = \App\Models\Objective::where('cycle_id', $cycle->cycle_id)
             ->where('user_id', $user->user_id)
             ->whereNull('archived_at')
@@ -397,7 +392,6 @@ class DashboardController extends Controller
             ]);
         }
 
-        // Tìm ngày tạo objective đầu tiên
         $firstObjectiveCreated = $objectives->min('created_at');
         $cycleStart = Carbon::parse($cycle->start_date);
         $cycleEnd = Carbon::parse($cycle->end_date);
@@ -438,6 +432,9 @@ class DashboardController extends Controller
         $actualData = [];
         $departmentData = [];
         $totalObjectives = $objectives->count();
+        $totalKrs = $objectives->sum(function($obj) {
+            return $obj->keyResults->count();
+        });
 
         // Thu thập tất cả check-ins của user
         $allCheckIns = collect();
@@ -550,7 +547,7 @@ class DashboardController extends Controller
                 'name' => $cycle->cycle_name,
                 'start' => $cycle->start_date,
                 'end' => $cycle->end_date,
-                'objectivesCount' => $totalObjectives
+                'objectivesCount' => $totalKrs
             ]
         ]);
     }

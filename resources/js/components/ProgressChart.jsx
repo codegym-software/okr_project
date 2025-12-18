@@ -25,6 +25,7 @@ export default function ProgressChart() {
     const [chartData, setChartData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [showWarning, setShowWarning] = useState(true);
 
     useEffect(() => {
         const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
@@ -85,7 +86,7 @@ export default function ProgressChart() {
             {
                 label: 'Tiến độ thực tế',
                 data: chartData.actual,
-                borderColor: '#3B82F6', // xanh dương
+                borderColor: '#3B82F6', 
                 backgroundColor: '#3B82F6',
                 tension: 0.4,
                 pointRadius: 4,
@@ -94,7 +95,7 @@ export default function ProgressChart() {
             {
                 label: 'Mục tiêu lý tưởng',
                 data: chartData.target,
-                borderColor: '#9CA3AF', // xám đứt
+                borderColor: '#9CA3AF', 
                 backgroundColor: '#9CA3AF',
                 borderDash: [5, 5],
                 tension: 0.4,
@@ -104,7 +105,7 @@ export default function ProgressChart() {
             {
                 label: 'Tiến độ phòng ban',
                 data: chartData.department,
-                borderColor: '#10B981', // xanh lá
+                borderColor: '#10B981', 
                 backgroundColor: '#10B981',
                 tension: 0.4,
                 pointRadius: 3,
@@ -133,7 +134,7 @@ export default function ProgressChart() {
                 },
                 padding: {
                     top: 10,
-                    bottom: 30,
+                    bottom: 20,
                 },
             },
             tooltip: {
@@ -174,32 +175,81 @@ export default function ProgressChart() {
     };
 
     return (
-        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <div className="h-80 mb-4">
-                <Line data={data} options={options} />
-            </div>
+        <>
+            {chartData.isBehind && showWarning && (
+                <div className="mb-4">
+                    <div
+                        className="
+                            relative w-full
+                            px-5 py-4
+                            bg-red-50
+                            border border-red-200
+                            border-t-4 border-t-red-500
+                            rounded-md
+                        "
+                    >
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="flex gap-4">
+                                <svg
+                                    className="h-5 w-5 text-red-500 flex-shrink-0 mt-[2px]"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                    />
+                                </svg>
 
-            {chartData.isBehind && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2">
-                        <svg className="h-5 w-5 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        <div>
-                            <p className="text-sm font-semibold text-red-800">
-                                Cảnh báo: Tiến độ đang chậm hơn kế hoạch
-                            </p>
-                            <p className="text-xs text-red-600 mt-1">
-                                Thực tế: {chartData.currentProgress}% | Mục tiêu: {chartData.targetProgress}%
-                            </p>
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-800">
+                                        Cảnh báo tiến độ: OKR đang chậm so với kế hoạch
+                                    </p>
+
+                                    <div className="mt-1 text-xs text-slate-700 flex flex-col gap-1">
+                                        <span>Thực tế hiện tại: {chartData.currentProgress}%</span>
+                                        <span>Kế hoạch tại thời điểm này: {chartData.targetProgress}%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowWarning(false)}
+                                className="text-red-400 hover:text-red-600 transition"
+                                aria-label="Đóng cảnh báo"
+                            >
+                                <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            <div className="mt-4 text-xs text-slate-500 text-center">
-                Biểu đồ cập nhật theo tuần, bắt đầu từ ngày tạo mục tiêu đầu tiên trong chu kỳ
+            <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+                <div className="h-80 mb-4">
+                    <Line data={data} options={options} />
+                </div>
+
+                <div className="mt-2 mb-6 text-xs text-slate-500 text-center">
+                    Biểu đồ cập nhật theo tuần, bắt đầu từ ngày tạo mục tiêu đầu tiên trong chu kỳ
+                </div>
             </div>
-        </div>
+        </>
     );
 }
