@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import ProgressChart from "./ProgressChart";
 
 const getProgressColor = (percent) => {
     if (percent >= 80) return "bg-emerald-500"; 
@@ -503,6 +504,18 @@ export default function Dashboard() {
                 </div>
             </section>
             
+            <section>
+                <div className="mb-4 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                            📈
+                        </span>
+                        Tiến độ theo tuần
+                    </h2>
+                </div>
+                <ProgressChart />
+            </section>
+
             <div className="grid gap-10 md:grid-cols-2">
                 <section className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
                     <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">

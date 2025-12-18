@@ -110,6 +110,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
 
     // Dashboard Data API
     Route::get('/api/dashboard/overview', [DashboardController::class, 'getData'])->middleware('auth')->name('api.dashboard.overview');
+    Route::get('/api/dashboard/progress-chart', [DashboardController::class, 'getProgressChartData'])->middleware('auth')->name('api.dashboard.progress-chart');
 
     //Routes cho Cycle
     Route::get('/cycles',[CycleController::class,'index'])->name('cycles.index');
