@@ -1157,28 +1157,46 @@ default:
                 $tempRequest->setUserResolver(fn() => $user);
                 $response = $this->getMyTeamReport($tempRequest);
                 $snapshotData = $response->getData(true);
-            } elseif ($reportType === 'manager') {
-                // Báo cáo phòng ban (Manager)
-                $tempRequest = new Request([
-                    'cycle_id' => $cycleId,
-                    'member_id' => $request->input('member_id'),
-                    'status' => $request->input('status'),
-                    'objective_id' => $request->input('objective_id'),
-                ]);
-                $tempRequest->setUserResolver(fn() => $user);
-                // Gọi API manager report
-                $snapshotData = $this->getManagerReportData($tempRequest);
             } elseif ($reportType === 'company') {
-                // Báo cáo công ty - Luôn là null department_id
-                $tempRequest = new Request([
-                    'cycle_id' => $cycleId,
-                    'department_id' => null, // Bỏ qua phòng ban cho báo cáo công ty
-                    'status' => $request->input('status'),
-                    'owner_id' => $request->input('owner_id'),
-                ]);
-                $tempRequest->setUserResolver(fn() => $user);
-                $response = $this->companyOkrReport($tempRequest);
-                $snapshotData = $response->getData(true);
+                $cycle = $this->resolveCycle($cycleId);
+                if (!$cycle) {
+                    return response()->json(['success' => false, 'message' => 'Không thể xác định chu kỳ cho snapshot.'], 422);
+                }
+
+                // Lấy tất cả filter params từ request gốc
+                $departmentId = $request->integer('department_id');
+                $level = $request->input('level');
+
+                // Tạo một request giả để truyền cho các hàm private
+                $internalRequest = new Request($request->all());
+                $internalRequest->setUserResolver(fn() => $user);
+
+                // Lấy dữ liệu từ cả 3 tab
+                $performanceData = $this->_getPerformanceReportData($internalRequest, $cycle, $departmentId, $level);
+                $processData = $this->_getProcessReportData($internalRequest, $cycle, $departmentId, $level);
+                $qualityData = $this->_getQualityReportData($internalRequest, $cycle, $departmentId, $level);
+
+                // Gộp dữ liệu của cả 3 tab vào một cấu trúc duy nhất
+                $combinedData = [
+                    'performance' => $performanceData,
+                    'process' => $processData,
+                    'quality' => $qualityData,
+                ];
+                
+                // Tạo cấu trúc snapshot_data cuối cùng
+                $snapshotData = [
+                    'success' => true,
+                    'data' => $combinedData,
+                    'meta' => [
+                        'cycleId' => $cycle->cycle_id,
+                        'cycleName' => $cycle->cycle_name,
+                        'computedAt' => now()->toISOString(),
+                        'filters' => [
+                            'department_id' => $departmentId,
+                            'level' => $level,
+                        ]
+                    ]
+                ];
             }
 
             if (!$snapshotData || !isset($snapshotData['success']) || !$snapshotData['success']) {

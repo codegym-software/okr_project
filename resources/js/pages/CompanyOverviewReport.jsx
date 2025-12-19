@@ -7,9 +7,9 @@ import QualityTab from '../components/reports/QualityTab';
 import FilterDropdown from '../components/reports/FilterDropdown';
 import SnapshotModal from '../components/reports/SnapshotModal';
 import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
-import { fetchDetailedData, fetchDetailedDataForSnapshot, createSnapshot } from '../utils/reports/dataFetchers';
+import { fetchDetailedData, createSnapshot } from '../utils/reports/dataFetchers';
 import { loadSnapshots as loadSnapshotsUtil } from '../utils/reports/snapshotHelpers';
-import { FiDownload, FiArchive, FiList, FiTrendingUp, FiCheckCircle, FiShield, FiFilter, FiClock, FiX } from "react-icons/fi";
+import { FiDownload, FiArchive, FiClock, FiFilter, FiTrendingUp, FiCheckCircle, FiShield, FiXCircle } from "react-icons/fi";
 import { Dropdown } from '../components/Dropdown';
 
 export default function CompanyOverviewReport() {
@@ -22,7 +22,6 @@ export default function CompanyOverviewReport() {
     
     // Data & Context states
     const [currentTab, setCurrentTab] = useState('performance');
-    const [snapshotContext, setSnapshotContext] = useState({ isSnapshot: false, name: null });
     const [toast, setToast] = useState(null);
     const [filters, setFilters] = useState({
         cycleId: '',
@@ -33,24 +32,26 @@ export default function CompanyOverviewReport() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [reportData, setReportData] = useState(null);
+    const [viewingSnapshot, setViewingSnapshot] = useState(null); // New state for snapshot view mode
     
     // Metadata states
-    const [currentCycleMeta, setCurrentCycleMeta] = useState(null);
     const [snapshots, setSnapshots] = useState([]);
     const [userRole, setUserRole] = useState(null);
     const [isAdminOrCeo, setIsAdminOrCeo] = useState(false);
-    const [selectedSnapshot, setSelectedSnapshot] = useState(null);
-    const [snapshotLevelFilter, setSnapshotLevelFilter] = useState('all');
 
     const hasActiveFilters = useMemo(() => {
-        return !!filters.departmentId || filters.objectiveLevel !== 'all' || !!filters.dateRange.start || !!filters.dateRange.end;
-    }, [filters]);
+        return !viewingSnapshot && (!!filters.departmentId || filters.objectiveLevel !== 'all' || !!filters.dateRange.start || !!filters.dateRange.end);
+    }, [filters, viewingSnapshot]);
 
     const showNotification = (type, message) => {
         setToast({ type, message });
     };
 
     const handleExport = () => {
+        if (viewingSnapshot) {
+            showNotification('info', 'Chức năng xuất file không áp dụng cho snapshot.');
+            return;
+        }
         if (!filters.cycleId) {
             showNotification('error', 'Vui lòng chọn chu kỳ để xuất báo cáo.');
             return;
@@ -73,15 +74,14 @@ export default function CompanyOverviewReport() {
             return;
         }
         try {
-            // Match the payload expected by ReportController@createSnapshot
             const payload = {
                 report_name: name,
-                report_type: 'company', // This report is always of type 'company'
+                report_type: 'company',
                 cycle_id: filters.cycleId,
                 department_id: filters.departmentId || null,
-                // Pass other filter values if the backend needs them
-                status: 'all', // Assuming a default, adjust if needed
-                owner_id: null, // Assuming a default, adjust if needed
+                level: filters.objectiveLevel,
+                start_date: filters.dateRange.start,
+                end_date: filters.dateRange.end,
                 notes: `Snapshot for company report with filters: ${JSON.stringify(filters)}`,
             };
             
@@ -89,7 +89,7 @@ export default function CompanyOverviewReport() {
 
             showNotification('success', `Đã tạo snapshot "${name}" thành công!`);
             setIsSnapshotModalOpen(false);
-            loadSnapshots(filters.cycleId); // Refresh snapshot list
+            loadSnapshots(filters.cycleId);
         } catch (e) {
             showNotification('error', e.message || 'Không thể tạo snapshot.');
         }
@@ -98,17 +98,40 @@ export default function CompanyOverviewReport() {
     const loadSnapshots = async (cycleId) => {
         if (!cycleId) return;
         try {
-            // Always fetch 'company' type snapshots for this report page
             const result = await loadSnapshotsUtil(cycleId, 'company');
             setSnapshots(result.snapshots || []);
         } catch (error) {
             showNotification('error', 'Không thể tải lịch sử snapshot.');
         }
     };
+    
+    const handleViewSnapshot = async (snapshotId) => {
+        setIsHistoryModalOpen(false); // Close modal immediately
+        setLoading(true);
+        setError('');
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const res = await fetch(`/api/reports/snapshots/detail/${snapshotId}`, {
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token }
+            });
+            if (!res.ok) throw new Error('Không thể tải dữ liệu snapshot.');
+            const result = await res.json();
+            if (result.success) {
+                setViewingSnapshot(result.data); // Set the full snapshot object
+            } else {
+                throw new Error(result.message || 'Lỗi không xác định khi tải snapshot.');
+            }
+        } catch (e) {
+            setError(e.message);
+            showNotification('error', e.message);
+            setViewingSnapshot(null); // Clear snapshot view on error
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    const handleSelectSnapshot = (snapshot) => {
-        setSelectedSnapshot(snapshot);
-        // The modal will now show the detail view
+    const handleExitSnapshotView = () => {
+        setViewingSnapshot(null);
     };
     
     // Read query params on mount
@@ -142,16 +165,11 @@ export default function CompanyOverviewReport() {
                 const dDepts = await rDepts.json();
                 const dProfile = await rProfile.json();
 
-                // Set user role
-                const role = dProfile.user?.role?.role_name?.toLowerCase() || '';
-                setUserRole(role);
-                setIsAdminOrCeo(role === 'admin' || role === 'ceo');
-
-                // Set dropdown data
+                setUserRole(dProfile.user?.role?.role_name?.toLowerCase() || '');
+                setIsAdminOrCeo(['admin', 'ceo'].includes(dProfile.user?.role?.role_name?.toLowerCase()));
                 setCycles(Array.isArray(dCycles.data) ? dCycles.data : []);
                 setDepartments(Array.isArray(dDepts.data) ? dDepts.data : []);
 
-                // Set initial cycle if not in URL
                 if (dCycles.data.length && !filters.cycleId) {
                     const current = dCycles.data.find(c => c.status === 'active') || dCycles.data[0];
                     setFilters(f => ({ ...f, cycleId: current.cycle_id }));
@@ -162,8 +180,7 @@ export default function CompanyOverviewReport() {
 
     // Main data fetching logic (for live data)
     useEffect(() => {
-        // Do not fetch live data if a snapshot is selected for viewing in the modal
-        if (!filters.cycleId || selectedSnapshot) return;
+        if (viewingSnapshot || !filters.cycleId) return; // Skip if in snapshot mode or no cycle
         
         setLoading(true);
         setError('');
@@ -174,31 +191,30 @@ export default function CompanyOverviewReport() {
                 setReportData(null);
             })
             .finally(() => setLoading(false));
-    }, [filters, currentTab, selectedSnapshot]);
+    }, [filters, currentTab, viewingSnapshot]);
 
-    // Sync filters to URL
+    // Sync filters to URL, but not in snapshot mode
     useEffect(() => {
+        if (viewingSnapshot) return;
+        
         const url = new URL(window.location.href);
         const params = url.searchParams;
 
-        if (filters.cycleId) params.set('cycle_id', filters.cycleId);
-        else params.delete('cycle_id');
-
-        if (filters.departmentId) params.set('department_id', filters.departmentId);
-        else params.delete('department_id');
-
-        if (filters.objectiveLevel && filters.objectiveLevel !== 'all') params.set('level', filters.objectiveLevel);
-        else params.delete('level');
+        if (filters.cycleId) params.set('cycle_id', filters.cycleId); else params.delete('cycle_id');
+        if (filters.departmentId) params.set('department_id', filters.departmentId); else params.delete('department_id');
+        if (filters.objectiveLevel && filters.objectiveLevel !== 'all') params.set('level', filters.objectiveLevel); else params.delete('level');
 
         window.history.replaceState({}, '', url.toString());
-    }, [filters]);
+    }, [filters, viewingSnapshot]);
 
-    // Update cycle meta and load snapshots
+    // Load snapshots when cycle changes, but not in snapshot mode
     useEffect(() => {
-        if (!filters.cycleId || !cycles.length) return;
-        setCurrentCycleMeta(cycles.find(c => String(c.cycle_id) === String(filters.cycleId)));
+        if (viewingSnapshot || !filters.cycleId || !cycles.length) return;
         loadSnapshots(filters.cycleId);
-    }, [filters.cycleId, cycles]);
+    }, [filters.cycleId, cycles, viewingSnapshot]);
+
+    // Determine the data to render
+    const dataToRender = viewingSnapshot ? viewingSnapshot.snapshot_data.data : reportData;
     
     const tabConfig = [
         { id: 'performance', label: 'Hiệu suất', icon: FiTrendingUp },
@@ -208,6 +224,20 @@ export default function CompanyOverviewReport() {
 
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
+            {/* Snapshot View Banner */}
+            {viewingSnapshot && (
+                <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-lg shadow-md flex items-center justify-between">
+                    <div>
+                        <p className="font-bold">Chế độ xem Snapshot</p>
+                        <p className="text-sm">Bạn đang xem báo cáo "{viewingSnapshot.report_name}" được lưu vào lúc {new Date(viewingSnapshot.created_at).toLocaleString('vi-VN')}.</p>
+                    </div>
+                    <button onClick={handleExitSnapshotView} className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-100">
+                        <FiXCircle />
+                        Thoát
+                    </button>
+                </div>
+            )}
+
             {/* Header */}
             <div className="mb-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -218,35 +248,31 @@ export default function CompanyOverviewReport() {
                             <CycleDropdown
                                 cyclesList={cycles}
                                 cycleFilter={filters.cycleId}
-                                handleCycleChange={(value) => { setFilters(f => ({ ...f, cycleId: value || null, dateRange: { start: null, end: null } })); setSelectedSnapshot(null); }}
+                                handleCycleChange={(value) => setFilters(f => ({ ...f, cycleId: value || null, dateRange: { start: null, end: null } }))}
+                                disabled={!!viewingSnapshot}
                             />
                         </div>
-                        {/* Action Buttons */}
                         <div className="flex items-center gap-2 mt-4">
                             <Dropdown
                                 position="right"
                                 trigger={
-                                    <button className={`relative flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium border rounded-lg transition-colors ${hasActiveFilters ? 'border-blue-300 bg-blue-50 text-blue-700' : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'}`}>
+                                    <button disabled={!!viewingSnapshot} className={`relative flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium border rounded-lg transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${hasActiveFilters ? 'border-blue-300 bg-blue-50 text-blue-700' : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'}`}>
                                         <FiFilter />
                                         Bộ lọc
                                         {hasActiveFilters && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span></span>}
                                     </button>
                                 }
                             >
-                                <FilterDropdown
-                                    filters={filters}
-                                    setFilters={setFilters}
-                                    allDepartments={departments}
-                                />
+                                <FilterDropdown filters={filters} setFilters={setFilters} allDepartments={departments} />
                             </Dropdown>
 
                             {isAdminOrCeo && (
                                 <>
-                                    <button onClick={() => setIsSnapshotModalOpen(true)} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <button onClick={() => setIsSnapshotModalOpen(true)} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
                                         <FiArchive />
                                         Tạo Snapshot
                                     </button>
-                                     <button onClick={() => { loadSnapshots(filters.cycleId); setIsHistoryModalOpen(true); }} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                                     <button onClick={() => { loadSnapshots(filters.cycleId); setIsHistoryModalOpen(true); }} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
                                         <FiClock />
                                         Lịch sử
                                     </button>
@@ -277,13 +303,13 @@ export default function CompanyOverviewReport() {
 
             {/* Tab Content */}
             <div className="report-content overflow-x-hidden">
-                {loading && ( <div className="text-center py-20"><div className="animate-spin h-8 w-8 text-blue-600 mx-auto" /><p className="mt-2 text-gray-500">Đang tải dữ liệu...</p></div> )}
-                {!loading && error && ( <div className="bg-red-50 border-l-4 border-red-400 p-4 max-w-3xl mx-auto"><div className="flex"><div className="flex-shrink-0"><svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-9a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1zm0 4a1 1 0 112 0 1 1 0 01-2 0z" clipRule="evenodd" /></svg></div><div className="ml-3"><p className="text-sm text-red-700 font-semibold">Lỗi tải báo cáo</p><p className="mt-1 text-sm text-red-600">{error}</p></div></div></div> )}
-                {!loading && !error && reportData && (
+                {loading && !viewingSnapshot && ( <div className="text-center py-20"><div className="animate-spin h-8 w-8 text-blue-600 mx-auto" /><p className="mt-2 text-gray-500">Đang tải dữ liệu...</p></div> )}
+                {!loading && error && !viewingSnapshot && ( <div className="bg-red-50 border-l-4 border-red-400 p-4 max-w-3xl mx-auto"><div className="flex"><div className="flex-shrink-0"><svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-9a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1zm0 4a1 1 0 112 0 1 1 0 01-2 0z" clipRule="evenodd" /></svg></div><div className="ml-3"><p className="text-sm text-red-700 font-semibold">Lỗi tải báo cáo</p><p className="mt-1 text-sm text-red-600">{error}</p></div></div></div> )}
+                {dataToRender && (
                     <>
-                        {currentTab === 'performance' && <PerformanceTab data={reportData} />}
-                        {currentTab === 'process' && <ProcessTab data={reportData} />}
-                        {currentTab === 'quality' && <QualityTab data={reportData} />}
+                        {currentTab === 'performance' && <PerformanceTab data={dataToRender.performance} isSnapshot={!!viewingSnapshot} />}
+                        {currentTab === 'process' && <ProcessTab data={dataToRender.process} isSnapshot={!!viewingSnapshot} />}
+                        {currentTab === 'quality' && <QualityTab data={dataToRender.quality} isSnapshot={!!viewingSnapshot} />}
                     </>
                 )}
             </div>
@@ -294,16 +320,12 @@ export default function CompanyOverviewReport() {
                     <SnapshotModal isOpen={isSnapshotModalOpen} onClose={() => setIsSnapshotModalOpen(false)} onSave={handleSaveSnapshot} />
                     <SnapshotHistoryModal 
                         isOpen={isHistoryModalOpen} 
-                        onClose={() => { setIsHistoryModalOpen(false); setSelectedSnapshot(null); }} 
+                        onClose={() => setIsHistoryModalOpen(false)} 
                         snapshots={snapshots} 
-                        onSelectSnapshot={handleSelectSnapshot} 
-                        selectedSnapshot={selectedSnapshot}
-                        onDeselectSnapshot={() => setSelectedSnapshot(null)}
+                        onViewSnapshot={handleViewSnapshot}
                         cyclesList={cycles}
                         modalCycleFilter={filters.cycleId}
                         onModalCycleFilterChange={(value) => setFilters(f => ({...f, cycleId: value}))}
-                        snapshotLevelFilter={snapshotLevelFilter}
-                        onSnapshotLevelChange={setSnapshotLevelFilter}
                     />
                 </>
             )}
