@@ -81,6 +81,7 @@ class MyKeyResultController extends Controller
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'assigned_to' => 'nullable|exists:users,user_id',
+            'type' => 'required|string|in:outcome,activity',
         ], [
             'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
             'unit.required' => 'Đơn vị là bắt buộc.',
@@ -142,6 +143,7 @@ class MyKeyResultController extends Controller
                     'user_id' => $user->user_id,
                     'archived_at' => null,
                     'assigned_to' => $finalAssignedTo,
+                    'type' => $validated['type'],
                 ]);
                 
                 // Cập nhật updated_at của Objective khi tạo KR mới
@@ -240,6 +242,7 @@ class MyKeyResultController extends Controller
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'assigned_to' => 'nullable|exists:users,user_id',
+            'type' => 'required|string|in:outcome,activity',
         ], [
             'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
             'unit.required' => 'Đơn vị là bắt buộc.',
@@ -295,6 +298,7 @@ class MyKeyResultController extends Controller
                     'weight' => $validated['weight'] ?? $keyResult->weight,
                     'progress_percent' => $validated['progress_percent'] ?? $progress,
                     'assigned_to' => $keyResult->assigned_to,
+                    'type' => $validated['type'],
                 ]);
 
                 // Tự động cập nhật progress của Objective từ KeyResults

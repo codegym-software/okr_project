@@ -20,6 +20,7 @@ export default function KeyResultModal({
         status: "not_start", // Bản nháp
         cycle_id: "", // Sẽ được gán tự động
         department_id: "",
+        type: "outcome", // Default type
     });
 
     // Lấy cycle_id từ Objective (tạo mới hoặc sửa)
@@ -42,6 +43,7 @@ export default function KeyResultModal({
                 cycle_id: creatingFor.cycle_id || "",
                 department_id: creatingFor.department_id || "",
                 assigned_to: currentUser?.user_id || null, // Mặc định là người tạo
+                type: "outcome", // Default type
             });
         }
     }, [creatingFor, currentUser]);
@@ -58,6 +60,7 @@ export default function KeyResultModal({
                 cycle_id: editingKR.cycle_id || "",
                 department_id: editingKR.department_id || "",
                 assigned_to: editingKR.assigned_to || null,
+                type: editingKR.type || "outcome", // Load existing type
             });
         }
     }, [editingKR]);
@@ -269,6 +272,22 @@ export default function KeyResultModal({
                                 <option value="percent">Phần trăm</option>
                                 <option value="completion">Hoàn thành</option>
                                 <option value="currency">Tiền tệ</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Loại
+                            </label>
+                            <select
+                                value={form.type}
+                                onChange={(e) =>
+                                    handleChange("type", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                required
+                            >
+                                <option value="outcome">Kết quả</option>
+                                <option value="activity">Hoạt động</option>
                             </select>
                         </div>
                     </div>

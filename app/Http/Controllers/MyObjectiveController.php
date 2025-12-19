@@ -215,6 +215,8 @@ class MyObjectiveController extends Controller
             'key_results.*.status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
+            'is_aspirational' => 'nullable|boolean',
+            'tags' => 'nullable|array',
         ]);
 
         // Tự động lấy current cycle nếu không có cycle_id
@@ -317,6 +319,8 @@ class MyObjectiveController extends Controller
                     'department_id' => $validated['department_id'] ?? null,
                     'user_id' => $user->user_id,
                     'progress_percent' => $initialProgress,
+                    'is_aspirational' => $validated['is_aspirational'] ?? false,
+                    'tags' => $validated['tags'] ?? [],
                 ]);
 
                 if (isset($validated['key_results'])) {
@@ -407,6 +411,8 @@ class MyObjectiveController extends Controller
             'department_id' => 'nullable|exists:departments,department_id',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
+            'is_aspirational' => 'nullable|boolean',
+            'tags' => 'nullable|array',
         ]);
 
         // Tự động lấy current cycle nếu không có cycle_id (giữ nguyên cycle cũ nếu đang sửa)
@@ -493,6 +499,8 @@ class MyObjectiveController extends Controller
                     'status' => $status,
                     'cycle_id' => $validated['cycle_id'],
                     'department_id' => $validated['department_id'] ?? null,
+                    'is_aspirational' => $validated['is_aspirational'] ?? false,
+                    'tags' => $validated['tags'] ?? [],
                 ]);
 
                 // Cập nhật department_id cho tất cả Key Results của Objective

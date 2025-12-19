@@ -150,6 +150,7 @@ class CheckInController extends Controller
             'notes' => 'nullable|string|max:1000',
             'is_completed' => 'boolean',
             'status' => 'nullable|in:not_start,on_track,at_risk,in_trouble,completed',
+            'confidence_score' => 'nullable|integer|min:1|max:5',
         ]);
 
         // Chặn check-in nếu KR đã hoàn thành
@@ -191,6 +192,7 @@ class CheckInController extends Controller
                     'notes' => $request->notes,
                     'check_in_type' => $request->check_in_type,
                     'is_completed' => $request->boolean('is_completed') || $calculatedPercent >= 100,
+                    'confidence_score' => $request->confidence_score,
                 ]);
 
                 // Determine the new status

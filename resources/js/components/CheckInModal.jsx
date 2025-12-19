@@ -26,7 +26,8 @@ export default function CheckInModal({
         progress_percent: 0,
         check_in_type: 'quantity',
         status: '',
-        notes: ''
+        notes: '',
+        confidence_score: 3,
     });
     const [showStatusList, setShowStatusList] = useState(false);
     const statusDropdownRef = useRef(null);
@@ -362,7 +363,7 @@ export default function CheckInModal({
                     'X-CSRF-TOKEN': token,
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify(formData)
+                body: JSON.stringify({...formData, confidence_score: formData.confidence_score})
             }).catch((fetchError) => {
                 // Bắt lỗi network
                 console.error('Fetch error:', fetchError);
@@ -657,6 +658,25 @@ export default function CheckInModal({
                     <div className="text-xs text-slate-500 mt-1">
                         {formData.notes.length}/1000 ký tự
                     </div>
+                </div>
+
+                <div>
+                    <label htmlFor="confidence_score" className="block text-sm font-medium text-slate-700 mb-1">
+                        Mức độ tự tin
+                    </label>
+                    <select
+                        id="confidence_score"
+                        value={formData.confidence_score}
+                        onChange={(e) => handleInputChange('confidence_score', parseInt(e.target.value, 10))}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={!hasPermission}
+                    >
+                        <option value="5">Rất tự tin</option>
+                        <option value="4">Tự tin</option>
+                        <option value="3">Bình thường</option>
+                        <option value="2">Ít tự tin</option>
+                        <option value="1">Rủi ro cao</option>
+                    </select>
                 </div>
 
                 <div className="flex justify-end space-x-3">

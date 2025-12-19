@@ -22,6 +22,8 @@ export default function ObjectiveModal({
                   cycle_id: "",
                   department_id: "",
                   key_results: [],
+                  is_aspirational: false,
+                  tags: "",
               }
             : editingObjective
             ? { ...editingObjective, level: editingObjective.level || "team" } // Default level
@@ -258,6 +260,8 @@ export default function ObjectiveModal({
                     target_value: Number(kr.target_value),
                     current_value: Number(kr.current_value),
                 })),
+                is_aspirational: createForm.is_aspirational,
+                tags: createForm.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
             };
             const res = await fetch("/my-objectives/store", {
                 method: "POST",
@@ -317,6 +321,8 @@ export default function ObjectiveModal({
                 status: createForm.status,
                 cycle_id: createForm.cycle_id,
                 department_id: createForm.department_id || null,
+                is_aspirational: createForm.is_aspirational,
+                tags: typeof createForm.tags === 'string' ? createForm.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : createForm.tags,
             };
             const res = await fetch(
                 `/my-objectives/update/${editingObjective?.objective_id}`,
@@ -454,6 +460,37 @@ export default function ObjectiveModal({
                             }
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                         />
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 items-start">
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Thẻ (cách nhau bởi dấu phẩy)
+                            </label>
+                            <input
+                                value={createForm.tags || ""}
+                                onChange={(e) =>
+                                    handleCreateFormChange("tags", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            />
+                        </div>
+                        <div className="flex items-center h-full mt-4">
+                            <input
+                                type="checkbox"
+                                id="is_aspirational"
+                                checked={createForm.is_aspirational || false}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "is_aspirational",
+                                        e.target.checked
+                                    )
+                                }
+                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <label htmlFor="is_aspirational" className="ml-2 block text-sm text-gray-900">
+                                Mục tiêu tham vọng
+                            </label>
+                        </div>
                     </div>
                 <div className="grid gap-3 md:grid-cols-2 items-start">
                         <div>
