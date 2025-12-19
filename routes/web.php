@@ -4,11 +4,10 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CycleController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\ObjectiveController;
-use App\Http\Controllers\KeyResultController;
+
+use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\MyObjectiveController;
-use App\Http\Controllers\MyKeyResultController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CheckInController;
@@ -347,7 +346,7 @@ Route::group(['middleware' => ['web', 'check.status', 'timezone']], function () 
         Route::post('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'store'])->name('api.comments.store');
         Route::get('/objectives/{objective}/comments', [App\Http\Controllers\CommentController::class, 'index'])->name('api.comments.index');
         Route::post('/company-okrs/detail/kr/{kr_id}/comments', [App\Http\Controllers\CommentController::class, 'storeForKr'])->name('api.kr-comments.store');
-        Route::get('/company-okrs/detail/kr/{id}', [App\Http\Controllers\KeyResultController::class, 'getDetails'])->name('api.key-results.details');
+        Route::get('/company-okrs/detail/kr/{id}', [App\Http\Controllers\MyKeyResultController::class, 'getDetails'])->name('api.key-results.details');
         // API routes for my-objectives detail pages
         Route::get('/my-objectives/details/{id}', [MyObjectiveController::class, 'getObjectiveDetails'])->name('api.my-objectives.details');
         Route::get('/my-objectives/key-result-details/{id}', [MyObjectiveController::class, 'getKeyResultDetails'])->name('api.my-objectives.key-result-details');

@@ -564,6 +564,28 @@ class MyKeyResultController extends Controller
 
         return $currentCycle;
     }
+
+    /**
+     * Get detailed information for a single Key Result.
+     */
+    public function getDetails(Request $request, $id): \Illuminate\Http\JsonResponse
+    {
+        $kr = KeyResult::with([
+            'objective', 
+            'assignedUser',
+            'checkIns' => function($query) {
+                $query->with('user')->orderBy('created_at', 'asc');
+            },
+            'comments.user',
+            'comments.replies.user'
+        ])->findOrFail($id);
+
+        // Authorization check (optional, but good practice)
+        // You can add logic here to ensure the authenticated user has permission
+        // to view this key result. For now, we'll assume it's public for logged-in users.
+
+        return response()->json(['success' => true, 'data' => $kr]);
+    }
 }
 
     
