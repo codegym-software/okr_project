@@ -8,8 +8,6 @@ export default function SnapshotHistoryModal({
     isOpen,
     onClose,
     snapshots,
-    snapshotLevelFilter,
-    onSnapshotLevelChange,
     snapshotPage,
     snapshotPagination,
     onPageChange,
@@ -20,28 +18,15 @@ export default function SnapshotHistoryModal({
     modalCycleFilter,
     onModalCycleFilterChange,
     cyclesList,
-    showLevelFilter = true,
 }) {
     if (!isOpen) return null;
 
     const [snapshotSortBy, setSnapshotSortBy] = useState(null);
     const [snapshotSortDir, setSnapshotSortDir] = useState('asc');
-    const [snapshotLevelDropdownOpen, setSnapshotLevelDropdownOpen] = useState(false);
     const [creatorTooltip, setCreatorTooltip] = useState(null);
 
-    // Lọc snapshot theo cấp độ
-    const filteredSnapshots = (snapshots || []).filter((snap) => {
-        if (showLevelFilter && snapshotLevelFilter && snapshotLevelFilter !== 'all') {
-            const isCompanyLevel = !snap.department;
-            if (snapshotLevelFilter === 'company' && !isCompanyLevel) {
-                return false;
-            }
-            if (snapshotLevelFilter === 'departments' && isCompanyLevel) {
-                return false;
-            }
-        }
-        return true;
-    });
+    // Báo cáo công ty nên không cần lọc theo cấp độ
+    const filteredSnapshots = snapshots || [];
 
     return (
         <div
@@ -128,70 +113,8 @@ export default function SnapshotHistoryModal({
                             {/* Filter Bar */}
                             <div className="mb-4 flex items-center justify-end gap-6">
                                 <div className="flex items-center gap-4">
-                                    {/* Filter theo cấp độ */}
-                                    {showLevelFilter && (
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setSnapshotLevelDropdownOpen(v => !v)}
-                                            className="flex items-center justify-between gap-3 px-4 h-10 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition whitespace-nowrap min-w-40"
-                                        >
-                                            <span>
-                                                {snapshotLevelFilter === 'all'
-                                                    ? 'Tất cả cấp độ'
-                                                    : snapshotLevelFilter === 'company'
-                                                        ? 'Công ty'
-                                                        : 'Phòng ban'}
-                                            </span>
-                                            <svg
-                                                className={`w-4 h-4 transition-transform flex-shrink-0 ${snapshotLevelDropdownOpen ? 'rotate-180' : ''}`}
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                            </svg>
-                                        </button>
-
-                                        {snapshotLevelDropdownOpen && (
-                                            <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-[65] overflow-hidden">
-                                                <button
-                                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 first:rounded-t-lg"
-                                                    onClick={() => {
-                                                        onSnapshotLevelChange('all');
-                                                        onPageChange?.(1);
-                                                        setSnapshotLevelDropdownOpen(false);
-                                                    }}
-                                                >
-                                                    Tất cả cấp độ
-                                                </button>
-                                                <button
-                                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100"
-                                                    onClick={() => {
-                                                        onSnapshotLevelChange('company');
-                                                        onPageChange?.(1);
-                                                        setSnapshotLevelDropdownOpen(false);
-                                                    }}
-                                                >
-                                                    Công ty
-                                                </button>
-                                                <button
-                                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 last:rounded-b-lg"
-                                                    onClick={() => {
-                                                        onSnapshotLevelChange('departments');
-                                                        onPageChange?.(1);
-                                                        setSnapshotLevelDropdownOpen(false);
-                                                    }}
-                                                >
-                                                    Phòng ban
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    )}
-
                                     {/* Filter theo chu kỳ */}
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex flex-col gap-1">
+                                    <div className="flex flex-col gap-1">
                                             <CycleDropdown
                                                 cyclesList={cyclesList}
                                                 cycleFilter={modalCycleFilter}
@@ -203,7 +126,6 @@ export default function SnapshotHistoryModal({
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
                             {/* Snapshots Table */}
                             {filteredSnapshots.length === 0 ? (
@@ -215,10 +137,7 @@ export default function SnapshotHistoryModal({
                                     </div>
                                     <p className="text-gray-600 font-semibold text-lg">Chưa có Báo cáo nào</p>
                                     <p className="text-gray-400 text-sm mt-2">
-                                        {snapshotLevelFilter === 'all'
-                                            ? 'Nhấn nút "Tạo Báo cáo" để tạo bản sao đầu tiên'
-                                            : `Chưa có Báo cáo nào cho cấp độ ${snapshotLevelFilter === 'company' ? 'Công ty' : 'Phòng ban'}`
-                                        }
+                                        Nhấn nút "Tạo Báo cáo" để tạo bản sao đầu tiên
                                     </p>
                                 </div>
                             ) : (
