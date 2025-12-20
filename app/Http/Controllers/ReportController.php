@@ -792,14 +792,19 @@ class ReportController extends Controller
         $startDate = !empty($dateRange['start']) ? Carbon::parse($dateRange['start']) : Carbon::parse($cycle->start_date);
         $endDate = !empty($dateRange['end']) ? Carbon::parse($dateRange['end']) : Carbon::parse($cycle->end_date);
         
-        $cycleDurationInDays = $endDate->diffInDays($startDate);
+        // Ensure start date is not after end date for calculation
+        if ($startDate->gt($endDate)) {
+            return []; // Return empty if the date range is invalid
+        }
+        
+        $cycleDurationInDays = $startDate->diffInDays($endDate);
         if ($cycleDurationInDays <= 0) $cycleDurationInDays = 1;
 
         $idealTrend = [];
         $currentDate = $startDate->copy();
         while($currentDate->lessThanOrEqualTo($endDate)) {
             $weekBucket = $currentDate->format('Y-W');
-            $daysIntoCycle = $currentDate->diffInDays($startDate);
+            $daysIntoCycle = $startDate->diffInDays($currentDate);
             $ideal = min(100, ($daysIntoCycle / $cycleDurationInDays) * 100);
             $idealTrend[$weekBucket] = round($ideal, 2);
             $currentDate->addWeek();
