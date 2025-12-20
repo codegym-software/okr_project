@@ -565,7 +565,7 @@ export default function ObjectiveList({
                                 <p className="text-base font-semibold text-slate-900">
                                     {assigneeTooltip.info.name || "Không rõ tên"}
                                 </p>
-                                {assigneeTooltip.info.role !== 'admin' && assigneeTooltip.info.role !== 'ceo' && (
+                                {assigneeTooltip.info.role !== 'admin' && (
                                     <p className="text-sm text-slate-500">
                                         {assigneeTooltip.info.department || "Phòng ban: Chưa xác định"}
                                     </p>

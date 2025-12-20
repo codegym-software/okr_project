@@ -79,9 +79,8 @@ export const getAssigneeInfo = (kr) => {
             department:
                 user.department?.d_name ||
                 user.department?.name ||
-                user.department?.department_name ||
                 user.department_name ||
-                (typeof user.department === 'string' ? user.department : null) ||
+                user.department ||
                 null,
             email: user.email || "",
             role: roleName,
