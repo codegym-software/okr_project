@@ -1,6 +1,6 @@
 import React from 'react';
 import StatCard from './StatCard';
-import { Doughnut } from 'react-chartjs-2';
+import { Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js';
 import { FiAward, FiStar, FiClipboard } from 'react-icons/fi';
 
@@ -157,14 +157,14 @@ export default function QualityTab({ data }) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <ChartWrapper title="Phân bổ Mục tiêu theo Thẻ Chiến lược">
                     {strategicTagLabels.length > 0 ? (
-                        <Doughnut data={strategicTagChartData} options={{ responsive: true, maintainAspectRatio: false }} />
+                        <Pie data={strategicTagChartData} options={{ responsive: true, maintainAspectRatio: false, cutout: '0%' }} />
                     ) : (
                         <div className="text-center text-gray-500 mt-10">Không có dữ liệu thẻ chiến lược.</div>
                     )}
                 </ChartWrapper>
                 <ChartWrapper title="Phân bổ Loại Key Result">
                     {krTypeDataValues[0] + krTypeDataValues[1] > 0 ? (
-                        <Doughnut data={krTypeChartData} options={{ responsive: true, maintainAspectRatio: false }} />
+                        <Pie data={krTypeChartData} options={{ responsive: true, maintainAspectRatio: false, cutout: '0%' }} />
                     ) : (
                         <div className="text-center text-gray-500 mt-10">Không có dữ liệu loại KR.</div>
                     )}
