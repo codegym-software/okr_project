@@ -452,21 +452,34 @@ export default function ArchivedOkrsPage() {
                                                         >
                                                             {obj.obj_title}
                                                         </span>
-                                                        {obj.archived_at && (
-                                                            <span className="text-slate-500 text-xs italic">
-                                                                Lưu trữ ngày:{" "}
-                                                                {formatDate(
-                                                                    obj.archived_at
-                                                                )}
-                                                            </span>
-                                                        )}
+
                                                     </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-3 py-3 text-center">
-                                            {/* Empty for assignee */}
+                                        <td className="px-3 py-3">
+                                            {(() => {
+                                                const owner = getOwnerInfo(obj.user);
+                                                return (
+                                                    <div className="flex items-center justify-start gap-2">
+                                                        <img
+                                                            src={owner.avatar}
+                                                            alt={owner.name}
+                                                            className="h-8 w-8 rounded-full"
+                                                        />
+                                                        <div className="text-sm text-left">
+                                                            <div className="font-semibold text-slate-800">
+                                                                {owner.name}
+                                                            </div>
+                                                            <div className="text-slate-500">
+                                                                {owner.department}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                         </td>
+                                        <td className="px-3 py-3 text-center"></td>
                                         <td className="px-3 py-3 text-center">
                                             <div className="flex items-center justify-center gap-1">
                                                 {obj.archived_at && (
@@ -499,9 +512,7 @@ export default function ArchivedOkrsPage() {
                                                                     <path
                                                                         strokeLinecap="round"
                                                                         strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            2
-                                                                        }
+                                                                        strokeWidth={2}
                                                                         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                                                                     />
                                                                 </svg>
@@ -535,9 +546,7 @@ export default function ArchivedOkrsPage() {
                                                                     <path
                                                                         strokeLinecap="round"
                                                                         strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            2
-                                                                        }
+                                                                        strokeWidth={2}
                                                                         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                                                                     />
                                                                 </svg>
@@ -571,7 +580,38 @@ export default function ArchivedOkrsPage() {
                                                         </div>
                                                     </td>
                                                     {/* Cột Người sở hữu */}
-                                                    <td className="px-3 py-3 text-center">
+                                                    <td className="px-3 py-3">
+                                                        {(() => {
+                                                            const assignee =
+                                                                getAssigneeInfo(
+                                                                    kr
+                                                                );
+                                                            return (
+                                                                <div className="flex items-center justify-start gap-2">
+                                                                    <img
+                                                                        src={
+                                                                            assignee.avatar
+                                                                        }
+                                                                        alt={
+                                                                            assignee.name
+                                                                        }
+                                                                        className="h-8 w-8 rounded-full"
+                                                                    />
+                                                                    <div className="text-sm text-left">
+                                                                        <div className="font-semibold text-slate-800">
+                                                                            {
+                                                                                assignee.name
+                                                                            }
+                                                                        </div>
+                                                                        <div className="text-slate-500">
+                                                                            {
+                                                                                assignee.department
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </td>
 
                                                     {/* Cột Tiến độ */}
@@ -615,12 +655,7 @@ export default function ArchivedOkrsPage() {
                                                     </td>
                                                     <td className="px-3 py-3 text-center">
                                                         <div className="flex flex-col items-center justify-center gap-1">
-                                                            <span className="text-slate-500 text-xs italic">
-                                                                Lưu trữ:{" "}
-                                                                {formatDate(
-                                                                    kr.archived_at
-                                                                )}
-                                                            </span>
+
                                                             <div className="flex items-center gap-1 mt-1">
                                                                 <button
                                                                     onClick={() =>
