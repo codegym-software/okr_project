@@ -430,7 +430,7 @@ export default function ArchivedOkrsPage() {
                                         </td>
                                         <td className="px-3 py-3 text-center"></td>
                                         <td className="px-3 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-1">
+                                            <div className="flex items-center justify-center">
                                                 {obj.archived_at && (
                                                     <>
                                                         <button
@@ -443,7 +443,7 @@ export default function ArchivedOkrsPage() {
                                                                 "unarchiving",
                                                                 obj.objective_id
                                                             )}
-                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40"
+                                                            className="p-1 text-slate-600 hover:bg-slate-100 rounded disabled:opacity-40 w-8 h-8 flex items-center justify-center"
                                                             title="Phục hồi Objective"
                                                         >
                                                             {isProcessing(
@@ -477,7 +477,7 @@ export default function ArchivedOkrsPage() {
                                                                 "deleting",
                                                                 obj.objective_id
                                                             )}
-                                                            className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-40"
+                                                            className="ml-1 p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-40 w-8 h-8 flex items-center justify-center"
                                                             title="Xóa vĩnh viễn"
                                                         >
                                                             {isProcessing(
@@ -604,50 +604,45 @@ export default function ArchivedOkrsPage() {
                                                             </span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-3 py-3 text-center">
-                                                        <div className="flex flex-col items-center justify-center gap-1">
-
-                                                            <div className="flex items-center gap-1 mt-1">
-
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleDeleteKR(
-                                                                            kr.kr_id
-                                                                        )
-                                                                    }
-                                                                    disabled={isProcessing(
-                                                                        "deletingKR",
-                                                                        kr.kr_id
-                                                                    )}
-                                                                    className="p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-40"
-                                                                    title="Xóa vĩnh viễn"
-                                                                >
-                                                                    {isProcessing(
-                                                                        "deletingKR",
-                                                                        kr.kr_id
-                                                                    ) ? (
-                                                                        "..."
-                                                                    ) : (
-                                                                        <svg
-                                                                            className="h-4 w-4"
-                                                                            fill="none"
-                                                                            viewBox="0 0 24 24"
-                                                                            stroke="currentColor"
-                                                                        >
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                strokeWidth={
-                                                                                    2
-                                                                                }
-                                                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                                            />
-                                                                        </svg>
-                                                                    )}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </td>
+                                                                                                        <td className="px-3 py-3 text-center">
+                                                                                                            <div className="flex items-center justify-center mt-1">
+                                                                                                                <div className="w-8 h-8"></div> {/* Placeholder for Unarchive */}
+                                                                                                                <button
+                                                                                                                    onClick={() =>
+                                                                                                                        handleDeleteKR(
+                                                                                                                            kr.kr_id
+                                                                                                                        )
+                                                                                                                    }
+                                                                                                                    disabled={isProcessing(
+                                                                                                                        "deletingKR",
+                                                                                                                        kr.kr_id
+                                                                                                                    )}
+                                                                                                                    className="ml-1 p-1 text-rose-600 hover:bg-rose-50 rounded disabled:opacity-40 w-8 h-8 flex items-center justify-center"
+                                                                                                                    title="Xóa vĩnh viễn"
+                                                                                                                >
+                                                                                                                    {isProcessing(
+                                                                                                                        "deletingKR",
+                                                                                                                        kr.kr_id
+                                                                                                                    ) ? (
+                                                                                                                        "..."
+                                                                                                                    ) : (
+                                                                                                                        <svg
+                                                                                                                            className="h-4 w-4"
+                                                                                                                            fill="none"
+                                                                                                                            viewBox="0 0 24 24"
+                                                                                                                            stroke="currentColor"
+                                                                                                                        >
+                                                                                                                            <path
+                                                                                                                                strokeLinecap="round"
+                                                                                                                                strokeLinejoin="round"
+                                                                                                                                strokeWidth={2}
+                                                                                                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                                                                                            />
+                                                                                                                        </svg>
+                                                                                                                    )}
+                                                                                                                </button>
+                                                                                                            </div>
+                                                                                                        </td>
                                                 </tr>
                                             ))}
                                 </React.Fragment>
