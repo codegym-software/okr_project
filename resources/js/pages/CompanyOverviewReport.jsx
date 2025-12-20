@@ -9,7 +9,8 @@ import SnapshotModal from '../components/reports/SnapshotModal';
 import SnapshotHistoryModal from '../components/reports/SnapshotHistoryModal';
 import { fetchDetailedData, createSnapshot } from '../utils/reports/dataFetchers';
 import { loadSnapshots as loadSnapshotsUtil } from '../utils/reports/snapshotHelpers';
-import { FiDownload, FiArchive, FiClock, FiFilter, FiTrendingUp, FiCheckCircle, FiShield, FiXCircle } from "react-icons/fi";
+import { exportCompanyReportToExcel } from '../utils/reports/excelExport';
+import { FiDownload, FiArchive, FiClock, FiFilter, FiTrendingUp, FiCheckCircle, FiShield, FiXCircle, FiFileText } from "react-icons/fi";
 import { Dropdown } from '../components/Dropdown';
 
 export default function CompanyOverviewReport() {
@@ -31,6 +32,7 @@ export default function CompanyOverviewReport() {
     const [viewingSnapshot, setViewingSnapshot] = useState(null);
     const [snapshots, setSnapshots] = useState([]);
     const [isAdminOrCeo, setIsAdminOrCeo] = useState(false);
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
 
     const hasActiveFilters = useMemo(() => {
         return !viewingSnapshot && (!!filters.departmentId || filters.objectiveLevel !== 'all' || !!filters.dateRange.start || !!filters.dateRange.end);
@@ -38,7 +40,7 @@ export default function CompanyOverviewReport() {
 
     const showNotification = (type, message) => setToast({ type, message });
 
-    const handleExport = () => {
+    const handleExportExcel = async () => {
         if (viewingSnapshot) {
             showNotification('info', 'Chức năng xuất file không áp dụng cho snapshot.');
             return;
@@ -47,17 +49,29 @@ export default function CompanyOverviewReport() {
             showNotification('error', 'Vui lòng chọn chu kỳ để xuất báo cáo.');
             return;
         }
-        const params = new URLSearchParams({
-            cycle_id: filters.cycleId,
-            tab: currentTab,
-            ...(filters.departmentId && { department_id: filters.departmentId }),
-            ...(filters.objectiveLevel && filters.objectiveLevel !== 'all' && { level: filters.objectiveLevel }),
-            ...(filters.dateRange.start && { start_date: filters.dateRange.start }),
-            ...(filters.dateRange.end && { end_date: filters.dateRange.end }),
-        });
-        window.open(`/api/reports/okr-company/export-csv?${params.toString()}`, '_blank');
-    };
 
+        setIsExportingExcel(true);
+        showNotification('info', 'Đang chuẩn bị dữ liệu và tạo file Excel...');
+
+        try {
+            // Fetch fresh, complete data for the export
+            const dataToExport = await fetchDetailedData(filters);
+            const cycle = cycles.find(c => c.cycle_id == filters.cycleId);
+            
+            const result = await exportCompanyReportToExcel(dataToExport, cycle?.cycle_name || 'report');
+
+            if (result.success) {
+                showNotification('success', 'Đã tạo và tải xuống file Excel thành công!');
+            } else {
+                throw new Error(result.message || 'Không thể tạo file Excel.');
+            }
+        } catch (e) {
+            showNotification('error', `Lỗi khi xuất Excel: ${e.message}`);
+        } finally {
+            setIsExportingExcel(false);
+        }
+    };
+    
     const handleSaveSnapshot = async (name) => {
         if (!name) return showNotification('error', 'Vui lòng đặt tên cho snapshot.');
         try {
@@ -188,7 +202,8 @@ export default function CompanyOverviewReport() {
 
     const renderContent = () => {
         if (viewingSnapshot) {
-            const snapshotContent = viewingSnapshot.snapshot_data?.data;
+            // Robustly access snapshot data, handling both nested and direct data structures.
+            const snapshotContent = viewingSnapshot.snapshot_data?.data || viewingSnapshot.snapshot_data;
             if (!snapshotContent) return <div className="text-center p-8">Snapshot không có dữ liệu chi tiết.</div>;
             return (
                 <>
@@ -265,9 +280,9 @@ export default function CompanyOverviewReport() {
                                     </button>
                                 </>
                             )}
-                            <button onClick={handleExport} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed">
-                                <FiDownload />
-                                Xuất CSV
+                            <button onClick={handleExportExcel} disabled={isExportingExcel || !!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                {isExportingExcel ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <FiFileText />}
+                                {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
                             </button>
                         </div>
                     </div>

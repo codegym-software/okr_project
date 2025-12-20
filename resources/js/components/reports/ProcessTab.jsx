@@ -3,6 +3,8 @@ import StatCard from './StatCard';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import EmptyState from './EmptyState';
+import ProcessTable from './ProcessTable';
+import { tooltipOptions, legendOptions } from './chartConfig';
 import { FiBarChart2, FiPieChart, FiTrendingDown, FiCheckSquare, FiLink, FiLayers, FiRepeat, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
@@ -22,89 +24,6 @@ const ChartWrapper = ({ title, children, className = '' }) => (
     </div>
 );
 
-const ProcessTable = ({ tableData }) => {
-     if (!tableData || tableData.length === 0) {
-        return (
-            <div className="bg-white rounded-lg shadow-sm mt-6">
-                <EmptyState 
-                    icon={FiCheckSquare}
-                    title="Không có dữ liệu tuân thủ"
-                    message="Chưa có mục tiêu nào trong chu kỳ này để phân tích quy trình check-in."
-                />
-            </div>
-        );
-    }
-
-    const columns = [
-        'Tên Mục tiêu (O/KR)',
-        'Phòng ban/Đơn vị',
-        'Người Sở hữu Chính',
-        'Tình trạng (Health)',
-        'Check-in Gần nhất',
-        'Quá hạn Check-in (Ngày)',
-        'Tỷ lệ Check-in Định kỳ (%)',
-    ];
-    
-    const HealthStatusBadge = ({ status }) => {
-        const statusStyles = {
-            on_track: 'bg-green-100 text-green-800',
-            at_risk: 'bg-yellow-100 text-yellow-800',
-            off_track: 'bg-red-100 text-red-800',
-        };
-        const statusText = {
-            on_track: 'Đang theo dõi',
-            at_risk: 'Rủi ro',
-            off_track: 'Trễ',
-        }
-        return (
-            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusStyles[status] || 'bg-gray-100 text-gray-800'}`}>
-                {statusText[status] || 'Không xác định'}
-            </span>
-        );
-    };
-
-    return (
-        <div className="bg-white rounded-lg shadow-sm overflow-x-auto mt-6">
-            <h3 className="font-bold text-lg mb-2 p-4">Chi tiết Tuân thủ Quy trình (Sắp xếp theo mức độ bị lãng quên)</h3>
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        {columns.map(col => (
-                            <th key={col} scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{col}</th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {tableData.map((row, index) => (
-                        <tr key={row.objective_id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                <a href={`/objectives/${row.objective_id}`} className="hover:underline" target="_blank" rel="noopener noreferrer">{row.objective_name}</a>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.department_name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.owner_name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><HealthStatusBadge status={row.health_status} /></td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.last_checkin_date || 'Chưa có'}</td>
-                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${row.days_overdue > 14 ? 'text-red-600' : (row.days_overdue > 7 ? 'text-yellow-600' : 'text-gray-600')}`}>
-                                {row.days_overdue !== null ? `${row.days_overdue} ngày` : '-'}
-                            </td>
-                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.periodic_checkin_rate}%</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-};
-
-const tooltipOptions = {
-    backgroundColor: '#fff',
-    titleColor: '#333',
-    bodyColor: '#666',
-    borderColor: '#ddd',
-    borderWidth: 1,
-    padding: 10,
-    usePointStyle: true,
-};
 
 export default function ProcessTab({ data }) {
     const [activeIndex, setActiveIndex] = useState(0);
@@ -154,29 +73,75 @@ export default function ProcessTab({ data }) {
             }]
         };
         const healthDistOptions = {
-            responsive: true, maintainAspectRatio: false, cutout: '60%',
-            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 15 } }, tooltip: { ...tooltipOptions, callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed || 0} mục tiêu` }} }
+            responsive: true, maintainAspectRatio: false, cutout: '0%', // Changed cutout to '0%' for solid pie
+            plugins: { legend: legendOptions, tooltip: { ...tooltipOptions, callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed || 0} mục tiêu` }} }
         };
         
         // --- Chart 3: Compliance Trend (Line) ---
+        const trendLabels = charts.process_compliance_trend?.map(item => item.week_label) || [];
+        const trendActualData = charts.process_compliance_trend?.map(item => item.actual_checkins) || [];
+        const trendIdealData = charts.process_compliance_trend?.map(item => item.ideal_checkins) || [];
+
         const trendData = {
-            labels: Object.keys(charts.process_compliance_trend || {}),
-            datasets: [{
-                label: 'Số KR đã Check-in (Tích lũy)',
-                data: Object.values(charts.process_compliance_trend || {}),
-                borderColor: 'rgb(139, 92, 246)',
-                backgroundColor: (context) => {
-                    const { ctx, chartArea } = context.chart;
-                    if (!chartArea) return null;
-                    return createGradient(ctx, chartArea, [{ offset: 0, color: 'rgba(139, 92, 246, 0)' }, { offset: 1, color: 'rgba(139, 92, 246, 0.4)' }]);
+            labels: trendLabels,
+            datasets: [
+                {
+                    label: 'Thực tế',
+                    data: trendActualData,
+                    borderColor: 'rgb(139, 92, 246)', // Purple
+                    backgroundColor: (context) => {
+                        const { ctx, chartArea } = context.chart;
+                        if (!chartArea) return null;
+                        return createGradient(ctx, chartArea, [{ offset: 0, color: 'rgba(139, 92, 246, 0.2)' }, { offset: 1, color: 'rgba(139, 92, 246, 0)' }]);
+                    },
+                    fill: 'origin', // Fill area below the line
+                    tension: 0.3, // Smoother line
+                    pointRadius: 3,
+                    pointBackgroundColor: 'rgb(139, 92, 246)',
+                    pointBorderColor: '#fff',
+                    pointHoverRadius: 5,
                 },
-                fill: true, tension: 0.4, pointBackgroundColor: 'rgb(139, 92, 246)',
-            }]
+                {
+                    label: 'Lý tưởng',
+                    data: trendIdealData,
+                    borderColor: 'rgb(75, 192, 192)', // Teal/Cyan
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0, // No points for ideal line
+                    borderDash: [5, 5], // Dashed line
+                }
+            ]
         };
         const trendOptions = {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { ...tooltipOptions } },
-            scales: { y: { grid: { drawBorder: false } }, x: { grid: { display: false } } }
+            plugins: {
+                legend: legendOptions, // Use shared legend options, which defaults to bottom
+                tooltip: {
+                    ...tooltipOptions,
+                    callbacks: {
+                        label: function (context) {
+                            let label = context.dataset.label || '';
+                            if (label) label += ': ';
+                            if (context.parsed.y !== null) label += context.parsed.y;
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { drawBorder: false },
+                    title: {
+                        display: true,
+                        text: 'Số lượng Check-in'
+                    }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
         };
 
         return [

@@ -6,6 +6,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import StatCard from './StatCard';
 import PerformanceTable from './PerformanceTable';
 import EmptyState from './EmptyState';
+import { tooltipOptions, legendOptions } from './chartConfig';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler);
 
@@ -24,16 +25,6 @@ const ChartWrapper = ({ title, children, className = '' }) => (
         </div>
     </div>
 );
-
-const tooltipOptions = {
-    backgroundColor: '#fff',
-    titleColor: '#333',
-    bodyColor: '#666',
-    borderColor: '#ddd',
-    borderWidth: 1,
-    padding: 10,
-    usePointStyle: true,
-};
 
 export default function PerformanceTab({ data }) {
     const [activeIndex, setActiveIndex] = useState(0);
@@ -70,7 +61,7 @@ export default function PerformanceTab({ data }) {
         const progressOptions = {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 20 } },
+                legend: legendOptions,
                 tooltip: { ...tooltipOptions, callbacks: { label: ctx => `${ctx.dataset.label || ''}: ${ctx.parsed.y}%` } }
             },
             scales: {

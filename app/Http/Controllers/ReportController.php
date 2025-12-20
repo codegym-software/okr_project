@@ -9,7 +9,7 @@ use App\Models\CheckIn;
 use App\Models\KeyResult;
 use App\Models\User;
 use App\Models\OkrLink;
-use App\Models\Report; // Added this line
+use App\Models\ReportSnapshot;
 use App\Services\ReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -276,8 +276,6 @@ class ReportController extends Controller
      */
         public function companyOkrReport(Request $request)
         {
-            // $tab = $request->input('tab', 'performance'); // No longer needed as we fetch all tabs
-    
             $cycle = $this->resolveCycle($request->integer('cycle_id'));
             if (!$cycle) {
                 return response()->json(['success' => false, 'message' => 'Không tìm thấy chu kỳ phù hợp.'], 404);
@@ -286,8 +284,11 @@ class ReportController extends Controller
             // --- Filters ---
             $departmentId = $request->integer('department_id');
             $level = $request->input('level');
+            $dateRange = [
+                'start' => $request->input('start_date'),
+                'end' => $request->input('end_date'),
+            ];
     
-            $data = [];
             $meta = [
                 'cycleId' => $cycle->cycle_id,
                 'cycleName' => $cycle->cycle_name,
@@ -295,14 +296,15 @@ class ReportController extends Controller
                 'filters' => [
                     'department_id' => $departmentId,
                     'level' => $level,
+                    'date_range' => $dateRange,
                 ]
             ];
     
             try {
-                // Fetch data for all three tabs
-                $performanceData = $this->_getPerformanceReportData($request, $cycle, $departmentId, $level);
-                $processData = $this->_getProcessReportData($request, $cycle, $departmentId, $level);
-                $qualityData = $this->_getQualityReportData($request, $cycle, $departmentId, $level);
+                // Fetch data for all three tabs, passing filters explicitly
+                $performanceData = $this->_getPerformanceReportData($cycle, $departmentId, $level, $dateRange);
+                $processData = $this->_getProcessReportData($cycle, $departmentId, $level, $dateRange);
+                $qualityData = $this->_getQualityReportData($cycle, $departmentId, $level, $dateRange);
     
                 // Combine all tab data into a single structure
                 $combinedData = [
@@ -310,9 +312,6 @@ class ReportController extends Controller
                     'process' => $processData,
                     'quality' => $qualityData,
                 ];
-    
-                // REMOVING TEMPORARY DEBUGGING
-                // \Illuminate\Support\Facades\Log::info('--- Final Report Data to be Sent ---', ['data' => $data]);
                 
                 return response()->json([
                     'success' => true,
@@ -337,7 +336,7 @@ class ReportController extends Controller
     /**
      * Gathers data for the "Quality & Structure" tab.
      */
-    private function _getQualityReportData(Request $request, Cycle $cycle, ?int $departmentId, ?string $level)
+    private function _getQualityReportData(Cycle $cycle, ?int $departmentId, ?string $level, ?array $dateRange = null)
     {
         try {
             $allObjectivesInCycleQuery = Objective::where('cycle_id', $cycle->cycle_id)
@@ -362,7 +361,7 @@ class ReportController extends Controller
 
             // --- CHARTS ---
             $strategicTagDistribution = $allObjectivesInCycle
-                ->flatMap(fn($obj) => json_decode($obj->tags, true) ?? [])
+                ->flatMap(fn($obj) => $obj->tags ?? [])
                 ->filter()
                 ->groupBy(fn($tag) => $tag)
                 ->map->count();
@@ -387,7 +386,7 @@ class ReportController extends Controller
                     ],
                     'is_aspirational' => (bool) $objective->is_aspirational,
                     'kr_count' => $krCount,
-                    'strategic_tags' => json_decode($objective->tags, true) ?? [],
+                    'strategic_tags' => $objective->tags ?? [],
                     'progress' => $this->clampProgress((float) $objective->progress_percent),
                     'health_status' => $this->reportService->getHealthStatus((float) $objective->progress_percent, $idealProgress),
                     'structural_issues' => $this->_getObjectiveStructuralIssues($krCount),
@@ -401,10 +400,10 @@ class ReportController extends Controller
                     'avg_krs_per_objective' => round($avgKrsPerObjective, 2),
                 ],
                 'charts' => [
-                    'strategic_tag_distribution' => $strategicTagDistribution,
-                    'kr_type_distribution' => $krTypeDistribution,
+                    'strategic_tag_distribution' => $strategicTagDistribution->toArray(),
+                    'kr_type_distribution' => $krTypeDistribution->toArray(),
                 ],
-                'table' => $qualityTableData,
+                'table' => $qualityTableData->toArray(),
             ];
         } catch (\Exception $e) {
             \Log::error('!!! FAILED in _getQualityReportData: ' . $e->getMessage());
@@ -432,7 +431,7 @@ class ReportController extends Controller
     /**
      * Gathers data for the "Process Compliance" tab.
      */
-    private function _getProcessReportData(Request $request, Cycle $cycle, ?int $departmentId, ?string $level)
+    private function _getProcessReportData(Cycle $cycle, ?int $departmentId, ?string $level, ?array $dateRange)
     {
         try {
             $allObjectivesInCycleQuery = Objective::where('cycle_id', $cycle->cycle_id)
@@ -465,7 +464,6 @@ class ReportController extends Controller
             $avgCheckinsPerUser = $uniqueUsersWithKrsCount > 0 ? $totalCheckinsCount / $uniqueUsersWithKrsCount : 0;
 
             // --- CHARTS ---
-            // 1. Chart: Check-in Compliance by Department
             $departmentsQuery = Department::query();
             if ($departmentId) {
                 $departmentsQuery->where('department_id', $departmentId);
@@ -487,7 +485,6 @@ class ReportController extends Controller
                 ];
             })->filter()->sortByDesc('compliance_rate')->values();
 
-            // 2. Chart: Overall Health Status Distribution
             $allObjectives = $allObjectivesInCycleQuery->clone()->get();
             $idealProgress = $this->reportService->getIdealProgress($cycle->start_date, $cycle->end_date);
             $healthStatusCounts = ['on_track' => 0, 'at_risk' => 0, 'off_track' => 0];
@@ -496,26 +493,46 @@ class ReportController extends Controller
                 $healthStatusCounts[$status]++;
             }
 
-            // 3. Chart: Process Compliance (Check-in) Trend
-            $firstCheckinsQuery = CheckIn::select('kr_id', DB::raw('MIN(created_at) as first_checkin_date'))
-                ->whereIn('kr_id', $allKrsInCycleQuery->clone()->pluck('kr_id'))
-                ->groupBy('kr_id');
-            
-            if ($request->input('start_date') && $request->input('end_date')) {
-                $firstCheckinsQuery->whereBetween('created_at', [Carbon::parse($request->input('start_date'))->startOfDay(), Carbon::parse($request->input('end_date'))->endOfDay()]);
-            }
-            $firstCheckins = $firstCheckinsQuery->get();
+            // 3. Chart: Process Compliance (Check-in) Trend (New logic for line chart)
+            $processComplianceTrendData = [];
 
-            $weeklyCheckinCounts = $firstCheckins
-                ->groupBy(fn($checkin) => Carbon::parse($checkin->first_checkin_date)->format('Y-W'))
+            // Get all KRs within the cycle and filters
+            $krsInScope = KeyResult::whereIn('objective_id', $allObjectivesInCycleQuery->clone()->pluck('objective_id'))
+                                    ->whereNull('archived_at')
+                                    ->pluck('kr_id');
+            
+            // Total active KRs for the ideal line (assuming each KR should be checked weekly)
+            $totalKrsForIdeal = $krsInScope->count();
+
+            // Get all check-ins for these KRs within the cycle and date range
+            $allCheckInsForTrend = CheckIn::whereIn('kr_id', $krsInScope);
+            if (!empty($dateRange['start']) && !empty($dateRange['end'])) {
+                $allCheckInsForTrend->whereBetween('created_at', [Carbon::parse($dateRange['start'])->startOfDay(), Carbon::parse($dateRange['end'])->endOfDay()]);
+            }
+            $allCheckInsForTrend = $allCheckInsForTrend->get();
+
+            // Group all check-ins by week
+            $weeklyCheckinCounts = $allCheckInsForTrend
+                ->groupBy(fn($checkin) => Carbon::parse($checkin->created_at)->format('Y-W'))
                 ->map(fn($group) => $group->count())
                 ->sortKeys();
-
-            $cumulative = 0;
-            $processComplianceTrend = $weeklyCheckinCounts->map(function ($count) use (&$cumulative) {
-                $cumulative += $count;
-                return $cumulative;
-            });
+            
+            // Determine the start and end week for the trend
+            $trendStartDate = !empty($dateRange['start']) ? Carbon::parse($dateRange['start']) : Carbon::parse($cycle->start_date);
+            $trendEndDate = !empty($dateRange['end']) ? Carbon::parse($dateRange['end']) : Carbon::parse($cycle->end_date);
+            
+            // Generate data points for each week in the range
+            $currentWeek = $trendStartDate->copy()->startOfWeek();
+            while ($currentWeek->lte($trendEndDate)) {
+                $weekBucket = $currentWeek->format('Y-W');
+                $processComplianceTrendData[] = [
+                    'bucket' => $weekBucket,
+                    'week_label' => 'Tuần ' . $currentWeek->weekOfYear,
+                    'actual_checkins' => $weeklyCheckinCounts[$weekBucket] ?? 0,
+                    'ideal_checkins' => $totalKrsForIdeal, // Simple ideal: all KRs should have 1 checkin per week
+                ];
+                $currentWeek->addWeek();
+            }
 
             // --- TABLE ---
             $latestCheckins = CheckIn::select('kr_id', DB::raw('MAX(created_at) as last_checkin_date'))
@@ -563,11 +580,11 @@ class ReportController extends Controller
                     'avg_checkins_per_user' => round($avgCheckinsPerUser, 1),
                 ],
                 'charts' => [
-                    'checkin_compliance_by_dept' => $checkinComplianceByDept,
+                    'checkin_compliance_by_dept' => $checkinComplianceByDept->toArray(),
                     'health_status_distribution' => $healthStatusCounts,
-                    'process_compliance_trend' => $processComplianceTrend,
+                    'process_compliance_trend' => $processComplianceTrendData,
                 ],
-                'table' => $processTableData,
+                'table' => $processTableData->toArray(),
             ];
         } catch (\Exception $e) {
             \Log::error('!!! FAILED in _getProcessReportData: ' . $e->getMessage());
@@ -579,7 +596,7 @@ class ReportController extends Controller
     /**
      * Gathers data for the "Performance" tab.
      */
-    private function _getPerformanceReportData(Request $request, Cycle $cycle, ?int $departmentId, ?string $level)
+    private function _getPerformanceReportData(Cycle $cycle, ?int $departmentId, ?string $level, ?array $dateRange)
     {
         // Base query for all objectives in the cycle, already filtered by cycle
         $baseObjectivesQuery = Objective::query()
@@ -608,8 +625,6 @@ class ReportController extends Controller
         }
 
         // 2. Calculate Stat Cards
-        // If filters are applied, use filtered objectives.
-        // If not, use company objectives if they exist, otherwise fallback to all objectives in cycle.
         $statCardObjectives = ($departmentId || $level) 
             ? $filteredObjectives 
             : ($companyObjectives->isNotEmpty() ? $companyObjectives : $allObjectivesInCycle);
@@ -637,16 +652,12 @@ class ReportController extends Controller
         }
 
         // 3. Chart Data
-        $dateRange = ['start' => $request->input('start_date'), 'end' => $request->input('end_date')];
-        
-        // Use company objectives for trend if they exist, otherwise use all objectives.
         $objectiveIdsForTrend = $companyObjectives->isNotEmpty() ? $companyObjectives->pluck('objective_id') : $allObjectivesInCycle->pluck('objective_id');
         $progressOverTime = $this->_getCompanyProgressTrend($cycle, $objectiveIdsForTrend, $dateRange);
         
         $departmentPerformanceQuery = $allObjectivesInCycle
             ->where('department_id', '!=', null);
 
-        // If filtering by department, only show that one
         if ($departmentId) {
             $departmentPerformanceQuery = $departmentPerformanceQuery->where('department_id', $departmentId);
         }
@@ -664,8 +675,7 @@ class ReportController extends Controller
             ->sortByDesc('average_progress')
             ->values();
 
-        // 4. Table Data - This is strictly hierarchical and depends on company objectives.
-        // It will be empty if no company objectives are found, which is the desired behavior now.
+        // 4. Table Data
         $tableData = [];
         if ($companyObjectives->isNotEmpty()) {
             $companyObjectiveIds = $companyObjectives->pluck('objective_id');
@@ -720,7 +730,7 @@ class ReportController extends Controller
 
                 return array_merge(
                     $this->_formatObjectiveForTable($companyO, $allConfidenceScores, $cycle),
-                    ['children' => $children]
+                    ['children' => $children->toArray()]
                 );
             })->filter()->values();
         }
@@ -733,9 +743,9 @@ class ReportController extends Controller
             ],
             'charts' => [
                 'progress_over_time' => $progressOverTime,
-                'performance_by_department' => $departmentPerformance,
+                'performance_by_department' => $departmentPerformance->toArray(),
             ],
-            'table' => $tableData,
+            'table' => $tableData->toArray(),
         ];
     }
 
@@ -803,14 +813,19 @@ class ReportController extends Controller
         $startDate = !empty($dateRange['start']) ? Carbon::parse($dateRange['start']) : Carbon::parse($cycle->start_date);
         $endDate = !empty($dateRange['end']) ? Carbon::parse($dateRange['end']) : Carbon::parse($cycle->end_date);
         
-        $cycleDurationInDays = $endDate->diffInDays($startDate);
+        // Ensure start date is not after end date for calculation
+        if ($startDate->gt($endDate)) {
+            return []; // Return empty if the date range is invalid
+        }
+        
+        $cycleDurationInDays = $startDate->diffInDays($endDate);
         if ($cycleDurationInDays <= 0) $cycleDurationInDays = 1;
 
         $idealTrend = [];
         $currentDate = $startDate->copy();
         while($currentDate->lessThanOrEqualTo($endDate)) {
             $weekBucket = $currentDate->format('Y-W');
-            $daysIntoCycle = $currentDate->diffInDays($startDate);
+            $daysIntoCycle = $startDate->diffInDays($currentDate);
             $ideal = min(100, ($daysIntoCycle / $cycleDurationInDays) * 100);
             $idealTrend[$weekBucket] = round($ideal, 2);
             $currentDate->addWeek();
@@ -839,25 +854,28 @@ class ReportController extends Controller
         $tab = $request->input('tab', 'performance');
         $cycle = $this->resolveCycle($request->integer('cycle_id'));
         if (!$cycle) {
-            // Handle error case where cycle is not found, maybe return an error response or an empty CSV.
-            // For now, we'll proceed and let it result in an empty CSV.
+            // Handle error case where cycle is not found
         }
         
         // --- Filters ---
         $departmentId = $request->integer('department_id');
         $level = $request->input('level');
+        $dateRange = [
+            'start' => $request->input('start_date'),
+            'end' => $request->input('end_date'),
+        ];
 
         $data = [];
         if ($cycle) {
             switch ($tab) {
                 case 'performance':
-                    $data = $this->_getPerformanceReportData($request, $cycle, $departmentId, $level);
+                    $data = $this->_getPerformanceReportData($cycle, $departmentId, $level, $dateRange);
                     break;
                 case 'process':
-                    $data = $this->_getProcessReportData($request, $cycle, $departmentId, $level);
+                    $data = $this->_getProcessReportData($cycle, $departmentId, $level, $dateRange);
                     break;
                 case 'quality':
-                    $data = $this->_getQualityReportData($request, $cycle, $departmentId, $level);
+                    $data = $this->_getQualityReportData($cycle, $departmentId, $level, $dateRange);
                     break;
             }
         }
@@ -908,7 +926,7 @@ class ReportController extends Controller
                 }
                 break;
             
-default:
+            default:
                 $rows[] = ['Invalid tab specified for export.'];
                 break;
         }
@@ -1150,6 +1168,11 @@ default:
             ], 422);
         }
 
+        $cycle = $this->resolveCycle($cycleId);
+        if (!$cycle) {
+            return response()->json(['success' => false, 'message' => 'Không thể xác định chu kỳ cho snapshot.'], 422);
+        }
+
         // Lấy dữ liệu báo cáo hiện tại dựa trên loại
         $snapshotData = null;
         
@@ -1161,23 +1184,18 @@ default:
                 $response = $this->getMyTeamReport($tempRequest);
                 $snapshotData = $response->getData(true);
             } elseif ($reportType === 'company') {
-                $cycle = $this->resolveCycle($cycleId);
-                if (!$cycle) {
-                    return response()->json(['success' => false, 'message' => 'Không thể xác định chu kỳ cho snapshot.'], 422);
-                }
-
                 // Lấy tất cả filter params từ request gốc
                 $departmentId = $request->integer('department_id');
                 $level = $request->input('level');
+                $dateRange = [
+                    'start' => $request->input('start_date'),
+                    'end' => $request->input('end_date'),
+                ];
 
-                // Tạo một request giả để truyền cho các hàm private
-                $internalRequest = new Request($request->all());
-                $internalRequest->setUserResolver(fn() => $user);
-
-                // Lấy dữ liệu từ cả 3 tab
-                $performanceData = $this->_getPerformanceReportData($internalRequest, $cycle, $departmentId, $level);
-                $processData = $this->_getProcessReportData($internalRequest, $cycle, $departmentId, $level);
-                $qualityData = $this->_getQualityReportData($internalRequest, $cycle, $departmentId, $level);
+                // Lấy dữ liệu từ cả 3 tab, truyền filter một cách tường minh
+                $performanceData = $this->_getPerformanceReportData($cycle, $departmentId, $level, $dateRange);
+                $processData = $this->_getProcessReportData($cycle, $departmentId, $level, $dateRange);
+                $qualityData = $this->_getQualityReportData($cycle, $departmentId, $level, $dateRange);
 
                 // Gộp dữ liệu của cả 3 tab vào một cấu trúc duy nhất
                 $combinedData = [
@@ -1197,6 +1215,7 @@ default:
                         'filters' => [
                             'department_id' => $departmentId,
                             'level' => $level,
+                            'date_range' => $dateRange,
                         ]
                     ]
                 ];
@@ -1213,19 +1232,28 @@ default:
                 ], 422);
             }
 
+            // Thêm metadata vào snapshot_data
+            $snapshotData['meta']['report_type'] = $reportType;
+            $snapshotData['meta']['notes'] = $notes;
+             if ($reportType === 'company') {
+                $snapshotData['meta']['department_id'] = null;
+            } else {
+                $snapshotData['meta']['department_id'] = $departmentId ?: $user->department_id;
+            }
+
+
             // Tạo báo cáo snapshot
             try {
-                $report = Report::create([
-                    'report_type' => $reportType,
-                    'report_name' => $reportName ?: $this->generateDefaultReportName($reportType, $cycleId),
-                    'snapshot_data' => $snapshotData,
-                    'user_id' => $user->user_id,
+                $report = ReportSnapshot::create([
+                    'title' => $reportName ?: $this->generateDefaultReportName($reportType, $cycleId),
+                    'data_snapshot' => $snapshotData,
+                    'created_by' => $user->user_id,
                     'cycle_id' => $cycleId,
-                    'department_id' => $reportType === 'company' ? null : ($departmentId ?: null), // Luôn null cho company
-                    'notes' => $notes ?: null,
+                    'cycle_name' => $cycle->cycle_name,
+                    'snapshotted_at' => now(),
                 ]);
             } catch (\Illuminate\Database\QueryException $e) {
-                \Log::error('Database error creating report: ' . $e->getMessage(), [
+                \Log::error('Database error creating report snapshot: ' . $e->getMessage(), [
                     'sql' => $e->getSql(),
                     'bindings' => $e->getBindings(),
                 ]);
@@ -1239,10 +1267,10 @@ default:
                 'success' => true,
                 'message' => 'Đã tạo snapshot báo cáo thành công.',
                 'data' => [
-                    'report_id' => $report->report_id,
-                    'report_name' => $report->report_name,
-                    'report_type' => $report->report_type,
-                    'created_at' => $report->created_at->toISOString(),
+                    'report_id' => $report->id, // Use the default 'id' primary key
+                    'report_name' => $report->title,
+                    'report_type' => $reportType,
+                    'created_at' => $report->snapshotted_at->toISOString(),
                     'creator' => [
                         'user_id' => $user->user_id,
                         'full_name' => $user->full_name,
@@ -1327,39 +1355,38 @@ default:
         $cycleId = $request->input('cycle_id') ? (int)$request->input('cycle_id') : null;
         $limit = $request->input('limit') ? (int)$request->input('limit') : 50;
 
-        $query = Report::query()
-            ->with(['creator', 'cycle', 'department'])
-            ->orderByDesc('created_at');
+        $query = ReportSnapshot::query()
+            ->with(['creator', 'cycle'])
+            ->orderByDesc('snapshotted_at');
 
-        // Lọc theo loại báo cáo
+        // Lọc theo loại báo cáo, giờ được lưu trong cột JSON
         if ($reportType && in_array($reportType, ['team', 'manager', 'company'], true)) {
-            $query->where('report_type', $reportType);
+            $query->where('data_snapshot->meta->report_type', $reportType);
         }
 
         // Lọc theo chu kỳ
         if ($cycleId) {
             $query->where('cycle_id', $cycleId);
         }
-
-        // Nếu không phải admin/CEO, chỉ xem báo cáo của mình hoặc phòng ban mình
-        // if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
-        //     $query->where(function ($q) use ($user) {
-        //         $q->where('user_id', $user->user_id)
-        //           ->orWhere('department_id', $user->department_id);
-        //     });
-        // }
+        
+        // Note: Access control logic might need adjustment depending on the final requirements.
+        // For now, we allow broader access as the previous logic was commented out.
 
         $reports = $query->limit($limit)->get();
 
         return response()->json([
             'success' => true,
             'data' => $reports->map(function ($report) {
+                // Eagerly load department if department_id exists in meta
+                $departmentId = $report->data_snapshot['meta']['department_id'] ?? null;
+                $department = $departmentId ? Department::find($departmentId) : null;
+
                 return [
-                    'report_id' => $report->report_id,
-                    'report_type' => $report->report_type,
-                    'report_name' => $report->report_name,
-                    'created_at' => $report->created_at->toISOString(),
-                    'created_at_formatted' => $report->created_at->format('d/m/Y H:i'),
+                    'report_id' => $report->id,
+                    'report_type' => $report->data_snapshot['meta']['report_type'] ?? null,
+                    'report_name' => $report->title,
+                    'created_at' => $report->snapshotted_at->toISOString(),
+                    'created_at_formatted' => $report->snapshotted_at->format('d/m/Y H:i'),
                     'creator' => [
                         'user_id' => $report->creator->user_id ?? null,
                         'full_name' => $report->creator->full_name ?? 'N/A',
@@ -1371,11 +1398,11 @@ default:
                         'start_date' => $report->cycle->start_date,
                         'end_date' => $report->cycle->end_date,
                     ] : null,
-                    'department' => $report->department ? [
-                        'department_id' => $report->department->department_id,
-                        'department_name' => $report->department->d_name,
+                    'department' => $department ? [
+                        'department_id' => $department->department_id,
+                        'department_name' => $department->d_name,
                     ] : null,
-                    'notes' => $report->notes,
+                    'notes' => $report->data_snapshot['meta']['notes'] ?? null,
                 ];
             }),
         ]);
@@ -1390,7 +1417,7 @@ default:
         
         \Log::info("Fetching report snapshot: ID = $reportId, User = {$user->user_id}");
 
-        $report = Report::with(['creator', 'cycle', 'department'])->find($reportId);
+        $report = ReportSnapshot::with(['creator', 'cycle'])->find($reportId);
         
         if (!$report) {
             \Log::warning("Report snapshot not found: ID = $reportId");
@@ -1400,25 +1427,20 @@ default:
             ], 404);
         }
 
-        // Kiểm tra quyền xem
-        // if (!$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
-        //     if ($report->user_id !== $user->user_id && $report->department_id !== $user->department_id) {
-        //         return response()->json([
-        //             'success' => false,
-        //             'message' => 'Bạn không có quyền xem báo cáo này.',
-        //         ], 403);
-        //     }
-        // }
+        // Note: Access control logic might need adjustment.
+        // The original logic was commented out, maintaining that for now.
+        $departmentId = $report->data_snapshot['meta']['department_id'] ?? null;
+        $department = $departmentId ? Department::find($departmentId) : null;
 
         return response()->json([
             'success' => true,
             'data' => [
-                'report_id' => $report->report_id,
-                'report_type' => $report->report_type,
-                'report_name' => $report->report_name,
-                'snapshot_data' => $report->snapshot_data,
-                'created_at' => $report->created_at->toISOString(),
-                'created_at_formatted' => $report->created_at->format('d/m/Y H:i'),
+                'report_id' => $report->id,
+                'report_type' => $report->data_snapshot['meta']['report_type'] ?? null,
+                'report_name' => $report->title,
+                'snapshot_data' => $report->data_snapshot,
+                'created_at' => $report->snapshotted_at->toISOString(),
+                'created_at_formatted' => $report->snapshotted_at->format('d/m/Y H:i'),
                 'creator' => [
                     'user_id' => $report->creator->user_id ?? null,
                     'full_name' => $report->creator->full_name ?? 'N/A',
@@ -1428,11 +1450,11 @@ default:
                     'cycle_id' => $report->cycle->cycle_id,
                     'cycle_name' => $report->cycle->cycle_name,
                 ] : null,
-                'department' => $report->department ? [
-                    'department_id' => $report->department->department_id,
-                    'department_name' => $report->department->d_name,
+                'department' => $department ? [
+                    'department_id' => $department->department_id,
+                    'department_name' => $department->d_name,
                 ] : null,
-                'notes' => $report->notes,
+                'notes' => $report->data_snapshot['meta']['notes'] ?? null,
             ],
         ]);
     }
@@ -1444,7 +1466,7 @@ default:
     {
         $user = $request->user();
         
-        $report = Report::with(['creator', 'cycle', 'department'])->find($reportId);
+        $report = ReportSnapshot::find($reportId);
         
         if (!$report) {
             return response()->json([
@@ -1454,7 +1476,7 @@ default:
         }
 
         // Chỉ người tạo, admin hoặc CEO mới được xóa
-        if ($report->user_id !== $user->user_id && !$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
+        if ($report->created_by !== $user->user_id && !$user->is_admin && strtolower($user->role->role_name ?? '') !== 'ceo') {
             return response()->json([
                 'success' => false,
                 'message' => 'Bạn không có quyền xóa báo cáo này.',
