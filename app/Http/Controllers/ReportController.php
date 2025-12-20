@@ -493,25 +493,46 @@ class ReportController extends Controller
                 $healthStatusCounts[$status]++;
             }
 
-            $firstCheckinsQuery = CheckIn::select('kr_id', DB::raw('MIN(created_at) as first_checkin_date'))
-                ->whereIn('kr_id', $allKrsInCycleQuery->clone()->pluck('kr_id'))
-                ->groupBy('kr_id');
-            
-            if (!empty($dateRange['start']) && !empty($dateRange['end'])) {
-                $firstCheckinsQuery->whereBetween('created_at', [Carbon::parse($dateRange['start'])->startOfDay(), Carbon::parse($dateRange['end'])->endOfDay()]);
-            }
-            $firstCheckins = $firstCheckinsQuery->get();
+            // 3. Chart: Process Compliance (Check-in) Trend (New logic for line chart)
+            $processComplianceTrendData = [];
 
-            $weeklyCheckinCounts = $firstCheckins
-                ->groupBy(fn($checkin) => Carbon::parse($checkin->first_checkin_date)->format('Y-W'))
+            // Get all KRs within the cycle and filters
+            $krsInScope = KeyResult::whereIn('objective_id', $allObjectivesInCycleQuery->clone()->pluck('objective_id'))
+                                    ->whereNull('archived_at')
+                                    ->pluck('kr_id');
+            
+            // Total active KRs for the ideal line (assuming each KR should be checked weekly)
+            $totalKrsForIdeal = $krsInScope->count();
+
+            // Get all check-ins for these KRs within the cycle and date range
+            $allCheckInsForTrend = CheckIn::whereIn('kr_id', $krsInScope);
+            if (!empty($dateRange['start']) && !empty($dateRange['end'])) {
+                $allCheckInsForTrend->whereBetween('created_at', [Carbon::parse($dateRange['start'])->startOfDay(), Carbon::parse($dateRange['end'])->endOfDay()]);
+            }
+            $allCheckInsForTrend = $allCheckInsForTrend->get();
+
+            // Group all check-ins by week
+            $weeklyCheckinCounts = $allCheckInsForTrend
+                ->groupBy(fn($checkin) => Carbon::parse($checkin->created_at)->format('Y-W'))
                 ->map(fn($group) => $group->count())
                 ->sortKeys();
-
-            $cumulative = 0;
-            $processComplianceTrend = $weeklyCheckinCounts->map(function ($count) use (&$cumulative) {
-                $cumulative += $count;
-                return $cumulative;
-            });
+            
+            // Determine the start and end week for the trend
+            $trendStartDate = !empty($dateRange['start']) ? Carbon::parse($dateRange['start']) : Carbon::parse($cycle->start_date);
+            $trendEndDate = !empty($dateRange['end']) ? Carbon::parse($dateRange['end']) : Carbon::parse($cycle->end_date);
+            
+            // Generate data points for each week in the range
+            $currentWeek = $trendStartDate->copy()->startOfWeek();
+            while ($currentWeek->lte($trendEndDate)) {
+                $weekBucket = $currentWeek->format('Y-W');
+                $processComplianceTrendData[] = [
+                    'bucket' => $weekBucket,
+                    'week_label' => 'Tuần ' . $currentWeek->weekOfYear,
+                    'actual_checkins' => $weeklyCheckinCounts[$weekBucket] ?? 0,
+                    'ideal_checkins' => $totalKrsForIdeal, // Simple ideal: all KRs should have 1 checkin per week
+                ];
+                $currentWeek->addWeek();
+            }
 
             // --- TABLE ---
             $latestCheckins = CheckIn::select('kr_id', DB::raw('MAX(created_at) as last_checkin_date'))
@@ -561,7 +582,7 @@ class ReportController extends Controller
                 'charts' => [
                     'checkin_compliance_by_dept' => $checkinComplianceByDept->toArray(),
                     'health_status_distribution' => $healthStatusCounts,
-                    'process_compliance_trend' => $processComplianceTrend->toArray(),
+                    'process_compliance_trend' => $processComplianceTrendData,
                 ],
                 'table' => $processTableData->toArray(),
             ];

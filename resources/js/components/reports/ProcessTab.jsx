@@ -159,24 +159,77 @@ export default function ProcessTab({ data }) {
         };
         
         // --- Chart 3: Compliance Trend (Line) ---
+        const trendLabels = charts.process_compliance_trend?.map(item => item.week_label) || [];
+        const trendActualData = charts.process_compliance_trend?.map(item => item.actual_checkins) || [];
+        const trendIdealData = charts.process_compliance_trend?.map(item => item.ideal_checkins) || [];
+
         const trendData = {
-            labels: Object.keys(charts.process_compliance_trend || {}),
-            datasets: [{
-                label: 'Số KR đã Check-in (Tích lũy)',
-                data: Object.values(charts.process_compliance_trend || {}),
-                borderColor: 'rgb(139, 92, 246)',
-                backgroundColor: (context) => {
-                    const { ctx, chartArea } = context.chart;
-                    if (!chartArea) return null;
-                    return createGradient(ctx, chartArea, [{ offset: 0, color: 'rgba(139, 92, 246, 0)' }, { offset: 1, color: 'rgba(139, 92, 246, 0.4)' }]);
+            labels: trendLabels,
+            datasets: [
+                {
+                    label: 'Thực tế',
+                    data: trendActualData,
+                    borderColor: 'rgb(139, 92, 246)', // Purple
+                    backgroundColor: (context) => {
+                        const { ctx, chartArea } = context.chart;
+                        if (!chartArea) return null;
+                        return createGradient(ctx, chartArea, [{ offset: 0, color: 'rgba(139, 92, 246, 0.2)' }, { offset: 1, color: 'rgba(139, 92, 246, 0)' }]);
+                    },
+                    fill: 'origin', // Fill area below the line
+                    tension: 0.3, // Smoother line
+                    pointRadius: 3,
+                    pointBackgroundColor: 'rgb(139, 92, 246)',
+                    pointBorderColor: '#fff',
+                    pointHoverRadius: 5,
                 },
-                fill: true, tension: 0.4, pointBackgroundColor: 'rgb(139, 92, 246)',
-            }]
+                {
+                    label: 'Lý tưởng',
+                    data: trendIdealData,
+                    borderColor: 'rgb(75, 192, 192)', // Teal/Cyan
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 0, // No points for ideal line
+                    borderDash: [5, 5], // Dashed line
+                }
+            ]
         };
         const trendOptions = {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { ...tooltipOptions } },
-            scales: { y: { grid: { drawBorder: false } }, x: { grid: { display: false } } }
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        boxWidth: 8,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    ...tooltipOptions,
+                    callbacks: {
+                        label: function (context) {
+                            let label = context.dataset.label || '';
+                            if (label) label += ': ';
+                            if (context.parsed.y !== null) label += context.parsed.y;
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { drawBorder: false },
+                    title: {
+                        display: true,
+                        text: 'Số lượng Check-in'
+                    }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
         };
 
         return [
