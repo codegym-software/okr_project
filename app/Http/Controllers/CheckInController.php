@@ -149,7 +149,6 @@ class CheckInController extends Controller
             'progress_percent' => 'required|numeric|min:0|max:100',
             'notes' => 'nullable|string|max:1000',
             'is_completed' => 'boolean',
-            'status' => 'nullable|in:not_start,on_track,at_risk,in_trouble,completed',
             'confidence_score' => 'nullable|integer|min:1|max:5',
         ]);
 
@@ -167,10 +166,13 @@ class CheckInController extends Controller
         $calculatedPercent = $targetValue > 0
             ? ($progressValue / $targetValue) * 100
             : (float) $request->progress_percent;
+        
+        // Làm tròn và giới hạn giá trị
+        $calculatedPercent = round(max(0, min(100, $calculatedPercent)), 2);
 
         // Nếu đặt trạng thái hoàn thành nhưng chưa đạt mục tiêu thì từ chối
         if (
-            $request->status === 'completed'
+            $request->boolean('is_completed')
             && $targetValue > 0
             && $progressValue < $targetValue
         ) {
@@ -195,19 +197,10 @@ class CheckInController extends Controller
                     'confidence_score' => $request->confidence_score,
                 ]);
 
-                // Determine the new status
-                $isCompletedFlag = $request->boolean('is_completed')
-                    || $calculatedPercent >= 100
-                    || $request->status === 'completed';
+                // Tự động tính toán trạng thái mới
+                $newStatus = $keyResult->calculateStatusFromProgress($calculatedPercent);
 
-                $newStatus = $request->status
-                    ?: ($keyResult->status === 'completed' ? 'completed' : 'on_track');
-
-                if ($isCompletedFlag) {
-                    $newStatus = 'completed';
-                }
-
-                // Update the Key Result in a single call (optional if updateProgress handles it, but good for setting status)
+                // Update the Key Result
                 $keyResult->update([
                     'current_value' => $request->progress_value,
                     'progress_percent' => $calculatedPercent,
@@ -215,15 +208,13 @@ class CheckInController extends Controller
                 ]);
 
                 // IMPORTANT: Trigger chain reaction calculation
-                // This will save progress to DB and propagate to parents (including Objective)
-                $keyResult->refresh();
-                $keyResult->updateProgress(); // This already propagates to parent Objective
+                $keyResult->updateProgress(); 
 
                 Log::info('Check-in created', [
                     'check_in_id' => $checkIn->check_in_id,
                     'kr_id' => $keyResult->kr_id,
                     'user_id' => $user->user_id,
-                    'progress_percent' => $request->progress_percent,
+                    'progress_percent' => $calculatedPercent,
                     'current_value' => $keyResult->current_value,
                     'status' => $keyResult->status,
                 ]);

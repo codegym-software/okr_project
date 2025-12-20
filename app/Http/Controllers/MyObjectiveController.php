@@ -212,7 +212,6 @@ class MyObjectiveController extends Controller
             'key_results.*.target_value' => 'required|numeric|min:0',
             'key_results.*.current_value' => 'nullable|numeric|min:0',
             'key_results.*.unit' => 'required|in:number,percent,currency,completion',
-            'key_results.*.status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'assignments' => 'nullable|array',
             'assignments.*.email' => 'required|email|exists:users,email',
             'is_aspirational' => 'nullable|boolean',
@@ -327,21 +326,24 @@ class MyObjectiveController extends Controller
                     foreach ($validated['key_results'] as $krData) {
                         $target = (float) $krData['target_value'];
                         $current = (float) ($krData['current_value'] ?? 0);
-                        $progress = $target > 0 ? max(0, min(100, ($current / $target) * 100)) : 0;
+                        $progress = $target > 0 ? round(max(0, min(100, ($current / $target) * 100)), 2) : 0;
 
-                        KeyResult::create([
+                        $kr = new KeyResult([
                             'kr_title' => $krData['kr_title'],
                             'target_value' => $target,
                             'current_value' => $current,
                             'unit' => $krData['unit'],
-                            'status' => $krData['status'],
                             'progress_percent' => $progress,
                             'objective_id' => $objective->objective_id,
-                            'cycle_id' => $objective->cycle_id ?? null, 
+                            'cycle_id' => $objective->cycle_id ?? null,
                             'department_id' => $objective->department_id ?? null,
                             'user_id' => $user->user_id,
-                            'assigned_to' => $user->user_id, 
+                            'assigned_to' => $user->user_id,
                         ]);
+
+                        // Tự động tính status
+                        $kr->status = $kr->calculateStatusFromProgress($progress);
+                        $kr->save();
                     }
                     // Cập nhật updated_at của Objective khi tạo KR mới
                     $objective->touch();

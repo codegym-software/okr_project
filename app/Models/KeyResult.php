@@ -165,6 +165,58 @@ class KeyResult extends Model
     }
 
     /**
+     * Tính toán trạng thái KR dựa trên tiến độ và thời gian trong chu kỳ.
+     *
+     * @param float $progress Tiến độ (0-100)
+     * @return string Trạng thái: not_start, on_track, at_risk, in_trouble, completed
+     */
+    public function calculateStatusFromProgress(float $progress): string
+    {
+        if ($progress >= 100) {
+            return 'completed';
+        }
+        if ($progress == 0) {
+            return 'not_start';
+        }
+
+        // Lấy thông tin chu kỳ từ chính KR hoặc từ Objective cha
+        $cycle = $this->cycle ?? $this->objective->cycle;
+
+        if (!$cycle || !$cycle->start_date || !$cycle->end_date) {
+            // Nếu không có chu kỳ, dùng logic đơn giản dựa trên progress
+            if ($progress >= 70) return 'on_track';
+            if ($progress >= 30) return 'at_risk';
+            return 'in_trouble';
+        }
+
+        $now = Carbon::now('Asia/Ho_Chi_Minh');
+        $startDate = Carbon::parse($cycle->start_date);
+        $endDate = Carbon::parse($cycle->end_date);
+
+        // Tính % thời gian đã trôi qua
+        $totalDays = $startDate->diffInDays($endDate);
+        if ($totalDays <= 0) {
+            return $progress >= 100 ? 'completed' : 'in_trouble';
+        }
+
+        $elapsedDays = $startDate->diffInDays($now);
+        $expectedProgress = min(100, max(0, ($elapsedDays / $totalDays) * 100));
+
+        // So sánh progress thực tế với progress mong đợi
+        $difference = $progress - $expectedProgress;
+
+        if ($difference >= -10) { // Có một khoảng đệm 10%
+            return 'on_track';
+        }
+        if ($difference >= -25) { // Chậm hơn từ 10% đến 25%
+            return 'at_risk';
+        }
+        
+        // Chậm hơn 25%
+        return 'in_trouble';
+    }
+
+    /**
      * Chỉ lấy Key Result chưa lưu trữ
      */
     public function scopeActive($query)
