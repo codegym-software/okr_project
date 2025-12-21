@@ -16,7 +16,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import { Bar, Line, Pie } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -827,7 +827,7 @@ export default function ReportPage() {
                             </div>
                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                                 <h3 className="text-lg font-bold text-slate-800 mb-6">Phân bổ Trạng thái Sức khỏe OKR</h3>
-                                <div className="h-64 flex justify-center"><Doughnut data={complianceCharts.statusDoughnut} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }} /></div>
+                                <div className="h-64 flex justify-center"><Pie data={complianceCharts.statusDoughnut} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }} /></div>
                             </div>
                         </div>
 
