@@ -58,7 +58,7 @@ const ProcessTable = ({ tableData }) => {
                     {tableData.map((row, index) => (
                         <tr key={row.objective_id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                <a href={`/objectives/${row.objective_id}`} className="hover:underline" target="_blank" rel="noopener noreferrer">{row.objective_name}</a>
+                                <span className="font-medium text-gray-900">{row.objective_name}</span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.department_name}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.owner_name}</td>

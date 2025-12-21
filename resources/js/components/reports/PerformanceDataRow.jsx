@@ -40,9 +40,9 @@ const PerformanceDataRow = ({ objective, level, isZebra, expandedRows, toggleRow
                                 {isExpanded ? <FiChevronDown /> : <FiChevronRight />}
                             </button>
                         )}
-                        <a href={`/objectives/${objective.objective_id}`} className="hover:underline" target="_blank" rel="noopener noreferrer">
+                        <span className="font-medium text-gray-900">
                             {objective.objective_name}
-                        </a>
+                        </span>
                     </div>
                 </td>
                 {/* Cấp độ */}
