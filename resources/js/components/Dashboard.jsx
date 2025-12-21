@@ -266,28 +266,37 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {(data.needsAttention || []).length > 0 && (
-                <section>
-                    <div className="mb-4 flex items-center justify-between">
-                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100 text-red-600">
-                                ⚠️
-                            </span>
-                            Cần chú ý
-                        </h2>
-                        <div className="flex gap-2">
-                            <a 
-                                href="/my-objectives" 
-                                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                            >
-                                Check-in ngay
-                            </a>
-                            <a href="/my-objectives" className="sm:hidden text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center">
-                                Xem tất cả &rarr;
-                            </a>
-                        </div>
+            <section>
+                <div className="mb-4 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100 text-red-600">
+                            ⚠️
+                        </span>
+                        Cần chú ý
+                    </h2>
+                    <div className="flex gap-2">
+                        <a 
+                            href="/my-objectives" 
+                            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                        >
+                            Check-in ngay
+                        </a>
+                        <a href="/my-objectives" className="sm:hidden text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center">
+                            Xem tất cả &rarr;
+                        </a>
                     </div>
-                    
+                </div>
+                
+                {(data.needsAttention || []).length === 0 ? (
+                    <div className="rounded-xl bg-white p-8 text-center shadow-sm">
+                    <h3 className="text-lg font-semibold text-green-700 mb-2">
+                        Bạn đang on-track!
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                        Không có KR nào overdue hoặc sắp overdue.
+                    </p>
+                    </div>
+                ) : (
                     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50 text-left font-semibold text-slate-700">
@@ -384,8 +393,9 @@ export default function Dashboard() {
                             </tbody>
                         </table>
                     </div>
-                </section>
-            )}
+                )}
+            </section>                      
+
 
             {data.user?.role?.role_name?.toLowerCase() !== 'ceo' && (
                 <section>

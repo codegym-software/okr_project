@@ -89,8 +89,8 @@ export default function ProgressChart() {
                 borderColor: '#3B82F6', 
                 backgroundColor: '#3B82F6',
                 tension: 0.4,
-                pointRadius: 4,
-                pointHoverRadius: 6,
+                pointRadius: 3,
+                pointHoverRadius: 5,
             },
             {
                 label: 'Mục tiêu lý tưởng',
@@ -123,6 +123,10 @@ export default function ProgressChart() {
                 labels: {
                     usePointStyle: true,
                     padding: 20,
+                    pointStyle: 'circle',
+                    radius: 3.6,
+                    boxHeight: 6,
+                    boxWidth: 6,
                 },
             },
             title: {
@@ -138,6 +142,23 @@ export default function ProgressChart() {
                 },
             },
             tooltip: {
+                backgroundColor: '#ffffff',
+                titleColor: '#374151',
+                bodyColor: '#4B5563',
+                borderColor: '#E5E7EB',
+                borderWidth: 1,
+                cornerRadius: 6,
+                padding: 10,
+                bodySpacing: 6,
+                titleSpacing: 4,
+                titleMarginBottom: 8,
+                displayColors: true,
+                boxPadding: 4,       
+                position: 'nearest',        
+                caretPadding: 8,          
+                caretSize: 6,               
+                xAlign: 'center',           
+                yAlign: 'bottom',          
                 callbacks: {
                     label: function(context) {
                         return `${context.dataset.label}: ${context.parsed.y}%`;
@@ -177,135 +198,151 @@ export default function ProgressChart() {
     return (
         <>
             <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <div className="mb-8">
-                <div className="h-[500px]"> 
-                <Line 
-                    data={data}
-                    options={{
-                    ...options, 
-                    clipping: false,   
-
-                    layout: {
-                        padding: {
-                        top: 0,
-                        bottom: 0,  
-                        left: 10,
-                        right: 10
-                        }
-                    },
-
-                    elements: {
-                        point: {
-                        radius: 6,
-                        hoverRadius: 8,
-                        backgroundColor: '#ffffff',     
-                        borderWidth: 3,               
-                        hoverBorderWidth: 4,
-                        pointStyle: 'circle',
-                        },
-                        line: {
-                        tension: 0.4
-                        }
-                    },
-
-                    scales: {
-                        ...options.scales,
-                        y: {
-                        ...options.scales.y,
-                        beginAtZero: true,
-                        min: 0,
-                        max: 100,
-                        ticks: {
-                            callback: (value) => value + '%',
-                            stepSize: 10,
-                            padding: 16,  
-                        },
-                        grid: {
-                            color: '#F1F5F9'
-                        }
-                        }
-                    },
-
-                    plugins: {
-                        ...options.plugins,
-                        title: {
-                        ...options.plugins.title,
-                        padding: { top: 10, bottom: 30 }
-                        }
-                    },
-
-                    animation: {
-                        duration: 0
-                    }
-                    }}
-                />
-                </div>
-            </div>
-
-            {chartData.isBehind && showWarning && (
                 <div className="mb-8">
-                <div className="relative w-full px-5 py-4 bg-red-50 border border-red-200 rounded-md overflow-hidden">
-                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500"></div>
+                    <div className="h-[500px]"> 
+                        <Line 
+                            data={data}
+                            options={{
+                                ...options, 
+                                clip: false,   
 
-                    <div className="flex items-center justify-between gap-4 pl-4">
-                    <div className="flex items-center gap-3">
-                        <svg
-                        className="h-5 w-5 text-red-500 flex-shrink-0"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                layout: {
+                                    padding: {
+                                        top: 0,     
+                                        bottom: 0,  
+                                        left: 10,
+                                        right: 10
+                                    }
+                                },
+
+                                elements: {
+                                    point: {
+                                        radius: 3,
+                                        hoverRadius: 5,
+                                        backgroundColor: '#ffffff',     
+                                        borderWidth: 3,               
+                                        hoverBorderWidth: 4,
+                                        pointStyle: 'circle',
+                                    },
+                                    line: {
+                                        tension: 0.4
+                                    }
+                                },
+
+                                scales: {
+                                    ...options.scales,
+                                    y: {
+                                        ...options.scales.y,
+                                        beginAtZero: true,
+                                        min: 0,
+                                        max: 100,
+                                        ticks: {
+                                            callback: (value) => value + '%',
+                                            stepSize: 10,
+                                            padding: 16,  
+                                        },
+                                        grid: {
+                                            color: '#F1F5F9'
+                                        }
+                                    }
+                                },
+
+                                plugins: {
+                                    ...options.plugins,
+                                    title: {
+                                        ...options.plugins.title,
+                                        padding: { top: 10, bottom: 30 }
+                                    },
+                                    tooltip: {
+                                        ...options.plugins.tooltip,
+                                        position: 'nearest',
+                                        caretPadding: 8,
+                                        caretSize: 6,
+                                        xAlign: 'center',
+                                        yAlign: 'bottom',   
+                                    },
+                                    legend: {
+                                        ...options.plugins.legend,
+                                        labels: {
+                                            ...options.plugins.legend.labels,
+                                            pointStyle: 'circle',
+                                            radius: 4,
+                                        }
+                                    }
+                                },
+
+                                animation: {
+                                    duration: 0
+                                }
+                            }}
                         />
-                        </svg>
+                    </div>
+                </div>
 
-                        <div className="text-sm">
-                        <span className="font-semibold text-slate-800">
-                            Cảnh báo tiến độ: OKR đang chậm so với kế hoạch
-                        </span>
-                        <span className="mx-4 text-slate-600">•</span>
-                        <span className="text-slate-700">
-                            Thực tế hiện tại: {chartData.currentProgress}%
-                        </span>
-                        <span className="mx-4 text-slate-600">•</span>
-                        <span className="text-slate-700">
-                            Kế hoạch tại thời điểm này: {chartData.targetProgress}%
-                        </span>
+                {chartData.isBehind && showWarning && (
+                    <div className="mb-8">
+                        <div className="relative w-full px-5 py-4 bg-red-50 border border-red-200 rounded-md overflow-hidden">
+                            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500"></div>
+
+                            <div className="flex items-center justify-between gap-4 pl-4">
+                                <div className="flex items-center gap-3">
+                                    <svg
+                                        className="h-5 w-5 text-red-500 flex-shrink-0"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth={2}
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                        />
+                                    </svg>
+
+                                    <div className="text-sm">
+                                        <span className="font-semibold text-slate-800">
+                                            Cảnh báo tiến độ: OKR đang chậm so với kế hoạch
+                                        </span>
+                                        <span className="mx-4 text-slate-600">•</span>
+                                        <span className="text-slate-700">
+                                            Thực tế hiện tại: {chartData.currentProgress}%
+                                        </span>
+                                        <span className="mx-4 text-slate-600">•</span>
+                                        <span className="text-slate-700">
+                                            Kế hoạch tại thời điểm này: {chartData.targetProgress}%
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowWarning(false)}
+                                    className="text-red-400 hover:text-red-600 transition flex-shrink-0"
+                                    aria-label="Đóng cảnh báo"
+                                >
+                                    <svg
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth={2}
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M6 18L18 6M6 6l12 12"
+                                        />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
+                )}
 
-                    <button
-                        type="button"
-                        onClick={() => setShowWarning(false)}
-                        className="text-red-400 hover:text-red-600 transition flex-shrink-0"
-                        aria-label="Đóng cảnh báo"
-                    >
-                        <svg
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M6 18L18 6M6 6l12 12"
-                        />
-                        </svg>
-                    </button>
-                    </div>
+                <div className="text-sm text-slate-500 text-center">
+                    Biểu đồ cập nhật theo tuần, bắt đầu từ ngày tạo mục tiêu đầu tiên trong chu kỳ
                 </div>
-                </div>
-            )}
-
-            <div className="text-sm text-slate-500 text-center">
-                Biểu đồ cập nhật theo tuần, bắt đầu từ ngày tạo mục tiêu đầu tiên trong chu kỳ
-            </div>
             </div>
         </>
     );
