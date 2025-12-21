@@ -38,11 +38,7 @@ export default function CompanyOverviewReport() {
     const showNotification = (type, message) => setToast({ type, message });
 
     const handleExportExcel = async () => {
-        if (viewingSnapshot) {
-            showNotification('info', 'Chức năng xuất file không áp dụng cho snapshot.');
-            return;
-        }
-        if (!filters.cycleId) {
+        if (!filters.cycleId && !viewingSnapshot) { // If not viewing snapshot, cycleId is required
             showNotification('error', 'Vui lòng chọn chu kỳ để xuất báo cáo.');
             return;
         }
@@ -51,11 +47,25 @@ export default function CompanyOverviewReport() {
         showNotification('info', 'Đang chuẩn bị dữ liệu và tạo file Excel...');
 
         try {
-            // Fetch fresh, complete data for the export
-            const dataToExport = await fetchDetailedData(filters);
-            const cycle = cycles.find(c => c.cycle_id == filters.cycleId);
+            let dataForExport = null;
+            let exportCycleName = 'report';
+
+            if (viewingSnapshot) {
+                // Use data from the snapshot
+                dataForExport = viewingSnapshot.snapshot_data?.data || viewingSnapshot.snapshot_data;
+                exportCycleName = viewingSnapshot.cycle?.cycle_name || viewingSnapshot.report_name || 'snapshot_report';
+            } else {
+                // Fetch fresh, complete data for the export (for live reports)
+                dataForExport = await fetchDetailedData({ cycleId: filters.cycleId }); // Using updated call
+                const cycle = cycles.find(c => c.cycle_id == filters.cycleId);
+                exportCycleName = cycle?.cycle_name || 'report';
+            }
             
-            const result = await exportCompanyReportToExcel(dataToExport, cycle?.cycle_name || 'report');
+            if (!dataForExport) {
+                throw new Error('Không có dữ liệu để xuất file.');
+            }
+
+            const result = await exportCompanyReportToExcel(dataForExport, exportCycleName);
 
             if (result.success) {
                 showNotification('success', 'Đã tạo và tải xuống file Excel thành công!');
@@ -215,53 +225,52 @@ export default function CompanyOverviewReport() {
 
     return (
         <div className="mx-auto w-full max-w-6xl mt-8">
-            {viewingSnapshot && (
-                <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-lg shadow-md flex items-center justify-between">
-                    <div>
-                        <p className="font-bold">Chế độ xem Snapshot</p>
-                        <p className="text-sm">Bạn đang xem báo cáo "{viewingSnapshot.report_name}" được lưu vào lúc {new Date(viewingSnapshot.created_at).toLocaleString('vi-VN')}.</p>
-                    </div>
-                    <button onClick={handleExitSnapshotView} className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-100">
-                        <FiXCircle />
-                        Thoát
-                    </button>
-                </div>
-            )}
-
-            <div className="mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <h1 className="text-2xl font-extrabold text-slate-900 mb-4 sm:mb-0">Báo cáo Thống kê Cấp Công ty</h1>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-slate-600">Chu kỳ OKR</span>
-                            <CycleDropdown
-                                cyclesList={cycles}
-                                cycleFilter={filters.cycleId}
-                                handleCycleChange={(value) => setFilters(f => ({ ...f, cycleId: value || '', departmentId: '', objectiveLevel: 'all', dateRange: { start: null, end: null } }))}
-                                disabled={!!viewingSnapshot}
-                            />
-                        </div>
-                        <div className="flex items-center gap-2 mt-4">
-
-                            {isAdminOrCeo && (
-                                <>
-                                    <button onClick={() => setIsSnapshotModalOpen(true)} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                                        <FiArchive />
-                                        Tạo Snapshot
-                                    </button>
-                                    <button onClick={() => { loadSnapshots(filters.cycleId); setIsHistoryModalOpen(true); }} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                                        <FiClock />
-                                        Lịch sử
-                                    </button>
-                                </>
-                            )}
-                            <button onClick={handleExportExcel} disabled={isExportingExcel || !!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        <div className="mb-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex items-center flex-wrap gap-x-4 gap-y-2 mb-4 sm:mb-0">
+                                        <h1 className="text-2xl font-extrabold text-slate-900">Báo cáo Thống kê Cấp Công ty</h1>
+                                        {viewingSnapshot && (
+                                                                        <>
+                                                                            <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-200">
+                                                                                Đang xem: {viewingSnapshot.report_name}
+                                                                            </span>
+                                                                        </>                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                {!viewingSnapshot && (
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-xs font-semibold text-slate-600">Chu kỳ OKR</span>
+                                                                        <CycleDropdown
+                                                                            cyclesList={cycles}
+                                                                            cycleFilter={filters.cycleId}
+                                                                            handleCycleChange={(value) => setFilters(f => ({ ...f, cycleId: value || '' }))}
+                                                                            disabled={!!viewingSnapshot}
+                                                                        />
+                                                                    </div>
+                                                                )}                                        <div className="flex items-center gap-2 mt-4">
+                                                                        {isAdminOrCeo && !viewingSnapshot && (
+                                                                            <>
+                                                                                <button onClick={() => setIsSnapshotModalOpen(true)} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                                                    <FiArchive />
+                                                                                    Tạo Snapshot
+                                                                                </button>
+                                                                                <button onClick={() => { loadSnapshots(filters.cycleId); setIsHistoryModalOpen(true); }} disabled={!!viewingSnapshot} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                                                    <FiClock />
+                                                                                    Lịch sử
+                                                                                </button>
+                                                                            </>
+                                                                        )}                            {viewingSnapshot && (
+                                <button onClick={handleExitSnapshotView} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-sm transition-colors">
+                                    Quay lại Hiện tại
+                                </button>                        )}
+                            <button onClick={handleExportExcel} disabled={isExportingExcel} className="flex items-center justify-center gap-2 px-4 h-9 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
                                 {isExportingExcel ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <FiFileText />}
                                 {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
                             </button>
-                        </div>
-                    </div>
-                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                    
             </div>
 
             <div className="mb-6 border-b border-gray-200">
