@@ -574,7 +574,7 @@ class ReportController extends Controller
                     'owner_name' => optional($objective->user)->full_name ?? 'N/A',
                     'health_status' => $this->reportService->getHealthStatus((float) $objective->progress_percent, $idealProgress),
                     'last_checkin_date' => $lastCheckinDate ? $lastCheckinDate->toDateString() : null,
-                    'days_overdue' => $lastCheckinDate ? $lastCheckinDate->diffInDays(now(), false) : null,
+                    'days_overdue' => $lastCheckinDate ? (int) floor($lastCheckinDate->diffInDays(now(), false)) : null,
                     'periodic_checkin_rate' => round($periodicCheckinRate, 2),
                 ];
             })->sortBy('days_overdue', SORT_REGULAR, true)->values();
