@@ -417,13 +417,13 @@ class ReportController extends Controller
     private function _getObjectiveStructuralIssues(int $krCount): ?string
     {
         if ($krCount === 0) {
-            return 'No KRs defined';
+            return 'Chưa định nghĩa KR';
         }
         if ($krCount < 2) {
-            return 'Too few KRs (<2)';
+            return 'Quá ít KR (<2)';
         }
         if ($krCount > 5) {
-            return 'Too many KRs (>5)';
+            return 'Quá nhiều KR (>5)';
         }
         return null; // No structural issues based on KR count
     }
