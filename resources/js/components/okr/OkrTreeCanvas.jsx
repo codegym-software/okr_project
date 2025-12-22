@@ -745,6 +745,18 @@ const OkrTreeCanvas = ({
                     />
                 );
             },
+            outcome: (props) => {
+                const nodeData = props.data || {};
+                return (
+                    <KeyResultNode
+                        {...props}
+                        hasChildren={nodeData.hasChildren || false}
+                        isExpanded={expandedNodes.has(props.id)}
+                        onToggleExpand={() => handleToggleExpand(props.id)}
+                        layoutDirection={layoutDirection}
+                    />
+                );
+            },
         }),
         [expandedNodes, handleToggleExpand, layoutDirection]
     );
