@@ -397,8 +397,7 @@ export default function Dashboard() {
             </section>                      
 
 
-            {data.user?.role?.role_name?.toLowerCase() !== 'ceo' && (
-                <section>
+            <section>
                     <div className="mb-4 flex items-center justify-between">
                         <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
                             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
