@@ -76,7 +76,7 @@ class MyKeyResultController extends Controller
                     }
                 },
             ],
-            'unit' => 'required|in:number,percent,completion,bai,num,bài',
+            'unit' => 'required|in:number,percent,completion,currency',
             'status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
@@ -237,7 +237,7 @@ class MyKeyResultController extends Controller
                     }
                 },
             ],
-            'unit' => 'required|in:number,percent,completion,bai,num,bài',
+            'unit' => 'required|in:number,percent,completion,currency',
             'status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
