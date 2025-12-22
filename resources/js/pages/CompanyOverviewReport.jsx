@@ -142,22 +142,19 @@ export default function CompanyOverviewReport() {
             try {
                 const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
                 const headers = { Accept: 'application/json', 'X-CSRF-TOKEN': token };
-                const [rCycles, rProfile] = await Promise.all([ // Removed rDepts
-                    fetch('/cycles', { headers }),
-                    // Removed fetch('/departments', { headers }),
+                const [rCycles, rProfile] = await Promise.all([
+                    fetch('/api/reports/cycles', { headers }),
                     fetch('/api/profile', { headers })
                 ]);
                 const dCycles = await rCycles.json();
-                // Removed dDepts
                 const dProfile = await rProfile.json();
 
                 setIsAdminOrCeo(['admin', 'ceo'].includes(dProfile.user?.role?.role_name?.toLowerCase()));
                 setCycles(dCycles.data || []);
-                // Removed setDepartments(dDepts.data || []);
 
-                if (dCycles.data?.length && !initialCycleId) { // Use initialCycleId here
-                    const current = dCycles.data.find(c => c.status === 'active') || dCycles.data[0];
-                    setFilters(f => ({ ...f, cycleId: current.cycle_id }));
+                if (dCycles.success && dCycles.data?.length > 0 && !initialCycleId) {
+                    const defaultCycleId = dCycles.meta?.default_cycle_id ?? dCycles.data[0].cycle_id;
+                    setFilters(f => ({ ...f, cycleId: String(defaultCycleId) }));
                 }
             } catch (e) { console.error("Failed to fetch initial data", e); }
         })();
