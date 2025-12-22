@@ -65,6 +65,16 @@ export default function KeyResultModal({
         }
     }, [editingKR]);
 
+    // Automatically set KR type based on the selected unit
+    useEffect(() => {
+        if (form.unit === 'completion') {
+            setForm(prev => ({ ...prev, type: 'activity' }));
+        } else {
+            // For 'number', 'percent', 'currency', etc.
+            setForm(prev => ({ ...prev, type: 'outcome' }));
+        }
+    }, [form.unit]);
+
     const handleChange = (field, value) => {
         setForm((prev) => ({ ...prev, [field]: value }));
     };
@@ -274,22 +284,7 @@ export default function KeyResultModal({
                                 <option value="currency">Tiền tệ</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Loại
-                            </label>
-                            <select
-                                value={form.type}
-                                onChange={(e) =>
-                                    handleChange("type", e.target.value)
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            >
-                                <option value="outcome">Kết quả</option>
-                                <option value="activity">Hoạt động</option>
-                            </select>
-                        </div>
+
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">

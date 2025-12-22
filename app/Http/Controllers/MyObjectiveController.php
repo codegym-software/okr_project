@@ -334,12 +334,16 @@ class MyObjectiveController extends Controller
                         $target = (float) $krData['target_value'];
                         $current = (float) ($krData['current_value'] ?? 0);
                         $progress = $target > 0 ? round(max(0, min(100, ($current / $target) * 100)), 2) : 0;
+                        
+                        // Automatically set KR type based on unit
+                        $krType = ($krData['unit'] === 'completion') ? 'activity' : 'outcome';
 
                         $kr = new KeyResult([
                             'kr_title' => $krData['kr_title'],
                             'target_value' => $target,
                             'current_value' => $current,
                             'unit' => $krData['unit'],
+                            'type' => $krType,
                             'progress_percent' => $progress,
                             'objective_id' => $objective->objective_id,
                             'cycle_id' => $objective->cycle_id ?? null,
