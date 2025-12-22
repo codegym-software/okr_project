@@ -212,7 +212,7 @@ export default function KeyResultRow({
                                 key={`source_kr_${sourceKr.kr_id}`}
                                 className="bg-white"
                             >
-                                <td className="pl-20 pr-8 py-3 text-base text-slate-800">
+                                <td className="pl-24 pr-8 py-3 text-base text-slate-800">
                                     <div className="flex items-center gap-2">
                                         <FaKey
                                             className="h-4 w-4 text-amber-600 flex-shrink-0"
