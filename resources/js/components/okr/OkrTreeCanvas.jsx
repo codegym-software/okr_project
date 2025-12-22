@@ -506,11 +506,12 @@ const OkrTreeCanvas = ({
                 ? `kr-${node.kr_id}`
                 : `okr-node-${Math.random().toString(36).slice(2, 9)}`);
 
-        const nodeType =
-            node.type ||
-            (node.kr_id || node.type === "key_result"
-                ? "key_result"
-                : "objective");
+        let nodeType;
+        if (node.kr_id) {
+            nodeType = "key_result";
+        } else {
+            nodeType = "objective";
+        }
         const hasChildrenNodes =
             Array.isArray(node.children) && node.children.length > 0;
 
@@ -734,18 +735,6 @@ const OkrTreeCanvas = ({
                 );
             },
             key_result: (props) => {
-                const nodeData = props.data || {};
-                return (
-                    <KeyResultNode
-                        {...props}
-                        hasChildren={nodeData.hasChildren || false}
-                        isExpanded={expandedNodes.has(props.id)}
-                        onToggleExpand={() => handleToggleExpand(props.id)}
-                        layoutDirection={layoutDirection}
-                    />
-                );
-            },
-            outcome: (props) => {
                 const nodeData = props.data || {};
                 return (
                     <KeyResultNode
