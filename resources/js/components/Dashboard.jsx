@@ -524,7 +524,7 @@ export default function Dashboard() {
                     ) : (
                         <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-10 text-center">
                             <p className="text-slate-500 mb-4">Bạn chưa có OKR nào trong chu kỳ này.</p>
-                            <a href="/my-objectives/create" className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
+                            <a href="/my-objectives" className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
                                 + Tạo OKR Mới
                             </a>
                         </div>
