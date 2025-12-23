@@ -21,10 +21,10 @@ class ManagerOnly
             return redirect()->route('login')->withErrors('Bạn cần đăng nhập để truy cập trang này.');
         }
 
-        // Kiểm tra quyền Admin hoặc Manager
+        // Chỉ cho phép Manager
         $user = Auth::user();
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Bạn không có quyền truy cập trang này. Chỉ Admin và Manager mới có thể truy cập.');
+        if (!$user->isManager()) {
+            abort(403, 'Bạn không có quyền truy cập trang này. Chỉ Manager mới có thể truy cập.');
         }
 
         return $next($request);

@@ -12,17 +12,18 @@ export default function ObjectiveModal({
     setToast,
     reloadData,
 }) {
-    console.log("🚨 FULL editingObjective:", editingObjective); // DEBUG
     const [createForm, setCreateForm] = useState(
         creatingObjective
             ? {
                   obj_title: "",
                   description: "",
                   level: "",
-                  status: "",
+                  status: null, // Sẽ được tính tự động từ progress
                   cycle_id: "",
                   department_id: "",
                   key_results: [],
+                  is_aspirational: false,
+                  tags: "",
               }
             : editingObjective
             ? { ...editingObjective, level: editingObjective.level || "team" } // Default level
@@ -30,21 +31,6 @@ export default function ObjectiveModal({
     );
     const [allowedLevels, setAllowedLevels] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
-    const [availableTargets, setAvailableTargets] = useState([]);
-    const [linkForm, setLinkForm] = useState({
-        source_objective_id: editingObjective?.objective_id || "",
-        target_kr_id: "",
-        description: "",
-    });
-
-    // Log final state
-    useEffect(() => {
-        console.log(
-            "🎯 FINAL STATE:",
-            availableTargets.length,
-            availableTargets
-        );
-    }, [availableTargets]);
 
     // Update createForm and linkForm when editingObjective changes
     useEffect(() => {
@@ -53,10 +39,6 @@ export default function ObjectiveModal({
                 ...editingObjective,
                 level: editingObjective.level || "team",
             });
-            setLinkForm((prev) => ({
-                ...prev,
-                source_objective_id: editingObjective.objective_id,
-            }));
         }
     }, [editingObjective]);
 
@@ -67,53 +49,15 @@ export default function ObjectiveModal({
                 obj_title: "",
                 description: "",
                 level: "",
-                status: "",
+                status: null, // Sẽ được tính tự động từ progress
                 cycle_id: "",
                 department_id: "",
                 key_results: [],
+                is_aspirational: false,
+                tags: "",
             });
         }
     }, [creatingObjective]);
-
-    // Fetch available targets
-    const fetchAvailableTargets = async () => {
-        if (!editingObjective?.objective_id) {
-            setAvailableTargets([]);
-            return;
-        }
-        try {
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                .getAttribute("content");
-            const sourceLevel = editingObjective.level || "team";
-            const url = `/my-links/available-targets?source_level=${sourceLevel}`;
-            console.log("📡 FETCHING:", url);
-            const res = await fetch(url, {
-                headers: {
-                    "X-CSRF-TOKEN": token,
-                    Accept: "application/json",
-                },
-            });
-            const json = await res.json();
-            console.log("📦 DATA RECEIVED:", json);
-            if (res.ok && json.success) {
-                setAvailableTargets(json.data || []);
-            } else {
-                throw new Error(json.message || "Lỗi khi lấy Key Results đích");
-            }
-        } catch (err) {
-            console.error("❌ FETCH ERROR:", err);
-            setToast({
-                type: "error",
-                message: err.message || "Lỗi khi lấy Key Results đích",
-            });
-            setAvailableTargets([]);
-        }
-    };
-
-    useEffect(() => {
-        fetchAvailableTargets();
-    }, [editingObjective?.objective_id, setToast]);
 
     // Fetch allowed levels
     useEffect(() => {
@@ -214,8 +158,40 @@ export default function ObjectiveModal({
         }
     }, [createForm.cycle_id]);
 
+    // Thêm useEffect để tự động điền department_id khi level là unit/team và có currentUser
+    useEffect(() => {
+        if (
+            currentUser?.department_id &&
+            ["unit", "team"].includes(createForm.level)
+        ) {
+            setCreateForm((prev) => ({
+                ...prev,
+                department_id: String(currentUser.department_id),
+            }));
+        }
+    }, [currentUser, createForm.level]);
+
     const handleCreateFormChange = (field, value) => {
-        setCreateForm((prev) => ({ ...prev, [field]: value }));
+        setCreateForm((prev) => {
+            let newForm = { ...prev, [field]: value };
+
+            // TỰ ĐỘNG gán department_id khi chọn level là unit hoặc team
+            if (field === "level" && ["unit", "team"].includes(value)) {
+                if (currentUser?.department_id) {
+                    newForm.department_id = String(currentUser.department_id);
+                } else {
+                    newForm.department_id = "";
+                    // Có thể thông báo ngay ở đây nếu muốn
+                }
+            }
+
+            // Khi chuyển sang company hoặc person → xóa department_id
+            if (field === "level" && (value === "company" || value === "person")) {
+                newForm.department_id = null;
+            }
+
+            return newForm;
+        });
     };
 
     const addNewKR = () => {
@@ -228,7 +204,7 @@ export default function ObjectiveModal({
                     target_value: 0,
                     current_value: 0,
                     unit: "",
-                    status: "",
+                    status: "not_start", // Bản nháp
                     department_id: prev.department_id,
                     cycle_id: prev.cycle_id,
                 },
@@ -278,7 +254,7 @@ export default function ObjectiveModal({
             const body = {
                 ...createForm,
                 department_id:
-                    createForm.level === "company"
+                    createForm.level === "company" || createForm.level === "person"
                         ? null
                         : createForm.department_id,
                 key_results: createForm.key_results.map((kr) => ({
@@ -286,6 +262,8 @@ export default function ObjectiveModal({
                     target_value: Number(kr.target_value),
                     current_value: Number(kr.current_value),
                 })),
+                is_aspirational: createForm.is_aspirational,
+                tags: createForm.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
             };
             const res = await fetch("/my-objectives/store", {
                 method: "POST",
@@ -301,9 +279,21 @@ export default function ObjectiveModal({
                 throw new Error(json.message || "Tạo thất bại");
             const created = json.data;
 
+            // Đảm bảo có user data nếu backend không trả về
+            const createdWithUser = {
+                ...created,
+                key_results: created.key_results || [],
+                user: created.user || (currentUser ? {
+                    user_id: currentUser.user_id,
+                    full_name: currentUser.full_name,
+                    email: currentUser.email,
+                    avatar_url: currentUser.avatar_url,
+                } : null),
+            };
+
             setItems((prev) => [
                 ...prev,
-                { ...created, key_results: created.key_results || [] },
+                createdWithUser,
             ]);
 
             setCreatingObjective(false);
@@ -333,6 +323,8 @@ export default function ObjectiveModal({
                 status: createForm.status,
                 cycle_id: createForm.cycle_id,
                 department_id: createForm.department_id || null,
+                is_aspirational: createForm.is_aspirational,
+                tags: typeof createForm.tags === 'string' ? createForm.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : createForm.tags,
             };
             const res = await fetch(
                 `/my-objectives/update/${editingObjective?.objective_id}`,
@@ -429,8 +421,9 @@ export default function ObjectiveModal({
                     : setEditingObjective(null)
             }
             title={creatingObjective ? "Thêm Objective" : "Sửa Objective"}
+            className="max-w-3xl"
         >
-            <div className="max-h-[80vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400">
+            <div className="max-h-[80vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 hover:scrollbar-thumb-slate-400 px-1 md:px-2">
                 <form
                     onSubmit={
                         creatingObjective
@@ -470,7 +463,23 @@ export default function ObjectiveModal({
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                         />
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2">
+                    {/* Combine Tags, Level/Department, and Is Aspirational into one grid container */}
+                    <div className="grid gap-3 md:grid-cols-2 items-start">
+                        {/* Tags Input */}
+                        <div>
+                            <label className="mb-1 block text-xs font-semibold text-slate-600">
+                                Thẻ (cách nhau bởi dấu phẩy)
+                            </label>
+                            <input
+                                value={createForm.tags || ""}
+                                onChange={(e) =>
+                                    handleCreateFormChange("tags", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                            />
+                        </div>
+
+                        {/* Level Select Input */}
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Cấp độ
@@ -485,114 +494,73 @@ export default function ObjectiveModal({
                                 }
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
                             >
-                                <option value="">-- chọn cấp độ --</option>
-                                {allowedLevels.map((level) => (
-                                    <option key={level} value={level}>
-                                        {level}
-                                    </option>
-                                ))}
+                            <option value="">-- chọn cấp độ --</option>
+                            {allowedLevels.map((level) => (
+                                <option key={level} value={level}>
+                                    {level === "company"
+                                        ? "Công ty"
+                                        : level === "unit"
+                                        ? "Phòng ban"
+                                        : level === "team"
+                                        ? "Nhóm"
+                                        : level === "person"
+                                        ? "Cá nhân"
+                                        : level}
+                                </option>
+                            ))}
                             </select>
                         </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Trạng thái
-                            </label>
-                            <select
-                                value={createForm.status || ""}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "status",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">-- chọn trạng thái --</option>
-                                <option value="draft">Bản nháp</option>
-                                <option value="active">Đang thực hiện</option>
-                                <option value="completed">Hoàn thành</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Chu kỳ
-                            </label>
-                            <select
-                                value={createForm.cycle_id || ""}
-                                onChange={(e) =>
-                                    handleCreateFormChange(
-                                        "cycle_id",
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            >
-                                <option value="">-- chọn chu kỳ --</option>
-                                {cyclesList.map((c) => (
-                                    <option
-                                        key={c.cycle_id}
-                                        value={String(c.cycle_id)}
-                                    >
-                                        {c.cycle_name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        {/* === HIỂN THỊ PHÒNG BAN CHỈ KHI CẦN === */}
+                        
+                        {/* Department Input (conditional) - always place after Level if Level is selected */}
                         {["unit", "team"].includes(createForm.level) && (
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">
                                     Phòng ban
                                 </label>
-                                <select
-                                    value={createForm.department_id || ""}
-                                    onChange={(e) => {
-                                        const selectedDeptId = e.target.value;
-                                        if (
-                                            selectedDeptId !==
-                                            String(currentUser?.department_id)
-                                        ) {
-                                            setToast({
-                                                type: "error",
-                                                message:
-                                                    "Bạn không thuộc phòng ban này. Vui lòng chọn phòng ban của bạn.",
-                                            });
-                                            return;
-                                        }
-                                        handleCreateFormChange(
-                                            "department_id",
-                                            selectedDeptId
-                                        );
-                                    }}
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                >
-                                    <option value="">
-                                        -- chọn phòng ban --
-                                    </option>
-                                    {departments.map((dept) => (
-                                        <option
-                                            key={dept.department_id}
-                                            value={String(dept.department_id)}
-                                            className={
-                                                String(dept.department_id) ===
-                                                String(
-                                                    currentUser?.department_id
-                                                )
-                                                    ? "font-semibold text-blue-600"
-                                                    : ""
-                                            }
-                                        >
-                                            {dept.d_name}
-                                            {String(dept.department_id) ===
-                                            String(currentUser?.department_id)
-                                                ? " (Phòng ban của bạn)"
-                                                : ""}
-                                        </option>
-                                    ))}
-                                </select>
+                                {
+                                    currentUser?.department_id ? (
+                                        <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                            <span className="font-medium">
+                                                {departments.find(
+                                                    (d) =>
+                                                        String(
+                                                            d.department_id
+                                                        ) ===
+                                                        String(
+                                                            currentUser.department_id
+                                                        )
+                                                )?.d_name ||
+                                                    "Phòng ban của bạn"}
+                                            </span>
+                                        </div>
+                                    ) : null
+                                }
+                                <input
+                                    type="hidden"
+                                    name="department_id"
+                                    value={currentUser?.department_id || ""}
+                                />
                             </div>
                         )}
+
+                        {/* Is Aspirational Checkbox */}
+                        <div className="flex items-center h-full"> {/* Removed mt-4 to align better in new grid */}
+                            <input
+                                type="checkbox"
+                                id="is_aspirational"
+                                checked={createForm.is_aspirational || false}
+                                onChange={(e) =>
+                                    handleCreateFormChange(
+                                        "is_aspirational",
+                                        e.target.checked
+                                    )
+                                }
+                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <label htmlFor="is_aspirational" className="ml-2 block text-sm text-gray-900">
+                                Mục tiêu tham vọng
+                            </label>
+                        </div>
                     </div>
                     {creatingObjective && (
                         <div className="mt-4">
@@ -634,36 +602,6 @@ export default function ObjectiveModal({
                                         />
                                     </div>
                                     <div className="grid gap-3 md:grid-cols-2 mb-3">
-                                        <div>
-                                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                                Trạng thái
-                                            </label>
-                                            <select
-                                                value={kr.status || ""}
-                                                onChange={(e) =>
-                                                    updateNewKR(
-                                                        index,
-                                                        "status",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                                required
-                                            >
-                                                <option value="">
-                                                    -- chọn trạng thái --
-                                                </option>
-                                                <option value="draft">
-                                                    Bản nháp
-                                                </option>
-                                                <option value="active">
-                                                    Đang thực hiện
-                                                </option>
-                                                <option value="completed">
-                                                    Hoàn thành
-                                                </option>
-                                            </select>
-                                        </div>
                                         <div>
                                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                                 Đơn vị
@@ -729,138 +667,15 @@ export default function ObjectiveModal({
                                                 }
                                                 type="number"
                                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
+                                                readOnly={creatingObjective}
                                             />
                                         </div>
                                     </div>
                                 </div>
                             ))}
-                            {/* <button
-                                type="button"
-                                onClick={addNewKR}
-                                className="mt-2 rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
-                            >
-                                Thêm Key Result
-                            </button> */}
                         </div>
                     )}
-                    {/* {editingObjective && (
-                        <div className="mt-4">
-                            <h3 className="text-sm font-semibold text-slate-700">
-                                Liên kết với Key Result cấp cao hơn
-                            </h3>
-                            {availableTargets.length === 0 ? (
-                                <p className="text-sm text-gray-500">
-                                    Không có Key Result nào từ cấp cao hơn để
-                                    liên kết.
-                                </p>
-                            ) : (
-                                <>
-                                    <select
-                                        value={linkForm.target_kr_id || ""}
-                                        onChange={(e) =>
-                                            setLinkForm({
-                                                ...linkForm,
-                                                target_kr_id: e.target.value,
-                                            })
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    >
-                                        <option value="">
-                                            Chọn Key Result đích
-                                        </option>
-                                        {availableTargets.map((t) => (
-                                            <option key={t.id} value={t.id}>
-                                                {t.objective_title} - {t.title}{" "}
-                                                ({t.level})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <input
-                                        value={linkForm.description || ""}
-                                        onChange={(e) =>
-                                            setLinkForm({
-                                                ...linkForm,
-                                                description: e.target.value,
-                                            })
-                                        }
-                                        placeholder="Mô tả liên kết"
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none mt-2"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            try {
-                                                const token = document
-                                                    .querySelector(
-                                                        'meta[name="csrf-token"]'
-                                                    )
-                                                    .getAttribute("content");
-                                                const res = await fetch(
-                                                    "/my-links/store",
-                                                    {
-                                                        method: "POST",
-                                                        headers: {
-                                                            "Content-Type":
-                                                                "application/json",
-                                                            "X-CSRF-TOKEN":
-                                                                token,
-                                                            Accept: "application/json",
-                                                        },
-                                                        body: JSON.stringify(
-                                                            linkForm
-                                                        ),
-                                                    }
-                                                );
-                                                const json = await res.json();
-                                                if (res.ok && json.success) {
-                                                    setToast({
-                                                        type: "success",
-                                                        message:
-                                                            "Liên kết thành công",
-                                                    });
-                                                    // Reset linkForm
-                                                    setLinkForm({
-                                                        source_objective_id:
-                                                            editingObjective.objective_id,
-                                                        target_kr_id: "",
-                                                        description: "",
-                                                    });
-                                                    // Refresh available targets
-                                                    await fetchAvailableTargets();
-                                                } else {
-                                                    throw new Error(
-                                                        json.message ||
-                                                            "Liên kết thất bại"
-                                                    );
-                                                }
-                                            } catch (err) {
-                                                setToast({
-                                                    type: "error",
-                                                    message:
-                                                        err.message ||
-                                                        "Lỗi khi lưu liên kết",
-                                                });
-                                            }
-                                        }}
-                                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 mt-2"
-                                        disabled={!linkForm.target_kr_id}
-                                    >
-                                        Lưu liên kết
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    )} */}
                     <div className="flex justify-end gap-2 pt-2">
-                        {/* {editingObjective && (
-                            <button
-                                type="button"
-                                onClick={handleDeleteObjective}
-                                className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-xs text-rose-700"
-                            >
-                                Xóa
-                            </button>
-                        )} */}
                         <div className="flex gap-2">
                             <button
                                 type="button"

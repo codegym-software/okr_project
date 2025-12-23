@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Toast, Modal } from "../components/ui";
 import { useAuth } from "../hooks/useAuth";
 import Select from "react-select";
@@ -15,45 +15,17 @@ function DepartmentFormModal({
     const { isAdmin } = useAuth();
     const [name, setName] = useState(initialData?.d_name || "");
     const [desc, setDesc] = useState(initialData?.d_description || "");
-    const [type, setType] = useState(
-        mode === "edit" ? initialData?.type : "phòng ban"
-    );
-    const [parentDepartmentId, setParentDepartmentId] = useState(
-        initialData?.parent_department_id || ""
-    );
-    const [departments, setDepartments] = useState([]);
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
 
     const currentPermission = isAdmin;
 
     useEffect(() => {
-        if (open && type === "đội nhóm") {
-            (async () => {
-                try {
-                    const res = await fetch("/departments?type=phòng ban", {
-                        headers: { Accept: "application/json" },
-                    });
-                    const data = await res.json();
-                    if (data.success === false)
-                        throw new Error(
-                            data.message || "Tải danh sách phòng ban thất bại"
-                        );
-                    setDepartments(data.data || []);
-                } catch (e) {
-                    setToast({
-                        type: "error",
-                        message:
-                            e.message || "Tải danh sách phòng ban thất bại",
-                    });
-                }
-            })();
+        if (open) {
+            setName(initialData?.d_name || "");
+            setDesc(initialData?.d_description || "");
         }
-        setName(initialData?.d_name || "");
-        setDesc(initialData?.d_description || "");
-        setType(mode === "edit" ? initialData?.type : "phòng ban");
-        setParentDepartmentId(initialData?.parent_department_id || "");
-    }, [initialData, open, type]);
+    }, [initialData, open]);
 
     const submit = async (e) => {
         e.preventDefault();
@@ -71,10 +43,8 @@ function DepartmentFormModal({
             const body = {
                 d_name: name,
                 d_description: desc,
-                type,
-                parent_department_id:
-                    type === "đội nhóm" ? parentDepartmentId : null,
             };
+
             const res = await fetch(url, {
                 method,
                 headers: {
@@ -116,11 +86,7 @@ function DepartmentFormModal({
         <Modal
             open={open}
             onClose={onClose}
-            title={
-                mode === "edit"
-                    ? "Sửa phòng ban/đội nhóm"
-                    : "Tạo phòng ban/đội nhóm"
-            }
+            title={mode === "edit" ? "Sửa phòng ban" : "Tạo phòng ban mới"}
         >
             <Toast
                 type={toast.type}
@@ -130,7 +96,7 @@ function DepartmentFormModal({
             <form onSubmit={submit} className="space-y-4">
                 <div>
                     <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Tên
+                        Tên phòng ban
                     </label>
                     <input
                         value={name}
@@ -144,44 +110,7 @@ function DepartmentFormModal({
                         required
                     />
                 </div>
-                <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Loại
-                    </label>
-                    <div className="w-full rounded-2xl border border-slate-300 px-4 py-2 bg-gray-100">
-                        {type}
-                    </div>
-                </div>
-                {type === "đội nhóm" && (
-                    <div>
-                        <label className="mb-1 block text-sm font-semibold text-slate-700">
-                            Phòng ban cha
-                        </label>
-                        <select
-                            value={parentDepartmentId}
-                            onChange={(e) =>
-                                setParentDepartmentId(e.target.value)
-                            }
-                            className={`w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 ${
-                                !currentPermission
-                                    ? "bg-gray-100 cursor-not-allowed"
-                                    : ""
-                            }`}
-                            disabled={!currentPermission}
-                            required
-                        >
-                            <option value="">Chọn phòng ban cha</option>
-                            {departments.map((dep) => (
-                                <option
-                                    key={dep.department_id}
-                                    value={dep.department_id}
-                                >
-                                    {dep.d_name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
+
                 <div>
                     <label className="mb-1 block text-sm font-semibold text-slate-700">
                         Mô tả
@@ -197,36 +126,24 @@ function DepartmentFormModal({
                         disabled={!currentPermission}
                     />
                 </div>
-                <div className="flex justify-between gap-3 pt-2">
-                    <div className="flex gap-3">
-                        {mode === "edit" && onDelete && currentPermission && (
-                            <button
-                                type="button"
-                                onClick={onDelete}
-                                className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700"
-                            >
-                                Xóa
-                            </button>
-                        )}
-                    </div>
-                    <div className="flex gap-3">
+
+                <div className="flex justify-end gap-3 pt-2">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-2xl border border-slate-300 px-5 py-2 text-sm"
+                    >
+                        Hủy
+                    </button>
+                    {currentPermission && (
                         <button
-                            type="button"
-                            onClick={onClose}
-                            className="rounded-2xl border border-slate-300 px-5 py-2 text-sm"
+                            disabled={saving}
+                            type="submit"
+                            className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-60"
                         >
-                            Hủy
+                            {mode === "edit" ? "Lưu thay đổi" : "Tạo mới"}
                         </button>
-                        {currentPermission && (
-                            <button
-                                disabled={saving}
-                                type="submit"
-                                className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-60"
-                            >
-                                {mode === "edit" ? "Lưu thay đổi" : "Lưu"}
-                            </button>
-                        )}
-                    </div>
+                    )}
                 </div>
             </form>
         </Modal>
@@ -241,6 +158,7 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
+
     const roleOptions = [
         { value: "member", label: "Member" },
         { value: "manager", label: "Manager" },
@@ -264,24 +182,9 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                         throw new Error(
                             data.message || "Tải danh sách người dùng thất bại"
                         );
+
                     setUsers(data.data || []);
-                    setSelectedUsers(
-                        data.data
-                            .filter(
-                                (user) => {
-                                    // Lọc admin ra
-                                    const isAdminUser =
-                                        (user.role?.role_name || "").toLowerCase() === "admin" ||
-                                        user.email === "okr.admin@company.com";
-                                    return (
-                                        !isAdminUser &&
-                                        user.department_id ===
-                                        department?.department_id
-                                    );
-                                }
-                            )
-                            .map((user) => user.user_id)
-                    );
+                    setSelectedUsers([]);
                 } catch (e) {
                     setToast({
                         type: "error",
@@ -305,6 +208,7 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                 .getAttribute("content");
             const payload = { user_ids: selectedUsers };
             if (selectedRole) payload.role = selectedRole;
+
             const res = await fetch(
                 `/departments/${department.department_id}/assign-users`,
                 {
@@ -320,6 +224,7 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
             const data = await res.json();
             if (!res.ok || data.success === false)
                 throw new Error(data.message || "Gán người dùng thất bại");
+
             setToast({
                 type: "success",
                 message: "Gán người dùng thành công!",
@@ -336,17 +241,20 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
         }
     };
 
-    // Lọc admin ra khỏi danh sách users
     const filteredUsers = users.filter((user) => {
+        const roleName = (user.role?.role_name || "").toLowerCase();
         const isAdminUser =
-            (user.role?.role_name || "").toLowerCase() === "admin" ||
+            roleName === "admin" ||
             user.email === "okr.admin@company.com";
-        return !isAdminUser;
+        const isCeoUser = roleName === "ceo";
+        // Chỉ hiển thị người dùng chưa thuộc phòng ban nào
+        const isAssignedToAnyDepartment = !!user.department_id;
+        return !isAdminUser && !isCeoUser && !isAssignedToAnyDepartment;
     });
 
     const userOptions = filteredUsers.map((user) => ({
         value: user.user_id,
-        label: `${user.full_name} (${user.email})`,
+        label: user.full_name,
     }));
 
     if (!open) return null;
@@ -377,12 +285,12 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                         <Select
                             isMulti
                             options={userOptions}
-                            value={userOptions.filter((option) =>
-                                selectedUsers.includes(option.value)
+                            value={userOptions.filter((opt) =>
+                                selectedUsers.includes(opt.value)
                             )}
                             onChange={(selected) =>
                                 setSelectedUsers(
-                                    selected ? selected.map((option) => option.value) : []
+                                    selected ? selected.map((s) => s.value) : []
                                 )
                             }
                             className="basic-multi-select"
@@ -390,8 +298,10 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                             placeholder="Chọn người dùng..."
                             menuPortalTarget={document.body}
                             styles={{
-                                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-                                menu: (base) => ({ ...base, zIndex: 9999 }),
+                                menuPortal: (base) => ({
+                                    ...base,
+                                    zIndex: 9999,
+                                }),
                             }}
                         />
                     </div>
@@ -402,7 +312,7 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                         <Select
                             options={roleOptions}
                             value={roleOptions.find(
-                                (option) => option.value === selectedRole
+                                (opt) => opt.value === selectedRole
                             )}
                             onChange={(selected) =>
                                 setSelectedRole(selected ? selected.value : "")
@@ -413,8 +323,10 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
                             isClearable
                             menuPortalTarget={document.body}
                             styles={{
-                                menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-                                menu: (base) => ({ ...base, zIndex: 9999 }),
+                                menuPortal: (base) => ({
+                                    ...base,
+                                    zIndex: 9999,
+                                }),
                             }}
                         />
                     </div>
@@ -440,10 +352,144 @@ function AssignUsersModal({ open, onClose, department, onReload }) {
     );
 }
 
+// Component Modal hiển thị danh sách thành viên
+function MembersModal({
+    open,
+    onClose,
+    users,
+    departmentName,
+    canRemove = false,
+    onRequestRemoveUser,
+    removingUserId = null,
+}) {
+    if (!users || users.length === 0) {
+        return (
+            <Modal open={open} onClose={onClose} title={departmentName}>
+                <div className="text-center text-slate-500 py-8">
+                    Chưa có thành viên nào
+                </div>
+            </Modal>
+        );
+    }
+
+    return (
+        <Modal
+            open={open}
+            onClose={onClose}
+            title={departmentName}
+        >
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+                {users.map((user) => {
+                    const roleName = (user.role?.role_name || "").toLowerCase();
+                    const isManager = roleName === "manager";
+                    const isMember = roleName === "member";
+                    
+                    return (
+                        <div
+                            key={user.user_id}
+                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition"
+                        >
+                            <img
+                                src={user.avatar_url || "/images/default.png"}
+                                alt={user.full_name}
+                                className="h-10 w-10 rounded-full object-cover"
+                            />
+                            <div className="flex-1 flex items-center justify-between gap-3">
+                                <div>
+                                    <div className="font-medium text-slate-900">
+                                        {user.full_name}
+                                    </div>
+                                    <div className="text-sm text-slate-500">
+                                        {user.email}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isManager && (
+                                        <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                                            Quản lý
+                                        </span>
+                                    )}
+                                    {isMember && (
+                                        <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">
+                                            Thành viên
+                                        </span>
+                                    )}
+                                    {canRemove && (
+                                        <button
+                                            onClick={() => onRequestRemoveUser && onRequestRemoveUser(user)}
+                                            disabled={removingUserId === user.user_id}
+                                            className={`p-1.5 rounded-lg border transition-colors ${
+                                                removingUserId === user.user_id
+                                                    ? "border-gray-200 text-gray-400 cursor-not-allowed"
+                                                    : "border-rose-200 text-rose-600 hover:bg-rose-50"
+                                            }`}
+                                            title="Xoá khỏi phòng ban"
+                                        >
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="h-4 w-4"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </Modal>
+    );
+}
+
+// Component hiển thị danh sách thành viên với avatar
+function MembersDisplay({ users, departmentName, onShowAll }) {
+    const maxVisible = 3; // Số avatar hiển thị tối đa
+    const visibleUsers = users?.slice(0, maxVisible) || [];
+    const remainingCount = users?.length > maxVisible ? users.length - maxVisible : 0;
+
+    if (!users || users.length === 0) {
+        return (
+            <div className="flex items-center justify-center">
+                <span className="text-slate-400">—</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+            {visibleUsers.map((user) => (
+                <div
+                    key={user.user_id}
+                    className="flex items-center"
+                    title={user.full_name}
+                >
+                    <img
+                        src={user.avatar_url || "/images/default.png"}
+                        alt={user.full_name}
+                        className="h-8 w-8 rounded-full object-cover shadow-sm"
+                    />
+                </div>
+            ))}
+            {remainingCount > 0 && (
+                <button
+                    onClick={onShowAll}
+                    className="h-8 px-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium transition-colors flex items-center justify-center shadow-sm"
+                    title={`Xem thêm ${remainingCount} thành viên`}
+                >
+                    +{remainingCount}
+                </button>
+            )}
+        </div>
+    );
+}
+
 export default function DepartmentsPanel() {
     const [departments, setDepartments] = useState([]);
-    const [teams, setTeams] = useState([]);
-    const [expanded, setExpanded] = useState({});
     const [loading, setLoading] = useState(true);
     const [openCreate, setOpenCreate] = useState(false);
     const [openEdit, setOpenEdit] = useState(false);
@@ -451,6 +497,51 @@ export default function DepartmentsPanel() {
     const [assigningDepartment, setAssigningDepartment] = useState(null);
     const [editing, setEditing] = useState(null);
     const [toast, setToast] = useState({ type: "success", message: "" });
+    const [showMembersModal, setShowMembersModal] = useState(false);
+    const [selectedDepartment, setSelectedDepartment] = useState(null);
+    const [removingUserId, setRemovingUserId] = useState(null);
+    const [userPendingRemoval, setUserPendingRemoval] = useState(null);
+    const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+    const [showDeleteDepartmentConfirm, setShowDeleteDepartmentConfirm] = useState(false);
+    const [deletingDepartmentId, setDeletingDepartmentId] = useState(null);
+    const [isDeletingDepartment, setIsDeletingDepartment] = useState(false);
+    const [pendingDepartmentId, setPendingDepartmentId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("department") || null;
+    });
+
+    const updateDepartmentQueryParam = useCallback((deptId, replace = false) => {
+        const params = new URLSearchParams(window.location.search);
+        if (deptId) {
+            params.set("department", deptId);
+        } else {
+            params.delete("department");
+        }
+        const newUrl = params.toString()
+            ? `${window.location.pathname}?${params.toString()}`
+            : window.location.pathname;
+        window.history[replace ? "replaceState" : "pushState"]({}, "", newUrl);
+    }, []);
+
+    const openMembersModal = useCallback(
+        (department, options = {}) => {
+            if (!department) return;
+            setSelectedDepartment(department);
+            setShowMembersModal(true);
+            if (!options.skipUrlUpdate) {
+                updateDepartmentQueryParam(department.department_id);
+            }
+        },
+        [updateDepartmentQueryParam]
+    );
+
+    const closeMembersModal = useCallback(() => {
+        setShowMembersModal(false);
+        setSelectedDepartment(null);
+        setShowRemoveConfirm(false);
+        setUserPendingRemoval(null);
+        updateDepartmentQueryParam(null);
+    }, [updateDepartmentQueryParam]);
     const showToast = (type, message) => setToast({ type, message });
 
     const { isAdmin } = useAuth();
@@ -463,10 +554,7 @@ export default function DepartmentsPanel() {
             const data = await res.json();
             if (data.success === false)
                 throw new Error(data.message || "Tải danh sách thất bại");
-            const departments = data.data.filter((d) => d.type === "phòng ban");
-            const teams = data.data.filter((d) => d.type === "đội nhóm");
-            setDepartments(departments);
-            setTeams(teams);
+            setDepartments(data.data || []);
         } catch (e) {
             showToast("error", e.message || "Tải danh sách thất bại");
         } finally {
@@ -477,13 +565,6 @@ export default function DepartmentsPanel() {
     useEffect(() => {
         fetchDepartments();
     }, []);
-
-    const toggleExpand = (departmentId) => {
-        setExpanded((prev) => ({
-            ...prev,
-            [departmentId]: !prev[departmentId],
-        }));
-    };
 
     const openEditModal = async (id) => {
         try {
@@ -505,8 +586,14 @@ export default function DepartmentsPanel() {
         setOpenAssign(true);
     };
 
+    const handleDeleteClick = (id) => {
+        setDeletingDepartmentId(id);
+        setShowDeleteDepartmentConfirm(true);
+    };
+
     const remove = async (id) => {
-        if (!window.confirm("Bạn có chắc chắn muốn xóa?")) return;
+        if (!id) return;
+        setIsDeletingDepartment(true);
         try {
             const token = document
                 .querySelector('meta[name="csrf-token"]')
@@ -518,117 +605,189 @@ export default function DepartmentsPanel() {
             const data = await res.json().catch(() => ({ success: res.ok }));
             if (!res.ok || data.success === false)
                 throw new Error(data.message || "Xóa thất bại");
+
             setDepartments((prev) =>
                 prev.filter((d) => d.department_id !== id)
             );
-            setTeams((prev) => prev.filter((t) => t.department_id !== id));
             setOpenEdit(false);
             setEditing(null);
-            showToast("success", "Xóa thành công");
+            showToast("success", "Xóa phòng ban thành công");
         } catch (e) {
             showToast("error", e.message || "Xóa thất bại");
+        } finally {
+            setIsDeletingDepartment(false);
+            setShowDeleteDepartmentConfirm(false);
+            setDeletingDepartmentId(null);
         }
     };
 
     const handleSaved = (dep) => {
-        if (dep.type === "phòng ban") {
-            setDepartments((prev) =>
-                editing
-                    ? prev.map((x) =>
-                          x.department_id === dep.department_id ? dep : x
-                      )
-                    : [...prev, dep]
-            );
-        } else {
-            setTeams((prev) =>
-                editing
-                    ? prev.map((x) =>
-                          x.department_id === dep.department_id ? dep : x
-                      )
-                    : [...prev, dep]
-            );
-        }
-        showToast("success", `Tạo/cập nhật ${dep.type} thành công`);
+        setDepartments((prev) =>
+            editing
+                ? prev.map((x) =>
+                      x.department_id === dep.department_id ? dep : x
+                  )
+                : [...prev, dep]
+        );
+        showToast("success", "Thao tác thành công");
     };
 
+    const requestRemoveUserFromDepartment = (user) => {
+        if (!isAdmin || !selectedDepartment) return;
+        setUserPendingRemoval(user);
+        setShowRemoveConfirm(true);
+    };
+
+    const confirmRemoveUserFromDepartment = async () => {
+        if (!isAdmin || !selectedDepartment || !userPendingRemoval) return;
+        try {
+            setRemovingUserId(userPendingRemoval.user_id);
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+            const res = await fetch(
+                `/departments/${selectedDepartment.department_id}/users/${userPendingRemoval.user_id}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": token,
+                        Accept: "application/json",
+                    },
+                }
+            );
+            const data = await res.json();
+            if (!res.ok || data.success === false) {
+                throw new Error(data.message || "Không thể xoá người dùng");
+            }
+
+            showToast("success", data.message || "Đã xoá người dùng khỏi phòng ban");
+            setDepartments((prev) =>
+                prev.map((dep) =>
+                    dep.department_id === selectedDepartment.department_id
+                        ? {
+                              ...dep,
+                              users: (dep.users || []).filter((u) => u.user_id !== userPendingRemoval.user_id),
+                          }
+                        : dep
+                )
+            );
+            setSelectedDepartment((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          users: (prev.users || []).filter((u) => u.user_id !== userPendingRemoval.user_id),
+                      }
+                    : prev
+            );
+        } catch (e) {
+            showToast("error", e.message || "Không thể xoá người dùng");
+        } finally {
+            setRemovingUserId(null);
+            setShowRemoveConfirm(false);
+            setUserPendingRemoval(null);
+        }
+    };
+
+    useEffect(() => {
+        if (!pendingDepartmentId || departments.length === 0) return;
+        const dept = departments.find(
+            (d) => String(d.department_id) === String(pendingDepartmentId)
+        );
+        if (dept) {
+            openMembersModal(dept, { skipUrlUpdate: true });
+            setPendingDepartmentId(null);
+        }
+    }, [pendingDepartmentId, departments, openMembersModal]);
+
     return (
-        <div className="px-4 py-6">
+        <div className="">
             <Toast
                 type={toast.type}
                 message={toast.message}
                 onClose={() => setToast({ type: "success", message: "" })}
             />
-            <div className="mx-auto mb-3 flex w-full max-w-5xl items-center justify-between">
-                <h2 className="text-2xl font-extrabold text-slate-900">
-                    Phòng ban & Đội nhóm
-                </h2>
-                {isAdmin && (
-                    <button
-                        onClick={() => setOpenCreate(true)}
-                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 flex items-center gap-2"
-                    >
-                        + Tạo mới
-                    </button>
-                )}
-            </div>
-            <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
-                    <thead className="bg-slate-50">
-                        <tr>
-                            <th className="px-4 py-3 w-10"></th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">
-                                Tên
-                            </th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">
-                                Thành viên
-                            </th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
-                                Hành động
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading && (
-                            <tr>
-                                <td
-                                    colSpan={4}
-                                    className="px-4 py-8 text-center text-slate-400"
-                                >
-                                    Đang tải...
-                                </td>
-                            </tr>
-                        )}
-                        {!loading && departments.length === 0 && (
-                            <tr>
-                                <td
-                                    colSpan={4}
-                                    className="px-4 py-8 text-center text-slate-400"
-                                >
-                                    Chưa có phòng ban
-                                </td>
-                            </tr>
-                        )}
-                        {!loading &&
-                            departments.map((d, index) => {
-                                const childTeams = teams.filter(
-                                    (t) =>
-                                        t.parent_department_id ===
-                                        d.department_id
-                                );
-                                const hasChildren = childTeams.length > 0;
+            <div className="mx-auto max-w-6xl px-4 py-8">
+                <div className="mx-auto mb-3 flex w-full max-w-5xl items-center justify-between">
+                    <h2 className="text-2xl font-extrabold text-slate-900">
+                        Danh sách phòng ban
+                    </h2>
+                    {isAdmin && (
+                        <button
+                            onClick={() => setOpenCreate(true)}
+                            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 flex items-center gap-2"
+                        >
+                            Tạo mới
+                        </button>
+                    )}
+                </div>
 
-                                return (
-                                    <React.Fragment key={d.department_id}>
-                                        <tr className="hover:bg-slate-50 transition">
-                                            <td className="px-4 py-3">
-                                                {hasChildren && (
+                <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">
+                                    Tên phòng ban
+                                </th>
+                                <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">
+                                    Thành viên
+                                </th>
+                                <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                    Hành động
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading && (
+                                <tr>
+                                    <td
+                                        colSpan={3}
+                                        className="px-4 py-8 text-center text-slate-400"
+                                    >
+                                        Đang tải...
+                                    </td>
+                                </tr>
+                            )}
+                            {!loading && departments.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={3}
+                                        className="px-4 py-8 text-center text-slate-400"
+                                    >
+                                        Chưa có phòng ban nào
+                                    </td>
+                                </tr>
+                            )}
+                            {!loading &&
+                                departments.map((d) => (
+                                    <tr
+                                        key={d.department_id}
+                                        className="hover:bg-slate-50 transition"
+                                    >
+                                        <td className="px-4 py-3 border-r border-slate-200 font-medium text-slate-800">
+                                            <button
+                                                onClick={() => openMembersModal(d)}
+                                                className="hover:text-blue-600 transition-colors cursor-pointer text-left"
+                                            >
+                                                {d.d_name}
+                                            </button>
+                                        </td>
+                                        <td className="px-4 py-3 border-r border-slate-200">
+                                            <MembersDisplay
+                                                users={d.users}
+                                                departmentName={d.d_name}
+                                                onShowAll={() => openMembersModal(d)}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            {isAdmin ? (
+                                                <div className="flex items-center justify-center gap-4">
                                                     <button
                                                         onClick={() =>
-                                                            toggleExpand(
+                                                            openEditModal(
                                                                 d.department_id
                                                             )
                                                         }
-                                                        className="p-1 rounded hover:bg-slate-200 transition"
+                                                        className="p-1.5 rounded hover:bg-slate-100 transition"
+                                                        title="Sửa"
                                                     >
                                                         <svg
                                                             width="16"
@@ -637,188 +796,73 @@ export default function DepartmentsPanel() {
                                                             fill="none"
                                                             stroke="currentColor"
                                                             strokeWidth="2"
-                                                            className={`text-slate-500 transition-transform ${
-                                                                expanded[
-                                                                    d
-                                                                        .department_id
-                                                                ]
-                                                                    ? "rotate-90"
-                                                                    : ""
-                                                            }`}
                                                         >
-                                                            <polyline points="9 18 15 12 9 6" />
+                                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                                         </svg>
                                                     </button>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3 border-r border-slate-200 font-medium text-slate-800">
-                                                {d.d_name}
-                                            </td>
-                                            <td className="px-4 py-3 text-center border-r border-slate-200 text-slate-600">
-                                                {d.users?.length > 0
-                                                    ? d.users
-                                                          .map(
-                                                              (u) => u.full_name
-                                                          )
-                                                          .join(", ")
-                                                    : "—"}
-                                            </td>
-                                            <td className="px-4 py-3 text-center">
-                                                {isAdmin ? (
-                                                    <div className="flex items-center justify-center gap-3">
-                                                        <button
-                                                            onClick={() =>
-                                                                openEditModal(
-                                                                    d.department_id
-                                                                )
-                                                            }
-                                                            className="p-1.5 rounded hover:bg-slate-100 transition"
-                                                            title="Sửa"
+                                                    <button
+                                                        onClick={() =>
+                                                            handleDeleteClick(d.department_id)
+                                                        }
+                                                        className="p-1.5 rounded hover:bg-slate-100 transition"
+                                                        title="Xóa phòng ban"
+                                                    >
+                                                        <svg
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
                                                         >
-                                                            <svg
-                                                                width="16"
-                                                                height="16"
-                                                                viewBox="0 0 24 24"
-                                                                fill="none"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2"
-                                                            >
-                                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() =>
-                                                                openAssignModal(
-                                                                    d
-                                                                )
-                                                            }
-                                                            className="p-1.5 rounded hover:bg-slate-100 transition"
-                                                            title="Gán người dùng"
+                                                            <path d="M4 7h16" />
+                                                            <path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7" />
+                                                            <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                                                            <line x1="10" y1="11" x2="10" y2="17" />
+                                                            <line x1="14" y1="11" x2="14" y2="17" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() =>
+                                                            openAssignModal(d)
+                                                        }
+                                                        className="p-1.5 rounded hover:bg-slate-100 transition"
+                                                        title="Gán người dùng"
+                                                    >
+                                                        <svg
+                                                            width="16"
+                                                            height="16"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
                                                         >
-                                                            <svg
-                                                                width="16"
-                                                                height="16"
-                                                                viewBox="0 0 24 24"
-                                                                fill="none"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2"
-                                                            >
-                                                                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                                                <circle
-                                                                    cx="8.5"
-                                                                    cy="7"
-                                                                    r="4"
-                                                                />
-                                                                <path d="M20 8v5" />
-                                                                <path d="M23 11h-6" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-400 text-xs">
-                                                        —
-                                                    </span>
-                                                )}
-                                            </td>
-                                        </tr>
-
-                                        {expanded[d.department_id] &&
-                                            childTeams.map((t) => (
-                                                <tr
-                                                    key={t.department_id}
-                                                    className="bg-slate-50 hover:bg-slate-100 transition"
-                                                >
-                                                    <td className="px-4 py-2"></td>
-                                                    <td className="px-4 py-2 pl-12 border-r border-slate-200 text-slate-700">
-                                                        {t.d_name}
-                                                    </td>
-                                                    <td className="px-4 py-2 text-center text-slate-600">
-                                                        {t.users?.length > 0
-                                                            ? t.users
-                                                                  .map(
-                                                                      (u) =>
-                                                                          u.full_name
-                                                                  )
-                                                                  .join(", ")
-                                                            : "—"}
-                                                    </td>
-                                                    <td className="px-4 py-2 text-center">
-                                                        {isAdmin ? (
-                                                            <div className="flex items-center justify-center gap-3">
-                                                                <button
-                                                                    onClick={() =>
-                                                                        openEditModal(
-                                                                            t.department_id
-                                                                        )
-                                                                    }
-                                                                    className="p-1.5 rounded hover:bg-slate-200 transition"
-                                                                    title="Sửa"
-                                                                >
-                                                                    <svg
-                                                                        width="16"
-                                                                        height="16"
-                                                                        viewBox="0 0 24 24"
-                                                                        fill="none"
-                                                                        stroke="currentColor"
-                                                                        strokeWidth="2"
-                                                                    >
-                                                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                                                    </svg>
-                                                                </button>
-                                                                <button
-                                                                    onClick={() =>
-                                                                        openAssignModal(
-                                                                            t
-                                                                        )
-                                                                    }
-                                                                    className="p-1.5 rounded hover:bg-slate-200 transition"
-                                                                    title="Gán người dùng"
-                                                                >
-                                                                    <svg
-                                                                        width="16"
-                                                                        height="16"
-                                                                        viewBox="0 0 24 24"
-                                                                        fill="none"
-                                                                        stroke="currentColor"
-                                                                        strokeWidth="2"
-                                                                    >
-                                                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                                                        <circle
-                                                                            cx="8.5"
-                                                                            cy="7"
-                                                                            r="4"
-                                                                        />
-                                                                        <path d="M20 8v5" />
-                                                                        <path d="M23 11h-6" />
-                                                                    </svg>
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-slate-400 text-xs">
-                                                                —
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-
-                                        {index < departments.length - 1 && (
-                                            <tr>
-                                                <td
-                                                    colSpan={4}
-                                                    className="h-3"
-                                                ></td>
-                                            </tr>
-                                        )}
-                                    </React.Fragment>
-                                );
-                            })}
-                    </tbody>
-                </table>
+                                                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                                            <circle
+                                                                cx="8.5"
+                                                                cy="7"
+                                                                r="4"
+                                                            />
+                                                            <path d="M20 8v5" />
+                                                            <path d="M23 11h-6" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-400 text-xs">
+                                                    —
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-
             <DepartmentFormModal
                 open={openCreate}
                 onClose={() => setOpenCreate(false)}
@@ -835,7 +879,6 @@ export default function DepartmentsPanel() {
                 mode="edit"
                 initialData={editing}
                 onSaved={handleSaved}
-                onDelete={editing ? () => remove(editing.department_id) : null}
             />
             <AssignUsersModal
                 open={openAssign}
@@ -846,6 +889,103 @@ export default function DepartmentsPanel() {
                 department={assigningDepartment}
                 onReload={fetchDepartments}
             />
+            <MembersModal
+                open={showMembersModal}
+                onClose={closeMembersModal}
+                users={selectedDepartment?.users}
+                departmentName={selectedDepartment?.d_name}
+                canRemove={isAdmin}
+                onRequestRemoveUser={requestRemoveUserFromDepartment}
+                removingUserId={removingUserId}
+            />
+            <Modal
+                open={showRemoveConfirm}
+                onClose={() => {
+                    if (removingUserId) return;
+                    setShowRemoveConfirm(false);
+                    setUserPendingRemoval(null);
+                }}
+                title="Xác nhận xoá"
+                maxWidth="max-w-lg"
+            >
+                <div className="space-y-4">
+                    <p className="text-slate-700">
+                        Bạn có chắc chắn muốn xoá{" "}
+                        <strong>{userPendingRemoval?.full_name}</strong> khỏi{" "}
+                        <strong>{selectedDepartment?.d_name}</strong>?
+                    </p>
+                    <p className="text-sm text-rose-500">
+                        Hành động này sẽ xoá người dùng khỏi phòng ban!
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <button
+                            onClick={() => {
+                                if (removingUserId) return;
+                                setShowRemoveConfirm(false);
+                                setUserPendingRemoval(null);
+                            }}
+                            className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                            disabled={!!removingUserId}
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            onClick={confirmRemoveUserFromDepartment}
+                            className={`px-4 py-2 rounded-lg text-white bg-rose-600 hover:bg-rose-700 transition ${
+                                removingUserId ? "opacity-60 cursor-not-allowed" : ""
+                            }`}
+                            disabled={!!removingUserId}
+                        >
+                            {removingUserId ? "Đang xoá..." : "Xoá khỏi phòng ban"}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+            <Modal
+                open={showDeleteDepartmentConfirm}
+                onClose={() => {
+                    if (isDeletingDepartment) return;
+                    setShowDeleteDepartmentConfirm(false);
+                    setDeletingDepartmentId(null);
+                }}
+                title="Xác nhận xóa phòng ban"
+                maxWidth="max-w-lg"
+            >
+                <div className="space-y-4">
+                    <p className="text-slate-700">
+                        Bạn có chắc chắn muốn xóa phòng ban này?
+                    </p>
+                    <p className="text-sm text-rose-500">
+                        Hành động này không thể hoàn tác. Tất cả dữ liệu liên quan đến phòng ban sẽ bị xóa!
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <button
+                            onClick={() => {
+                                if (isDeletingDepartment) return;
+                                setShowDeleteDepartmentConfirm(false);
+                                setDeletingDepartmentId(null);
+                            }}
+                            className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                            disabled={isDeletingDepartment}
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (deletingDepartmentId && !isDeletingDepartment) {
+                                    remove(deletingDepartmentId);
+                                }
+                            }}
+                            className={`px-4 py-2 rounded-lg text-white bg-rose-600 hover:bg-rose-700 transition ${
+                                isDeletingDepartment ? "opacity-60 cursor-not-allowed" : ""
+                            }`}
+                            disabled={isDeletingDepartment || !deletingDepartmentId}
+                        >
+                            {isDeletingDepartment ? "Đang xóa..." : "Xóa phòng ban"}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

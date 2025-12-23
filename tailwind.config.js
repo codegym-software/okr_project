@@ -1,12 +1,13 @@
 module.exports = {
     content: [
-        "./resources/views/layout/app.blade.php", // Thêm đường dẫn cụ thể
         "./resources/views/**/*.blade.php",
-        "./resources/views/layouts/*.blade.php",
-        "./resources/js/**/*.js",
+        "./resources/js/**/*.{js,jsx}",
     ],
     theme: {
         extend: {
+            fontFamily: {
+                sans: ['"Be Vietnam Pro"', 'sans-serif'],
+            },
             colors: {
                 "body-bg": "#3b82f6",
                 "body-color": "#ffffff",

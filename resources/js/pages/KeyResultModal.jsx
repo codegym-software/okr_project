@@ -10,15 +10,17 @@ export default function KeyResultModal({
     setCreatingFor,
     setItems,
     setToast,
+    currentUser,
 }) {
     const [form, setForm] = useState({
         kr_title: "",
         target_value: 0,
         current_value: 0,
         unit: "",
-        status: "",
+        status: "not_start", // Bản nháp
         cycle_id: "", // Sẽ được gán tự động
         department_id: "",
+        type: "outcome", // Default type
     });
 
     // Lấy cycle_id từ Objective (tạo mới hoặc sửa)
@@ -37,12 +39,14 @@ export default function KeyResultModal({
                 target_value: 0,
                 current_value: 0,
                 unit: "",
-                status: "",
+                status: "not_start", // Bản nháp
                 cycle_id: creatingFor.cycle_id || "",
                 department_id: creatingFor.department_id || "",
+                assigned_to: currentUser?.user_id || null, // Mặc định là người tạo
+                type: "outcome", // Default type
             });
         }
-    }, [creatingFor]);
+    }, [creatingFor, currentUser]);
 
     // Cập nhật form khi editingKR thay đổi
     useEffect(() => {
@@ -55,9 +59,21 @@ export default function KeyResultModal({
                 status: editingKR.status || "",
                 cycle_id: editingKR.cycle_id || "",
                 department_id: editingKR.department_id || "",
+                assigned_to: editingKR.assigned_to || null,
+                type: editingKR.type || "outcome", // Load existing type
             });
         }
     }, [editingKR]);
+
+    // Automatically set KR type based on the selected unit
+    useEffect(() => {
+        if (form.unit === 'completion') {
+            setForm(prev => ({ ...prev, type: 'activity' }));
+        } else {
+            // For 'number', 'percent', 'currency', etc.
+            setForm(prev => ({ ...prev, type: 'outcome' }));
+        }
+    }, [form.unit]);
 
     const handleChange = (field, value) => {
         setForm((prev) => ({ ...prev, [field]: value }));
@@ -70,8 +86,8 @@ export default function KeyResultModal({
             ...form,
             target_value: Number(form.target_value),
             current_value: Number(form.current_value),
-            cycle_id: form.cycle_id, // Luôn lấy từ Objective
             department_id: form.department_id || null,
+            assigned_to: form.assigned_to || null, // Thêm người được giao vào payload
         };
 
         try {
@@ -209,11 +225,6 @@ export default function KeyResultModal({
         }
     };
 
-    // Tìm tên chu kỳ để hiển thị (readonly)
-    const currentCycle = cyclesList.find(
-        (c) => String(c.cycle_id) === String(form.cycle_id)
-    );
-
     return (
         <Modal
             open={!!editingKR || !!creatingFor}
@@ -238,55 +249,7 @@ export default function KeyResultModal({
                         />
                     </div>
 
-                    {/* Hiển thị Chu kỳ (chỉ đọc) */}
-                    <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-600">
-                            Chu kỳ
-                        </label>
-                        <div className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                            {currentCycle?.cycle_name || "—"}
-                        </div>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Trạng thái
-                            </label>
-                            <select
-                                value={form.status}
-                                onChange={(e) =>
-                                    handleChange("status", e.target.value)
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            >
-                                <option value="">-- chọn trạng thái --</option>
-                                <option value="draft">Bản nháp</option>
-                                <option value="active">Đang thực hiện</option>
-                                <option value="completed">Hoàn thành</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Đơn vị
-                            </label>
-                            <select
-                                value={form.unit}
-                                onChange={(e) =>
-                                    handleChange("unit", e.target.value)
-                                }
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                required
-                            >
-                                <option value="">-- chọn đơn vị --</option>
-                                <option value="number">Số lượng</option>
-                                <option value="percent">Phần trăm</option>
-                                <option value="completion">Hoàn thành</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-2 items-start">
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
                                 Mục tiêu
@@ -304,21 +267,24 @@ export default function KeyResultModal({
                         </div>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Thực tế
+                                Đơn vị
                             </label>
-                            <input
-                                value={form.current_value}
+                            <select
+                                value={form.unit}
                                 onChange={(e) =>
-                                    handleChange(
-                                        "current_value",
-                                        e.target.value
-                                    )
+                                    handleChange("unit", e.target.value)
                                 }
-                                type="number"
-                                step="0.01"
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            />
+                                required
+                            >
+                                <option value="">-- chọn đơn vị --</option>
+                                <option value="number">Số lượng</option>
+                                <option value="percent">Phần trăm</option>
+                                <option value="completion">Hoàn thành</option>
+                                <option value="currency">Tiền tệ</option>
+                            </select>
                         </div>
+
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2">

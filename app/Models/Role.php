@@ -32,33 +32,31 @@ class Role extends Model
      */
     public function isAdmin()
     {
-        return strtolower($this->role_name) === 'admin';
+        return strtolower((string) $this->role_name) === 'admin';
     }
 
     /**
-     * Kiểm tra xem role có phải Unit Manager không
+     * Kiểm tra xem role có phải CEO không
      */
-    public function isDeptManager()
+    public function isCeo()
     {
-        return (strtolower($this->role_name) === 'manager' && strtolower($this->level) === 'unit');
+        return strtolower((string) $this->role_name) === 'ceo';
     }
-
 
     /**
      * Kiểm tra xem role có phải Manager không
      */
     public function isManager()
     {
-        return strtolower($this->role_name) === 'manager';
+        return strtolower((string) $this->role_name) === 'manager';
     }
-    
-    /**
 
+    /**
      * Kiểm tra xem role có phải Member không
      */
     public function isMember()
     {
-        return strtolower($this->role_name) === 'member';
+        return strtolower((string) $this->role_name) === 'member';
     }
 
     /**
@@ -66,7 +64,7 @@ class Role extends Model
      */
     public function canCreateCompanyOKR()
     {
-        return $this->isAdmin() || $this->isManager();
+        return $this->isAdmin() || $this->isCeo() || $this->isManager();
     }
 
     /**

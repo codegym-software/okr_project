@@ -14,6 +14,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,        // Tạo các roles trước
             DefaultAdminSeeder::class, // Tạo admin user sau
+            DepartmentSeeder::class,   // Tạo departments và sub-teams
+            CycleSeeder::class,        // Tạo chu kỳ OKR
+            ObjectiveSeeder::class,    // Tạo objectives và key results
         ]);
     }
 }

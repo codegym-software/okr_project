@@ -18,7 +18,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'sub', 'email', 'full_name', 'phone', 'avatar_url', 'google_id', 'job_title', 'department_id', 'role_id', 'status', 'is_invited', 'invited_at'
+        'sub', 'email', 'full_name', 'avatar_url', 'google_id', 'department_id', 'role_id', 'status', 'is_invited', 'invited_at'
     ];
 
     protected $primaryKey = 'user_id';
@@ -70,6 +70,14 @@ class User extends Authenticatable
         return $this->role && $this->role->isAdmin();
     }
 
+    /**
+     * Kiểm tra xem user có phải CEO không
+     */
+    public function isCeo()
+    {
+        return $this->role && $this->role->isCeo();
+    }
+
 
     /**
      * Kiểm tra xem user có phải Manager không
@@ -77,22 +85,6 @@ class User extends Authenticatable
     public function isManager()
     {
         return $this->role && $this->role->isManager();
-    }
-
-    /**
-     * Kiểm tra xem user có phải Unit Manager không
-     */
-    public function isDeptManager()
-    {
-        return $this->role && $this->role->isDeptManager();
-    }
-
-    /**
-     * Kiểm tra xem user có phải Team Manager không
-     */
-    public function isTeamManager()
-    {
-        return $this->role && $this->role->isTeamManager();
     }
 
     /**

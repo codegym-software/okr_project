@@ -1,158 +1,217 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Badge, Modal, Toast } from "../components/ui";
 import DateInputComponent from "../components/DateInput";
+import ObjectiveDetailModal from "../components/ObjectiveDetailModal";
 import { useAuth } from "../hooks/useAuth";
 import { AdminOnly } from "../components/AdminOnly";
+import { 
+    FiPlus, 
+    FiEdit2, 
+    FiTrash2, 
+    FiArrowLeft, 
+    FiFileText, 
+    FiCalendar, 
+    FiMoreVertical,
+    FiLock,
+    FiChevronDown,
+    FiCheckCircle,
+    FiActivity,
+    FiPieChart,
+    FiTarget,
+    FiUser
+} from "react-icons/fi";
 
-function NewCycleModal({ open, onClose, onCreated }) {
-    const [name, setName] = useState("");
-    const [start, setStart] = useState("");
-    const [end, setEnd] = useState("");
-    const [status, setStatus] = useState("active");
-    const [desc, setDesc] = useState("");
-    const [toast, setToast] = useState({ type: "success", message: "" });
-    const resetForm = () => {
-        setName("");
-        setStart("");
-        setEnd("");
-        setStatus("active");
-        setDesc("");
-        setToast({ type: "success", message: "" });
-    };
+// --- Helper Functions ---
+const parseDateSafe = (v) => {
+    if (!v) return null;
+    const str = String(v);
+    
+    if (str.includes('T') || str.includes('Z')) {
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+        const [y, m, d] = str.slice(0, 10).split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
+    
+    return null;
+};
 
-    const handleClose = () => {
-        resetForm();
-        onClose();
-    };
+const formatDate = (dateStr) => {
+    const date = parseDateSafe(dateStr);
+    if (!date) return "—";
+    return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
+};
 
-    // Reset form khi modal mở
+const toInputDate = (v) => {
+    const date = parseDateSafe(v);
+    if (!date) return "";
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+// --- Components ---
+
+function CycleFormModal({ open, onClose, onSubmit, initialData, title, existingCycles = [] }) {
+    const [form, setForm] = useState({
+        cycle_name: "",
+        start_date: "",
+        end_date: "",
+        status: "active",
+        description: ""
+    });
+
     useEffect(() => {
         if (open) {
-            resetForm();
+            if (initialData) {
+                setForm({
+                    cycle_name: initialData.cycle_name || "",
+                    start_date: toInputDate(initialData.start_date),
+                    end_date: toInputDate(initialData.end_date),
+                    // Nếu dữ liệu cũ là draft, vẫn giữ nguyên để hiển thị, nhưng select bên dưới sẽ không có option draft
+                    // Người dùng buộc phải đổi sang active hoặc inactive nếu muốn lưu lại (tuỳ logic, ở đây ta cứ set theo data cũ)
+                    status: initialData.status || "active",
+                    description: initialData.description || ""
+                });
+            } else {
+                setForm({
+                    cycle_name: "",
+                    start_date: "",
+                    end_date: "",
+                    status: "active",
+                    description: ""
+                });
+            }
         }
-    }, [open]);
+    }, [open, initialData]);
 
-    const submit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
-        try {
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                .getAttribute("content");
-            const res = await fetch("/cycles", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": token,
-                    Accept: "application/json",
-                },
-                body: JSON.stringify({
-                    cycle_name: name,
-                    start_date: start,
-                    end_date: end,
-                    status,
-                    description: desc,
-                }),
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success)
-                throw new Error(data.message || "Tạo chu kỳ thất bại");
-            setToast({
-                type: "success",
-                message: data.message || "Tạo chu kỳ thành công!",
-            });
-            onCreated && onCreated(data.data);
-            resetForm();
-            onClose();
-        } catch (e) {
-            setToast({
-                type: "error",
-                message: e.message || "Tạo chu kỳ thất bại",
-            });
-        }
+        onSubmit(form);
     };
+
     if (!open) return null;
+
     return (
-        <Modal open={open} onClose={onClose} title="Tạo chu kỳ mới">
-            <Toast
-                type={toast.type}
-                message={toast.message}
-                onClose={() => setToast({ type: "success", message: "" })}
-            />
-            <form onSubmit={submit} className="space-y-4">
+        <Modal open={open} onClose={onClose} title={title}>
+            <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
                         Tên chu kỳ
                     </label>
                     <input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Ví dụ: Q4 - 2025"
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                        value={form.cycle_name}
+                        onChange={(e) => setForm({...form, cycle_name: e.target.value})}
+                        placeholder="Ví dụ: Quý 4 - 2025"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all"
                         required
                     />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Mô tả (tuỳ chọn)
+                    </label>
+                    <textarea
+                        value={form.description}
+                        onChange={(e) => setForm({ ...form, description: e.target.value })}
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 transition-all resize-none"
+                        style={{ minHeight: '46px' }}
+                    />
+                </div>
+                <div className="grid gap-6 md:grid-cols-2">
                     <div>
-                        <label className="mb-1 block text-sm font-semibold text-slate-700">
+                        <label className="mb-2 block text-sm font-semibold text-slate-700">
                             Ngày bắt đầu
                         </label>
                         <DateInputComponent
                             name="start_date"
-                            value={start}
-                            onChange={setStart}
+                            value={form.start_date}
+                            onChange={(val) => setForm({ ...form, start_date: val })}
+                            isDateDisabled={(date) => {
+                                // Disable ngày thuộc các chu kỳ khác (tránh trùng khoảng)
+                                const currentId = initialData?.cycle_id || initialData?.id || null;
+                                const d = new Date(
+                                    date.getFullYear(),
+                                    date.getMonth(),
+                                    date.getDate()
+                                ).getTime();
+                                return existingCycles.some((c) => {
+                                    const cid = c.cycle_id || c.id;
+                                    if (currentId && cid === currentId) return false;
+                                    const start = parseDateSafe(c.start_date);
+                                    const end = parseDateSafe(c.end_date);
+                                    if (!start || !end) return false;
+                                    const s = new Date(
+                                        start.getFullYear(),
+                                        start.getMonth(),
+                                        start.getDate()
+                                    ).getTime();
+                                    const e = new Date(
+                                        end.getFullYear(),
+                                        end.getMonth(),
+                                        end.getDate()
+                                    ).getTime();
+                                    return d >= s && d <= e;
+                                });
+                            }}
                             required
                         />
                     </div>
                     <div>
-                        <label className="mb-1 block text-sm font-semibold text-slate-700">
+                        <label className="mb-2 block text-sm font-semibold text-slate-700">
                             Ngày kết thúc
                         </label>
                         <DateInputComponent
                             name="end_date"
-                            value={end}
-                            onChange={setEnd}
+                            value={form.end_date}
+                            onChange={(val) => setForm({ ...form, end_date: val })}
+                            isDateDisabled={(date) => {
+                                const currentId = initialData?.cycle_id || initialData?.id || null;
+                                const d = new Date(
+                                    date.getFullYear(),
+                                    date.getMonth(),
+                                    date.getDate()
+                                ).getTime();
+                                return existingCycles.some((c) => {
+                                    const cid = c.cycle_id || c.id;
+                                    if (currentId && cid === currentId) return false;
+                                    const start = parseDateSafe(c.start_date);
+                                    const end = parseDateSafe(c.end_date);
+                                    if (!start || !end) return false;
+                                    const s = new Date(
+                                        start.getFullYear(),
+                                        start.getMonth(),
+                                        start.getDate()
+                                    ).getTime();
+                                    const e = new Date(
+                                        end.getFullYear(),
+                                        end.getMonth(),
+                                        end.getDate()
+                                    ).getTime();
+                                    return d >= s && d <= e;
+                                });
+                            }}
                             required
                         />
                     </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                        <label className="mb-1 block text-sm font-semibold text-slate-700">
-                            Trạng thái
-                        </label>
-                        <select
-                            value={status}
-                            onChange={(e) => setStatus(e.target.value)}
-                            className="w-full rounded-2xl border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="mb-1 block text-sm font-semibold text-slate-700">
-                            Mô tả
-                        </label>
-                        <textarea
-                            value={desc}
-                            onChange={(e) => setDesc(e.target.value)}
-                            className="h-20 w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                     <button
                         type="button"
-                        onClick={handleClose}
-                        className="rounded-2xl border border-slate-300 px-5 py-2 text-sm"
+                        onClick={onClose}
+                        className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                     >
-                        Hủy
+                        Hủy bỏ
                     </button>
                     <button
                         type="submit"
-                        className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2 text-sm font-semibold text-white shadow"
+                        className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors shadow-none"
                     >
-                        Lưu
+                        {title && title.toLowerCase().includes("tạo") ? "Tạo" : "Lưu thay đổi"}
                     </button>
                 </div>
             </form>
@@ -160,1253 +219,852 @@ function NewCycleModal({ open, onClose, onCreated }) {
     );
 }
 
+function CyclesTable({ cycles, onRowClick, onEdit, onDelete, onCloseCycle, isAdmin, emptyMessage }) {
+    if (!cycles || cycles.length === 0) {
+        return (
+            <div className="mt-3 w-full rounded-xl border border-dashed border-slate-300 p-12 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
+                    <FiFileText size={24} />
+                </div>
+                <p className="text-slate-500 font-medium">{emptyMessage || "Không có dữ liệu"}</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="min-w-full table-fixed divide-y divide-slate-200 text-xs md:text-sm">
+                <thead className="bg-slate-50">
+                    <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">Tên chu kỳ</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">Thời gian</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider border-r border-slate-200">Trạng thái</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {cycles.map((cycle) => {
+                        const isActive = cycle.status === 'active';
+                        const isDraft = cycle.status === 'draft';
+                        const now = new Date();
+                        const isEnded = new Date(cycle.end_date) <= now;
+                        const isUpcoming = new Date(cycle.start_date) > now;
+                        
+                        let statusLabel = cycle.status;
+                        let statusClass = "bg-slate-100 text-slate-600";
+                        
+                        // Logic hiển thị status
+                        if (isActive) {
+                            if (isUpcoming) {
+                                statusLabel = "Sắp diễn ra";
+                                statusClass = "bg-blue-50 text-blue-700 border border-blue-100";
+                            } else if (isEnded) {
+                                statusLabel = "Quá hạn";
+                                statusClass = "bg-amber-50 text-amber-700 border border-amber-100";
+                            } else {
+                                statusLabel = "Đang diễn ra";
+                                statusClass = "bg-emerald-50 text-emerald-700 border border-emerald-100";
+                            }
+                        } else if (isDraft) {
+                            statusLabel = "Bản nháp";
+                            statusClass = "bg-slate-100 text-slate-600 border border-slate-200";
+                        } else {
+                            statusLabel = "Đã đóng";
+                            statusClass = "bg-red-50 text-red-600 border border-red-100"; 
+                        }
+
+                        return (
+                            <tr 
+                                key={cycle.cycle_id || cycle.id} 
+                                onClick={() => onRowClick(cycle)}
+                                className="cursor-pointer transition-colors hover:bg-slate-50"
+                            >
+                                <td className="px-4 py-3 border-r border-slate-200">
+                                    <div className="font-medium text-slate-900">{cycle.cycle_name}</div>
+                                    {cycle.description && (
+                                        <div className="text-xs text-slate-500 mt-0.5 truncate max-w-[200px]">
+                                            {cycle.description}
+                                        </div>
+                                    )}
+                                </td>
+                                <td className="px-4 py-3 text-center border-r border-slate-200 text-slate-600">
+                                    {formatDate(cycle.start_date)} — {formatDate(cycle.end_date)}
+                                </td>
+                                <td className="px-4 py-3 text-center border-r border-slate-200">
+                                    <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ${statusClass}`}>
+                                        {statusLabel}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                    {isAdmin && (
+                                        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                            {/* Logic hiển thị nút hành động */}
+                                            {/* Trường hợp 1: Tab Lịch sử (Inactive) -> Chỉ có nút Xóa -> Căn giữa */}
+                                            {!isActive && !isDraft ? (
+                                                <div className="flex justify-center w-full">
+                                                    <button 
+                                                        onClick={() => onDelete(cycle)}
+                                                        className="p-1.5 rounded hover:bg-slate-100 hover:text-rose-600 transition-colors text-slate-400"
+                                                        title="Xóa"
+                                                    >
+                                                        <FiTrash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                /* Trường hợp 2: Tab Hiện tại (Active/Draft) -> Giữ layout 3 slots để thẳng hàng */
+                                                <>
+                                                    {/* Slot 1: Close/Lock Button */}
+                                                    <div className="w-8 flex justify-center">
+                                                        {isActive && isEnded ? (
+                                                            <button 
+                                                                onClick={() => onCloseCycle(cycle)} 
+                                                                className="p-1.5 rounded text-amber-600 hover:bg-amber-50 transition-colors"
+                                                                title="Đóng chu kỳ (Khóa để lưu trữ)"
+                                                            >
+                                                                <FiLock size={16} />
+                                                            </button>
+                                                        ) : null}
+                                                    </div>
+
+                                                    {/* Slot 2: Edit Button */}
+                                                    <div className="w-8 flex justify-center">
+                                                        <button 
+                                                            onClick={() => onEdit(cycle)}
+                                                            className="p-1.5 rounded hover:bg-slate-100 hover:text-blue-600 transition-colors text-slate-400"
+                                                            title="Chỉnh sửa"
+                                                        >
+                                                            <FiEdit2 size={16} />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Slot 3: Delete Button */}
+                                                    <div className="w-8 flex justify-center">
+                                                        <button 
+                                                            onClick={() => onDelete(cycle)}
+                                                            className="p-1.5 rounded hover:bg-slate-100 hover:text-rose-600 transition-colors text-slate-400"
+                                                            title="Xóa"
+                                                        >
+                                                            <FiTrash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 export default function CyclesPanel() {
     const [cycles, setCycles] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [open, setOpen] = useState(false);
     const [detail, setDetail] = useState(null);
     const [krs, setKrs] = useState({});
     const [isDetail, setIsDetail] = useState(false);
-    const [openObj, setOpenObj] = useState({});
-    const [editOpen, setEditOpen] = useState(false);
     const [toast, setToast] = useState({ type: "success", message: "" });
-    // Xác nhận hành động qua modal thay vì window.confirm
+    const [activeTab, setActiveTab] = useState("current");
+    const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [editingCycle, setEditingCycle] = useState(null);
+    
     const [confirm, setConfirm] = useState({
         open: false,
         title: "",
         message: "",
         confirmText: "Xác nhận",
-        cancelText: "Hủy",
         onConfirm: null,
+        type: "danger" 
     });
-    const [confirmLoading, setConfirmLoading] = useState(false);
-    
-    // Sử dụng custom hook để lấy thông tin authentication
+
     const { isAdmin } = useAuth();
 
-    const toInputDate = (v) => {
-        if (!v) return "";
-        const str = String(v);
-        if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
-        const d = new Date(str);
-        if (isNaN(d.getTime())) return "";
-        const iso = new Date(
-            d.getTime() - d.getTimezoneOffset() * 60000
-        ).toISOString();
-        return iso.slice(0, 10);
+    const fetchCycles = async () => {
+        try {
+            setLoading(true);
+            const r = await fetch("/cycles", { headers: { Accept: "application/json" } });
+            const d = await r.json();
+            setCycles(d.data || []);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const formatDMY = (v) => {
-        if (!v) return "";
-        const d = new Date(v);
-        if (isNaN(d.getTime())) return "";
-        const dd = String(d.getDate()).padStart(2, "0");
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const yyyy = d.getFullYear();
-        return `${dd}/${mm}/${yyyy}`;
-    };
-    const isEnded = (v) => {
-        if (!v) return false;
-        const d = new Date(v);
-        if (isNaN(d.getTime())) return false;
-        const now = new Date();
-        return d.getTime() <= now.getTime();
-    };
-
-    const sortByStartDesc = (arr = []) =>
-        [...arr].sort(
-            (a, b) =>
-                new Date(b.start_date || b.startDate) -
-                new Date(a.start_date || a.startDate)
-        );
-
-    const isActive = (c) => String(c?.status).toLowerCase() === "active";
-    const isClosed = (c) => !isActive(c);
-    const formatRange = (c) => `${formatDMY(c.start_date)} - ${formatDMY(c.end_date)}`;
-
-    // Helpers: mở/đóng modal xác nhận
-    const openConfirm = (cfg = {}) => {
-        setConfirm({
-            open: true,
-            title: cfg.title || "Xác nhận",
-            message: cfg.message || "",
-            confirmText: cfg.confirmText || "Xác nhận",
-            cancelText: cfg.cancelText || "Hủy",
-            onConfirm: cfg.onConfirm || null,
-        });
-    };
-    const closeConfirm = () => setConfirm((p) => ({ ...p, open: false }));
-
-    // API helpers
-    const postCloseCycle = async (id) => {
-        const token = document
-            .querySelector('meta[name="csrf-token"]')
-            .getAttribute('content');
-        const res = await fetch(`/cycles/${id}/close`, {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
-        });
-        const json = await res.json().catch(() => ({ success: res.ok }));
-        if (!res.ok || json.success === false)
-            throw new Error(json.message || 'Đóng chu kỳ thất bại');
-        return json;
-    };
-    const deleteCycleById = async (id) => {
-        const token = document
-            .querySelector('meta[name="csrf-token"]')
-            .getAttribute('content');
-        const res = await fetch(`/cycles/${id}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
-        });
-        const json = await res.json().catch(() => ({ success: res.ok }));
-        if (!res.ok || json.success === false)
-            throw new Error(json.message || 'Xóa chu kỳ thất bại');
-        return json;
-    };
-
-    // Mở modal xác nhận cho nút "Đóng chu kỳ" ở danh sách
-    function closeCycle(cy) {
-        const id = cy?.cycle_id || cy?.id;
-        openConfirm({
-            title: 'Đóng chu kỳ',
-            message:
-                'Đóng chu kỳ sẽ khóa tất cả OKR và kết quả. Bạn không thể chỉnh sửa hay check-in nữa. Bạn chắc chắn?',
-            confirmText: 'Đóng chu kỳ',
-            onConfirm: async () => {
-                const json = await postCloseCycle(id);
-                const cyNew = json.data || {};
-                setCycles((prev) =>
-                    prev.map((c) =>
-                        String(c.cycle_id || c.id) === String(id)
-                            ? { ...c, ...cyNew }
-                            : c
-                    )
-                );
-                setToast({ type: 'success', message: json.message || 'Đã đóng chu kỳ' });
-            },
-        });
-    }
-
+    // Đọc tab từ query khi mount
     useEffect(() => {
-        (async () => {
-            try {
-                const r = await fetch("/cycles", {
-                    headers: { Accept: "application/json" },
-                });
-                const d = await r.json();
-                setCycles(sortByStartDesc(d.data || []));
-            } finally {
-                setLoading(false);
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get("tab");
+            if (tab === "history" || tab === "current") {
+                setActiveTab(tab);
             }
-        })();
+        } catch (e) {
+            console.error("Failed to read cycles tab from query", e);
+        }
+        fetchCycles();
     }, []);
 
     useEffect(() => {
+        const controller = new AbortController();
         const handler = async () => {
-            const m = window.location.pathname.match(
-                /^\/cycles\/(\d+)\/detail$/
-            );
-            setIsDetail(Boolean(m));
+            const m = window.location.pathname.match(/^\/cycles\/(\d+)\/detail$/);
+            const newIsDetail = Boolean(m);
+            setIsDetail(newIsDetail);
+            
             if (!m) {
                 setDetail(null);
                 setKrs({});
                 return;
             }
+
+            setDetail(null); 
+            
             const id = m[1];
             try {
-                const res = await fetch(`/cycles/${id}/detail`, {
+                const res = await fetch(`/cycles/${id}/detail`, { 
                     headers: { Accept: "application/json" },
+                    signal: controller.signal
                 });
+                
                 const data = await res.json();
                 if (res.ok && data.success) {
                     setDetail(data.data);
-                    // Server đã trả kèm keyResults cho mỗi objective
                     const map = {};
                     (data.data.objectives || []).forEach((o) => {
-                        map[o.objective_id] =
-                            o.key_results || o.keyResults || [];
+                        map[o.objective_id] = o.key_results || o.keyResults || [];
                     });
                     setKrs(map);
                 }
-            } catch (e) {
-                /* ignore */
+            } catch (e) { 
+                if (e.name !== 'AbortError') {
+                    console.error("Fetch error:", e);
+                }
             }
         };
+
         handler();
         window.addEventListener("popstate", handler);
-        return () => window.removeEventListener("popstate", handler);
+        
+        return () => {
+            window.removeEventListener("popstate", handler);
+            controller.abort();
+        };
     }, []);
 
-    function goDetail(id) {
+    const goDetail = (id) => {
         window.history.pushState({}, "", `/cycles/${id}/detail`);
         window.dispatchEvent(new Event("popstate"));
-    }
-    function goBack() {
+    };
+    const goBack = () => {
         window.history.pushState({}, "", "/cycles");
         window.dispatchEvent(new Event("popstate"));
-    }
+    };
+
+    // Đồng bộ activeTab -> query ?tab=
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set("tab", activeTab);
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            console.error("Failed to sync cycles tab", e);
+        }
+    }, [activeTab]);
+
+    const handleCreate = async (data) => {
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
+            const res = await fetch("/cycles", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token, Accept: "application/json" },
+                body: JSON.stringify(data),
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) throw new Error(json.message || "Tạo thất bại");
+            
+            setToast({ type: "success", message: "Tạo chu kỳ mới thành công" });
+            setCreateModalOpen(false);
+            fetchCycles();
+        } catch (e) {
+            setToast({ type: "error", message: e.message });
+        }
+    };
+
+    const handleUpdate = async (data) => {
+        if (!editingCycle) return;
+        const id = editingCycle.cycle_id || editingCycle.id;
+        try {
+            const token = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
+            const res = await fetch(`/cycles/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": token, Accept: "application/json" },
+                body: JSON.stringify(data),
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) throw new Error(json.message || "Cập nhật thất bại");
+
+            setToast({ type: "success", message: "Cập nhật chu kỳ thành công" });
+            setEditModalOpen(false);
+            setEditingCycle(null);
+            fetchCycles();
+            
+            if (detail && (detail.cycle.cycle_id === id || detail.cycle.id === id)) {
+                setDetail(prev => ({ ...prev, cycle: { ...prev.cycle, ...data } }));
+            }
+        } catch (e) {
+            setToast({ type: "error", message: e.message });
+        }
+    };
+
+    const handleDelete = async (cycle) => {
+        const id = cycle.cycle_id || cycle.id;
+        setConfirm({
+            open: true,
+            title: "Xóa chu kỳ",
+            message: `Bạn có chắc muốn xóa chu kỳ "${cycle.cycle_name}"?`,
+            confirmText: "Xóa ngay",
+            type: "danger",
+            onConfirm: async () => {
+                try {
+                    const token = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
+                    const res = await fetch(`/cycles/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+                    });
+                    const json = await res.json();
+                    if (!res.ok || json.success === false) throw new Error(json.message);
+                    
+                    setToast({ type: 'success', message: 'Đã xóa chu kỳ' });
+                    if (isDetail) goBack();
+                    fetchCycles();
+                } catch (e) {
+                    setToast({ type: 'error', message: e.message });
+                }
+            }
+        });
+    };
+
+    const handleCloseCycle = async (cycle) => {
+        const id = cycle.cycle_id || cycle.id;
+        setConfirm({
+            open: true,
+            title: "Đóng chu kỳ",
+            message: `Đóng chu kỳ "${cycle.cycle_name}" sẽ khóa tất cả OKR.`,
+            confirmText: "Đóng chu kỳ",
+            type: "warning",
+            onConfirm: async () => {
+                try {
+                    const token = document.querySelector('meta[name="csrf-token"]').getAttribute("content");
+                    const res = await fetch(`/cycles/${id}/close`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': token, Accept: 'application/json' },
+                    });
+                    const json = await res.json();
+                    if (!res.ok || json.success === false) throw new Error(json.message);
+
+                    setToast({ type: 'success', message: 'Đã đóng chu kỳ thành công' });
+                    fetchCycles();
+                } catch (e) {
+                    setToast({ type: 'error', message: e.message });
+                }
+            }
+        });
+    };
+
+    // Sort & Filter Logic
+    // Tab "Hiện tại" bao gồm Active + Draft (để không bị mất data cũ)
+    const rawCurrent = cycles.filter(c => c.status === 'active' || c.status === 'draft');
+    // Tab "Lịch sử" bao gồm các trạng thái còn lại (Inactive)
+    const rawHistory = cycles.filter(c => c.status !== 'active' && c.status !== 'draft');
+    
+    const currentCycles = [...rawCurrent].sort((a, b) => new Date(a.start_date) - new Date(b.start_date)); // ASC
+    const historyCycles = [...rawHistory].sort((a, b) => new Date(b.start_date) - new Date(a.start_date)); // DESC
 
     return (
-        <div className="px-4 py-6 m-auto max-w-6xl  ">
-            <Toast
-                type={toast.type}
-                message={toast.message}
-                onClose={() => setToast({ type: "success", message: "" })}
-            />
-            {/* Global Confirm Modal */}
+        <div className="">
+            <Toast type={toast.type} message={toast.message} onClose={() => setToast({ type: "success", message: "" })} />
+
             {confirm.open && (
-                <Modal
-                    open={true}
-                    onClose={confirmLoading ? () => {} : () => closeConfirm()}
-                    title={confirm.title || "Xác nhận"}
-                >
+                <Modal open={true} onClose={() => setConfirm({ ...confirm, open: false })} title={confirm.title}>
                     <div className="space-y-4">
-                        {confirm.message && (
-                            <p className="text-sm text-slate-600">{confirm.message}</p>
-                        )}
-                        <div className="flex justify-end gap-2">
-                            <button
-                                type="button"
-                                disabled={confirmLoading}
-                                onClick={() => closeConfirm()}
-                                className="rounded-md border border-slate-300 px-4 py-2 text-xs"
-                            >
-                                {confirm.cancelText || "Hủy"}
-                            </button>
-                            <button
-                                type="button"
-                                disabled={confirmLoading}
-                                onClick={async () => {
-                                    try {
-                                        setConfirmLoading(true);
-                                        if (typeof confirm.onConfirm === 'function') {
-                                            await confirm.onConfirm();
-                                        }
-                                    } finally {
-                                        setConfirmLoading(false);
-                                        closeConfirm();
-                                    }
-                                }}
-                                className="rounded-md bg-rose-600 px-5 py-2 text-xs font-semibold text-white hover:bg-rose-700"
-                            >
-                                {confirm.confirmText || "Xác nhận"}
-                            </button>
-                        </div>
-                    </div>
-                </Modal>
-            )}
-            <div className="mx-auto mb-3 flex w-full items-center justify-between">
-                <h2 className="text-2xl font-extrabold text-slate-900">
-                    {isDetail ? "Chi tiết chu kỳ" : "Danh sách chu kỳ"}
-                </h2>
-                {isDetail ? (
-                    <div className="flex items-center gap-2">
-                        <AdminOnly permission="canManageCycles">
-                            <>
-                                {detail?.cycle?.status === 'active' && (
-                                    <button
-                                        onClick={() => setEditOpen(true)}
-                                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                                    >
-                                        Sửa
-                                    </button>
-                                )}
-                                <button
-                                    onClick={() => {
-                                        const id = detail?.cycle?.cycle_id || detail?.cycle_id;
-                                        openConfirm({
-                                            title: 'Xóa chu kỳ',
-                                            message: 'Xóa chu kỳ này? Hành động không thể hoàn tác.',
-                                            confirmText: 'Xóa',
-                                            onConfirm: async () => {
-                                                const json = await deleteCycleById(id);
-                                                setCycles((prev) =>
-                                                    prev.filter((c) => String(c.cycle_id || c.id) !== String(id))
-                                                );
-                                                setToast({ type: 'success', message: json.message || 'Đã xóa chu kỳ' });
-                                                goBack();
-                                            },
-                                        });
-                                    }}
-                                    className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-                                >
-                                    Xóa
-                                </button>
-                            </>
-                        </AdminOnly>
-                        <button
-                            onClick={goBack}
-                            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                            Quay lại
-                        </button>
-                    </div>
-                ) : (
-                    <AdminOnly permission="canManageCycles">
-                        <button
-                            onClick={() => setOpen(true)}
-                            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700"
-                        >
-                            Tạo mới
-                        </button>
-                    </AdminOnly>
-                )}
-            </div>
-            {editOpen && (
-                <Modal
-                    open={true}
-                    onClose={() => setEditOpen(false)}
-                    title="Sửa chu kỳ"
-                >
-                    <form
-                        onSubmit={async (e) => {
-                            e.preventDefault();
-                            try {
-                                const token = document
-                                    .querySelector('meta[name="csrf-token"]')
-                                    .getAttribute("content");
-                                const id =
-                                    detail?.cycle?.cycle_id || detail?.cycle_id;
-                                const currentCycle = detail?.cycle || detail;
-
-                                // Chỉ gửi các field thay đổi
-                                const body = {};
-                                const newValues = {
-                                    cycle_name:
-                                        e.target.cycle_name.value.trim(),
-                                    start_date:
-                                        e.target.start_date.value.trim(),
-                                    end_date: e.target.end_date.value.trim(),
-                                    status: e.target.status.value,
-                                    description:
-                                        e.target.description.value.trim(),
-                                };
-
-                                // Chuẩn hóa định dạng ngày để so sánh
-                                const normalizeDate = (dateStr) => {
-                                    if (!dateStr) return "";
-                                    // Nếu đã là định dạng ISO (yyyy-MM-dd), giữ nguyên
-                                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr))
-                                        return dateStr;
-                                    // Nếu là định dạng dd/MM/yyyy, convert sang ISO
-                                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-                                        const [day, month, year] =
-                                            dateStr.split("/");
-                                        return `${year}-${month}-${day}`;
-                                    }
-                                    // Thử parse bằng Date constructor
-                                    const date = new Date(dateStr);
-                                    if (!isNaN(date.getTime())) {
-                                        const year = date.getFullYear();
-                                        const month = String(
-                                            date.getMonth() + 1
-                                        ).padStart(2, "0");
-                                        const day = String(
-                                            date.getDate()
-                                        ).padStart(2, "0");
-                                        return `${year}-${month}-${day}`;
-                                    }
-                                    return dateStr;
-                                };
-
-                                // Validate ngày chỉ khi có giá trị và khác với giá trị hiện tại
-                                const normalizedStartDate = normalizeDate(
-                                    newValues.start_date
-                                );
-                                const normalizedCurrentStartDate =
-                                    normalizeDate(currentCycle.start_date);
-
-                                const normalizedEndDate = normalizeDate(
-                                    newValues.end_date
-                                );
-                                const normalizedCurrentEndDate = normalizeDate(
-                                    currentCycle.end_date
-                                );
-
-                                if (
-                                    normalizedStartDate &&
-                                    normalizedStartDate !==
-                                        normalizedCurrentStartDate
-                                ) {
-                                    const startDate = new Date(
-                                        normalizedStartDate
-                                    );
-                                    if (isNaN(startDate.getTime())) {
-                                        throw new Error(
-                                            "Ngày bắt đầu không hợp lệ"
-                                        );
-                                    }
-                                }
-
-                                if (
-                                    normalizedEndDate &&
-                                    normalizedEndDate !==
-                                        normalizedCurrentEndDate
-                                ) {
-                                    const endDate = new Date(normalizedEndDate);
-                                    if (isNaN(endDate.getTime())) {
-                                        throw new Error(
-                                            "Ngày kết thúc không hợp lệ"
-                                        );
-                                    }
-                                }
-
-                                // So sánh với giá trị hiện tại và chỉ thêm vào body nếu khác
-                                Object.keys(newValues).forEach((key) => {
-                                    let currentValue = currentCycle[key];
-                                    let newValue = newValues[key];
-
-                                    // Đối với các trường ngày, sử dụng giá trị đã chuẩn hóa
-                                    if (key === "start_date") {
-                                        currentValue =
-                                            normalizedCurrentStartDate;
-                                        newValue = normalizedStartDate;
-                                    } else if (key === "end_date") {
-                                        currentValue = normalizedCurrentEndDate;
-                                        newValue = normalizedEndDate;
-                                    }
-
-                                    // Đối với status luôn gửi nếu khác, đối với các trường khác chỉ gửi nếu có giá trị
-                                    if (key === "status") {
-                                        if (newValue !== currentValue) {
-                                            body[key] = newValue;
-                                        }
-                                    } else {
-                                        // Chỉ thêm vào body nếu có giá trị mới và khác với giá trị hiện tại
-                                        if (
-                                            newValue &&
-                                            newValue !== currentValue
-                                        ) {
-                                            body[key] = newValue;
-                                        }
-                                    }
-                                });
-
-                                // Nếu không có field nào thay đổi, không gửi request
-                                if (Object.keys(body).length === 0) {
-                                    setToast({
-                                        type: "info",
-                                        message: "Không có thay đổi nào để lưu",
-                                    });
-                                    setEditOpen(false);
-                                    return;
-                                }
-
-                                const res = await fetch(`/cycles/${id}`, {
-                                    method: "PUT",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                        "X-CSRF-TOKEN": token,
-                                        Accept: "application/json",
-                                    },
-                                    body: JSON.stringify(body),
-                                });
-                                const json = await res
-                                    .json()
-                                    .catch(() => ({ success: false }));
-                                if (!res.ok || json.success === false)
-                                    throw new Error(
-                                        json.message ||
-                                            "Cập nhật chu kỳ thất bại"
-                                    );
-                                const updated = json.data || {
-                                    ...currentCycle,
-                                    ...body,
-                                };
-                                setDetail((prev) => ({
-                                    ...(prev || {}),
-                                    cycle: updated.cycle
-                                        ? updated.cycle
-                                        : updated,
-                                }));
-                                setCycles((prev) =>
-                                    prev.map((c) =>
-                                        String(c.cycle_id || c.id) ===
-                                        String(updated.cycle_id || updated.id)
-                                            ? { ...c, ...updated }
-                                            : c
-                                    )
-                                );
-                                setEditOpen(false);
-                                setToast({
-                                    type: "success",
-                                    message: "Cập nhật chu kỳ thành công",
-                                });
-                            } catch (err) {
-                                setToast({
-                                    type: "error",
-                                    message:
-                                        err.message ||
-                                        "Cập nhật chu kỳ thất bại",
-                                });
-                            }
-                        }}
-                        className="space-y-3"
-                    >
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                Tên chu kỳ
-                            </label>
-                            <input
-                                name="cycle_name"
-                                defaultValue={detail.cycle?.cycle_name}
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                            />
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                    Ngày bắt đầu
-                                </label>
-                                <DateInputComponent
-                                    name="start_date"
-                                    defaultValue={toInputDate(
-                                        detail.cycle?.start_date ||
-                                            detail?.start_date
-                                    )}
-                                />
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                    Ngày kết thúc
-                                </label>
-                                <DateInputComponent
-                                    name="end_date"
-                                    defaultValue={toInputDate(
-                                        detail.cycle?.end_date ||
-                                            detail?.end_date
-                                    )}
-                                />
-                            </div>
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                    Trạng thái
-                                </label>
-                                <select
-                                    name="status"
-                                    defaultValue={
-                                        detail.cycle?.status || "active"
-                                    }
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                >
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                    Mô tả
-                                </label>
-                                <textarea
-                                    name="description"
-                                    defaultValue={
-                                        detail.cycle?.description || ""
-                                    }
-                                    rows={3}
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setEditOpen(false)}
-                                className="rounded-md border border-slate-300 px-4 py-2 text-xs"
+                        <p className="text-sm text-slate-600">{confirm.message}</p>
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button 
+                                onClick={() => setConfirm({ ...confirm, open: false })}
+                                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                             >
                                 Hủy
                             </button>
-                            <button
-                                type="submit"
-                                className="rounded-md bg-blue-600 px-5 py-2 text-xs font-semibold text-white"
+                            <button 
+                                onClick={async () => {
+                                    await confirm.onConfirm();
+                                    setConfirm({ ...confirm, open: false });
+                                }}
+                                className={`rounded-xl px-4 py-2 text-sm font-medium text-white ${confirm.type === 'danger' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-slate-900 hover:bg-slate-800'}`}
                             >
-                                Lưu
+                                {confirm.confirmText}
                             </button>
                         </div>
-                    </form>
+                    </div>
                 </Modal>
             )}
-            {isDetail && detail && (
-                <div className="mx-auto mb-6 w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
-                        <h2 className="text-xl font-extrabold text-slate-900">
-                            {detail.cycle?.cycle_name}
-                        </h2>
-                    </div>
-                    <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
-                        <div>
-                            <div className="text-xs font-semibold text-slate-500">
-                                Ngày bắt đầu:
-                            </div>
-                            <div className="text-sm text-slate-800">
-                                {formatDMY(detail.cycle?.start_date)}
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-xs font-semibold text-slate-500">
-                                Ngày kết thúc:
-                            </div>
-                            <div className="text-sm text-slate-800">
-                                {formatDMY(detail.cycle?.end_date)}
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-xs font-semibold text-slate-500">
-                                Mô tả:
-                            </div>
-                            <div className="text-sm text-slate-800">
-                                {detail.cycle?.description || "—"}
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-xs font-semibold text-slate-500">
-                                Trạng thái:
-                            </div>
-                            <div className="text-sm text-slate-800">
-                                {detail.cycle?.status === "active"
-                                    ? "Active"
-                                    : "Inactive"}
-                            </div>
-                        </div>
-                    </div>
-                    {(detail.objectives || []).map((obj) => (
-                        <div
-                            key={obj.objective_id}
-                            className="border-t border-slate-200 px-6 py-4"
-                        >
-                            <div className="flex items-center justify-between">
-                                <button
-                                    onClick={() =>
-                                        setOpenObj((prev) => ({
-                                            ...prev,
-                                            [obj.objective_id]:
-                                                !prev[obj.objective_id],
-                                        }))
-                                    }
-                                    className="flex items-center gap-3 text-left"
+
+            <CycleFormModal 
+                open={createModalOpen} 
+                onClose={() => setCreateModalOpen(false)} 
+                onSubmit={handleCreate} 
+                title="Tạo chu kỳ mới"
+                existingCycles={cycles}
+            />
+            <CycleFormModal 
+                open={editModalOpen} 
+                onClose={() => { setEditModalOpen(false); setEditingCycle(null); }} 
+                onSubmit={handleUpdate} 
+                initialData={editingCycle}
+                title="Chỉnh sửa chu kỳ"
+                existingCycles={cycles}
+            />
+
+            <div className="mx-auto max-w-6xl px-4 py-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-2xl font-extrabold text-slate-900">
+                        {isDetail ? (detail ? detail.cycle?.cycle_name : "Đang tải...") : "Quản lý Chu kỳ"}
+                    </h1>
+                    
+                    <div className="flex items-center gap-2">
+                        {isDetail ? (
+                            <button onClick={goBack} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                                <FiArrowLeft /> Quay lại
+                            </button>
+                        ) : (
+                            <AdminOnly permission="canManageCycles">
+                                <button 
+                                    onClick={() => setCreateModalOpen(true)}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm"
                                 >
-                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold">
-                                        {(obj.obj_title || "T")[0]}
-                                    </span>
-                                    <div>
-                                        <div className="font-semibold text-slate-900">
-                                            {obj.obj_title ||
-                                                obj.objective_name}
-                                        </div>
-                                        <div className="text-xs text-slate-500">
-                                            {obj.level || ""}
-                                        </div>
-                                    </div>
+                                    Tạo chu kỳ
                                 </button>
-                            </div>
-                            {openObj[obj.objective_id] !== false && (
-                                <div className="mt-3 space-y-3">
-                                    {(krs[obj.objective_id] || []).map((kr) => (
-                                        <div
-                                            key={kr.kr_id || kr.id}
-                                            className="rounded-xl border border-slate-200 bg-white px-4 py-3"
-                                        >
-                                            <div className="text-sm font-semibold text-slate-900">
-                                                {kr.kr_title}
-                                            </div>
-                                            <div className="text-xs text-slate-500">
-                                                {kr.status || "in progress"}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                            </AdminOnly>
+                        )}
+                    </div>
                 </div>
-            )}
-            {!isDetail && (
-                <>
-                    {loading ? (
-                        <div className="mx-auto w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 shadow-sm">
-                            Đang tải...
+
+                {!isDetail && (
+                    <div className="mb-6 w-full border-b border-slate-200">
+                        <div className="flex items-center gap-6">
+                            <button
+                                onClick={() => setActiveTab("current")}
+                                className={`relative pb-3 text-sm font-medium transition-all ${
+                                    activeTab === "current"
+                                        ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600"
+                                        : "text-slate-500 hover:text-slate-700"
+                                }`}
+                            >
+                                Hiện tại ({currentCycles.length})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab("history")}
+                                className={`relative pb-3 text-sm font-medium transition-all ${
+                                    activeTab === "history"
+                                        ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600"
+                                        : "text-slate-500 hover:text-slate-700"
+                                }`}
+                            >
+                                Lịch sử ({historyCycles.length})
+                            </button>
                         </div>
-                    ) : (
-                        <div className=" grid w-full  gap-6 md:grid-cols-3">
-                            {/* Left: Active cycles (span 2) */}
-                            <div className="md:col-span-2">
-                                <div className="mb-3 text-sm font-semibold text-slate-700">Chu kỳ đang hoạt động</div>
-                                <div className="space-y-3">
-                                    {sortByStartDesc(cycles.filter(isActive)).map((c) => {
-                                        const id = c.cycle_id || c.id;
-                                        const canClose = isEnded(c.end_date);
-                                        return (
-                                            <div key={id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
-                                                    <div className="font-semibold text-slate-900">{c.cycle_name}</div>
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge color="emerald">Đang hoạt động</Badge>
-                                                        <button onClick={() => goDetail(id)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Xem chi tiết</button>
-                                                        <AdminOnly permission="canManageCycles">
-                                                            {canClose && (
-                                                                <button onClick={() => closeCycle(c)} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Đóng chu kỳ</button>
-                                                            )}
-                                                        </AdminOnly>
-                                                    </div>
-                                                </div>
-                                                <div className="px-4 py-3 text-sm text-slate-600">{formatRange(c)}</div>
-                                            </div>
-                                        );
-                                    })}
-                                    {sortByStartDesc(cycles.filter(isActive)).length === 0 && (
-                                        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-500">Chưa có chu kỳ hoạt động</div>
-                                    )}
+                    </div>
+                )}
+
+                {isDetail ? (
+                    <div className="w-full">
+                        {detail && detail.cycle ? (
+                            <CycleDetailView 
+                                key={detail.cycle.cycle_id || detail.cycle.id}
+                                detail={detail} 
+                                krs={krs} 
+                                formatDate={formatDate}
+                            />
+                        ) : (
+                            <div className="flex h-64 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                                <div className="text-center">
+                                    <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600"></div>
+                                    <div className="text-sm font-medium text-slate-500">Đang tải dữ liệu...</div>
                                 </div>
                             </div>
-                            {/* Right: Closed cycles */}
-                            <div>
-                                <div className="mb-3 text-sm font-semibold text-slate-700">Chu kỳ đã đóng</div>
-                                <div className="space-y-3">
-                                    {sortByStartDesc(cycles.filter(isClosed)).map((c) => {
-                                        const id = c.cycle_id || c.id;
-                                        return (
-                                            <div key={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="font-semibold text-slate-900">{c.cycle_name}</div>
-                                                    <Badge color="red">Đã đóng</Badge>
-                                                </div>
-                                                <div className="mt-1 text-xs text-slate-600">{formatRange(c)}</div>
-                                                <div className="mt-3 flex items-center gap-2">
-                                                    <button onClick={() => goDetail(id)} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Xem chi tiết</button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {sortByStartDesc(cycles.filter(isClosed)).length === 0 && (
-                                        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-500">Chưa có chu kỳ đã đóng</div>
-                                    )}
+                        )}
+                    </div>
+                ) : (
+                    <div className="min-h-[400px]">
+                        {loading ? (
+                            <div className="flex h-64 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                                <div className="text-center">
+                                    <div className="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600"></div>
+                                    <div className="text-sm font-medium text-slate-500">Đang tải danh sách...</div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-
-                    <NewCycleModal
-                        open={open}
-                        onClose={() => setOpen(false)}
-                        onCreated={(cy) => {
-                            setCycles((prev) => sortByStartDesc([cy, ...prev]));
-                            setToast({ type: 'success', message: 'Tạo chu kỳ thành công' });
-                        }}
-                    />
-                </>
-            )}
-
-
+                        ) : (
+                            <>
+                                {activeTab === 'current' && (
+                                    <CyclesTable 
+                                        cycles={currentCycles}
+                                        onRowClick={(c) => goDetail(c.id || c.cycle_id)}
+                                        onEdit={(c) => { setEditingCycle(c); setEditModalOpen(true); }}
+                                        onCloseCycle={handleCloseCycle}
+                                        onDelete={handleDelete}
+                                        isAdmin={isAdmin}
+                                        emptyMessage="Không có chu kỳ nào đang hoạt động."
+                                    />
+                                )}
+                                {activeTab === 'history' && (
+                                    <CyclesTable 
+                                        cycles={historyCycles}
+                                        onRowClick={(c) => goDetail(c.id || c.cycle_id)}
+                                        onEdit={(c) => { setEditingCycle(c); setEditModalOpen(true); }}
+                                        onDelete={handleDelete}
+                                        isAdmin={isAdmin}
+                                        emptyMessage="Chưa có chu kỳ nào đã đóng."
+                                    />
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
 
-function ObjectiveCreateForm({ cycleId, onCreated, onError }) {
-    const [objTitle, setObjTitle] = useState("");
-    const [description, setDescription] = useState("");
-    const [status, setStatus] = useState("draft");
-    const [level, setLevel] = useState("");
-    const [departmentId, setDepartmentId] = useState("");
-    const [departments, setDepartments] = useState([]);
-    const [userLevels, setUserLevels] = useState([]);
-    const [keyResults, setKeyResults] = useState([
-        {
-            kr_title: "",
-            target_value: "",
-            current_value: "",
-            unit: "number",
-            status: "draft",
-        },
-    ]);
-    const [submitting, setSubmitting] = useState(false);
+function CycleDetailView({ detail, krs, formatDate }) {
+    const [openObj, setOpenObj] = useState({});
+    const [activeObjTab, setActiveObjTab] = useState('company'); // 'company', 'department', 'personal'
+    const [selectedObjective, setSelectedObjective] = useState(null);
+    const toggleObj = (id) => setOpenObj(prev => ({ ...prev, [id]: !prev[id] }));
+    
+    const formatPercent = (value) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? `${n.toFixed(1)}%` : "0%";
+    };
 
-    // Load user levels
+    // Safe check cho list objectives
+    const objectives = detail?.objectives || [];
+    
+    // Đọc query parameter khi component mount hoặc detail thay đổi
     useEffect(() => {
-        (async () => {
-            try {
-                const token = document
-                    .querySelector('meta[name="csrf-token"]')
-                    ?.getAttribute("content");
-                
-                const res = await fetch('/my-objectives/user-levels', {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                });
-                
-                const data = await res.json();
-                if (data.success) {
-                    setUserLevels(data.allowed_levels);
-                    // Set default level to first available level
-                    if (data.allowed_levels.length > 0) {
-                        setLevel(data.allowed_levels[0]);
+        if (!objectives.length) return;
+        
+        try {
+            const url = new URL(window.location.href);
+            const objectiveId = url.searchParams.get('objective_id');
+            
+            if (objectiveId) {
+                const obj = objectives.find(o => String(o.objective_id) === String(objectiveId));
+                if (obj) {
+                    const objWithKRs = {
+                        ...obj,
+                        key_results: krs[obj.objective_id] || []
+                    };
+                    setSelectedObjective(objWithKRs);
+                    
+                    // Tự động chuyển tab phù hợp
+                    if (obj.level === 'unit') {
+                        setActiveObjTab('department');
+                    } else if (obj.level === 'person') {
+                        setActiveObjTab('personal');
+                    } else {
+                        setActiveObjTab('company');
                     }
                 }
-            } catch (err) {
-                console.error("Error loading user levels:", err);
-                // Fallback to default levels
-                setUserLevels(['Nhóm', 'Cá nhân']);
-                setLevel('Nhóm');
             }
-        })();
-    }, []);
-
-    // Try to load departments for dropdown; gracefully degrade to text input
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await fetch("/departments", {
-                    headers: { Accept: "application/json" },
-                });
-                const data = await res.json();
-                const list = Array.isArray(data?.data)
-                    ? data.data
-                    : Array.isArray(data)
-                    ? data
-                    : [];
-                if (Array.isArray(list) && list.length) setDepartments(list);
-            } catch (e) {
-                /* fallback to manual input */
-            }
-        })();
-    }, []);
-
-    const submit = async (e) => {
-        e.preventDefault();
-        try {
-            setSubmitting(true);
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                .getAttribute("content");
-            const payload = {
-                obj_title: objTitle.trim(),
-                description: description.trim() || null,
-                status,
-                progress_percent: 0,
-                level,
-                cycle_id: cycleId,
-                parent_key_result_id: null,
-                ...(level !== "Công ty"
-                    ? { department_id: departmentId || undefined }
-                    : {}),
-                key_results: keyResults.map((kr) => ({
-                    kr_title: kr.kr_title.trim(),
-                    target_value: Number(kr.target_value || 0),
-                    current_value: Number(kr.current_value || 0),
-                    unit: String(kr.unit || "number"),
-                    status: kr.status || "draft",
-                })),
-            };
-            const res = await fetch("/my-objectives/store", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": token,
-                    Accept: "application/json",
-                },
-                body: JSON.stringify(payload),
-            });
-            const json = await res.json().catch(() => ({ success: false }));
-            if (!res.ok || json.success === false)
-                throw new Error(json.message || "Tạo Objective thất bại");
-            onCreated && onCreated(json.data || {});
-        } catch (err) {
-            onError && onError(err.message);
-        } finally {
-            setSubmitting(false);
+        } catch (e) {
+            console.error("Failed to read objective_id from URL", e);
         }
-    };
+    }, [objectives, krs]);
+    
+    // Đồng bộ selectedObjective với URL query parameter
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (selectedObjective) {
+                url.searchParams.set('objective_id', String(selectedObjective.objective_id));
+            } else {
+                url.searchParams.delete('objective_id');
+            }
+            window.history.replaceState({}, "", url.toString());
+        } catch (e) {
+            console.error("Failed to sync objective_id to URL", e);
+        }
+    }, [selectedObjective]);
+    
+    // Tính toán thống kê đơn giản
+    const totalObjectives = objectives.length;
+    const totalKRs = objectives.reduce((acc, obj) => acc + (krs[obj.objective_id]?.length || 0), 0);
 
-    const updateKR = (i, patch) => {
-        setKeyResults((prev) =>
-            prev.map((item, idx) => (idx === i ? { ...item, ...patch } : item))
-        );
-    };
-    const addKR = () =>
-        setKeyResults((prev) => [
-            ...prev,
-            {
-                kr_title: "",
-                target_value: "",
-                current_value: "",
-                unit: "number",
-                status: "draft",
-            },
-        ]);
-    const removeKR = (i) =>
-        setKeyResults((prev) => prev.filter((_, idx) => idx !== i));
+    // Phân loại Objectives - chỉ dựa trên trường level
+    const companyObjs = objectives.filter(o => !o.level || o.level === 'company');
+    const deptObjs = objectives.filter(o => o.level === 'unit');
+    const personalObjs = objectives.filter(o => o.level === 'person');
 
-    return (
-        <form onSubmit={submit} className="space-y-4">
-            <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700">
-                    Tiêu đề Objective
-                </label>
-                <input
-                    value={objTitle}
-                    onChange={(e) => setObjTitle(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                />
-            </div>
-            <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700">
-                    Cấp
-                </label>
-                <select
-                    value={level}
-                    onChange={(e) => setLevel(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                >
-                    {userLevels.map((levelOption) => (
-                        <option key={levelOption} value={levelOption}>
-                            {levelOption}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700">
-                    Mô tả
-                </label>
-                <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="h-20 w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                />
-            </div>
-            <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-800">
-                    Key Results
-                </label>
-                <div className="space-y-3">
-                    {keyResults.map((kr, idx) => (
-                        <div
-                            key={idx}
-                            className="rounded-xl border border-slate-200 p-3"
+    const renderObjectivesList = (list, emptyMsg) => {
+        if (list.length === 0) {
+            return (
+                <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center bg-slate-50">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm text-slate-400">
+                        <FiTarget size={24} />
+                    </div>
+                    <p className="text-slate-500 font-medium">{emptyMsg}</p>
+                </div>
+            );
+        }
+
+        return list.map(obj => {
+            const isOpen = openObj[obj.objective_id] !== false; // Default open
+            
+            return (
+                <div key={obj.objective_id} className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md hover:border-blue-200 mb-4">
+                    {/* Objective Header */}
+                    <div className="flex items-center justify-between px-6 py-5 bg-white select-none">
+                        <div 
+                            onClick={() => toggleObj(obj.objective_id)}
+                            className="flex items-center gap-4 flex-1 cursor-pointer"
                         >
-                            {/* Row 1: Title full width */}
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-bold text-lg transition-colors ${isOpen ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100'}`}>
+                                {(obj.obj_title || "O")[0].toUpperCase()}
+                            </div>
                             <div>
-                                <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                    Tiêu đề KR
-                                </label>
-                                <input
-                                    value={kr.kr_title}
-                                    onChange={(e) =>
-                                        updateKR(idx, {
-                                            kr_title: e.target.value,
-                                        })
-                                    }
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    required
-                                />
-                            </div>
-                            {/* Rows 2-3: 2x2 layout for Unit/Target and Current/Status */}
-                            <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Đơn vị
-                                    </label>
-                                    <select
-                                        value={kr.unit}
-                                        onChange={(e) =>
-                                            updateKR(idx, {
-                                                unit: e.target.value,
-                                            })
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                        required
-                                    >
-                                        <option value="">-- chọn đơn vị --</option>
-                                        <option value="number">Số lượng</option>
-                                        <option value="percent">Phần trăm</option>
-                                        <option value="completion">Hoàn thành</option>
-                                        <option value="bai">Bài</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Mục tiêu
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={kr.target_value}
-                                        onChange={(e) =>
-                                            updateKR(idx, {
-                                                target_value: e.target.value,
-                                            })
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Hiện tại
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={kr.current_value}
-                                        onChange={(e) =>
-                                            updateKR(idx, {
-                                                current_value: e.target.value,
-                                            })
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-slate-600">
-                                        Trạng thái
-                                    </label>
-                                    <select
-                                        value={kr.status}
-                                        onChange={(e) =>
-                                            updateKR(idx, {
-                                                status: e.target.value,
-                                            })
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none"
-                                    >
-                                        <option value="draft">Bản nháp</option>
-                                        <option value="active">
-                                            Đang thực hiện
-                                        </option>
-                                        <option value="completed">
-                                            Hoàn thành
-                                        </option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="mt-3 flex justify-end">
-                                <button
-                                    type="button"
-                                    onClick={() => removeKR(idx)}
-                                    className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"
-                                >
-                                    Xóa
-                                </button>
+                                <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-1">{obj.obj_title}</h4>
                             </div>
                         </div>
-                    ))}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const objWithKRs = {
+                                        ...obj,
+                                        key_results: krs[obj.objective_id] || []
+                                    };
+                                    setSelectedObjective(objWithKRs);
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Xem chi tiết"
+                            >
+                                Chi tiết
+                            </button>
+                            <div 
+                                onClick={() => toggleObj(obj.objective_id)}
+                                className={`cursor-pointer text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}
+                            >
+                                <FiChevronDown size={20} />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* KRs Section (Expandable) */}
+                    {isOpen && (
+                        <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-4 animate-in slide-in-from-top-2 duration-200">
+                            <div className="space-y-3 pl-0 sm:pl-16">
+                                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                                    <span>Key Results</span>
+                                </div>
+                                
+                                {(krs[obj.objective_id] || []).map(kr => {
+                                    const progress = Number(kr.progress_percent) || 0;
+                                    const progressColor = progress >= 80 ? 'bg-emerald-500' : progress >= 50 ? 'bg-blue-500' : 'bg-amber-500';
+                                    
+                                    return (
+                                        <div 
+                                            key={kr.kr_id || kr.id} 
+                                            onClick={() => {
+                                                const objWithKRs = {
+                                                    ...obj,
+                                                    key_results: krs[obj.objective_id] || []
+                                                };
+                                                setSelectedObjective(objWithKRs);
+                                            }}
+                                            className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 transition-all hover:border-blue-300 hover:shadow-sm cursor-pointer"
+                                        >
+                                            <div className="mt-0.5 text-slate-400">
+                                                <FiCheckCircle size={16} className={kr.status === 'completed' ? 'text-emerald-500' : ''} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-slate-800 leading-snug mb-2">{kr.kr_title}</p>
+                                                
+                                                {/* Progress Bar */}
+                                                <div className="relative w-full bg-slate-200 rounded-full h-2 mb-2">
+                                                    <div
+                                                        className={`${progressColor} h-2 rounded-full transition-all`}
+                                                        style={{
+                                                            width: `${Math.min(100, Math.max(0, progress))}%`
+                                                        }}
+                                                    />
+                                                    {progress > 0 && (
+                                                        <span className="absolute left-1 top-0 text-white text-[10px] font-semibold z-10 leading-tight">
+                                                            {formatPercent(progress)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* Assigned User */}
+                                                {(kr.assignee || kr.assigned_to_user) && (
+                                                    <div className="flex items-center gap-1.5 text-xs text-slate-600 mt-1.5">
+                                                        <FiUser size={12} className="text-slate-400" />
+                                                        <span className="truncate">
+                                                            {(kr.assignee || kr.assigned_to_user)?.full_name || (kr.assignee || kr.assigned_to_user)?.name}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                
+                                {(krs[obj.objective_id] || []).length === 0 && (
+                                    <div className="flex items-center gap-2 text-sm italic text-slate-400 px-2 py-2 border border-dashed border-slate-300 rounded-lg justify-center">
+                                        <FiTarget size={14} />
+                                        Chưa có Key Results nào được thiết lập.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
-                <div className="mt-2">
-                    <button
-                        type="button"
-                        onClick={addKR}
-                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
-                    >
-                        Thêm KR
-                    </button>
-                </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-                <button
-                    type="button"
-                    onClick={() => {
-                        /* parent modal closes outside */
-                    }}
-                    className="rounded-md border border-slate-300 px-4 py-2 text-xs"
-                >
-                    Đóng
-                </button>
-                <button
-                    disabled={submitting}
-                    type="submit"
-                    className="rounded-md bg-emerald-600 px-5 py-2 text-xs font-semibold text-white"
-                >
-                    {submitting ? "Đang lưu..." : "Lưu Objective"}
-                </button>
-            </div>
-        </form>
-    );
-}
-
-function KeyResultCreateForm({ objectiveId, onCreated, onError }) {
-    const [form, setForm] = useState({
-        kr_title: "",
-        target_value: "",
-        current_value: "",
-        unit: "number",
-        status: "draft",
-        department_id: "",
-    });
-    const [submitting, setSubmitting] = useState(false);
-    const [departments, setDepartments] = useState([]);
-    useEffect(() => {
-        (async () => {
-            try {
-                const r = await fetch("/departments", {
-                    headers: { Accept: "application/json" },
-                });
-                const j = await r.json();
-                const list = Array.isArray(j?.data)
-                    ? j.data
-                    : Array.isArray(j)
-                    ? j
-                    : [];
-                if (Array.isArray(list)) setDepartments(list);
-            } catch (e) {}
-        })();
-    }, []);
-    const set = (patch) => setForm((prev) => ({ ...prev, ...patch }));
-
-    const submit = async (e) => {
-        e.preventDefault();
-        try {
-            setSubmitting(true);
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                .getAttribute("content");
-            const payload = {
-                ...form,
-                objective_id: objectiveId,
-                department_id: form.department_id || undefined,
-            };
-            const res = await fetch("/my-key-results/store", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": token,
-                    Accept: "application/json",
-                },
-                body: JSON.stringify(payload),
-            });
-            const json = await res.json().catch(() => ({ success: false }));
-            if (!res.ok || json.success === false)
-                throw new Error(json.message || "Tạo Key Result thất bại");
-            onCreated && onCreated(json.data || {});
-        } catch (err) {
-            onError && onError(err.message);
-        } finally {
-            setSubmitting(false);
-        }
+            );
+        });
     };
 
     return (
-        <form onSubmit={submit} className="space-y-3">
-            <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700">
-                    Tiêu đề
-                </label>
-                <input
-                    value={form.kr_title}
-                    onChange={(e) => set({ kr_title: e.target.value })}
-                    className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                />
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Top Section: Stats & Description */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                {/* Stats Grid (Chiếm 3 phần) */}
+                <div className="lg:col-span-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    {/* Thời gian */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                                <FiCalendar size={20} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Thời gian</p>
+                                <p className="text-sm font-semibold text-slate-900">
+                                    {formatDate(detail.cycle?.start_date)} - {formatDate(detail.cycle?.end_date)}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Trạng thái */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                                <FiActivity size={20} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Trạng thái</p>
+                                <div className="mt-0.5">
+                                    <Badge color={detail.cycle?.status === 'active' ? 'emerald' : detail.cycle?.status === 'draft' ? 'slate' : 'red'}>
+                                        {detail.cycle?.status === 'active' ? 'Đang hoạt động' : detail.cycle?.status === 'draft' ? 'Bản nháp' : 'Đã đóng'}
+                                    </Badge>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tổng quan */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-50 text-purple-600">
+                                <FiPieChart size={20} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tổng quan</p>
+                                <p className="text-sm font-semibold text-slate-900">
+                                    {totalObjectives} Mục tiêu • {totalKRs} Kết quả
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Description (Chiếm 1 phần - Bên phải) */}
+                <div className="lg:col-span-1 rounded-xl border border-blue-100 bg-blue-50/50 p-4 flex flex-col justify-center">
+                    <div className="flex items-start gap-3">
+                        <FiFileText className="mt-0.5 text-blue-500 shrink-0" size={18} />
+                        <div>
+                            <p className="text-xs font-semibold text-blue-700 uppercase mb-1">Mô tả</p>
+                            <p className="text-sm text-slate-700 leading-snug line-clamp-3">
+                                {detail.cycle?.description || "Không có mô tả thêm cho chu kỳ này."}
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
-                <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Đơn vị
-                    </label>
-                    <input
-                        value={form.unit}
-                        onChange={(e) => set({ unit: e.target.value })}
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none"
-                        required
-                    />
+
+            {/* Objectives & KRs Section with Tabs */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <FiTarget className="text-blue-600" />
+                        Objectives & Key Results
+                    </h3>
                 </div>
-                <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Trạng thái
-                    </label>
-                    <select
-                        value={form.status}
-                        onChange={(e) => set({ status: e.target.value })}
-                        className="w-full rounded-2xl border border-slate-300 px-3 py-2 outline-none"
-                    >
-                        <option value="draft">Bản nháp</option>
-                        <option value="active">Đang thực hiện</option>
-                        <option value="completed">Hoàn thành</option>
-                    </select>
-                </div>
-                <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Phòng ban
-                    </label>
-                    {departments.length > 0 ? (
-                        <select
-                            value={form.department_id}
-                            onChange={(e) =>
-                                set({ department_id: e.target.value })
-                            }
-                            className="w-full rounded-2xl border border-slate-300 px-3 py-2 outline-none"
+
+                {/* Tabs Navigation */}
+                <div className="border-b border-slate-200">
+                    <div className="flex gap-6">
+                        <button
+                            onClick={() => setActiveObjTab('company')}
+                            className={`relative pb-3 text-sm font-medium transition-all ${
+                                activeObjTab === 'company' 
+                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
                         >
-                            <option value="">Chọn phòng ban</option>
-                            {departments.map((d) => (
-                                <option
-                                    key={d.department_id || d.id}
-                                    value={d.department_id || d.id}
-                                >
-                                    {d.d_name ||
-                                        d.name ||
-                                        `#${d.department_id || d.id}`}
-                                </option>
-                            ))}
-                        </select>
-                    ) : (
-                        <input
-                            value={form.department_id}
-                            onChange={(e) =>
-                                set({ department_id: e.target.value })
-                            }
-                            placeholder="ID phòng ban (tuỳ chọn)"
-                            className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none"
-                        />
-                    )}
+                            Cấp Công Ty ({companyObjs.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveObjTab('department')}
+                            className={`relative pb-3 text-sm font-medium transition-all ${
+                                activeObjTab === 'department' 
+                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Cấp Phòng Ban ({deptObjs.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveObjTab('personal')}
+                            className={`relative pb-3 text-sm font-medium transition-all ${
+                                activeObjTab === 'personal' 
+                                ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-blue-600' 
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Cấp Cá Nhân ({personalObjs.length})
+                        </button>
+                    </div>
+                </div>
+
+                {/* Tab Content */}
+                <div className="pt-2">
+                    {activeObjTab === 'company' && renderObjectivesList(companyObjs, "Chưa có mục tiêu cấp Công ty nào.")}
+                    {activeObjTab === 'department' && renderObjectivesList(deptObjs, "Chưa có mục tiêu cấp Phòng ban nào.")}
+                    {activeObjTab === 'personal' && renderObjectivesList(personalObjs, "Chưa có mục tiêu cấp Cá nhân nào.")}
                 </div>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Mục tiêu
-                    </label>
-                    <input
-                        type="number"
-                        value={form.target_value}
-                        onChange={(e) => set({ target_value: e.target.value })}
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none"
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="mb-1 block text-sm font-semibold text-slate-700">
-                        Hiện tại
-                    </label>
-                    <input
-                        type="number"
-                        value={form.current_value}
-                        onChange={(e) => set({ current_value: e.target.value })}
-                        className="w-full rounded-2xl border border-slate-300 px-4 py-2 outline-none"
-                        required
-                    />
-                </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-                <button
-                    type="button"
-                    onClick={() => {
-                        /* parent modal closes outside */
-                    }}
-                    className="rounded-md border border-slate-300 px-4 py-2 text-xs"
-                >
-                    Đóng
-                </button>
-                <button
-                    disabled={submitting}
-                    type="submit"
-                    className="rounded-md bg-indigo-600 px-5 py-2 text-xs font-semibold text-white"
-                >
-                    {submitting ? "Đang lưu..." : "Lưu Key Result"}
-                </button>
-            </div>
-        </form>
+            
+            {/* Objective Detail Modal */}
+            {selectedObjective && (
+                <ObjectiveDetailModal
+                    objective={selectedObjective}
+                    onClose={() => setSelectedObjective(null)}
+                />
+            )}
+        </div>
     );
 }

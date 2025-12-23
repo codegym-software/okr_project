@@ -1,1620 +1,650 @@
-
-import React, { useEffect, useMemo, useState } from "react";
-import ObjectiveModal from "../pages/ObjectiveModal.jsx";
-import KeyResultModal from "../pages/KeyResultModal.jsx";
-import ToastComponent from "../pages/ToastComponent.jsx";
-import ErrorBoundary from "./ErrorBoundary";
-import OKRTable from "./OKRTable";
-import CheckInHistory from "./CheckInHistory";
-import BarChart from "./BarChart";
-import LineChart from "./LineChart";
-import PieChart from "./PieChart";
-
-export default function Dashboard() {
-    const [items, setItems] = useState([]);
-    const [allItems, setAllItems] = useState([]); // Lưu tất cả items đã tải
-    const [departments, setDepartments] = useState([]);
-    const [cyclesList, setCyclesList] = useState([]);
-    const [links, setLinks] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [toast, setToast] = useState({ type: "success", message: "" });
-    const [editingKR, setEditingKR] = useState(null);
-    const [creatingFor, setCreatingFor] = useState(null);
-    const [creatingObjective, setCreatingObjective] = useState(false);
-    const [editingObjective, setEditingObjective] = useState(null);
-    const [openObj, setOpenObj] = useState({});
-    const [page, setPage] = useState(1);
-    const [itemsPerPage] = useState(5); // Số items hiển thị mỗi trang (client-side)
-    const [currentUser, setCurrentUser] = useState(null);
-    const [error, setError] = useState(null);
-    const [showFilters, setShowFilters] = useState(false);
-    const [checkInHistory, setCheckInHistory] = useState({ open: false, keyResult: null });
-    const [activeTab, setActiveTab] = useState('my'); // 'my', 'department', 'company'
-    const [teamTrendRange, setTeamTrendRange] = useState("month"); // 'day' | 'week' | 'month'
-    const teamTrendOptions = [
-        { value: "day", label: "Ngày" },
-        { value: "week", label: "Tuần" },
-        { value: "month", label: "Tháng" },
-    ];
-    const teamTrendLabelMap = {
-        day: "ngày",
-        week: "tuần",
-        month: "tháng",
-    };
-    
-    // Filters riêng cho từng tab
-    const [myFilters, setMyFilters] = useState({
-        cycle: "",
-        department: "",
-        myOKROnly: false,
-        showFilters: false
-    });
-    const [departmentFilters, setDepartmentFilters] = useState({
-        cycle: "",
-        department: "",
-        myOKROnly: false,
-        showFilters: false
-    });
-    const [companyFilters, setCompanyFilters] = useState({
-        cycle: "",
-        department: "",
-        myOKROnly: false,
-        showFilters: false
-    });
-
-    const calculateObjectiveProgress = (objective) => {
-        const keyResults = objective?.key_results || [];
-        if (!keyResults.length) return 0;
-        const total = keyResults.reduce((sum, kr) => {
-            let value = 0;
-            if (kr.progress_percent !== null && kr.progress_percent !== undefined) {
-                value = parseFloat(kr.progress_percent) || 0;
-            } else if (kr.target_value) {
-                const target = parseFloat(kr.target_value) || 0;
-                const current = parseFloat(kr.current_value) || 0;
-                value = target > 0 ? (current / target) * 100 : 0;
-            }
-            return sum + (isFinite(value) ? value : 0);
-        }, 0);
-        return total / keyResults.length;
-    };
-
-    const formatDate = (value) => {
-        if (!value) return "--";
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return "--";
-        return date.toLocaleDateString("vi-VN", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-        });
-    };
-
-    const formatDateRange = (start, end) => {
-        if (!start && !end) return "--";
-        return `${formatDate(start)} - ${formatDate(end)}`;
-    };
-
-    const buildSummary = (list) => {
-        if (!Array.isArray(list) || list.length === 0) {
-            return {
-                total: 0,
-                completed: 0,
-                overdue: 0,
-                upcoming: 0,
-                progressAvg: 0,
-                inProgress: 0,
-                notStarted: 0,
-            };
-        }
-        let completed = 0;
-        let overdue = 0;
-        let upcoming = 0;
-        let inProgress = 0;
-        let notStarted = 0;
-        let progressSum = 0;
-
-        list.forEach((objective) => {
-            const progress = calculateObjectiveProgress(objective);
-            progressSum += progress;
-            const statusMeta = getObjectiveStatusMeta(objective);
-            const statusLabel = statusMeta?.label || "";
-            if (statusLabel === "Hoàn thành") {
-                completed += 1;
-            } else if (statusLabel === "Trễ hạn") {
-                            overdue += 1;
-            } else if (statusLabel === "Sắp đến hạn") {
-                            upcoming += 1;
-                inProgress += 1;
-            } else if (statusLabel === "Đang tiến hành") {
-                inProgress += 1;
-            } else if (statusLabel === "Chưa bắt đầu") {
-                notStarted += 1;
-            }
-        });
-
-        return {
-            total: list.length,
-            completed,
-            overdue,
-            upcoming,
-            progressAvg: list.length ? progressSum / list.length : 0,
-            inProgress,
-            notStarted,
-        };
-    };
-
-    const getObjectiveStatusMeta = (objective) => {
-        const now = new Date();
-        const progress = calculateObjectiveProgress(objective);
-        const endDate =
-            objective?.cycle?.end_date || objective?.end_date || null;
-
-        if (progress >= 99.99) {
-            return { label: "Hoàn thành", tone: "emerald" };
-        }
-
-        if (endDate) {
-            const end = new Date(endDate);
-            if (!Number.isNaN(end.getTime())) {
-                const diffMs = end.getTime() - now.getTime();
-                const diffDays = diffMs / (1000 * 60 * 60 * 24);
-                if (diffDays < 0) {
-                    return { label: "Trễ hạn", tone: "rose" };
-                }
-                if (diffDays <= 7) {
-                    return { label: "Sắp đến hạn", tone: "amber" };
-                }
-            }
-        }
-
-        if (progress > 0) {
-            return { label: "Đang tiến hành", tone: "blue" };
-        }
-
-        return { label: "Chưa bắt đầu", tone: "slate" };
-    };
-
-    const renderStatusBadge = (meta) => {
-        if (!meta) {
-            return (
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
-                    --
-                </span>
-            );
-        }
-        const toneMap = {
-            emerald: "bg-emerald-100 text-emerald-700",
-            blue: "bg-blue-100 text-blue-700",
-            amber: "bg-amber-100 text-amber-700",
-            rose: "bg-rose-100 text-rose-700",
-            slate: "bg-slate-100 text-slate-700",
-        };
-        return (
-            <span
-                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${toneMap[meta.tone] || toneMap.slate
-                    }`}
-            >
-                {meta.label}
-            </span>
-        );
-    };
-
-    const getOwnerName = (objective) =>
-        objective?.owner?.full_name ||
-        objective?.owner_name ||
-        objective?.user?.full_name ||
-        objective?.user_name ||
-        objective?.assignee_name ||
-        "Không xác định";
-
-    const getStartDate = (objective) =>
-        objective?.cycle?.start_date || objective?.start_date || null;
-    const getEndDate = (objective) =>
-        objective?.cycle?.end_date || objective?.end_date || null;
-
-    // Helper để lấy filters hiện tại dựa trên tab
-    const getCurrentFilters = () => {
-        if (activeTab === 'my') return myFilters;
-        if (activeTab === 'department') return departmentFilters;
-        return companyFilters;
-    };
-
-    // Helper để set filters cho tab hiện tại
-    const setCurrentFilters = (newFilters) => {
-        if (activeTab === 'my') setMyFilters(newFilters);
-        else if (activeTab === 'department') setDepartmentFilters(newFilters);
-        else setCompanyFilters(newFilters);
-    };
-
-    const normalizeCheckIns = (checkIns) => {
-        if (!Array.isArray(checkIns)) return [];
-        return checkIns
-            .map((checkIn) => {
-                if (!checkIn) return null;
-                const progressPercent =
-                    checkIn.progress_percent !== undefined && checkIn.progress_percent !== null
-                        ? parseFloat(checkIn.progress_percent)
-                        : undefined;
-                const progressValue =
-                    checkIn.progress_value !== undefined && checkIn.progress_value !== null
-                        ? parseFloat(checkIn.progress_value)
-                        : undefined;
-                return {
-                    ...checkIn,
-                    progress_percent: Number.isFinite(progressPercent) ? progressPercent : undefined,
-                    progress_value: Number.isFinite(progressValue) ? progressValue : undefined,
-                };
-            })
-            .filter(Boolean);
-    };
-
-    const fetchCheckInsForKeyResult = async (objectiveId, keyResultId, token) => {
-        if (!objectiveId || !keyResultId) return [];
-        try {
-            const res = await fetch(
-                `/api/check-in/${objectiveId}/${keyResultId}/history`,
-                {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                }
-            );
-            if (!res.ok) {
-                console.warn(
-                    "Failed to load check-ins for KR",
-                    keyResultId,
-                    res.status,
-                    res.statusText
-                );
-                return [];
-            }
-            const data = await res.json().catch((err) => {
-                console.error(
-                    "Error parsing check-in history",
-                    keyResultId,
-                    err
-                );
-                return null;
-            });
-            if (!data) return [];
-            const checkInsData =
-                data.data?.check_ins || data.check_ins || data.data || [];
-            return normalizeCheckIns(checkInsData);
-        } catch (error) {
-            console.error(
-                "Unexpected error fetching check-ins for KR",
-                keyResultId,
-                error
-            );
-            return [];
-        }
-    };
-
-    const attachCheckInsToObjectives = async (objectives, token) => {
-        if (!Array.isArray(objectives) || objectives.length === 0) {
-            return objectives;
-        }
-        const enrichedObjectives = [];
-        for (const objective of objectives) {
-            const objectiveId =
-                objective.objective_id || objective.id || objective.obj_id;
-            const keyResults = Array.isArray(objective.key_results)
-                ? objective.key_results
-                : [];
-            const enrichedKeyResults = [];
-            for (const kr of keyResults) {
-                const keyResultId = kr.kr_id || kr.id;
-                let history =
-                    Array.isArray(kr.check_ins) && kr.check_ins.length > 0
-                        ? normalizeCheckIns(kr.check_ins)
-                        : await fetchCheckInsForKeyResult(
-                              objectiveId,
-                              keyResultId,
-                              token
-                          );
-                enrichedKeyResults.push({
-                    ...kr,
-                    check_ins: history,
-                });
-            }
-            enrichedObjectives.push({
-                ...objective,
-                key_results: enrichedKeyResults,
-            });
-        }
-        return enrichedObjectives;
-    };
-
-    const loadStaticData = async () => {
-        try {
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                ?.getAttribute("content");
-
-            const [resDept, resCycles, resLinks] = await Promise.all([
-                fetch("/departments", {
-                    headers: { Accept: "application/json" },
-                }),
-                fetch("/cycles", { headers: { Accept: "application/json" } }),
-                fetch("/my-links", {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                }),
-            ]);
-
-            if (resDept.ok) {
-                const deptData = await resDept.json();
-                setDepartments(deptData.data || []);
-            }
-
-            if (resCycles.ok) {
-                const cyclesData = await resCycles.json();
-                setCyclesList(cyclesData.data || []);
-            }
-
-            if (resLinks.ok) {
-                const linksData = await resLinks.json().catch((err) => {
-                    console.error("Error parsing links:", err);
-                    return { data: [] };
-                });
-                setLinks(linksData.data || []);
-            }
-        } catch (err) {
-            console.error("Load static data error:", err);
-        }
-    };
-
-    const load = async (filter = "", myOKR = false) => {
-        try {
-            setLoading(true);
-            const token = document
-                .querySelector('meta[name="csrf-token"]')
-                ?.getAttribute("content");
-            if (!token) {
-                setToast({
-                    type: "error",
-                    message: "Không tìm thấy CSRF token",
-                });
-                throw new Error("CSRF token not found");
-            }
-
-            // Tải TẤT CẢ dữ liệu một lần (per_page lớn để lấy tất cả)
-            let url = `/my-objectives?page=1&dashboard=1&per_page=1000&_t=${Date.now()}`;
-            if (filter) {
-                url += `&cycle_id=${filter}`;
-            }
-            if (myOKR) {
-                url += `&my_okr=1`;
-            }
-
-            const resObj = await fetch(url, {
-                headers: {
-                    Accept: "application/json",
-                    "X-CSRF-TOKEN": token,
-                },
-            });
-
-            if (!resObj.ok) {
-                console.error(
-                    "Objectives API error:",
-                    resObj.status,
-                    resObj.statusText
-                );
-                setToast({
-                    type: "error",
-                    message: `Lỗi tải objectives: ${resObj.statusText}`,
-                });
-            }
-            const objData = await resObj.json().catch((err) => {
-                console.error("Error parsing objectives:", err);
-                setToast({
-                    type: "error",
-                    message: "Lỗi phân tích dữ liệu objectives",
-                });
-                return { success: false, data: { data: [] } };
-            });
-            // Normalize data: convert keyResults to key_results
-            const list = Array.isArray(objData?.data?.data)
-                ? objData.data.data
-                : Array.isArray(objData?.data)
-                ? objData.data
-                : [];
-            const normalizedItems = Array.isArray(list)
-                ? list.map(obj => ({
-                    ...obj,
-                    key_results: obj.key_results || obj.keyResults || []
-                }))
-                : [];
-            if (resObj.ok && Array.isArray(list)) {
-                const enrichedItems = await attachCheckInsToObjectives(
-                    normalizedItems,
-                    token
-                );
-                setAllItems(enrichedItems); // Lưu tất cả items
-                setItems(enrichedItems); // Set items ban đầu
-                try {
-                    localStorage.setItem(
-                        "my_objectives",
-                        JSON.stringify(enrichedItems)
-                    );
-                } catch {}
-            } else {
-                console.warn('Keeping previous objectives due to bad response');
-            }
-
-        } catch (err) {
-            console.error("Load error:", err);
-            setError("Không thể tải dữ liệu. Vui lòng thử lại.");
-            setToast({
-                type: "error",
-                message: "Không thể tải dữ liệu. Vui lòng thử lại.",
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        const currentFilters = getCurrentFilters();
-        load(currentFilters.cycle, currentFilters.myOKROnly);
-    }, []); // Chỉ load một lần khi mount
-
-    useEffect(() => {
-        // Reset page khi chuyển tab hoặc filter thay đổi
-        setPage(1);
-    }, [activeTab, myFilters, departmentFilters, companyFilters]);
-
-    useEffect(() => {
-        // Load static data một lần khi component mount
-        loadStaticData();
-        
-        // Load current user
-        const loadCurrentUser = async () => {
-            try {
-                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
-                const res = await fetch("/api/profile", {
-                    headers: {
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": token,
-                    },
-                });
-                const json = await res.json();
-                if (res.ok && json.success) {
-                    setCurrentUser(json.user);
-                }
-            } catch (err) {
-                console.error("Error loading current user:", err);
-            }
-        };
-        loadCurrentUser();
-    }, []);
-
-    // Phân loại OKR theo level
-    const { myOKRs, departmentOKRs, companyOKRs } = useMemo(() => {
-        const allItems = Array.isArray(items) ? items : [];
-        
-        return {
-            myOKRs: allItems.filter(item => item.level === 'person'),
-            departmentOKRs: allItems.filter(item => item.level === 'unit'),
-            companyOKRs: allItems.filter(item => item.level === 'company')
-        };
-    }, [items]);
-
-    const personalSummary = useMemo(() => buildSummary(myOKRs), [myOKRs]);
-    const teamSummary = useMemo(() => buildSummary(departmentOKRs), [departmentOKRs]);
-    const companySummary = useMemo(() => buildSummary(companyOKRs), [companyOKRs]);
-
-    const prioritizeObjectives = (list) => {
-        if (!Array.isArray(list)) return [];
-        return [...list]
-            .map((objective) => {
-                const progress = calculateObjectiveProgress(objective);
-                const endDate =
-                    objective?.cycle?.end_date || objective?.end_date || null;
-                const end = endDate ? new Date(endDate) : null;
-                const endTime = end && !Number.isNaN(end.getTime()) ? end.getTime() : Number.POSITIVE_INFINITY;
-                const completed = progress >= 99.99;
-                return {
-                    objective,
-                    progress,
-                    endTime,
-                    completed,
-                };
-            })
-            .sort((a, b) => {
-                if (a.completed !== b.completed) {
-                    return a.completed ? 1 : -1; // Ưu tiên OKR chưa hoàn thành
-                }
-                return a.endTime - b.endTime;
-            });
-    };
-
-    const prioritizedPersonal = useMemo(
-        () => prioritizeObjectives(myOKRs),
-        [myOKRs]
-    );
-    const prioritizedTeam = useMemo(
-        () => prioritizeObjectives(departmentOKRs),
-        [departmentOKRs]
-    );
-    const prioritizedCompany = useMemo(
-        () => prioritizeObjectives(companyOKRs),
-        [companyOKRs]
-    );
-
-    const primaryPersonalOKR = prioritizedPersonal[0]?.objective || null;
-    const primaryTeamOKR = prioritizedTeam[0]?.objective || null;
-    const primaryCompanyOKR = prioritizedCompany[0]?.objective || null;
-
-    const personalBarData = useMemo(() => {
-        if (!myOKRs || myOKRs.length === 0) return [];
-        return myOKRs.map((objective) => ({
-            label: objective.obj_title || "Không tên",
-            value: calculateObjectiveProgress(objective),
-        }));
-    }, [myOKRs]);
-
-    const getISOWeekNumber = (date) => {
-        const target = new Date(date.valueOf());
-        target.setHours(0, 0, 0, 0);
-        target.setDate(target.getDate() + 4 - (target.getDay() || 7)); // Thursday
-        const yearStart = new Date(target.getFullYear(), 0, 1);
-        return Math.ceil(((target - yearStart) / (1000 * 60 * 60 * 24) + 1) / 7);
-    };
-
-    const getTrendBucket = (rawDate) => {
-        if (!rawDate) return null;
-        const date = new Date(rawDate);
-        if (Number.isNaN(date.getTime())) return null;
-        date.setHours(0, 0, 0, 0);
-
-        if (teamTrendRange === "day") {
-            const key = date.toISOString().slice(0, 10);
-            const label = date.toLocaleDateString("vi-VN", {
-                day: "2-digit",
-                month: "2-digit",
-            });
-            return { key, label, time: date.getTime() };
-        }
-
-        if (teamTrendRange === "week") {
-            const weekStart = new Date(date);
-            const diff = (weekStart.getDay() + 6) % 7; // Monday = 0
-            weekStart.setDate(weekStart.getDate() - diff);
-            weekStart.setHours(0, 0, 0, 0);
-            const weekNumber = getISOWeekNumber(weekStart);
-            const year = weekStart.getFullYear();
-            const key = `${year}-W${weekNumber}`;
-            const label = `Tuần ${weekNumber}/${year}`;
-            return { key, label, time: weekStart.getTime() };
-        }
-
-        const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-        const key = `${monthStart.getFullYear()}-${monthStart.getMonth()}`;
-        const label = monthStart.toLocaleDateString("vi-VN", {
-            month: "short",
-            year: "numeric",
-        });
-        return { key, label, time: monthStart.getTime() };
-    };
-
-    const teamTrendData = useMemo(() => {
-        if (!departmentOKRs || departmentOKRs.length === 0) return [];
-
-        const clampProgress = (value) =>
-            Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
-        const buckets = new Map();
-
-        const addSample = (rawDate, rawProgress) => {
-            if (rawDate === null || rawDate === undefined) return;
-            const bucketInfo = getTrendBucket(rawDate);
-            if (!bucketInfo) return;
-            const progressValue = clampProgress(Number(rawProgress));
-            const bucket = buckets.get(bucketInfo.key) || {
-                sum: 0,
-                count: 0,
-                label: bucketInfo.label,
-                time: bucketInfo.time,
-            };
-            bucket.sum += progressValue;
-            bucket.count += 1;
-            bucket.label = bucketInfo.label;
-            bucket.time = bucketInfo.time;
-            buckets.set(bucketInfo.key, bucket);
-        };
-
-        departmentOKRs.forEach((objective) => {
-            const objectiveProgress = calculateObjectiveProgress(objective);
-            const baselineDate =
-                objective.updated_at ||
-                objective.completed_at ||
-                objective.created_at ||
-                objective?.cycle?.start_date ||
-                objective?.cycle?.end_date ||
-                null;
-            if (baselineDate) {
-                addSample(baselineDate, objectiveProgress);
-            }
-
-            (objective.key_results || []).forEach((kr) => {
-                const krBaseProgress =
-                    kr.progress_percent !== null && kr.progress_percent !== undefined
-                        ? parseFloat(kr.progress_percent)
-                        : (() => {
-                              const target = parseFloat(kr.target_value) || 0;
-                              const current = parseFloat(kr.current_value) || 0;
-                              return target > 0 ? (current / target) * 100 : 0;
-                          })();
-                if (kr.updated_at || kr.created_at) {
-                    addSample(kr.updated_at || kr.created_at, krBaseProgress);
-                }
-
-                if (Array.isArray(kr.check_ins)) {
-                    kr.check_ins.forEach((checkIn) => {
-                        const percent =
-                            checkIn?.check_in_type === "percentage"
-                                ? parseFloat(checkIn.progress_percent)
-                                : (() => {
-                                      const target =
-                                          parseFloat(kr.target_value) || 0;
-                                      const value =
-                                          parseFloat(checkIn.progress_value) || 0;
-                                      return target > 0 ? (value / target) * 100 : null;
-                                  })();
-                        if (!Number.isFinite(percent)) return;
-                        const checkDate =
-                            checkIn.checked_in_at ||
-                            checkIn.created_at ||
-                            checkIn.updated_at ||
-                            null;
-                        addSample(checkDate, percent);
-                    });
-                }
-            });
-        });
-
-        return Array.from(buckets.values())
-            .sort((a, b) => a.time - b.time)
-            .map((bucket) => ({
-                bucket: bucket.label,
-                avgProgress: bucket.count ? bucket.sum / bucket.count : 0,
-            }));
-    }, [departmentOKRs, teamTrendRange]);
-
-    const SummaryCard = ({
-        title,
-        subtitle,
-        highlight,
-        highlightLabel = "Tiến độ trung bình",
-        metrics = [],
-    }) => {
-        const accentPalette = [
-            {
-                bg: "bg-sky-50",
-                border: "border-sky-100",
-                text: "text-sky-700",
-            },
-            {
-                bg: "bg-emerald-50",
-                border: "border-emerald-100",
-                text: "text-emerald-700",
-            },
-            {
-                bg: "bg-violet-50",
-                border: "border-violet-100",
-                text: "text-violet-700",
-            },
-            {
-                bg: "bg-amber-50",
-                border: "border-amber-100",
-                text: "text-amber-700",
-            },
-        ];
-
-        const statusToneMap = {
-            emerald: {
-                bg: "bg-emerald-50",
-                border: "border-emerald-100",
-                text: "text-emerald-700",
-                badge: "bg-emerald-100 text-emerald-700",
-                dot: "bg-emerald-500",
-            },
-            blue: {
-                bg: "bg-blue-50",
-                border: "border-blue-100",
-                text: "text-blue-700",
-                badge: "bg-blue-100 text-blue-700",
-                dot: "bg-blue-500",
-            },
-            amber: {
-                bg: "bg-amber-50",
-                border: "border-amber-100",
-                text: "text-amber-700",
-                badge: "bg-amber-100 text-amber-700",
-                dot: "bg-amber-500",
-            },
-            rose: {
-                bg: "bg-rose-50",
-                border: "border-rose-100",
-                text: "text-rose-700",
-                badge: "bg-rose-100 text-rose-700",
-                dot: "bg-rose-500",
-            },
-            slate: {
-                bg: "bg-slate-50",
-                border: "border-slate-100",
-                text: "text-slate-700",
-                badge: "bg-slate-100 text-slate-700",
-                dot: "bg-slate-500",
-            },
-        };
-
-        return (
-            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                        {subtitle}
-                    </p>
-                        <h3 className="mt-1 text-xl font-semibold text-slate-900">
-                        {title}
-                    </h3>
-                </div>
-                {highlight !== undefined && (
-                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 px-6 py-4 text-white shadow">
-                            <span className="absolute inset-0 rounded-2xl border border-white/20" aria-hidden="true" />
-                            <div className="relative">
-                                <p className="text-xs font-medium uppercase tracking-wide text-white/80">
-                                    {highlightLabel}
-                                </p>
-                                <p className="mt-1 text-3xl font-bold">{highlight}</p>
-                            </div>
-                    </div>
-                )}
-            </div>
-
-                {metrics.length > 0 && (
-                    <div className="mt-6 space-y-4">
-                        {(() => {
-                            const statusMetric = metrics.find(
-                                (metric) => metric.type === "status"
-                            );
-                            if (!statusMetric) return null;
-                            const statusData = {
-                                inProgress: statusMetric.value?.inProgress ?? 0,
-                                upcoming: statusMetric.value?.upcoming ?? 0,
-                                completed: statusMetric.value?.completed ?? 0,
-                                overdue: statusMetric.value?.overdue ?? 0,
-                            };
-                            const statusDetails = [
-                                {
-                                    key: "inProgress",
-                                    label: "Đang tiến hành",
-                                    value: statusData.inProgress,
-                                    tone: "blue",
-                                },
-                                {
-                                    key: "upcoming",
-                                    label: "Sắp đến hạn",
-                                    value: statusData.upcoming,
-                                    tone: "amber",
-                                },
-                                {
-                                    key: "completed",
-                                    label: "Hoàn thành",
-                                    value: statusData.completed,
-                                    tone: "emerald",
-                                },
-                                {
-                                    key: "overdue",
-                                    label: "Quá hạn",
-                                    value: statusData.overdue,
-                                    tone: "rose",
-                                },
-                            ];
-                            return (
-                                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-6">
-                                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                                        <div>
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
-                                                {statusMetric.label}
-                                            </p>
-                                            <p className="mt-1 text-xs text-slate-500">
-                                                Phân bổ số lượng OKR theo trạng thái.
-                                            </p>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                                            {statusDetails.map((detail) => {
-                                                const tone =
-                                                    statusToneMap[detail.tone] ||
-                                                    statusToneMap.slate;
-                                                return (
-                                                    <div
-                                                        key={detail.key}
-                                                        className="rounded-2xl border border-white/60 bg-white px-4 py-3 text-center shadow-sm"
-                                                    >
-                                                        <span
-                                                            className={`inline-flex h-2.5 w-2.5 rounded-full ${tone.dot}`}
-                                                        />
-                                                        <p className={`mt-2 text-xs font-semibold uppercase tracking-wide ${tone.text}`}>
-                                                            {detail.label}
-                                                        </p>
-                                                        <p className="mt-1 text-2xl font-bold text-slate-900">
-                                                            {detail.value}
-                                                        </p>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
-                        {(() => {
-                            const nonStatusMetrics = metrics.filter((metric) => metric.type !== "status");
-                            const gridCols = nonStatusMetrics.length === 4 ? "grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3";
-                            return (
-                                <div className={`grid gap-4 ${gridCols}`}>
-                                    {nonStatusMetrics.map((metric, index) => {
-                                    const accent =
-                                        accentPalette[index % accentPalette.length];
-                                    const valueIsPrimitive =
-                                        typeof metric.value === "string" ||
-                                        typeof metric.value === "number";
-
-                                    return (
-                    <div
-                        key={metric.label}
-                                            className={`rounded-2xl border ${accent.border} ${accent.bg} p-4`}
-                                        >
-                                            <div className="flex items-start gap-3">
-                                                <p
-                                                    className={`text-xs font-semibold uppercase tracking-wide ${accent.text}`}
-                                                >
-                                                    {metric.label}
-                                                </p>
-                                            </div>
-                                            <div className="mt-3 text-sm font-medium text-slate-700">
-                                                {metric.type === "total" ? (
-                                                    (() => {
-                                                        const total =
-                                                            metric.value?.total ?? 0;
-                                                        const completed =
-                                                            metric.value?.completed ?? 0;
-                                                        return (
-                                                            <div>
-                                                                <p className="text-3xl font-bold text-slate-900">
-                                                                    {total}
-                                                                </p>
-                                                                <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">
-                                                                    Hoàn thành {completed}
-                                                                </p>
-                                                            </div>
-                                                        );
-                                                    })()
-                                                ) : valueIsPrimitive ? (
-                                                    <span className="text-base font-semibold text-slate-900">
-                            {metric.value}
-                                                    </span>
-                                                ) : (
-                                                    <div className="flex items-center justify-start">
-                                                        {metric.value}
-                    </div>
-                                                )}
-                                            </div>
-        </div>
-    );
-                                })}
-                                </div>
-                            );
-                        })()}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const filteredItems = useMemo(
-        () => {
-            let result = Array.isArray(items) ? items : [];
-
-            // Filter by active tab
-            if (activeTab === 'my') {
-                result = result.filter(item => item.level === 'person');
-            } else if (activeTab === 'department') {
-                result = result.filter(item => item.level === 'unit');
-            } else if (activeTab === 'company') {
-                result = result.filter(item => item.level === 'company');
-            }
-
-            // Get filters cho tab hiện tại
-            const currentFilters = activeTab === 'my' ? myFilters : 
-                                 activeTab === 'department' ? departmentFilters : 
-                                 companyFilters;
-
-            // Apply filters riêng cho từng tab
-            if (currentFilters.cycle) {
-                result = result.filter(item => 
-                    String(item.cycle_id) === String(currentFilters.cycle)
-                );
-            }
-
-            if (currentFilters.department) {
-                result = result.filter(item => 
-                    String(item.department_id) === String(currentFilters.department)
-                );
-            }
-
-            if (currentFilters.myOKROnly && currentUser) {
-                result = result.filter(item => 
-                    String(item.user_id) === String(currentUser.user_id || currentUser.id)
-                );
-            }
-
-            // No sorting as requested; keep server order
-            return result;
-        },
-        [items, activeTab, myFilters, departmentFilters, companyFilters, currentUser]
-    );
-
-    const sortedItems = useMemo(() => {
-        const now = new Date();
-        // Tính tổng tiến độ của tất cả OKR
-        const totalProgress = filteredItems.reduce((sum, item) => {
-            if (!item.key_results || item.key_results.length === 0) return sum;
-            const itemProgress = item.key_results.reduce((krSum, kr) => {
-                const percentage = kr.progress_percent !== null && kr.progress_percent !== undefined
-                    ? parseFloat(kr.progress_percent)
-                    : (kr.target_value > 0 ? (parseFloat(kr.current_value || 0) / parseFloat(kr.target_value)) * 100 : 0);
-                return krSum + percentage;
-            }, 0) / item.key_results.length;
-            return sum + itemProgress;
-        }, 0);
-        const overallAvgProgress = filteredItems.length > 0 ? totalProgress / filteredItems.length : 0;
-
-        // Sort by created_at descending (newest first) và thêm thông tin deadline
-        const sorted = [...filteredItems].map(item => {
-            // Tính overall progress cho item này (tỷ lệ % chung)
-            let itemOverallProgress = 0;
-            if (item.key_results && item.key_results.length > 0) {
-                const itemProgress = item.key_results.reduce((krSum, kr) => {
-                    const percentage = kr.progress_percent !== null && kr.progress_percent !== undefined
-                        ? parseFloat(kr.progress_percent)
-                        : (kr.target_value > 0 ? (parseFloat(kr.current_value || 0) / parseFloat(kr.target_value)) * 100 : 0);
-                    return krSum + percentage;
-                }, 0);
-                itemOverallProgress = itemProgress / item.key_results.length;
-            }
-
-            // Kiểm tra quá hạn và tính deadline, priority dựa trên cycle end_date
-            let isOverdue = false;
-            let isUpcoming = false; // Sắp hết hạn (còn <= 7 ngày)
-            let deadlineCharacter = '-';
-            let priority = 'low'; // Mặc định là thấp
-            let status = 'in_progress'; // Mặc định là đang thực hiện
-
-            // Format ngày hết hạn nếu có
-            if (item.cycle && item.cycle.end_date) {
-                const endDate = new Date(item.cycle.end_date);
-                deadlineCharacter = endDate.toLocaleDateString('vi-VN', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric'
-                });
-            }
-
-            // Nếu tiến độ đạt 100% (hoặc >= 99.99 để tránh sai số làm tròn), trạng thái là hoàn thành (ưu tiên cao nhất)
-            if (itemOverallProgress >= 99.99) {
-                status = 'completed';
-                priority = 'low'; // Hoàn thành = ưu tiên thấp
-                // Không kiểm tra deadline nữa nếu đã hoàn thành
-            } else if (item.cycle && item.cycle.end_date) {
-                const endDate = new Date(item.cycle.end_date);
-                isOverdue = endDate < now;
-
-                // Tính mức độ ưu tiên và trạng thái dựa trên thời gian còn lại
-                const daysRemaining = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
-                
-                if (isOverdue) {
-                    priority = 'high'; // Quá hạn = ưu tiên cao
-                    status = 'overdue';
-                } else if (daysRemaining <= 7 && daysRemaining > 0) {
-                    priority = 'high'; // Còn <= 7 ngày = ưu tiên cao
-                    isUpcoming = true; // Sắp hết hạn
-                    status = 'upcoming';
-                } else if (daysRemaining <= 30) {
-                    priority = 'medium'; // Còn <= 30 ngày = ưu tiên trung bình
-                    status = 'in_progress';
-                } else {
-                    priority = 'low'; // Còn > 30 ngày = ưu tiên thấp
-                    status = 'in_progress';
-                }
-            }
-
-            return {
-                ...item,
-                deadlineCharacter,
-                isOverdue,
-                isUpcoming,
-                priority,
-                status,
-                itemOverallProgress
-            };
-        }).sort((a, b) => {
-            const dateA = new Date(a.created_at || 0);
-            const dateB = new Date(b.created_at || 0);
-            return dateB - dateA; // Descending order
-        });
-
-        // Phân trang ở client-side: lấy 5 items cho trang hiện tại
-        const startIndex = (page - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        return sorted.slice(startIndex, endIndex);
-    }, [filteredItems, page, itemsPerPage]);
-
-    // Tính tổng số trang dựa trên filteredItems
-    const totalPages = useMemo(() => {
-        return Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
-    }, [filteredItems.length, itemsPerPage]);
-
-    const handlePageChange = (newPage) => {
-        if (newPage >= 1 && newPage <= totalPages) {
-            setPage(newPage);
-        }
-    };
-
-    const openCheckInHistory = (keyResult) => {
-        console.log('Opening check-in history for:', keyResult);
-        console.log('Objective ID:', keyResult?.objective_id);
-        setCheckInHistory({ open: true, keyResult });
-    };
-
-    const roleName = currentUser?.role?.role_name
-        ? currentUser.role.role_name.toLowerCase()
-        : "";
-    const isManager = roleName === "manager";
-    const isAdmin = Boolean(currentUser?.is_admin || roleName === "admin");
-    const canSeeTeamInsights =
-        isManager || isAdmin || (departmentOKRs?.length || 0) > 0;
-
-    const personalMetrics = [
-        {
-            label: "OKR nổi bật",
-            value: primaryPersonalOKR?.obj_title || "Chưa có OKR nào",
-        },
-        {
-            label: "Thời gian",
-            value: primaryPersonalOKR
-                ? formatDateRange(
-                      getStartDate(primaryPersonalOKR),
-                      getEndDate(primaryPersonalOKR)
-                  )
-                : "--",
-        },
-        {
-            label: "Trạng thái",
-            value: {
-                inProgress: personalSummary.inProgress,
-                upcoming: personalSummary.upcoming,
-                completed: personalSummary.completed,
-                overdue: personalSummary.overdue,
-            },
-            type: "status",
-        },
-        {
-            label: "Tổng OKR",
-            value: {
-                total: personalSummary.total,
-                completed: personalSummary.completed,
-            },
-            type: "total",
-        },
-    ];
-
-    const teamMetrics = [
-        {
-            label: "Trạng thái tổng quan",
-            value: {
-                inProgress: teamSummary.inProgress,
-                upcoming: teamSummary.upcoming,
-                completed: teamSummary.completed,
-                overdue: teamSummary.overdue,
-            },
-            type: "status",
-        },
-        {
-            label: "Team nổi bật",
-            value:
-                primaryTeamOKR?.department?.d_name ||
-                primaryTeamOKR?.department_name ||
-                primaryTeamOKR?.obj_title ||
-                "Chưa có OKR phòng ban",
-        },
-        {
-            label: "Trách nhiệm",
-            value: primaryTeamOKR ? getOwnerName(primaryTeamOKR) : "--",
-        },
-        {
-            label: "Thời gian",
-            value: primaryTeamOKR
-                ? formatDateRange(
-                      getStartDate(primaryTeamOKR),
-                      getEndDate(primaryTeamOKR)
-                  )
-                : "--",
-        },
-        {
-            label: "Tổng OKR",
-            value: {
-                total: teamSummary.total,
-                completed: teamSummary.completed,
-        },
-            type: "total",
-        },
-    ];
-
-    const companyMetrics = [
-        {
-            label: "Chiến lược nổi bật",
-            value:
-                primaryCompanyOKR?.obj_title ||
-                "Chưa có OKR chiến lược nào được thiết lập",
-        },
-        {
-            label: "Thời gian",
-            value: primaryCompanyOKR
-                ? formatDateRange(
-                      getStartDate(primaryCompanyOKR),
-                      getEndDate(primaryCompanyOKR)
-                  )
-                : "--",
-        },
-        {
-            label: "Trạng thái tổng quan",
-            value: {
-                inProgress: companySummary.inProgress,
-                upcoming: companySummary.upcoming,
-                completed: companySummary.completed,
-                overdue: companySummary.overdue,
-            },
-            type: "status",
-        },
-        {
-            label: "Tổng OKR",
-            value: {
-                total: companySummary.total,
-                completed: companySummary.completed,
-        },
-            type: "total",
-        },
-    ];
-
-    const formatPercentValue = (value) =>
-        `${Number.isFinite(value) ? value.toFixed(1) : "0.0"}%`;
-
-    const personalTableRows = (myOKRs || []).map((objective) => {
-        const statusMeta = getObjectiveStatusMeta(objective);
-        const progress = calculateObjectiveProgress(objective);
-        return {
-            id: objective.objective_id,
-            title: objective.obj_title || "Không tên",
-            description: objective.obj_description || "—",
-                progress,
-            updatedAt: formatDate(objective.updated_at || objective.created_at),
-            status: statusMeta,
-            };
-        });
-
-    const teamTableRows = (departmentOKRs || []).map((objective) => {
-        const statusMeta = getObjectiveStatusMeta(objective);
-        const progress = calculateObjectiveProgress(objective);
-            return {
-            id: objective.objective_id,
-            title: objective.obj_title || "Không tên",
-            owner: getOwnerName(objective),
-                progress,
-            timeframe: formatDateRange(
-                getStartDate(objective),
-                getEndDate(objective)
-            ),
-            status: statusMeta,
-            };
-        });
-
-    const companyTableRows = (companyOKRs || []).map((objective) => {
-        const statusMeta = getObjectiveStatusMeta(objective);
-        const progress = calculateObjectiveProgress(objective);
-            return {
-            id: objective.objective_id,
-            title: objective.obj_title || "Không tên",
-            owner: getOwnerName(objective),
-                progress,
-            timeframe: formatDateRange(
-                getStartDate(objective),
-                getEndDate(objective)
-            ),
-            status: statusMeta,
-            };
-        });
+import React, { useEffect, useState } from "react";
+import ProgressChart from "./ProgressChart";
+import { FaBullseye, FaKey } from "react-icons/fa";
+
+const getProgressColor = (percent) => {
+    if (percent >= 80) return "bg-blue-500"; 
+    if (percent >= 50) return "bg-amber-400";   
+    return "bg-rose-500";                      
+};
+
+const getProgressTextClass = (percent) => {
+    if (percent >= 80) return "text-blue-700 bg-blue-50";
+    if (percent >= 50) return "text-amber-700 bg-amber-50";
+    return "text-rose-700 bg-rose-50";
+};
+
+function SimpleOkrList({ okrs, emptyText }) {
+    if (!okrs || okrs.length === 0) {
+        return <div className="text-sm text-slate-400 italic py-2">{emptyText}</div>;
+    }
 
     return (
-        <div className="min-h-screen bg-white">
-            <ToastComponent
-                type={toast.type}
-                message={toast.message}
-                onClose={() => setToast((prev) => ({ ...prev, message: "" }))}
-            />
-            
-            {/* Main Content */}
-            <div className="p-6 max-w-7xl mx-auto">
-                {/* Dashboard Title */}
-                <div className="mb-6">
-                    <h2 className="text-2xl font-extrabold text-gray-900">Tổng quan OKR</h2>
-                    <p className="text-sm text-gray-600 mt-1">Theo dõi nhanh tiến độ mục tiêu theo vai trò của bạn</p>
-                </div>
-
-                {/* Tab Navigation */}
-                <div className="mb-6 border-b border-gray-200">
-                    <div className="flex space-x-8">
-                        <button
-                            onClick={() => setActiveTab('my')}
-                            className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                                activeTab === 'my'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
-                        >
-                            My OKR ({myOKRs.length})
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('department')}
-                            className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                                activeTab === 'department'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
-                        >
-                            OKR Phòng ban ({departmentOKRs.length})
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('company')}
-                            className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                                activeTab === 'company'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
-                        >
-                            OKR Công ty ({companyOKRs.length})
-                        </button>
-                        </div>
-                </div>
-
-                {/* Summary Cards - đặt dưới tab */}
-                {activeTab === 'my' && (
-                    <div className="mb-6">
-                        <SummaryCard
-                            title="OKR cá nhân"
-                            subtitle="Ảnh hưởng trực tiếp của bạn"
-                            highlight={formatPercentValue(personalSummary.progressAvg)}
-                            metrics={personalMetrics}
-                        />
-                        </div>
-                )}
-                {activeTab === 'department' && (
-                    <div className="mb-6">
-                        <SummaryCard
-                            title="Hiệu suất đội nhóm"
-                            subtitle="Tiến độ OKR phòng ban"
-                            highlight={formatPercentValue(teamSummary.progressAvg)}
-                            metrics={teamMetrics}
-                        />
-                    </div>
-                )}
-                {activeTab === 'company' && (
-                    <div className="mb-6">
-                        <SummaryCard
-                            title="OKR toàn công ty"
-                            subtitle="Hướng đi chiến lược"
-                            highlight={formatPercentValue(companySummary.progressAvg)}
-                            metrics={companyMetrics}
-                        />
-                </div>
-                )}
-
-                {/* Filter Dropdown */}
-                {getCurrentFilters().showFilters && (
-                    <div className="relative mb-6">
-                        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Chu Kỳ</label>
-                                    <select
-                                        value={getCurrentFilters().cycle}
-                                        onChange={(e) => setCurrentFilters({...getCurrentFilters(), cycle: e.target.value})}
-                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                    >
-                                        <option value="">-- Tất Cả Chu Kỳ --</option>
-                                        {cyclesList.map((cycle) => (
-                                            <option key={cycle.cycle_id} value={cycle.cycle_id}>
-                                                {cycle.cycle_name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Phòng Ban</label>
-                                    <select
-                                        value={getCurrentFilters().department}
-                                        onChange={(e) => setCurrentFilters({...getCurrentFilters(), department: e.target.value})}
-                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                    >
-                                        <option value="">-- Tất Cả Phòng Ban --</option>
-                                        {departments.map((dept) => (
-                                            <option key={dept.department_id} value={dept.department_id}>
-                                                {dept.d_name || dept.department_name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                
-                                <div className="flex flex-col justify-end">
-                                    <button
-                                        onClick={() => {
-                                            setCurrentFilters({
-                                                ...getCurrentFilters(),
-                                                cycle: '',
-                                                department: '',
-                                                myOKROnly: false
-                                            });
-                                        }}
-                                        className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
-                                    >
-                                        Đặt Lại
-                                    </button>
-                                </div>
+        <div className="space-y-4">
+            {okrs.slice(0,3).map((okr) => {
+                const rawProgress = okr.calculated_progress ?? okr.progress_percent ?? 0;
+                const progress = parseFloat(rawProgress).toFixed(2);
+                const progressValue = parseFloat(progress);               
+                const colorClass = getProgressColor(progressValue);
+                const parentLink = okr.source_links?.find(
+                    (link) => link.target_objective
+                );
+                const parentObj = parentLink?.target_objective;
+                
+                return (
+                    <div key={okr.objective_id} className="group flex flex-col gap-2 rounded-lg border border-transparent bg-slate-50 p-3 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all">
+                        {parentObj && (
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <span className="bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider flex-shrink-0">
+                                    Liên kết tới
+                                </span>
+                                <span className="text-xs text-slate-500 truncate" title={`Đóng góp cho: ${parentObj.obj_title}`}>
+                                    {parentObj.obj_title}
+                                </span>
                             </div>
-                            
-                            <div className="mt-4 flex items-center">
-                                <input
-                                    type="checkbox"
-                                    id="myOKR"
-                                    checked={getCurrentFilters().myOKROnly}
-                                    onChange={(e) => setCurrentFilters({...getCurrentFilters(), myOKROnly: e.target.checked})}
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                />
-                                <label htmlFor="myOKR" className="ml-2 text-sm text-gray-700">
-                                    Chỉ Hiển Thị OKR Của Tôi
-                                </label>
+                        )}
+                        
+                        {okr.department && (
+                            <div className="mb-1">
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">
+                                    {okr.department.d_name || okr.department.department_name}
+                                </span>
                             </div>
+                        )}
+                        
+                        <div className="flex justify-between items-start gap-4">
+                            <span className="text-sm font-medium text-slate-800 line-clamp-2">
+                                {okr.obj_title}
+                            </span>
+                            <span className="text-xs font-bold text-slate-500 whitespace-nowrap">{progress}%</span>
                         </div>
-                    </div>
-                )}
-
-                {/* Error State */}
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                        <div className="flex items-center">
-                            <svg className="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-red-800">{error}</span>
-                            <button 
-                                onClick={() => {
-                                    setError(null);
-                                    const filters = getCurrentFilters();
-                                    load(filters.cycle, filters.myOKROnly);
-                                }}
-                                className="ml-auto text-red-600 hover:text-red-800 underline"
-                            >
-                                Thử Lại
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Chart Section - khác nhau theo tab */}
-                {activeTab === 'my' && (
-                    <div className="mb-8">
-                        <BarChart
-                            data={personalBarData}
-                            title="Tiến độ OKR cá nhân"
-                            xAxisLabel="OKR"
-                            yAxisLabel="Phần trăm hoàn thành"
-                        />
-                    </div>
-                )}
-                {activeTab === 'department' && (
-                    <section className="mb-8">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h3 className="text-lg font-semibold text-slate-900">
-                                    Xu hướng tiến độ OKR team
-                                </h3>
-                                <p className="text-sm text-slate-500">
-                                    Theo dõi tiến độ trung bình theo {teamTrendLabelMap[teamTrendRange]}.
-                                </p>
-                            </div>
-                            <div className="flex items-center rounded-full bg-slate-100 p-1 text-sm font-medium text-slate-600">
-                                {teamTrendOptions.map((option) => (
-                                    <button
-                                        key={option.value}
-                                        onClick={() => setTeamTrendRange(option.value)}
-                                        className={`rounded-full px-3 py-1.5 transition ${
-                                            teamTrendRange === option.value
-                                                ? "bg-white text-slate-900 shadow-sm"
-                                                : "text-slate-500 hover:text-slate-700"
-                                        }`}
-                                    >
-                                        {option.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="mt-4">
-                        <LineChart
-                            data={teamTrendData}
-                                label={`Xu hướng tiến độ (${teamTrendLabelMap[teamTrendRange]})`}
-                            color="#3b82f6"
-                                width={900}
-                                height={300}
-                                xAxisLabel={`Thời gian (${teamTrendLabelMap[teamTrendRange]})`}
-                                yAxisLabel="Phần trăm hoàn thành"
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                            <div
+                                className={`h-full ${colorClass}`}
+                                style={{ width: `${progressValue}%` }}
                             />
-                            {teamTrendData.length === 0 && (
-                                <p className="mt-3 text-center text-sm text-slate-500">
-                                    Chưa có dữ liệu check-in cho khoảng thời gian này.
-                                </p>
-                            )}
+                        </div>
                     </div>
-                    </section>
-                )}
-                {filteredItems.length === 0 && !error && (
-                    <div className="bg-white rounded-lg border border-gray-200 p-8 mb-6">
-                        <div className="text-center text-gray-500">
-                            <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                );
+            })}
+            {okrs.length > 3 && (
+                <p className="text-xs text-slate-400 text-center">Và {okrs.length - 3} mục tiêu khác...</p>
+            )}
+        </div>
+    );
+}
+
+
+
+export default function Dashboard() {
+    const [data, setData] = useState({
+        user: null,
+        myOkrs: [],
+        deptOkrs: [],
+        companyOkrs: [],
+        weeklySummary: { checkedIn: 0, needCheckIn: 0, confidence: 0, risks: 0 },
+        needsAttention: [],
+    });
+    const [loading, setLoading] = useState(true);
+    const [isMyObjectivesExpanded, setIsMyObjectivesExpanded] = useState(false);
+    const [expandedObjectives, setExpandedObjectives] = useState({});
+    const [isWarningSectionExpanded, setIsWarningSectionExpanded] = useState(false);
+
+    useEffect(() => {
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+        
+        const headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        };
+        
+        if (token) {
+            headers["X-CSRF-TOKEN"] = token;
+        }
+
+        fetch("/api/dashboard/overview", { headers })
+            .then((res) => {
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        console.error("Unauthorized - redirecting to login");
+                        window.location.href = "/login";
+                        return null;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+            })
+            .then((json) => {
+                if (json) {
+                    console.log("Dashboard data loaded:", json);
+                    setData(json);
+                }
+            })
+            .catch((err) => {
+                console.error("Failed to load dashboard data", err);
+            })
+            .finally(() => {
+                setLoading(false);
+            });
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex h-64 items-center justify-center text-slate-500">
+                <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+        );
+    }
+
+    const calculateAvg = (list) => {
+        if (!list || list.length === 0) return 0;
+        const total = list.reduce((sum, item) => {
+            const val = item.calculated_progress ?? item.progress_percent ?? 0;
+            return sum + parseFloat(val);
+        }, 0);
+        return (total / list.length).toFixed(2);
+    };
+
+    const toggleObjectiveExpand = (objectiveId) => {
+        setExpandedObjectives(prev => ({
+            ...prev,
+            [objectiveId]: !prev[objectiveId]
+        }));
+    };
+
+    const isKrAtRisk = (kr) => {
+        return data.needsAttention?.some(item => item.kr_id === kr.kr_id && item.type === 'progress_risk') ?? false;
+    };
+
+    const getKrRiskColor = (kr) => {
+        // Tìm item progress_risk trong needsAttention cho KR này
+        const riskItem = data.needsAttention?.find(item => item.kr_id === kr.kr_id && item.type === 'progress_risk');
+        
+        if (!riskItem) {
+            // Không có rủi ro tiến độ: Xanh dương
+            return {
+                barColor: 'bg-blue-500',
+                dotColor: 'border-blue-500',
+                textColor: 'text-blue-600'
+            };
+        }
+        
+        if (riskItem.risk_level === 'Chậm tiến độ') {
+            // Chậm tiến độ: Đỏ
+            return {
+                barColor: 'bg-rose-500',
+                dotColor: 'border-rose-500',
+                textColor: 'text-rose-600'
+            };
+        } else if (riskItem.risk_level === 'Có nguy cơ') {
+            // Có nguy cơ: Vàng/Cam
+            return {
+                barColor: 'bg-amber-400',
+                dotColor: 'border-amber-400',
+                textColor: 'text-amber-600'
+            };
+        }
+        
+        // Mặc định: Xanh dương
+        return {
+            barColor: 'bg-blue-500',
+            dotColor: 'border-blue-500',
+            textColor: 'text-blue-600'
+        };
+    };
+
+    const avgPersonal = calculateAvg(data.myOkrs);
+    const avgDept = calculateAvg(data.deptOkrs);
+    const avgCompany = data.companyGlobalAvg ?? calculateAvg(data.companyOkrs);
+
+    return (
+        <div className="mx-auto max-w-5xl space-y-10 pb-20 mt-10">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-extrabold text-slate-900">
+                        Xin chào, {data.user?.full_name || data.user?.name || "Bạn"}! 👋
+                    </h1>
+                    <p className="text-slate-500 mt-1">
+                        Hôm nay bạn đang đóng góp vào những mục tiêu lớn này.
+                    </p>
+                </div>
+                <div className="hidden sm:block text-right">
+                    <div className="text-xs text-slate-400 font-semibold uppercase tracking-widest">
+                        Hôm nay
+                    </div>
+                    <div className="text-sm font-bold text-slate-700">
+                        {new Date().toLocaleDateString("vi-VN", {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            <div className={`grid grid-cols-1 gap-6 ${data.user?.role?.role_name?.toLowerCase() === 'ceo' ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+                {data.user?.role?.role_name?.toLowerCase() !== 'ceo' && (
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
+                        <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
-                            <p className="text-lg font-medium">Không Có Dữ Liệu Để Hiển Thị</p>
-                            <p className="text-sm mt-1">
-                                {activeTab === 'my' && 'Chưa Có OKR Cá Nhân Nào. Hãy Tạo OKR Đầu Tiên Của Bạn!'}
-                                {activeTab === 'department' && 'Chưa Có OKR Phòng Ban Nào.'}
-                                {activeTab === 'company' && 'Chưa Có OKR Công Ty Nào.'}
-                            </p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-500 font-medium">Cá nhân</p>
+                            <p className="text-xl font-bold text-slate-900">{avgPersonal}%</p>
                         </div>
                     </div>
                 )}
 
-                {/* Bảng - Cá nhân đã được gỡ bỏ theo yêu cầu để tránh trùng lặp */}
-
-                {/* Bảng - Phòng ban (đã gỡ bỏ theo yêu cầu) */}
-
-                {/* Chi tiết nâng cao */}
-                <section className="mb-10">
-                    <div className="mb-4 flex items-center justify-between">
-                        <div>
-                            <h2 className="text-xl font-semibold text-slate-900">
-                                Danh sách OKR theo bộ lọc
-                            </h2>
-                            <p className="text-sm text-slate-500">
-                                Kiểm soát và thao tác trên các OKR hiện có: xem tiến độ, cập nhật và check-in.
-                            </p>
-                        </div>
+                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
+                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
                     </div>
-                <OKRTable 
-                    items={sortedItems}
-                    departments={departments}
-                    cyclesList={cyclesList}
-                    loading={loading}
-                    onViewOKR={(item) => {
-                            console.log("View OKR:", item);
-                    }}
-                    onViewCheckInHistory={openCheckInHistory}
-                    currentUser={currentUser}
-                    viewMode={activeTab}
-                />
+                    <div>
+                        <p className="text-sm text-slate-500 font-medium">Phòng ban</p>
+                        <p className="text-xl font-bold text-slate-900">{avgDept}%</p>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-sm text-slate-500 font-medium">Công ty</p>
+                        <p className="text-xl font-bold text-slate-900">{avgCompany}%</p>
+                    </div>
+                </div>
+            </div>
+
+            <section>
+                <div className="mb-4 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100 text-red-600">
+                            ⚠️
+                        </span>
+                        Cần chú ý
+                    </h2>
+                    <div className="flex gap-2">
+                        <a 
+                            href="/my-objectives" 
+                            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                        >
+                            Check-in ngay
+                        </a>
+                        <a href="/my-objectives" className="sm:hidden text-sm font-semibold text-blue-600 hover:text-blue-700 flex items-center">
+                            Xem tất cả &rarr;
+                        </a>
+                    </div>
+                </div>
+                
+                {(data.needsAttention || []).length === 0 ? (
+                    <div className="rounded-xl bg-white p-8 text-center shadow-sm">
+                    <h3 className="text-lg font-semibold text-green-700 mb-2">
+                        Bạn đang on-track!
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                        Không có KR nào overdue hoặc sắp overdue.
+                    </p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <table className="min-w-full divide-y divide-slate-200">
+                            <thead className="bg-slate-50 text-left font-semibold text-slate-700">
+                                <tr>
+                                    <th className="px-3 py-2 text-left">
+                                        Tiêu đề
+                                    </th>
+                                    <th className="px-3 py-2 text-center" style={{ width: '160px' }}>
+                                        Tiến độ (%)
+                                    </th>
+                                    <th className="px-5 py-2 text-left"style={{ width: '380px' }}>
+                                        Vấn đề hiện tại
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-slate-200">
+                                {(data.needsAttention || []).map((item) => {
+                                    return (
+                                        <tr key={item.kr_id || item.objective_id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-3">
+                                                    {item.type === 'progress_risk' && <FaKey className="h-5 w-5 text-amber-600 flex-shrink-0" />}
+                                                    {item.type === 'overdue_checkin' && <FaKey className="h-5 w-5 text-amber-600 flex-shrink-0" />}
+                                                    {item.type === 'deadline_approaching' && <FaBullseye className="h-5 w-5 text-indigo-600 flex-shrink-0" />}
+                                                    <div>
+                                                        <div className="text-sm font-medium text-slate-900">
+                                                            {item.kr_id ? (
+                                                                <a href={`/my-objectives/key-result-details/${item.kr_id}`} className="hover:text-blue-600">
+                                                                    {item.kr_title}
+                                                                </a>
+                                                            ) : (
+                                                                <a href={`/my-objectives/details/${item.objective_id}`} className="hover:text-blue-600">
+                                                                    {item.obj_title}
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            <td className="px-3 py-3 text-center">
+                                                <div className="flex justify-center">
+                                                    {(() => {
+                                                        let progress = parseFloat(item.progress_percent || 0);
+
+                                                        // Xác định màu dựa trên loại vấn đề (type) và rủi ro (risk_level)
+                                                        let textClass = "";
+                                                        let bgClass = "";
+                                                        let borderClass = "";
+
+                                                        if (item.type === 'overdue_checkin') {
+                                                            // Quá hạn check-in: Đỏ
+                                                            textClass = "text-rose-700";
+                                                            bgClass = "bg-rose-100";
+                                                            borderClass = "border-rose-300";
+                                                        } else if (item.type === 'progress_risk') {
+                                                            if (item.risk_level === 'Chậm tiến độ') {
+                                                                // Chậm tiến độ: Đỏ
+                                                                textClass = "text-rose-700";
+                                                                bgClass = "bg-rose-100";
+                                                                borderClass = "border-rose-300";
+                                                            } else if (item.risk_level === 'Có nguy cơ') {
+                                                                // Có nguy cơ: Vàng/Cam
+                                                                textClass = "text-amber-700";
+                                                                bgClass = "bg-amber-100";
+                                                                borderClass = "border-amber-300";
+                                                            }
+                                                        }
+
+                                                        return (
+                                                            <span
+                                                                className={`
+                                                                    inline-flex items-center justify-center
+                                                                    min-w-[60px] px-3 py-1.5         
+                                                                    text-xs font-medium                    
+                                                                    tracking-wide                          
+                                                                    rounded-md                              
+                                                                    ${textClass} ${bgClass} ${borderClass}
+                                                                `}
+                                                            >
+                                                                {progress.toFixed(2)}%                   
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </td>
+                                            
+                                            <td className="px-6 py-4 text-sm text-slate-900">
+                                                {item.reason}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>                      
+
+
+            <section>
+                    <div className="mb-4 flex items-center justify-between">
+                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                                🚀
+                            </span>
+                            Mục tiêu của tôi
+                        </h2>
+                    </div>
+                    
+                    {(data.myOkrs || []).length > 0 ? (
+                        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+                            <table className="min-w-full table-fixed border-separate border-spacing-y-2">
+                                <thead className="bg-slate-50 text-left font-semibold text-slate-700">
+                                    <tr>
+                                        <th className="px-3 py-2 text-left">
+                                            Tiêu đề
+                                        </th>
+                                        <th className="px-3 py-2 text-center" style={{width: '180px'}}>
+                                            Tiến độ (%)
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-300">
+                                    {(data.myOkrs || []).map((okr) => (
+                                        <React.Fragment key={okr.objective_id}>
+                                            {/* Objective row */}
+                                            <tr className="bg-white transition duration-150 rounded-lg shadow-sm hover:shadow-md ring-1 ring-slate-100">
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center justify-between w-full">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                                                {(okr.key_results || []).length > 0 && (
+                                                                    <button
+                                                                        onClick={() => toggleObjectiveExpand(okr.objective_id)}
+                                                                        className="p-2 rounded-lg hover:bg-slate-100 transition-all group"
+                                                                    >
+                                                                        <svg
+                                                                            className={`w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-transform ${
+                                                                                expandedObjectives[okr.objective_id]
+                                                                                    ? "rotate-90"
+                                                                                    : ""
+                                                                            }`}
+                                                                            fill="none"
+                                                                            stroke="currentColor"
+                                                                            viewBox="0 0 24 24"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth={2}
+                                                                                d="M9 5l7 7-7 7"
+                                                                            />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <FaBullseye className="h-5 w-5 text-indigo-600 flex-shrink-0" title="Objective"/>
+                                                            <span className="text-base font-semibold text-slate-800">
+                                                                <a href={`/my-objectives/details/${okr.objective_id}`} className="hover:text-blue-700 transition-colors truncate">
+                                                                    {okr.obj_title}
+                                                                </a>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {/* KR rows */}
+                                            {expandedObjectives[okr.objective_id] && (okr.key_results || []).map((kr) => (
+                                                <tr key={kr.kr_id} className="bg-white transition duration-150 rounded-lg shadow-sm hover:shadow-md ring-1 ring-slate-100">
+                                                    <td className="px-4 py-3 pl-12">
+                                                        <div className="px-7 flex items-center gap-2">
+                                                            <FaKey className="h-4 w-4 text-amber-600 flex-shrink-0" title="Key Result"/>
+                                                            <span className="text-sm font-medium text-slate-700">
+                                                                <a href={`/my-objectives/key-result-details/${kr.kr_id}`} className="hover:text-blue-700 transition-colors truncate">
+                                                                    {kr.kr_title}
+                                                                </a>
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-center">
+                                                        <div className="flex w-full items-center justify-center">
+                                                            {/* Progress bar + chấm tròn (theo logic cần chú ý) */}
+                                                            <div className="relative w-full max-w-[120px]">
+                                                                {(() => {
+                                                                    const colors = getKrRiskColor(kr);
+                                                                    const percent = Math.max(
+                                                                        0,
+                                                                        Math.min(100, kr.calculated_progress ?? kr.progress_percent ?? 0)
+                                                                    );
+
+                                                                    return (
+                                                                        <>
+                                                                            <div className="relative h-2 w-full bg-blue-100 rounded-full overflow-visible">
+                                                                                <div
+                                                                                    className={`h-full rounded-full absolute left-0 transition-all duration-300 ${colors.barColor}`}
+                                                                                    style={{ width: `${percent}%` }}
+                                                                                ></div>
+
+                                                                                <div
+                                                                                    className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-white ${colors.dotColor}`}
+                                                                                    style={{ left: `calc(${percent}% - 6px)` }}
+                                                                                />
+
+                                                                                <div
+                                                                                    className={`absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-semibold whitespace-nowrap ${colors.textColor}`}
+                                                                                    style={{ left: `calc(${percent}% - 6px)` }}
+                                                                                >
+                                                                                    {percent.toFixed(2)}%
+                                                                                </div>
+                                                                            </div>
+                                                                        </>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))} 
+                                        </React.Fragment>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+                            <p className="text-slate-500 mb-4">Bạn chưa có OKR nào trong chu kỳ này.</p>
+                            <a href="/my-objectives" className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
+                                + Tạo OKR Mới
+                            </a>
+                        </div>
+                    )}
                 </section>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="mt-6 flex justify-center gap-2">
-                        <button
-                            onClick={() => handlePageChange(page - 1)}
-                            disabled={page === 1}
-                            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300 hover:bg-blue-700 transition-colors"
-                        >
-                            Trước
-                        </button>
-                        <span className="text-sm text-slate-600 flex items-center px-4">
-                            Trang {page} / {totalPages}
-                        </span>
-                        <button
-                            onClick={() => handlePageChange(page + 1)}
-                            disabled={page === totalPages}
-                            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300 hover:bg-blue-700 transition-colors"
-                        >
-                            Sau
-                        </button>
-                    </div>
-                )}
-            </div>
-            {editingKR && (
-                <KeyResultModal
-                    editingKR={editingKR}
-                    departments={departments}
-                    cyclesList={cyclesList}
-                    setEditingKR={setEditingKR}
-                    setItems={setItems}
-                    setToast={setToast}
-                    reloadData={() => {
-                        const filters = getCurrentFilters();
-                        load(filters.cycle, filters.myOKROnly);
-                    }}
-                />
-            )}
-            {creatingFor && (
-                <KeyResultModal
-                    creatingFor={creatingFor}
-                    departments={departments}
-                    cyclesList={cyclesList}
-                    setCreatingFor={setCreatingFor}
-                    setItems={setItems}
-                    setToast={setToast}
-                    reloadData={() => {
-                        const filters = getCurrentFilters();
-                        load(filters.cycle, filters.myOKROnly);
-                    }}
-                />
-            )}
-            {creatingObjective && (
-                <ObjectiveModal
-                    creatingObjective={creatingObjective}
-                    setCreatingObjective={setCreatingObjective}
-                    departments={departments}
-                    cyclesList={cyclesList}
-                    setItems={setItems}
-                    setToast={setToast}
-                    reloadData={() => {
-                        // Reset all filters when creating new objective to ensure it shows
-                        setCurrentFilters({
-                            cycle: "",
-                            department: "",
-                            myOKROnly: false,
-                            showFilters: getCurrentFilters().showFilters
-                        });
-                        load("", false); // Reload with no filters
-                    }}
-                />
-            )}
-            {editingObjective && (
-                <ObjectiveModal
-                    editingObjective={editingObjective}
-                    setEditingObjective={setEditingObjective}
-                    departments={departments}
-                    cyclesList={cyclesList}
-                    setItems={setItems}
-                    setToast={setToast}
-                    setLinks={setLinks}
-                    reloadData={() => {
-                        const filters = getCurrentFilters();
-                        load(filters.cycle, filters.myOKROnly);
-                    }}
-                />
-            )}
+            <section>
+                <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-800">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                        📊
+                    </span>
+                    Tóm tắt nhanh tuần 
+                </h2>
 
-            {/* Check-in History Modal */}
-            <ErrorBoundary>
-                <CheckInHistory
-                    open={checkInHistory.open}
-                    onClose={() => setCheckInHistory({ open: false, keyResult: null })}
-                    keyResult={checkInHistory.keyResult}
-                    objectiveId={checkInHistory.keyResult?.objective_id}
-                />
-            </ErrorBoundary>
+                <div>
+                    <div className="flex flex-wrap gap-4 justify-between">
+                        <div className="flex items-center gap-3 bg-white rounded-xl shadow-sm px-5 py-4 flex-1 min-w-[200px]">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-600">Check-in tuần này</p>
+                                <p className="text-xl font-bold text-slate-900 mt-1">{data.weeklySummary.checkedIn}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 bg-white rounded-xl shadow-sm px-5 py-4 flex-1 min-w-[200px]">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-600">Mức độ tự tin</p>
+                                <p className="text-xl font-bold text-slate-900 mt-1">{data.weeklySummary.confidence}%</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 bg-white rounded-xl shadow-sm px-5 py-4 flex-1 min-w-[200px]">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-50 text-red-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-600">Rủi ro cần xử lý</p>
+                                <p className="text-2xl font-bold text-slate-900 mt-1">{data.weeklySummary.risks}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section>
+                <div className="mb-4 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                            📈
+                        </span>
+                        Tiến độ theo tuần
+                    </h2>
+                </div>
+                <ProgressChart />
+            </section>
+
+            <div className="grid gap-10 md:grid-cols-2">
+                <section className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+                        <div className="flex items-center gap-2">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 font-bold text-sm">
+                                🏢
+                            </span>
+                            <div>
+                                <h2 className="text-base font-bold text-slate-800">Mục tiêu Phòng Ban</h2>
+                                <p className="text-xs text-slate-500">Phạm vi team & bộ phận</p>
+                            </div>
+                        </div>
+                        {data.user?.role?.role_name === 'manager' && (
+                            <a href="/reports" className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline transition-colors">
+                                Xem chi tiết
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                </svg>
+                            </a>
+                        )}
+                    </div>
+                    <SimpleOkrList 
+                        okrs={data.deptOkrs || []} 
+                        emptyText="Chưa có mục tiêu phòng ban nào được công khai." 
+                    />
+                </section>
+
+                <section className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+                        <div className="flex items-center gap-2">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600 font-bold text-sm">
+                                🌏
+                            </span>
+                            <div>
+                                <h2 className="text-base font-bold text-slate-800">Mục tiêu Công Ty liên quan</h2>
+                                <p className="text-xs text-slate-500">Các mục tiêu bạn đang trực tiếp đóng góp</p>
+                            </div>
+                        </div>
+                        {['admin', 'ceo'].includes(data.user?.role?.role_name?.toLowerCase()) && (
+                            <a href="/my-objectives" className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors">
+                                Xem chi tiết
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                </svg>
+                            </a>
+                        )}
+                    </div>
+                    <SimpleOkrList 
+                        okrs={data.companyOkrs || []} 
+                        emptyText="Bạn chưa liên kết OKR nào tới mục tiêu Công ty." 
+                    />
+                </section>
+            </div>
 
         </div>
     );

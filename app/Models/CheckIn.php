@@ -16,6 +16,7 @@ class CheckIn extends Model
         'progress_value',
         'progress_percent',
         'notes',
+        'confidence_score',
         'check_in_type',
         'is_completed',
     ];
@@ -24,6 +25,7 @@ class CheckIn extends Model
         'progress_value' => 'decimal:2',
         'progress_percent' => 'decimal:2',
         'is_completed' => 'boolean',
+        'confidence_score' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

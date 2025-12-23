@@ -1,21 +1,22 @@
-import React, { useEffect, useRef } from "react";
-import { Select, Badge } from "./ui";
+import React from "react";
+import { Badge } from "./ui";
 
 /**
  * Component hiển thị hàng người dùng trong bảng
  * @param {Object} props - Props của component
  * @param {Object} props.user - Thông tin người dùng
- * @param {Array} props.departments - Danh sách phòng ban và đội nhóm
+ * @param {Array} props.departments - Danh sách phòng ban và đội nhóm (không còn sử dụng, giữ lại để tương thích)
  * @param {Array} props.roles - Danh sách vai trò (chỉ để hiển thị)
- * @param {Object} props.editingDept - Trạng thái chỉnh sửa phòng ban/đội nhóm
- * @param {Function} props.setEditingDept - Hàm cập nhật trạng thái chỉnh sửa phòng ban/đội nhóm
- * @param {Function} props.onChangeDept - Hàm xử lý thay đổi phòng ban/đội nhóm
+ * @param {Object} props.editingDept - Trạng thái chỉnh sửa phòng ban/đội nhóm (không còn sử dụng, giữ lại để tương thích)
+ * @param {Function} props.setEditingDept - Hàm cập nhật trạng thái chỉnh sửa phòng ban/đội nhóm (không còn sử dụng, giữ lại để tương thích)
+ * @param {Function} props.onChangeDept - Hàm xử lý thay đổi phòng ban/đội nhóm (không còn sử dụng, giữ lại để tương thích)
  * @param {Function} props.toggleStatus - Hàm xử lý thay đổi trạng thái
  * @param {Object} props.pendingChanges - Thay đổi đang chờ xử lý
  * @param {Function} props.setPendingChanges - Hàm cập nhật thay đổi đang chờ
  * @param {Function} props.setUsers - Hàm cập nhật danh sách người dùng
+ * @param {Function} props.onDelete - Hàm xử lý xóa người dùng
  * 
- * Lưu ý: Cấp độ và vai trò chỉ hiển thị, không cho phép chỉnh sửa (được gán khi gán người dùng cho phòng ban)
+ * Lưu ý: Cấp độ, vai trò và phòng ban/đội nhóm chỉ hiển thị, không cho phép chỉnh sửa
  */
 export default function UserTableRow({
     user,
@@ -28,6 +29,7 @@ export default function UserTableRow({
     pendingChanges = {},
     setPendingChanges,
     setUsers,
+    onDelete,
 }) {
     const rname = (user.role?.role_name || "").toLowerCase();
     const isAdmin = rname === "admin" || user.email === "okr.admin@company.com";
@@ -35,47 +37,24 @@ export default function UserTableRow({
         pendingChanges[user.user_id] &&
         Object.keys(pendingChanges[user.user_id]).length > 0;
 
-    // Refs cho các phần tử có thể chỉnh sửa (chỉ còn Department/Team)
-    const deptRef = useRef(null);
+    const renderRoleBadge = () => {
+        if (isAdmin) {
+            return <Badge color="indigo">ADMIN</Badge>;
+        }
 
-    // Logic click outside để thoát khỏi chế độ chỉnh sửa
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            // Thoát khỏi chế độ chỉnh sửa Department/Team
-            if (
-                editingDept[user.user_id] &&
-                deptRef.current &&
-                !deptRef.current.contains(event.target)
-            ) {
-                setEditingDept((prev) => ({ ...prev, [user.user_id]: false }));
-            }
-        };
-
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, [
-        editingDept,
-        user.user_id,
-        setEditingDept,
-    ]);
-
-    // Chuyển đổi role name sang tiếng Việt
-    const getRoleDisplayName = (roleName) => {
-        if (!roleName) return "Chưa có";
-
-        const roleLower = roleName.toLowerCase();
-
-        switch (roleLower) {
-            case "admin":
-                return "Quản trị viên";
+        switch (rname) {
+            case "ceo":
+                return <Badge color="red">CEO</Badge>;
             case "manager":
-                return "Quản lý";
+                return <Badge color="blue">Quản lý</Badge>;
             case "member":
-                return "Thành viên";
+                return <Badge color="amber">Thành viên</Badge>;
             default:
-                return roleName; // Hiển thị nguyên gốc nếu không nhận diện được
+                return (
+                    <Badge color="slate">
+                        {user.role?.role_name || "Chưa có"}
+                    </Badge>
+                );
         }
     };
 
@@ -114,57 +93,6 @@ export default function UserTableRow({
         return "indigo"; // Màu mặc định cho các cấp độ khác
     };
 
-    // Lấy danh sách phòng ban hoặc đội nhóm dựa trên cấp độ
-    const getDeptOrTeamOptions = () => {
-        const userLevel = (user.role?.level || "").toLowerCase();
-        console.log('=== getDeptOrTeamOptions ===');
-        console.log('User:', user.full_name, 'Level:', userLevel);
-        console.log('Total departments:', departments.length);
-        console.log('Departments:', departments);
-        
-        if (userLevel === "unit") {
-            const filtered = departments.filter((d) => {
-                const type = (d.type || "").toLowerCase().trim();
-                const isMatch = type === "phòng ban" || type === "phong ban" || d.parent_department_id === null;
-                console.log(`Dept: ${d.d_name}, Type: "${d.type}", parent_id: ${d.parent_department_id}, Match: ${isMatch}`);
-                return isMatch;
-            });
-            console.log('Filtered for unit:', filtered);
-            return [
-                { value: "", label: "Chọn phòng ban" },
-                ...filtered.map((d) => ({
-                    value: String(d.department_id),
-                    label: d.d_name,
-                })),
-            ];
-        } else if (userLevel === "team") {
-            const filtered = departments.filter((d) => {
-                const type = (d.type || "").toLowerCase().trim();
-                const isMatch = type === "đội nhóm" || type === "doi nhom" || d.parent_department_id !== null;
-                console.log(`Dept: ${d.d_name}, Type: "${d.type}", parent_id: ${d.parent_department_id}, Match: ${isMatch}`);
-                return isMatch;
-            });
-            console.log('Filtered for team:', filtered);
-            return [
-                { value: "", label: "Chọn đội nhóm" },
-                ...filtered.map((d) => ({
-                    value: String(d.department_id),
-                    label: d.d_name,
-                })),
-            ];
-        }
-        // Nếu không có level hoặc level không xác định, hiển thị tất cả
-        console.log('No specific level, showing all departments');
-        const options = [
-            { value: "", label: "Chọn phòng ban/đội nhóm" },
-            ...departments.map((d) => ({
-                value: String(d.department_id),
-                label: d.d_name + (d.type ? ` (${d.type})` : ''),
-            })),
-        ];
-        console.log('Options:', options);
-        return options;
-    };
 
     return (
         <tr key={user.user_id} className="hover:bg-slate-50">
@@ -193,51 +121,15 @@ export default function UserTableRow({
                     {getLevelDisplayName(user.role?.level)}
                 </Badge>
             </td>
+            <td className="px-3 py-2">{renderRoleBadge()}</td>
             <td className="px-3 py-2">
-                {isAdmin ? (
-                    <Badge color="indigo">ADMIN</Badge>
-                ) : (user.role?.role_name || "").toLowerCase() ===
-                "member" ? (
-                    <Badge color="amber">Thành viên</Badge>
+                {(user.department?.d_name || "").trim() ? (
+                    <Badge color="blue">
+                        {user.department?.d_name}
+                    </Badge>
                 ) : (
-                    <Badge color="blue">Quản lý</Badge>
+                    <Badge color="slate">Chưa gán</Badge>
                 )}
-            </td>
-            <td className={editingDept[user.user_id] ? "px-3 py-2 relative z-50" : "px-3 py-2 relative"}>
-                <div ref={deptRef}>
-                    {editingDept[user.user_id] ? (
-                        <Select
-                            value={String(user.department_id || "")}
-                            onChange={(val) => {
-                                onChangeDept(val);
-                                setEditingDept((prev) => ({
-                                    ...prev,
-                                    [user.user_id]: false,
-                                }));
-                            }}
-                            placeholder="Chọn phòng ban/đội nhóm"
-                            options={getDeptOrTeamOptions()}
-                        />
-                    ) : (
-                        <button
-                            onClick={() =>
-                                setEditingDept((prev) => ({
-                                    ...prev,
-                                    [user.user_id]: true,
-                                }))
-                            }
-                            className="focus:outline-none"
-                        >
-                            {(user.department?.d_name || "").trim() ? (
-                                <Badge color="blue">
-                                    {user.department?.d_name}
-                                </Badge>
-                            ) : (
-                                <Badge color="slate">Chưa gán</Badge>
-                            )}
-                        </button>
-                    )}
-                </div>
             </td>
             <td className="px-3 py-2">
                 <button
@@ -256,6 +148,30 @@ export default function UserTableRow({
                 >
                     {user.status === "active" ? "KÍCH HOẠT" : "VÔ HIỆU"}
                 </button>
+            </td>
+            <td className="px-3 py-2 w-20 text-center">
+                {!isAdmin && onDelete && (
+                    <button
+                        onClick={() => onDelete(user)}
+                        className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Xóa người dùng"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                        </svg>
+                    </button>
+                )}
             </td>
         </tr>
     );

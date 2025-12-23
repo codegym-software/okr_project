@@ -13,6 +13,7 @@ export default function UserTableHeader() {
                 <th className="px-3 py-2">Vai trò</th>
                 <th className="px-3 py-2">Phòng ban/Đội nhóm</th>
                 <th className="px-3 py-2">Trạng thái</th>
+                <th className="px-3 py-2 w-20 text-center">Hành động</th>
             </tr>
         </thead>
     );

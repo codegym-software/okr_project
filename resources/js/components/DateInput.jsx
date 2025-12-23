@@ -1,6 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-export default function DateInput({ name, value, defaultValue, onChange, required, placeholder = "dd/MM/yyyy" }) {
+export default function DateInput({
+    name,
+    value,
+    defaultValue,
+    onChange,
+    required,
+    placeholder = "dd/MM/yyyy",
+    isDateDisabled,
+}) {
     const [iso, setIso] = useState(value ?? '');
     const [showPicker, setShowPicker] = useState(false);
     const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -17,12 +25,25 @@ export default function DateInput({ name, value, defaultValue, onChange, require
         }
     }, [defaultValue, value]);
     
+    // Sync internal state with prop value changes
+    useEffect(() => {
+        if (value !== undefined) {
+            setIso(value);
+        }
+    }, [value]);
+    
     useEffect(() => {
         // Cập nhật currentMonth khi có ngày được chọn
         if (iso) {
-            const date = new Date(iso);
-            if (!isNaN(date.getTime())) {
-                setCurrentMonth(date);
+            // Parse YYYY-MM-DD thủ công để tránh lỗi timezone
+            if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+                const [y, m, d] = iso.split('-').map(Number);
+                setCurrentMonth(new Date(y, m - 1, d));
+            } else {
+                const date = new Date(iso);
+                if (!isNaN(date.getTime())) {
+                    setCurrentMonth(date);
+                }
             }
         }
     }, [iso]);
@@ -39,6 +60,12 @@ export default function DateInput({ name, value, defaultValue, onChange, require
     
     const formatDMY = (v) => {
         if (!v) return '';
+        // Ưu tiên parse chuỗi YYYY-MM-DD trực tiếp
+        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+            const [y, m, d] = v.split('-');
+            return `${d}/${m}/${y}`;
+        }
+        
         const d = new Date(v);
         if (isNaN(d.getTime())) return '';
         const dd = String(d.getDate()).padStart(2, '0');
@@ -56,14 +83,16 @@ export default function DateInput({ name, value, defaultValue, onChange, require
             event.stopPropagation();
         }
         
-        // Tạo ngày local để tránh lỗi timezone
+        // Lấy ngày tháng từ ô lịch đã render (đảm bảo là local date)
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
-        const iso = `${year}-${month}-${day}`;
         
-        setIso(iso);
-        onChange && onChange(iso);
+        // Ghép chuỗi thủ công, KHÔNG dùng toISOString() hay bất kỳ hàm Date nào khác
+        const isoString = `${year}-${month}-${day}`;
+        
+        setIso(isoString);
+        onChange && onChange(isoString);
         setShowPicker(false);
     };
     
@@ -136,7 +165,7 @@ export default function DateInput({ name, value, defaultValue, onChange, require
                 </svg>
             </button>
             {showPicker && (
-                <div className="absolute top-full left-0 z-50 mt-1 w-80 rounded-xl border border-slate-200 bg-white shadow-lg">
+                <div className="absolute top-full left-0 z-[100] mt-1 w-80 rounded-xl border border-slate-200 bg-white shadow-lg">
                     <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                         <button type="button" onClick={prevMonth} className="rounded-lg p-1 hover:bg-slate-100">
                             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,22 +188,33 @@ export default function DateInput({ name, value, defaultValue, onChange, require
                             ))}
                         </div>
                         <div className="grid grid-cols-7 gap-1">
-                            {days.map((date, index) => (
-                                <button
-                                    key={index}
-                                    type="button"
-                                    onClick={(e) => date && handleDateSelect(date, e)}
-                                    disabled={!date}
-                                    className={`p-2 text-sm rounded-lg ${
-                                        !date ? 'invisible' :
-                                        isSelected(date) ? 'bg-blue-600 text-white' :
-                                        isToday(date) ? 'bg-blue-100 text-blue-700 font-semibold' :
-                                        'hover:bg-slate-100 text-slate-700'
-                                    }`}
-                                >
-                                    {date ? date.getDate() : ''}
-                                </button>
-                            ))}
+                            {days.map((date, index) => {
+                                const disabled =
+                                    !date || (isDateDisabled && isDateDisabled(date));
+                                return (
+                                    <button
+                                        key={index}
+                                        type="button"
+                                        onClick={(e) =>
+                                            !disabled && date && handleDateSelect(date, e)
+                                        }
+                                        disabled={disabled}
+                                        className={`p-2 text-sm rounded-lg ${
+                                            !date
+                                                ? "invisible"
+                                                : disabled
+                                                ? "text-slate-300 cursor-not-allowed"
+                                                : isSelected(date)
+                                                ? "bg-blue-600 text-white"
+                                                : isToday(date)
+                                                ? "bg-blue-100 text-blue-700 font-semibold"
+                                                : "hover:bg-slate-100 text-slate-700"
+                                        }`}
+                                    >
+                                        {date ? date.getDate() : ""}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>

@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>OKR Project</title>
+    <title>OKRun</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=be-vietnam-pro:400,500,600,700&display=swap" rel="stylesheet" />
     @viteReactRefresh
     @vite(['resources/css/app.css', 'resources/js/main.jsx'])
 </head>
@@ -27,6 +30,8 @@
                 window.__USER__ = null;
             }
         })();
+        window.__FIRST_LOGIN_EMAIL__ = @json(session('first_login_email'));
+        window.__FIRST_LOGIN_NAME__ = @json(session('first_login_name'));
     </script>
 </body>
 </html>

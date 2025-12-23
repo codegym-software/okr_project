@@ -28,9 +28,32 @@ class CycleController extends Controller
             'cycle_name' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
-            'status' => 'required|in:active,inactive',
+            'status' => 'required|in:active,inactive,draft',
             'description' => 'nullable|string',
         ]);
+
+        // Không cho phép tạo chu kỳ có khoảng thời gian trùng với chu kỳ khác
+        $start = Carbon::parse($request->input('start_date'))->startOfDay();
+        $end = Carbon::parse($request->input('end_date'))->endOfDay();
+
+        $hasOverlap = Cycle::where(function ($q) use ($start, $end) {
+                // start hoặc end nằm trong khoảng của chu kỳ khác
+                $q->whereBetween('start_date', [$start, $end])
+                  ->orWhereBetween('end_date', [$start, $end])
+                  // hoặc chu kỳ mới bao trùm chu kỳ cũ
+                  ->orWhere(function ($q2) use ($start, $end) {
+                      $q2->where('start_date', '<=', $start)
+                         ->where('end_date', '>=', $end);
+                  });
+            })->exists();
+
+        if ($hasOverlap) {
+            $message = 'Khoảng thời gian của chu kỳ bị trùng với một chu kỳ khác. Vui lòng chọn khoảng thời gian không trùng.';
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $message], 422);
+            }
+            return back()->withErrors(['date_range' => $message])->withInput();
+        }
 
         $cycle = Cycle::create($request->all());
         if ($request->expectsJson()) {
@@ -40,8 +63,8 @@ class CycleController extends Controller
     }
 
     public function show(Request $request, Cycle $cycle) {
-        // Eager load objectives, user và keyResults để FE không phải gọi thêm
-        $cycle->load(['objectives.user', 'objectives.keyResults']);
+        // Eager load objectives, user và keyResults với assignedUser để FE không phải gọi thêm
+        $cycle->load(['objectives.user', 'objectives.department', 'objectives.keyResults.assignee']);
         $objectives = $cycle->objectives;
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'data' => compact('cycle','objectives')]);
@@ -58,7 +81,7 @@ class CycleController extends Controller
             'cycle_name' => 'nullable|string|max:255',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',
-            'status' => 'nullable|in:active,inactive',
+            'status' => 'nullable|in:active,inactive,draft',
             'description' => 'nullable|string',
         ]);
 
@@ -74,6 +97,29 @@ class CycleController extends Controller
         if (isset($data['start_date']) && isset($data['end_date'])) {
             if ($data['start_date'] > $data['end_date']) {
                 return response()->json(['success' => false, 'message' => 'Ngày kết thúc phải sau hoặc bằng ngày bắt đầu'], 422);
+            }
+
+            // Kiểm tra trùng khoảng thời gian với các chu kỳ khác (bỏ qua chính nó)
+            $start = Carbon::parse($data['start_date'])->startOfDay();
+            $end = Carbon::parse($data['end_date'])->endOfDay();
+
+            $hasOverlap = Cycle::where('cycle_id', '!=', $cycle->cycle_id)
+                ->where(function ($q) use ($start, $end) {
+                    $q->whereBetween('start_date', [$start, $end])
+                      ->orWhereBetween('end_date', [$start, $end])
+                      ->orWhere(function ($q2) use ($start, $end) {
+                          $q2->where('start_date', '<=', $start)
+                             ->where('end_date', '>=', $end);
+                      });
+                })
+                ->exists();
+
+            if ($hasOverlap) {
+                $message = 'Khoảng thời gian của chu kỳ bị trùng với một chu kỳ khác. Vui lòng chọn khoảng thời gian không trùng.';
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'message' => $message], 422);
+                }
+                return back()->withErrors(['date_range' => $message])->withInput();
             }
         }
 
@@ -112,16 +158,37 @@ class CycleController extends Controller
         DB::beginTransaction();
         try {
             // Tính và lưu tiến độ cuối cùng cho các Objective
-            $objectives = Objective::with('keyResults')
+            // Công thức: O = trung bình cộng của tiến độ KR trực tiếp
+            $objectives = Objective::with(['keyResults' => function($query) {
+                $query->whereNull('archived_at'); // Chỉ tính KR chưa archived
+            }])
                 ->where('cycle_id', $cycle->cycle_id)
                 ->get();
 
             foreach ($objectives as $obj) {
-                $avg = $obj->keyResults->count() ? $obj->keyResults->avg(function (KeyResult $kr) {
-                    $p = $kr->progress_percent; // accessor
-                    return is_numeric($p) ? (float) $p : 0.0;
-                }) : 0;
-                $obj->progress_percent = round($avg ?? 0, 2);
+                // Chỉ tính từ KeyResults trực tiếp, không archived
+                $keyResults = $obj->keyResults->filter(function($kr) {
+                    return is_null($kr->archived_at);
+                });
+                
+                if ($keyResults->isEmpty()) {
+                    $obj->progress_percent = 0;
+                } else {
+                    $progressList = [];
+                    foreach ($keyResults as $kr) {
+                        $progress = $kr->progress_percent; // accessor
+                        if ($progress !== null && is_numeric($progress)) {
+                            $progressList[] = (float) $progress;
+                        }
+                    }
+                    
+                    if (empty($progressList)) {
+                        $obj->progress_percent = 0;
+                    } else {
+                        $avgProgress = array_sum($progressList) / count($progressList);
+                        $obj->progress_percent = round($avgProgress, 2);
+                    }
+                }
                 $obj->save();
             }
 

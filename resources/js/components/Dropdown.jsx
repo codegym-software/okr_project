@@ -187,43 +187,68 @@ export function DropdownContent({ children, className = "" }) {
  * CycleDropdown Component - Dropdown chọn chu kỳ
  */
 export function CycleDropdown({
-    cyclesList,
+    cyclesList = [],
     cycleFilter,
     handleCycleChange,
-    dropdownOpen,
-    setDropdownOpen,
 }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    // Đảm bảo cyclesList luôn là array
+    const safeCyclesList = Array.isArray(cyclesList) ? cyclesList : [];
+    const selectedCycle = safeCyclesList.find(c => String(c.cycle_id) === String(cycleFilter));
+
+    // Click outside handler
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [dropdownRef]);
+
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${day}/${month}`;
+    };
+    
     return (
-        <div className="relative w-40">
+        <div className="relative w-52" ref={dropdownRef}>
             <button
-                onClick={() => setDropdownOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            onClick={() => setIsOpen((prev) => !prev)}
+            className={`flex w-full h-10 items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-gray-50 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 `}
             >
-                <span className="flex items-center gap-2">
-                    {cyclesList.find(
-                        (c) => String(c.cycle_id) === String(cycleFilter)
-                    )?.cycle_name || "Chọn chu kỳ"}
+            <div className="flex items-center flex-1 truncate">
+                <span className="truncate">
+                {selectedCycle?.cycle_name || "Chọn chu kỳ"}
                 </span>
-                <svg
-                    className={`w-4 h-4 transition-transform ${
-                        dropdownOpen ? "rotate-180" : ""
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                    />
-                </svg>
+                {selectedCycle && (
+                <span className="ml-2 text-xs text-slate-500 flex-shrink-0">
+                    ({formatDate(selectedCycle.start_date)} - {formatDate(selectedCycle.end_date)})
+                </span>
+                )}
+            </div>
+
+            <svg
+                className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${
+                isOpen ? "rotate-180" : ""
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
             </button>
 
-            {dropdownOpen && (
+            {isOpen && (
                 <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
-                    {cyclesList.map((cycle) => {
+                    {safeCyclesList.map((cycle) => {
                         const match =
                             cycle.cycle_name.match(/Quý (\d+) năm (\d+)/);
                         const quarter = match ? parseInt(match[1]) : null;
@@ -235,15 +260,13 @@ export function CycleDropdown({
                         const currentYear = now.getFullYear();
                         const isCurrent =
                             quarter === currentQuarter && year === currentYear;
+                        const dateRange = `${formatDate(cycle.start_date)} - ${formatDate(cycle.end_date)}`;
 
                         return (
                             <label
                                 key={cycle.cycle_id}
-                                className={`flex items-center gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
-                                    String(cycleFilter) ===
-                                    String(cycle.cycle_id)
-                                        ? "bg-blue-50 border-l-4 border-l-blue-500"
-                                        : isCurrent
+                                className={`flex items-start gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
+                                    String(cycleFilter) === String(cycle.cycle_id)
                                         ? "bg-blue-50 border-l-4 border-l-blue-500"
                                         : ""
                                 }`}
@@ -258,11 +281,11 @@ export function CycleDropdown({
                                     }
                                     onChange={(e) => {
                                         handleCycleChange(e.target.value);
-                                        setDropdownOpen(false);
+                                        setIsOpen(false);
                                     }}
                                     className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                                 />
-                                <div className="flex-1">
+                                <div className="flex-1 flex flex-col">
                                     <p className="text-sm font-medium text-slate-900 flex items-center gap-2">
                                         {cycle.cycle_name}
                                         {isCurrent && (
@@ -270,6 +293,9 @@ export function CycleDropdown({
                                                 Hiện tại
                                             </span>
                                         )}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        {dateRange}
                                     </p>
                                 </div>
                             </label>
@@ -282,3 +308,111 @@ export function CycleDropdown({
 }
 
 export default Dropdown;
+
+export function ViewModeDropdown({
+    viewMode,
+    setViewMode,
+    currentUser,
+    userDepartmentName,
+    setDepartmentFilter,
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    // Click outside handler
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [dropdownRef]);
+
+    const role = currentUser?.role?.role_name?.toLowerCase();
+
+    const getLevelsLabel = () => {
+        if (role === 'manager') {
+            return `${userDepartmentName || 'Phòng ban'}`;
+        }
+        if (role === 'admin' || role === 'ceo') {
+            return 'Công ty';
+        }
+        return userDepartmentName || 'Phòng ban được giao';
+    };
+
+    const options = {
+        levels: getLevelsLabel(),
+        personal: 'Cá nhân',
+    };
+
+    const handleSelect = (mode) => {
+        setViewMode(mode);
+        // Khi chọn "levels", tự động set department_id của user
+        if (mode === 'levels' && currentUser?.department_id) {
+            setDepartmentFilter?.(String(currentUser.department_id));
+        } else if (mode === 'personal') {
+            // Khi chọn "personal", xóa department filter
+            setDepartmentFilter?.(null);
+        }
+        setIsOpen(false);
+    };
+
+    return (
+        <div className="relative w-52" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen((prev) => !prev)}
+                className="flex w-full h-10 items-center justify-between rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-gray-50 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150"
+            >
+                <span className="truncate">
+                    {options[viewMode]}
+                </span>
+                <svg
+                    className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${
+                        isOpen ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                    />
+                </svg>
+            </button>
+
+            {isOpen && (
+                <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-96 overflow-y-auto">
+                    {Object.entries(options).map(([key, label]) => (
+                        <label
+                            key={key}
+                            className={`flex items-start gap-3 px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors ${
+                                viewMode === key
+                                    ? "bg-blue-50 border-l-4 border-l-blue-500"
+                                    : ""
+                            }`}
+                        >
+                            <input
+                                type="radio"
+                                name="viewMode"
+                                value={key}
+                                checked={viewMode === key}
+                                onChange={() => handleSelect(key)}
+                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <div className="flex-1 flex flex-col">
+                                <p className="text-sm font-medium text-slate-900">
+                                    {label}
+                                </p>
+                            </div>
+                        </label>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}

@@ -6,6 +6,7 @@ import InviteUserModal from "../components/InviteUserModal";
 
 export default function UsersPage() {
     const [users, setUsers] = useState([]);
+    const [originalUsers, setOriginalUsers] = useState([]); // Lưu giá trị ban đầu từ API
     const [departments, setDepartments] = useState([]);
     const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -13,7 +14,6 @@ export default function UsersPage() {
     const [role, setRole] = useState("");
     const [status, setStatus] = useState("");
     const [departmentId, setDepartmentId] = useState("");
-    const [level, setLevel] = useState("");
     const [toast, setToast] = useState({ type: "success", message: "" });
     const showToast = (type, message) => setToast({ type, message });
     const [editingDept, setEditingDept] = useState({});
@@ -22,6 +22,11 @@ export default function UsersPage() {
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [teamId, setTeamId] = useState("");
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const perPage = 10; // Số người dùng mỗi trang
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [userToDelete, setUserToDelete] = useState(null);
+    const [deleting, setDeleting] = useState(false);
 
     // Function để lưu tất cả thay đổi
     const saveAllChanges = async () => {
@@ -92,6 +97,8 @@ export default function UsersPage() {
             );
             setPendingChanges({});
             setShowConfirmModal(false);
+            // Cập nhật originalUsers sau khi lưu thành công
+            await loadUsers();
         } else {
             showToast(
                 "error",
@@ -107,11 +114,90 @@ export default function UsersPage() {
                 headers: { Accept: "application/json" },
             });
             const usersData = await resUsers.json();
-            setUsers(usersData.data || []);
+            const usersList = usersData.data || [];
+            setUsers(usersList);
+            setOriginalUsers(usersList); // Lưu giá trị ban đầu
         } catch (e) {
             console.error("Error loading users:", e);
         }
     };
+
+    // Function để xóa người dùng
+    const handleDeleteUser = (user) => {
+        setUserToDelete(user);
+        setShowDeleteModal(true);
+    };
+
+    // Function xác nhận xóa người dùng
+    const confirmDeleteUser = async () => {
+        if (!userToDelete) return;
+
+        setDeleting(true);
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute("content");
+
+            const response = await fetch(`/users/${userToDelete.user_id}`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": token,
+                    Accept: "application/json",
+                },
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast("success", result.message || "Đã xóa người dùng thành công");
+                setShowDeleteModal(false);
+                setUserToDelete(null);
+                // Reload danh sách users
+                await loadUsers();
+            } else {
+                showToast("error", result.message || "Không thể xóa người dùng");
+            }
+        } catch (error) {
+            console.error("Error deleting user:", error);
+            showToast("error", "Có lỗi xảy ra khi xóa người dùng. Vui lòng thử lại.");
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    // Đọc query params từ URL khi component mount
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const qParam = params.get("q") || "";
+        const roleParam = params.get("role") || "";
+        const statusParam = params.get("status") || "";
+        const departmentParam = params.get("department_id") || "";
+        const pageParam = params.get("page") || "1";
+        
+        setQ(qParam);
+        setRole(roleParam);
+        setStatus(statusParam);
+        setDepartmentId(departmentParam);
+        setCurrentPage(parseInt(pageParam) || 1);
+    }, []);
+
+    // Cập nhật URL khi filter thay đổi
+    useEffect(() => {
+        const params = new URLSearchParams();
+        
+        if (q) params.set("q", q);
+        if (role) params.set("role", role);
+        if (status) params.set("status", status);
+        if (departmentId) params.set("department_id", departmentId);
+        if (currentPage > 1) params.set("page", currentPage.toString());
+        
+        const newUrl = params.toString() 
+            ? `${window.location.pathname}?${params.toString()}`
+            : window.location.pathname;
+        
+        window.history.pushState({}, "", newUrl);
+    }, [q, role, status, departmentId, currentPage]);
 
     useEffect(() => {
         const load = async () => {
@@ -130,7 +216,9 @@ export default function UsersPage() {
                 const usersData = await resUsers.json();
                 const depsData = await resDeps.json();
                 const rolesData = await resRoles.json();
-                setUsers(usersData.data || []);
+                const usersList = usersData.data || [];
+                setUsers(usersList);
+                setOriginalUsers(usersList); // Lưu giá trị ban đầu
                 setDepartments(depsData.data || []);
                 setRoles(rolesData.data || []);
             } catch (e) {
@@ -145,24 +233,16 @@ export default function UsersPage() {
     // Function để reset tất cả filter về trạng thái ban đầu
     const resetAllFilters = () => {
         setQ("");
-        setLevel("");
         setRole("");
         setDepartmentId("");
         setStatus("");
         setTeamId("");
-    };
-
-    // Handler khi thay đổi cấp độ - reset các bộ lọc liên quan
-    const handleLevelChange = (newLevel) => {
-        setLevel(newLevel);
-        // Reset departmentId và teamId khi thay đổi cấp độ
-        setDepartmentId("");
-        setTeamId("");
+        setCurrentPage(1); // Reset về trang 1 khi reset filter
     };
 
     // Kiểm tra có filter nào đang active không
     const hasActiveFilters =
-        (q && q.trim()) || level || role || departmentId || status || teamId;
+        (q && q.trim()) || role || departmentId || status || teamId;
 
     // Logic filter users
     const filtered = users.filter((u) => {
@@ -173,7 +253,6 @@ export default function UsersPage() {
             u.email?.toLowerCase().includes(needle);
         const matchesRole = !role || u.role?.role_name?.toLowerCase() === role;
         const matchesStatus = !status || u.status?.toLowerCase() === status;
-        const matchesLevel = !level || u.role?.level === level;
         const isAdmin =
             (u.role?.role_name || "").toLowerCase() === "admin" ||
             u.email === "okr.admin@company.com";
@@ -187,10 +266,20 @@ export default function UsersPage() {
             matchesRole &&
             matchesStatus &&
             matchesDept &&
-            matchesLevel &&
             matchesTeam
         );
     });
+
+    // Tính toán phân trang
+    const totalPages = Math.ceil(filtered.length / perPage);
+    const startIndex = (currentPage - 1) * perPage;
+    const endIndex = startIndex + perPage;
+    const paginatedUsers = filtered.slice(startIndex, endIndex);
+
+    // Reset về trang 1 khi filter thay đổi
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [q, role, status, departmentId, teamId]);
 
     return (
         <div className="">
@@ -202,7 +291,7 @@ export default function UsersPage() {
             <div className="mx-auto max-w-6xl px-4 py-6">
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-2xl font-extrabold text-slate-900">
-                        Quản lý người dùng
+                        Danh sách người dùng
                     </h1>
                     <div className="flex items-center gap-2">
                         <button
@@ -263,7 +352,6 @@ export default function UsersPage() {
                                 {hasActiveFilters && (
                                     <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold leading-none text-white bg-blue-600 rounded-full">
                                         {[
-                                            level,
                                             role,
                                             departmentId,
                                             teamId,
@@ -318,80 +406,24 @@ export default function UsersPage() {
                                             </div>
                                             
                                             <div className="space-y-4">
-                                                {/* Cấp độ */}
+                                                {/* Phòng ban */}
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                                                        Cấp độ
+                                                        Phòng ban
                                                     </label>
                                                     <Select
-                                                        value={level}
-                                                        onChange={handleLevelChange}
-                                                        placeholder="Chọn cấp độ"
+                                                        value={departmentId}
+                                                        onChange={setDepartmentId}
+                                                        placeholder="Chọn phòng ban"
                                                         options={[
                                                             { value: "", label: "Tất cả" },
-                                                            { value: "unit", label: "Phòng ban" },
-                                                            { value: "team", label: "Nhóm" },
+                                                            ...departments.map((d) => ({
+                                                                value: String(d.department_id),
+                                                                label: d.d_name,
+                                                            })),
                                                         ]}
                                                     />
                                                 </div>
-
-                                                {/* Phòng ban - chỉ hiển thị khi level = "unit" */}
-                                                {level === "unit" && (
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                                                            Phòng ban
-                                                        </label>
-                                                        <Select
-                                                            value={departmentId}
-                                                            onChange={setDepartmentId}
-                                                            placeholder="Chọn phòng ban"
-                                                            options={[
-                                                                { value: "", label: "Tất cả" },
-                                                                ...departments
-                                                                    .filter(
-                                                                        (d) =>
-                                                                            d.parent_department_id === null &&
-                                                                            d.type === "phòng ban"
-                                                                    )
-                                                                    .map((d) => ({
-                                                                        value: String(d.department_id),
-                                                                        label: d.d_name,
-                                                                    })),
-                                                            ]}
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                {/* Đội nhóm - chỉ hiển thị khi level = "team" */}
-                                                {level === "team" && (
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                                                            Đội nhóm
-                                                        </label>
-                                                        <Select
-                                                            value={teamId}
-                                                            onChange={setTeamId}
-                                                            placeholder="Chọn đội nhóm"
-                                                            options={[
-                                                                { value: "", label: "Tất cả" },
-                                                                ...departments
-                                                                    .filter(
-                                                                        (d) =>
-                                                                            d.type === "đội nhóm" &&
-                                                                            (!departmentId ||
-                                                                                d.parent_department_id ===
-                                                                                    (departmentId
-                                                                                        ? parseInt(departmentId)
-                                                                                        : null))
-                                                                    )
-                                                                    .map((d) => ({
-                                                                        value: String(d.department_id),
-                                                                        label: d.d_name,
-                                                                    })),
-                                                            ]}
-                                                        />
-                                                    </div>
-                                                )}
 
                                                 {/* Vai trò */}
                                                 <div>
@@ -442,7 +474,7 @@ export default function UsersPage() {
                             {loading && (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={7}
                                         className="px-3 py-5 text-center text-slate-500"
                                     >
                                         Đang tải...
@@ -452,7 +484,7 @@ export default function UsersPage() {
                             {!loading && filtered.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={7}
                                         className="px-3 py-5 text-center text-slate-500"
                                     >
                                         Không có người dùng
@@ -460,7 +492,7 @@ export default function UsersPage() {
                                 </tr>
                             )}
                             {!loading &&
-                                filtered.map((u) => {
+                                paginatedUsers.map((u) => {
                                     const rname = (
                                         u.role?.role_name || ""
                                     ).toLowerCase();
@@ -474,14 +506,18 @@ export default function UsersPage() {
                                                 String(d.department_id) ===
                                                 String(val)
                                         );
-                                        setPendingChanges((prev) => ({
-                                            ...prev,
-                                            [u.user_id]: {
-                                                ...prev[u.user_id],
-                                                department_id: val,
-                                                department: depObj,
-                                            },
-                                        }));
+                                        
+                                        // Lấy giá trị ban đầu từ originalUsers
+                                        const originalUser = originalUsers.find(
+                                            (ou) => ou.user_id === u.user_id
+                                        );
+                                        const originalDeptId = originalUser?.department_id
+                                            ? String(originalUser.department_id)
+                                            : null;
+                                        
+                                        // So sánh với giá trị ban đầu
+                                        const isBackToOriginal = String(val) === originalDeptId;
+                                        
                                         setUsers((prev) =>
                                             prev.map((x) =>
                                                 x.user_id === u.user_id
@@ -495,6 +531,33 @@ export default function UsersPage() {
                                                     : x
                                             )
                                         );
+                                        
+                                        setPendingChanges((prev) => {
+                                            const newPending = { ...prev };
+                                            
+                                            if (isBackToOriginal) {
+                                                // Nếu về giá trị ban đầu, xóa khỏi pendingChanges
+                                                if (newPending[u.user_id]) {
+                                                    const { department_id, department, ...rest } = newPending[u.user_id];
+                                                    if (Object.keys(rest).length === 0) {
+                                                        // Nếu không còn thay đổi nào khác, xóa user khỏi pendingChanges
+                                                        delete newPending[u.user_id];
+                                                    } else {
+                                                        // Nếu còn thay đổi khác, chỉ xóa department
+                                                        newPending[u.user_id] = rest;
+                                                    }
+                                                }
+                                            } else {
+                                                // Nếu khác giá trị ban đầu, cập nhật pendingChanges
+                                                newPending[u.user_id] = {
+                                                    ...newPending[u.user_id],
+                                                    department_id: val,
+                                                    department: depObj,
+                                                };
+                                            }
+                                            
+                                            return newPending;
+                                        });
                                     };
                                     const toggleStatus = () => {
                                         // Chỉ cập nhật giao diện, không gọi API
@@ -502,13 +565,16 @@ export default function UsersPage() {
                                             u.status === "active"
                                                 ? "inactive"
                                                 : "active";
-                                        setPendingChanges((prev) => ({
-                                            ...prev,
-                                            [u.user_id]: {
-                                                ...prev[u.user_id],
-                                                status: newStatus,
-                                            },
-                                        }));
+                                        
+                                        // Lấy giá trị ban đầu từ originalUsers
+                                        const originalUser = originalUsers.find(
+                                            (ou) => ou.user_id === u.user_id
+                                        );
+                                        const originalStatus = originalUser?.status || "active";
+                                        
+                                        // So sánh với giá trị ban đầu
+                                        const isBackToOriginal = newStatus === originalStatus;
+                                        
                                         setUsers((prev) =>
                                             prev.map((x) =>
                                                 x.user_id === u.user_id
@@ -519,6 +585,32 @@ export default function UsersPage() {
                                                     : x
                                             )
                                         );
+                                        
+                                        setPendingChanges((prev) => {
+                                            const newPending = { ...prev };
+                                            
+                                            if (isBackToOriginal) {
+                                                // Nếu về giá trị ban đầu, xóa khỏi pendingChanges
+                                                if (newPending[u.user_id]) {
+                                                    const { status, ...rest } = newPending[u.user_id];
+                                                    if (Object.keys(rest).length === 0) {
+                                                        // Nếu không còn thay đổi nào khác, xóa user khỏi pendingChanges
+                                                        delete newPending[u.user_id];
+                                                    } else {
+                                                        // Nếu còn thay đổi khác, chỉ xóa status
+                                                        newPending[u.user_id] = rest;
+                                                    }
+                                                }
+                                            } else {
+                                                // Nếu khác giá trị ban đầu, cập nhật pendingChanges
+                                                newPending[u.user_id] = {
+                                                    ...newPending[u.user_id],
+                                                    status: newStatus,
+                                                };
+                                            }
+                                            
+                                            return newPending;
+                                        });
                                     };
                                     return (
                                         <UserTableRow
@@ -535,12 +627,105 @@ export default function UsersPage() {
                                                 setPendingChanges
                                             }
                                             setUsers={setUsers}
+                                            onDelete={handleDeleteUser}
                                         />
                                     );
                                 })}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Phân trang */}
+                {!loading && filtered.length > 0 && totalPages > 1 && (
+                    <div className="mt-4 flex items-center justify-center">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                    currentPage === 1
+                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                }`}
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15 19l-7-7 7-7"
+                                    />
+                                </svg>
+                            </button>
+                            
+                            <div className="flex items-center gap-1">
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                                    // Chỉ hiển thị một số trang xung quanh trang hiện tại
+                                    if (
+                                        page === 1 ||
+                                        page === totalPages ||
+                                        (page >= currentPage - 1 && page <= currentPage + 1)
+                                    ) {
+                                        return (
+                                            <button
+                                                key={page}
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                                    currentPage === page
+                                                        ? "bg-blue-600 text-white"
+                                                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                                }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        );
+                                    } else if (
+                                        page === currentPage - 2 ||
+                                        page === currentPage + 2
+                                    ) {
+                                        return (
+                                            <span key={page} className="px-2 text-gray-400">
+                                                ...
+                                            </span>
+                                        );
+                                    }
+                                    return null;
+                                })}
+                            </div>
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                    currentPage === totalPages
+                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                }`}
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 5l7 7-7 7"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Confirmation Modal */}
@@ -629,11 +814,77 @@ export default function UsersPage() {
                 onSuccess={() => {
                     setShowInviteModal(false);
                     loadUsers(); // Reload danh sách users
-                    showToast("success", "Email mời đã được gửi thành công");
                 }}
                 departments={departments}
                 roles={roles}
             />
+
+            {/* Delete User Confirmation Modal */}
+            <Modal
+                open={showDeleteModal}
+                onClose={() => {
+                    if (!deleting) {
+                        setShowDeleteModal(false);
+                        setUserToDelete(null);
+                    }
+                }}
+                title="Xác nhận xóa người dùng"
+            >
+                <div className="space-y-4">
+                    <p className="text-gray-700">
+                        Bạn có chắc chắn muốn xóa người dùng{" "}
+                        <strong>{userToDelete?.full_name}</strong> (
+                        {userToDelete?.email}) khỏi hệ thống?
+                    </p>
+                    <p className="text-sm text-red-600">
+                        ⚠️ Hành động này không thể hoàn tác. Người dùng sẽ bị xóa khỏi hệ thống.
+                    </p>
+                    <div className="flex gap-3 justify-end">
+                        <button
+                            onClick={() => {
+                                setShowDeleteModal(false);
+                                setUserToDelete(null);
+                            }}
+                            disabled={deleting}
+                            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Hủy
+                        </button>
+                        <button
+                            onClick={confirmDeleteUser}
+                            disabled={deleting}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {deleting ? (
+                                <>
+                                    <svg
+                                        className="animate-spin h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle
+                                            className="opacity-25"
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="4"
+                                        ></circle>
+                                        <path
+                                            className="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                        ></path>
+                                    </svg>
+                                    Đang xóa...
+                                </>
+                            ) : (
+                                "Xác nhận xóa"
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

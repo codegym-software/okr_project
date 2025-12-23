@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\KeyResult;
+use App\Models\Notification;
 use App\Models\Objective;
+use App\Models\User;
+use App\Services\NotificationService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
-use App\Models\User;
 
 class MyKeyResultController extends Controller
 {
@@ -21,7 +23,7 @@ class MyKeyResultController extends Controller
     {
         $user = Auth::user();
 
-        $keyResults = KeyResult::with(['objective', 'cycle', 'assignedUser'])
+        $keyResults = KeyResult::with(['objective', 'cycle', 'assignedUser.role', 'assignedUser.department'])
             ->active() 
             ->where(function ($query) use ($user) {
                 $query->whereHas('objective', function ($q) use ($user) {
@@ -74,11 +76,12 @@ class MyKeyResultController extends Controller
                     }
                 },
             ],
-            'unit' => 'required|in:number,percent,completion,bai,num,bài',
-            'status' => 'required|in:draft,active,completed',
+            'unit' => 'required|in:number,percent,completion,currency',
+            'status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'assigned_to' => 'nullable|exists:users,user_id',
+            'type' => 'required|string|in:outcome,activity',
         ], [
             'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
             'unit.required' => 'Đơn vị là bắt buộc.',
@@ -117,8 +120,16 @@ class MyKeyResultController extends Controller
                 }
 
                 // === TẠO KEY RESULT ===
-                return KeyResult::create([
-                    'kr_id' => (string) \Str::uuid(),
+                // Lấy cycle_id từ Objective, nếu không có thì lấy current cycle
+                $cycleId = $objective->cycle_id;
+                if (empty($cycleId)) {
+                    $currentCycle = $this->getCurrentCycle();
+                    if ($currentCycle) {
+                        $cycleId = $currentCycle->cycle_id;
+                    }
+                }
+
+                $keyResult = KeyResult::create([
                     'kr_title' => $validated['kr_title'],
                     'target_value' => $target,
                     'current_value' => $current,
@@ -127,12 +138,39 @@ class MyKeyResultController extends Controller
                     'weight' => $validated['weight'] ?? 0,
                     'progress_percent' => $validated['progress_percent'] ?? $progress,
                     'objective_id' => $objective->objective_id,
-                    'cycle_id' => $objective->cycle_id ?? null,
+                    'cycle_id' => $cycleId,
                     'department_id' => $objective->department_id ?? null,
                     'user_id' => $user->user_id,
                     'archived_at' => null,
                     'assigned_to' => $finalAssignedTo,
-                ])->load('objective', 'cycle', 'assignedUser');
+                    'type' => $validated['type'],
+                ]);
+                
+                // Cập nhật updated_at của Objective khi tạo KR mới
+                $objective->touch();
+                
+                // Refresh để đảm bảo kr_id được load từ database
+                $keyResult->refresh();
+
+                // Gửi thông báo cho người được giao (nếu khác người tạo)
+                if ($finalAssignedTo && $finalAssignedTo !== $user->user_id) {
+                    $actionUrl = config('app.url') . "/my-objectives?highlight_kr=".$keyResult->kr_id."
+                                            &objective_id=".$keyResult->objective_id."
+                                            &action=checkin";
+                    NotificationService::send(
+                        $finalAssignedTo,
+                        "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                        'kr_assigned',
+                        $keyResult->cycle_id,
+                        $actionUrl,
+                        'Xem Key Result'
+                    );
+                }
+                
+                // Tự động cập nhật progress của Objective từ KeyResults
+                $objective->updateProgress();
+                
+                return $keyResult->load('objective', 'cycle', 'assignedUser');
             });
 
             return $this->successResponse($request, 'Key Result được tạo thành công!', $created);
@@ -199,11 +237,12 @@ class MyKeyResultController extends Controller
                     }
                 },
             ],
-            'unit' => 'required|in:number,percent,completion,bai,num,bài',
-            'status' => 'required|in:draft,active,completed',
+            'unit' => 'required|in:number,percent,completion,currency',
+            'status' => 'required|in:not_start,on_track,at_risk,in_trouble,completed',
             'weight' => 'nullable|numeric|min:0|max:100',
             'progress_percent' => 'nullable|numeric|min:0|max:100',
             'assigned_to' => 'nullable|exists:users,user_id',
+            'type' => 'required|string|in:outcome,activity',
         ], [
             'kr_title.required' => 'Tiêu đề Key Result là bắt buộc.',
             'unit.required' => 'Đơn vị là bắt buộc.',
@@ -218,6 +257,7 @@ class MyKeyResultController extends Controller
 
                 // === XỬ LÝ assigned_to ===
                 $assignedToInput = $validated['assigned_to'] ?? null;
+                $oldAssignedTo = $keyResult->assigned_to;
 
                 if ($assignedToInput !== null && $assignedToInput !== $keyResult->assigned_to) {
                     if (!$this->canAssign($user, $objective)) {
@@ -230,6 +270,21 @@ class MyKeyResultController extends Controller
                     }
 
                     $keyResult->assigned_to = $assignee->user_id;
+
+                    // Gửi thông báo cho người được giao mới (nếu khác người thực hiện trước và khác người tạo)
+                    if ($assignee->user_id !== $user->user_id) {
+                        $actionUrl = config('app.url') . "/my-objectives?highlight_kr=".$keyResult->kr_id."
+                                                &objective_id=".$keyResult->objective_id."
+                                                &action=checkin";
+                        NotificationService::send(
+                            $assignee->user_id,
+                            "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                            'kr_assigned',
+                            $keyResult->cycle_id,
+                            $actionUrl,
+                            'Xem Key Result'
+                        );
+                    }
                 }
                 // Không thay đổi nếu không gửi hoặc gửi giống cũ
 
@@ -243,7 +298,11 @@ class MyKeyResultController extends Controller
                     'weight' => $validated['weight'] ?? $keyResult->weight,
                     'progress_percent' => $validated['progress_percent'] ?? $progress,
                     'assigned_to' => $keyResult->assigned_to,
+                    'type' => $validated['type'],
                 ]);
+
+                // Tự động cập nhật progress của Objective từ KeyResults
+                $objective->updateProgress();
 
                 return $keyResult->load('objective', 'cycle', 'assignedUser');
             });
@@ -285,8 +344,11 @@ class MyKeyResultController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($keyResult) {
-                $keyResult->forceDelete(); 
+            DB::transaction(function () use ($keyResult, $objective) {
+                $keyResult->forceDelete();
+                
+                // Tự động cập nhật progress của Objective từ KeyResults
+                $objective->updateProgress();
             });
 
             return response()->json(['success' => true, 'message' => 'Key Result đã được xóa vĩnh viễn!']);
@@ -322,6 +384,10 @@ class MyKeyResultController extends Controller
 
         try {
             $keyResult->update(['archived_at' => now()]);
+            
+            // Tự động cập nhật progress của Objective từ KeyResults (loại trừ KR đã archive)
+            $objective->updateProgress();
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Lưu trữ thành công!',
@@ -353,6 +419,9 @@ class MyKeyResultController extends Controller
         try {
             $keyResult->update(['archived_at' => null]);
 
+            // Tự động cập nhật progress của Objective từ KeyResults
+            $objective->updateProgress();
+
             $fullObjective = Objective::with(['keyResults' => fn($q) => $q->active()])
                 ->where('objective_id', $objectiveId)
                 ->first();
@@ -371,11 +440,14 @@ class MyKeyResultController extends Controller
     /**
      * Giao Key Result cho người dùng thực hiện
      */
-    public function assign(Request $request, string $keyResultId): JsonResponse
+    public function assign(Request $request, string $objectiveId, string $keyResultId): JsonResponse
     {
         $user = Auth::user();
-        $keyResult = KeyResult::findOrFail($keyResultId);
-        $objective = $keyResult->objective;
+        $keyResult = KeyResult::where('objective_id', $objectiveId)
+            ->where('kr_id', $keyResultId)
+            ->firstOrFail();
+
+        $objective = Objective::findOrFail($objectiveId);
 
         // Chỉ owner OKR hoặc admin mới được giao
         if ($objective->user_id !== $user->user_id && !$user->isAdmin()) {
@@ -386,28 +458,52 @@ class MyKeyResultController extends Controller
         }
 
         $validated = $request->validate([
-            'email' => 'required|email|exists:users,email'
+            'user_id' => 'nullable|exists:users,user_id' // Changed to nullable
         ]);
 
-        $assignee = User::where('email', $validated['email'])->first();
+        $assigneeId = $validated['user_id'] ?? null;
+        $assignee = null;
+        if ($assigneeId) {
+            $assignee = User::findOrFail($assigneeId);
+        }
 
-        // (Tùy chọn) Kiểm tra cùng phòng ban
-        if ($objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
+        // Kiểm tra cùng phòng ban nếu objective là unit-level VÀ có assignee
+        if ($assignee && $objective->level === 'unit' && $assignee->department_id !== $objective->department_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Chỉ được giao cho người trong cùng phòng ban.'
             ], 422);
         }
 
-        $keyResult->assigned_to = $assignee->user_id;
+        $keyResult->assigned_to = $assigneeId; // Assign null if $assigneeId is null
         $keyResult->save();
+        
+        // Tải lại objective để có dữ liệu mới nhất
+        $updatedObjective = $objective->fresh()->load('keyResults.assignedUser', 'user');
+
+        $message = $assignee ? "Đã giao KR cho ".$assignee->full_name : "Đã bỏ giao KR thành công.";
+
+        // Tạo thông báo cho người được giao
+        if ($assignee && $assignee->user_id !== $user->user_id) {
+            $actionUrl = config('app.url') . "/my-objectives?highlight_kr=".$keyResult->kr_id."
+                                            &objective_id=".$keyResult->objective_id."
+                                            &action=checkin";
+            NotificationService::send(
+                $assignee->user_id,
+                "{$user->full_name} đã giao cho bạn Key Result: \"{$keyResult->kr_title}\"",
+                'kr_assigned',
+                $keyResult->cycle_id,
+                $actionUrl,
+                'Xem Key Result'
+            );
+        }
 
         return response()->json([
             'success' => true,
-            'message' => "Đã giao KR cho {$assignee->name}",
+            'message' => $message,
+
             'data' => [
-                'kr_id' => $keyResult->kr_id,
-                'assigned_to' => $assignee->only(['user_id', 'name', 'email', 'avatar'])
+                'objective' => $updatedObjective
             ]
         ]);
     }
@@ -442,4 +538,59 @@ class MyKeyResultController extends Controller
 
         return redirect()->back()->withErrors(['error' => $message])->withInput();
     }
+
+    private function getCurrentCycle()
+    {
+        $now = \Carbon\Carbon::now('Asia/Ho_Chi_Minh');
+        
+        // Tìm cycle đang active (start_date <= now <= end_date)
+        $currentCycle = \App\Models\Cycle::where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->where('status', 'active')
+            ->first();
+
+        if ($currentCycle) {
+            return $currentCycle;
+        }
+
+        // Nếu không tìm thấy, tìm theo tên cycle (Quý X năm Y)
+        $year = $now->year;
+        $quarter = ceil($now->month / 3);
+        $possibleNames = [
+            "Quý {$quarter} năm {$year}",
+            "Q{$quarter} {$year}",
+            "Q{$quarter} - {$year}",
+        ];
+
+        $currentCycle = \App\Models\Cycle::whereIn('cycle_name', $possibleNames)
+            ->where('status', 'active')
+            ->first();
+
+        return $currentCycle;
+    }
+
+    /**
+     * Get detailed information for a single Key Result.
+     */
+    public function getDetails(Request $request, $id): \Illuminate\Http\JsonResponse
+    {
+        $kr = KeyResult::with([
+            'objective', 
+            'assignedUser',
+            'checkIns' => function($query) {
+                $query->with('user')->orderBy('created_at', 'asc');
+            },
+            'comments.user',
+            'comments.replies.user'
+        ])->findOrFail($id);
+
+        // Authorization check (optional, but good practice)
+        // You can add logic here to ensure the authenticated user has permission
+        // to view this key result. For now, we'll assume it's public for logged-in users.
+
+        return response()->json(['success' => true, 'data' => $kr]);
+    }
 }
+
+    
+

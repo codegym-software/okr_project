@@ -6,11 +6,12 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
         email: '',
         full_name: '',
         role_name: '',
-        level: '',
+        level: 'unit', // Mặc định là phòng ban
         department_id: ''
     });
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState({ type: 'success', message: '' });
+    const [validationErrors, setValidationErrors] = useState({});
 
     const showToast = (type, message) => {
         setToast({ type, message });
@@ -20,21 +21,31 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        // Validation
-        if (!formData.email || !formData.full_name || !formData.role_name || !formData.level || !formData.department_id) {
-            showToast('error', 'Vui lòng điền đầy đủ tất cả thông tin bắt buộc');
-            return;
-        }
-
-        if (!formData.email.includes('@')) {
-            showToast('error', 'Email không hợp lệ');
+        // Reset validation errors
+        setValidationErrors({});
+        
+        // Validation frontend - chỉ kiểm tra có điền đầy đủ thông tin
+        const errors = {};
+        if (!formData.email) errors.email = 'Email là bắt buộc';
+        if (!formData.full_name) errors.full_name = 'Họ và tên là bắt buộc';
+        if (!formData.role_name) errors.role_name = 'Vai trò là bắt buộc';
+        if (!formData.department_id) errors.department_id = 'Phòng ban là bắt buộc';
+        
+        if (Object.keys(errors).length > 0) {
+            setValidationErrors(errors);
             return;
         }
 
         setLoading(true);
 
         try {
-            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!token) {
+                showToast('error', 'Không tìm thấy CSRF token. Vui lòng tải lại trang.');
+                setLoading(false);
+                return;
+            }
+
             const response = await fetch('/admin/invite-user', {
                 method: 'POST',
                 headers: {
@@ -47,16 +58,50 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
 
             const result = await response.json();
 
-            if (result.success) {
-                showToast('success', result.message);
-                onSuccess();
-                handleClose();
+            // Xử lý các trường hợp lỗi khác nhau
+            if (response.status === 422) {
+                // Validation errors từ backend - hiển thị trong modal
+                if (result.errors) {
+                    const backendErrors = {};
+                    Object.keys(result.errors).forEach(field => {
+                        backendErrors[field] = result.errors[field][0];
+                    });
+                    setValidationErrors(backendErrors);
+                } else {
+                    setValidationErrors({ _general: result.message || 'Dữ liệu không hợp lệ' });
+                }
+                setLoading(false);
+                return;
+            } else if (response.status === 500) {
+                // Server errors
+                if (result.message) {
+                    showToast('error', result.message);
+                } else {
+                    showToast('error', 'Có lỗi xảy ra ở máy chủ. Vui lòng thử lại sau.');
+                }
+            } else if (result.success) {
+                // Thành công
+                if (result.warning) {
+                    // Trường hợp có cảnh báo (tài khoản tạo thành công nhưng email không gửi được)
+                    showToast('error', result.message || 'Tài khoản đã được tạo nhưng không thể gửi email mời.');
+                } else {
+                    showToast('success', result.message || 'Email mời đã được gửi thành công!');
+                }
+                setTimeout(() => {
+                    onSuccess();
+                    handleClose();
+                }, result.warning ? 2000 : 1000);
             } else {
-                showToast('error', result.message || 'Có lỗi xảy ra khi gửi email mời');
+                // Lỗi khác
+                showToast('error', result.message || 'Có lỗi xảy ra khi gửi email mời. Vui lòng thử lại.');
             }
         } catch (error) {
             console.error('Error inviting user:', error);
-            showToast('error', 'Có lỗi xảy ra khi gửi email mời');
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                showToast('error', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.');
+            } else {
+                showToast('error', 'Có lỗi xảy ra khi gửi email mời. Vui lòng thử lại sau.');
+            }
         } finally {
             setLoading(false);
         }
@@ -67,62 +112,34 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
             email: '',
             full_name: '',
             role_name: '',
-            level: '',
+            level: 'unit', // Mặc định là phòng ban
             department_id: ''
         });
+        setValidationErrors({});
         onClose();
     };
 
     const handleInputChange = (field, value) => {
-        setFormData(prev => {
-            const newData = {
-                ...prev,
-                [field]: value
-            };
-            
-            // Khi thay đổi level, reset department_id
-            if (field === 'level') {
-                newData.department_id = '';
-            }
-            
-            return newData;
-        });
-    };
-
-    // Lọc departments theo level
-    const getFilteredDepartments = () => {
-        if (formData.level === 'unit') {
-            // Chỉ hiển thị phòng ban (parent_department_id === null và type === "phòng ban")
-            return departments.filter(d => 
-                d.parent_department_id === null && d.type === "phòng ban"
-            );
-        } else if (formData.level === 'team') {
-            // Chỉ hiển thị nhóm (type === "đội nhóm")
-            return departments.filter(d => d.type === "đội nhóm");
+        setFormData(prev => ({
+            ...prev,
+            [field]: value
+        }));
+        // Xóa lỗi validation của field khi user bắt đầu nhập
+        if (validationErrors[field]) {
+            setValidationErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[field];
+                return newErrors;
+            });
         }
-        return departments;
     };
 
-    // Tạo options cho dropdown phòng ban
+    // Lọc departments - chỉ hiển thị phòng ban
     const getDepartmentOptions = () => {
-        const filteredDepts = getFilteredDepartments();
-        
-        return filteredDepts.map(d => {
-            let label = d.d_name;
-            
-            // Nếu là nhóm, thêm tên phòng ban vào đằng sau
-            if (formData.level === 'team' && d.parent_department_id) {
-                const parentDept = departments.find(pd => pd.department_id === d.parent_department_id);
-                if (parentDept) {
-                    label = `${d.d_name} (${parentDept.d_name})`;
-                }
-            }
-            
-            return {
-                value: String(d.department_id),
-                label: label
-            };
-        });
+        return departments.map(d => ({
+            value: String(d.department_id),
+            label: d.d_name
+        }));
     };
 
     return (
@@ -131,6 +148,13 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
             
             <Modal open={isOpen} onClose={handleClose} title="Mời người dùng mới">
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Thông báo lỗi tổng */}
+                    {validationErrors._general && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="text-sm text-red-600">{validationErrors._general}</p>
+                        </div>
+                    )}
+
                     {/* Email */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -141,9 +165,16 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             value={formData.email}
                             onChange={(e) => handleInputChange('email', e.target.value)}
                             placeholder="Nhập email người dùng"
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${
+                                validationErrors.email
+                                    ? 'border-red-300 focus:ring-red-500'
+                                    : 'border-gray-300 focus:ring-blue-500'
+                            }`}
                             required
                         />
+                        {validationErrors.email && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
+                        )}
                     </div>
 
                     {/* Họ tên */}
@@ -156,9 +187,16 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             value={formData.full_name}
                             onChange={(e) => handleInputChange('full_name', e.target.value)}
                             placeholder="Nhập họ và tên"
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 ${
+                                validationErrors.full_name
+                                    ? 'border-red-300 focus:ring-red-500'
+                                    : 'border-gray-300 focus:ring-blue-500'
+                            }`}
                             required
                         />
+                        {validationErrors.full_name && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.full_name}</p>
+                        )}
                     </div>
 
                     {/* Vai trò */}
@@ -172,41 +210,30 @@ const InviteUserModal = ({ isOpen, onClose, onSuccess, departments, roles }) => 
                             placeholder="-- Chọn vai trò --"
                             options={[
                                 { value: 'member', label: 'Thành viên' },
-                                { value: 'manager', label: 'Quản lý' }
+                                { value: 'manager', label: 'Quản lý' },
                             ]}
                             className="w-full"
                         />
+                        {validationErrors.role_name && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.role_name}</p>
+                        )}
                     </div>
 
-                    {/* Cấp độ */}
+                    {/* Phòng ban */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Cấp độ <span className="text-red-500">*</span>
-                        </label>
-                        <Select
-                            value={formData.level}
-                            onChange={(value) => handleInputChange('level', value)}
-                            placeholder="-- Chọn cấp độ --"
-                            options={[
-                                { value: 'unit', label: 'Đơn vị' },
-                                { value: 'team', label: 'Nhóm' }
-                            ]}
-                            className="w-full"
-                        />
-                    </div>
-
-                    {/* Phòng ban/Đội nhóm */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Phòng ban/Đội nhóm <span className="text-red-500">*</span>
+                            Phòng ban <span className="text-red-500">*</span>
                         </label>
                         <Select
                             value={formData.department_id}
                             onChange={(value) => handleInputChange('department_id', value)}
-                            placeholder={formData.level ? `-- Chọn ${formData.level === 'unit' ? 'phòng ban' : 'nhóm'} --` : "-- Chọn phòng ban/đội nhóm --"}
+                            placeholder="-- Chọn phòng ban --"
                             options={getDepartmentOptions()}
                             className="w-full"
                         />
+                        {validationErrors.department_id && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.department_id}</p>
+                        )}
                     </div>
 
                     {/* Thông báo */}

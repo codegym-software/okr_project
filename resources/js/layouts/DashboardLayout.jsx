@@ -1,16 +1,30 @@
-import React, { useRef, useState, useEffect } from "react";
-import Dropdown, { DropdownItem, DropdownHeader, DropdownContent } from "../components/Dropdown";
-import { navigateTo } from "../utils/navigation";
+import React, { useState } from "react";
+import Dropdown, {
+    DropdownItem,
+    DropdownHeader,
+    DropdownContent,
+} from "../components/Dropdown";
+import NotificationBell from "../components/NotificationBell";
 
-function SidebarItem({ icon, label, href, collapsed }) {
+function SidebarItem({ icon, label, href, collapsed, isActive = false }) {
     return (
         <a
             href={href}
-            className={`group flex items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold text-slate-700 hover:bg-slate-50 ${
-                collapsed ? "justify-center" : ""
-            }`}
+            className={`group flex items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
+                ${
+                    isActive
+                        ? "bg-slate-100 text-blue-700"
+                        : "text-slate-700 hover:bg-slate-50"
+                } ${collapsed ? "justify-center" : ""}`}
         >
-            <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-hover:text-blue-600">
+            <span
+                className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                ${
+                    isActive
+                        ? "text-blue-600"
+                        : "text-slate-500 group-hover:text-blue-600"
+                }`}
+            >
                 {icon}
             </span>
             {!collapsed && <span className="truncate">{label}</span>}
@@ -21,7 +35,7 @@ function SidebarItem({ icon, label, href, collapsed }) {
 function DashboardSidebar({ open, user }) {
     const collapsed = !open;
     const isAdmin = user?.is_admin === true;
-    const isMember = user?.role?.role_name?.toLowerCase() === 'member';
+    const isMember = user?.role?.role_name?.toLowerCase() === "member";
     return (
         <aside
             className={`${
@@ -91,7 +105,7 @@ function DashboardSidebar({ open, user }) {
                     <SidebarItem
                         collapsed={collapsed}
                         href="/cycles"
-                        label="Chu kỳ"
+                        label="Quản lý chu kỳ"
                         icon={
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -119,12 +133,27 @@ function DashboardSidebar({ open, user }) {
                         </svg>
                     }
                 />
+                <SidebarItem
+                    collapsed={collapsed}
+                    href="/company-okrs"
+                    label="Mục tiêu công ty"
+                    icon={
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-6 w-6"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                        >
+                            <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
+                        </svg>
+                    }
+                />
                 {/* Phòng ban & Đội nhóm - chỉ hiển thị cho Admin */}
                 {isAdmin && (
                     <SidebarItem
                         collapsed={collapsed}
                         href="/departments"
-                        label="Phòng ban & Đội nhóm"
+                        label="Quản lý phòng ban"
                         icon={
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -154,8 +183,8 @@ function DashboardSidebar({ open, user }) {
                         }
                     />
                 )}
-                {/* Báo cáo - chỉ hiển thị cho Admin */}
-                {isAdmin && (
+                {/* Báo cáo - hiển thị cho Admin, CEO, Manager */}
+                {canSeeReports && (
                     <SidebarItem
                         collapsed={collapsed}
                         href="/reports"
@@ -211,6 +240,7 @@ function DashboardTopbar({
                 />
             </div>
             <div className="flex items-center gap-3">
+                <NotificationBell />
                 <Dropdown
                     position="right"
                     zIndex={10000}
@@ -244,9 +274,7 @@ function DashboardTopbar({
                         <div className="font-semibold text-slate-900">
                             {displayName}
                         </div>
-                        <div className="text-sm text-slate-500">
-                            {email}
-                        </div>
+                        <div className="text-sm text-slate-500">{email}</div>
                     </DropdownHeader>
                     <DropdownContent>
                         <DropdownItem onClick={onOpenProfile}>
@@ -291,11 +319,18 @@ function DashboardTopbar({
 
 export default function DashboardLayout({ children, user }) {
     const [sidebarOpen, setSidebarOpen] = useState(true);
-    
+    const roleName = (user?.role?.role_name || "").toLowerCase();
+    const isAdmin = user?.is_admin === true;
+    const isCEO = roleName === "ceo";
+    const isManager = roleName === "manager";
+
+    const canSeeTeamReport = isAdmin || isManager;        
+    const canSeeCompanyReport = isAdmin || isCEO;
+
     const toggleSidebar = () => {
         setSidebarOpen(!sidebarOpen);
     };
-    
+
     const logout = async () => {
         try {
             const token = document
@@ -305,7 +340,7 @@ export default function DashboardLayout({ children, user }) {
                 method: "POST",
                 headers: { "X-CSRF-TOKEN": token },
             });
-            window.location.href = "/landingpage";
+            window.location.href = "/login";
         } catch (e) {
             console.error(e);
         }
@@ -319,12 +354,29 @@ export default function DashboardLayout({ children, user }) {
         window.location.href = "/change-password";
     };
 
+    // Helper: kiểm tra trang hiện tại
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+    const isActive = (paths) =>
+        Array.isArray(paths)
+            ? paths.some((p) => currentPath.startsWith(p))
+            : currentPath.startsWith(paths);
+    const isTeamReportActive = currentPath === "/reports" || currentPath === "/reports/manager";
+    const isCompanyReportActive = currentPath.startsWith("/reports/company-overview");
+
     return (
         <div className="min-h-screen bg-white">
             {/* Sidebar */}
-            <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 z-10 transition-all duration-300`}>
-                <div className={`p-6 ${!sidebarOpen ? 'px-3' : ''}`}>
-                    <div className={`mb-8 flex items-center gap-3 ${!sidebarOpen ? 'justify-center px-0' : 'px-2'}`}>
+            <div
+                className={`${
+                    sidebarOpen ? "w-72" : "w-20"
+                } bg-white border-r border-gray-200 min-h-screen fixed left-0 top-0 z-10 transition-all duration-300`}
+            >
+                <div className={`p-6 ${!sidebarOpen ? "px-3" : ""}`}>
+                    <div
+                        className={`mb-8 flex items-center gap-3 ${
+                            !sidebarOpen ? "justify-center px-0" : "px-2"
+                        }`}
+                    >
                         <a
                             href="/dashboard"
                             className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 p-3 shrink-0"
@@ -348,104 +400,379 @@ export default function DashboardLayout({ children, user }) {
                             </a>
                         )}
                     </div>
-                    <nav className="space-y-1">
-                        <SidebarItem
-                            collapsed={!sidebarOpen}
-                            href="/dashboard"
-                            label="Tổng quan"
-                            icon={
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-6 w-6"
-                                    viewBox="0 0 24 24"
-                                    fill="currentColor"
-                                >
-                                    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
-                                </svg>
-                            }
-                        />
-                        <SidebarItem
-                            collapsed={!sidebarOpen}
-                            href="/my-objectives"
-                            label="Mục tiêu"
-                            icon={
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-6 w-6"
-                                    viewBox="0 0 24 24"
-                                    fill="currentColor"
-                                >
-                                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
-                                </svg>
-                            }
-                        />
-                        {/* Báo cáo tổng quan - chỉ Admin */}
-                        {user?.is_admin === true && (
-                            <SidebarItem
-                                collapsed={!sidebarOpen}
-                                href="/reports/company-overview"
-                                label="Báo cáo"
-                                icon={
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-10h4v24h-4V-3z" />
-                                    </svg>
-                                }
-                            />
-                        )}
-                        {/* Nhóm Quản trị (Admin): gom Chu kỳ, Phòng ban/Đội nhóm, Quản lý người dùng) */}
-                        {user?.is_admin === true && (
-                            <div className="rounded-xl">
-                                {sidebarOpen ? (
-                                    <details
-                                        className="group [&_summary::-webkit-details-marker]:hidden"
-                                        open={typeof window !== 'undefined' && ['/cycles', '/departments', '/users'].some(p => window.location.pathname.startsWith(p))}
-                                    >
-                                        <summary className="flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold text-slate-700 hover:bg-slate-50">
-                                            <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-open:text-blue-600">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
-                                                </svg>
-                                            </span>
-                                            <span className="truncate">Quản trị</span>
-                                            <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                                                </svg>
-                                            </span>
-                                        </summary>
-                                        <div className="mt-1 pl-12 pr-2 space-y-1">
-                                            <a href="/cycles" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
-                                                Chu kỳ
-                                            </a>
-                                            <a href="/departments" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
-                                                Phòng ban/Đội nhóm
-                                            </a>
-                                            <a href="/users" className="block rounded-lg px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50">
-                                                Quản lý người dùng
-                                            </a>
-                                        </div>
-                                    </details>
-                                ) : (
-                                    <a
-                                        href="/cycles"
-                                        className="group flex items-center justify-center rounded-xl px-4 py-3.5 text-slate-700 hover:bg-slate-50"
-                                        title="Quản trị"
-                                    >
-                                        <span className="inline-flex h-6 w-6 items-center justify-center text-slate-500 group-hover:text-blue-600">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                    <nav className="space-y-2">
+
+                        {/* Helper: kiểm tra trang hiện tại */}
+                        {(() => {
+                            const currentPath =
+                                typeof window !== "undefined"
+                                    ? window.location.pathname
+                                    : "";
+                            const isActive = (paths) =>
+                                Array.isArray(paths)
+                                    ? paths.some((p) =>
+                                          currentPath.startsWith(p)
+                                      )
+                                    : currentPath.startsWith(paths);
+                            const isTeamReportActive =
+                                currentPath === "/reports";
+                            const isCompanyReportActive =
+                                currentPath.startsWith(
+                                    "/reports/company-overview"
+                                );
+
+                            return (
+                                <>
+                                    {/* Tổng quan */}
+                                    <SidebarItem
+                                        collapsed={!sidebarOpen}
+                                        href="/dashboard"
+                                        label="Tổng quan"
+                                        icon={
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="h-6 w-6"
+                                                viewBox="0 0 24 24"
+                                                fill="currentColor"
+                                            >
+                                                <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
                                             </svg>
-                                        </span>
-                                    </a>
-                                )}
-                            </div>
-                        )}
+                                        }
+                                        isActive={isActive("/dashboard")}
+                                    />
+
+                                    {/* MỤC TIÊU - giữ nguyên */}
+                                    <div className="rounded-xl">
+                                        {sidebarOpen ? (
+                                            <details
+                                                className="group [&_summary::-webkit-details-marker]:hidden"
+                                                open={isActive([
+                                                    "/my-objectives",
+                                                    "/company-okrs",
+                                                ])}
+                                            >
+                                                <summary
+                                                    className={`flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
+                                                    ${
+                                                        isActive([
+                                                            "/my-objectives",
+                                                            "/company-okrs",
+                                                        ])
+                                                            ? "bg-slate-100 text-blue-700"
+                                                            : "text-slate-700 hover:bg-slate-50"
+                                                    }`}
+                                                >
+                                                    <span
+                                                        className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                        ${
+                                                            isActive([
+                                                                "/my-objectives",
+                                                                "/company-okrs",
+                                                            ])
+                                                                ? "text-blue-600"
+                                                                : "text-slate-500 group-hover:text-blue-600"
+                                                        }`}
+                                                    >
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-6 w-6"
+                                                            viewBox="0 0 24 24"
+                                                            fill="currentColor"
+                                                        >
+                                                            <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
+                                                        </svg>
+                                                    </span>
+                                                    <span className="truncate">
+                                                        Quản lý OKR
+                                                    </span>
+                                                    <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-4 w-4"
+                                                            viewBox="0 0 20 20"
+                                                            fill="currentColor"
+                                                        >
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                                                                clipRule="evenodd"
+                                                            />
+                                                        </svg>
+                                                    </span>
+                                                </summary>
+
+                                                <div className="mt-1 pl-12 pr-2 space-y-1">
+                                                    <a
+                                                        href="/my-objectives"
+                                                        className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
+                                                        ${
+                                                            isActive(
+                                                                "/my-objectives"
+                                                            )
+                                                                ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
+                                                                : "text-slate-700 hover:bg-slate-50"
+                                                        }`}
+                                                    >
+                                                        OKR của tôi
+                                                    </a>
+                                                    <a
+                                                        href="/company-okrs"
+                                                        className={`block rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all
+                                                        ${
+                                                            isActive(
+                                                                "/company-okrs"
+                                                            )
+                                                                ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
+                                                                : "text-slate-700 hover:bg-slate-50"
+                                                        }`}
+                                                    >
+                                                        OKR công ty
+                                                    </a>
+                                                 </div>
+                                            </details>
+                                        ) : (
+                                            <a
+                                                href="/my-objectives"
+                                                className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
+                                                    ${
+                                                        isActive([
+                                                            "/my-objectives",
+                                                            "/company-okrs",
+                                                        ])
+                                                        ? "bg-slate-100 text-blue-700"
+                                                        : "text-slate-700 hover:bg-slate-50"
+                                                }`}
+                                                title="Quản lý OKR"
+                                            >
+                                                <span
+                                                    className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                    ${
+                                                        isActive([
+                                                            "/my-objectives",
+                                                            "/company-okrs",
+                                                        ])
+                                                            ? "text-blue-600"
+                                                            : "text-slate-500 group-hover:text-blue-600"
+                                                    }`}
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        className="h-6 w-6"
+                                                        viewBox="0 0 24 24"
+                                                        fill="currentColor"
+                                                    >
+                                                        <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a5 5 0 015 5h2a7 7 0 10-7 7v-2a5 5 0 115-5h-2a3 3 0 11-3-3V7z" />
+                                                    </svg>
+                                                </span>
+                                            </a>
+                                        )}
+                                    </div>
+
+                                    {/* Kho Lưu Trữ */}
+                                    <SidebarItem
+                                        collapsed={!sidebarOpen}
+                                        href="/archived-okrs"
+                                        label="Kho Lưu Trữ"
+                                        icon={
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="h-6 w-6"
+                                                viewBox="0 0 24 24"
+                                                fill="currentColor"
+                                            >
+                                                <path d="M20 6H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2zM4 4h16a2 2 0 012 2v2H2V6a2 2 0 012-2z" />
+                                            </svg>
+                                        }
+                                        isActive={isActive("/archived-okrs")}
+                                    />
+
+                                    {/* ==================== BÁO CÁO - GỘP THÀNH 1 DROPDOWN ==================== */}
+                                    {(canSeeTeamReport || canSeeCompanyReport) && (
+                                    <div className="rounded-xl">
+
+                                        {/* 1. ADMIN: có cả 2 quyền → hiển thị dropdown "Báo cáo" có đóng mở */}
+
+
+                                        {/* 2. Manager: chỉ thấy "Báo cáo nhóm" (không dropdown) */}
+                                        {isManager && (
+                                        <SidebarItem
+                                            collapsed={!sidebarOpen}
+                                            href="/reports"
+                                            label="Báo cáo nhóm"
+                                            icon={
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                                            </svg>
+                                            }
+                                            isActive={isTeamReportActive}
+                                        />
+                                        )}
+
+                                        {/* 3. CEO: chỉ thấy "Báo cáo công ty" (không dropdown) */}
+                                        {(isCEO || isAdmin) && (
+                                        <SidebarItem
+                                            collapsed={!sidebarOpen}
+                                            href="/reports/company-overview"
+                                            label="Báo cáo công ty"
+                                            icon={
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+                                            </svg>
+                                            }
+                                            isActive={isCompanyReportActive}
+                                        />
+                                        )}
+
+                                    </div>
+                                    )}
+
+                                    {/* Quản trị - giữ nguyên hoàn toàn */}
+                                    {isAdmin && (
+                                        <div className="rounded-xl">
+                                            {sidebarOpen ? (
+                                                <details
+                                                    className="group [&_summary::-webkit-details-marker]:hidden"
+                                                    open={isActive([
+                                                        "/cycles",
+                                                        "/departments",
+                                                        "/users",
+                                                    ])}
+                                                >
+                                                    <summary
+                                                        className={`flex cursor-pointer items-center gap-4 rounded-xl px-4 py-3.5 text-[16px] font-semibold transition-all
+                                                        ${
+                                                            isActive([
+                                                                "/cycles",
+                                                                "/departments",
+                                                                "/users",
+                                                            ])
+                                                                ? "bg-slate-100 text-blue-700"
+                                                                : "text-slate-700 hover:bg-slate-50"
+                                                        }`}
+                                                    >
+                                                        <span
+                                                            className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                            ${
+                                                                isActive([
+                                                                    "/cycles",
+                                                                    "/departments",
+                                                                    "/users",
+                                                                ])
+                                                                    ? "text-blue-600"
+                                                                    : "text-slate-500 group-hover:text-blue-600"
+                                                            }`}
+                                                        >
+                                                            <svg
+                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                className="h-6 w-6"
+                                                                viewBox="0 0 24 24"
+                                                                fill="currentColor"
+                                                            >
+                                                                <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                                                            </svg>
+                                                        </span>
+                                                        <span className="truncate">
+                                                            Quản trị
+                                                        </span>
+                                                        <span className="ml-auto text-slate-400 group-open:rotate-180 transition-transform">
+                                                            <svg
+                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                className="h-4 w-4"
+                                                                viewBox="0 0 20 20"
+                                                                fill="currentColor"
+                                                            >
+                                                                <path
+                                                                    fillRule="evenodd"
+                                                                    d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                                                                    clipRule="evenodd"
+                                                                />
+                                                            </svg>
+                                                        </span>
+                                                    </summary>
+                                                    <div className="mt-1 pl-12 pr-2 space-y-1">
+                                                        {[
+                                                            "/cycles",
+                                                            "/departments",
+                                                            "/users",
+                                                        ].map((path, i) => {
+                                                            const labels = [
+                                                                "Quản lý chu kỳ",
+                                                                "Quản lý phòng ban",
+                                                                "Quản lý người dùng",
+                                                            ];
+                                                            return (
+                                                                <a
+                                                                    key={path}
+                                                                    href={path}
+                                                                    className={`block rounded-lg px-3 py-2 text-[15px] font-medium transition-all
+                                                                        ${
+                                                                            isActive(
+                                                                                path
+                                                                            )
+                                                                                ? "bg-blue-50 text-blue-700 font-bold shadow-sm"
+                                                                                : "text-slate-700 hover:bg-slate-50"
+                                                                        }`}
+                                                                >
+                                                                    {labels[i]}
+                                                                </a>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </details>
+                                            ) : (
+                                                <a
+                                                    href="/cycles"
+                                                    className={`group flex items-center justify-center rounded-xl px-4 py-3.5 transition-all
+                                                    ${
+                                                        isActive([
+                                                            "/cycles",
+                                                            "/departments",
+                                                            "/users",
+                                                        ])
+                                                            ? "bg-slate-100 text-blue-700"
+                                                            : "text-slate-700 hover:bg-slate-50"
+                                                    }`}
+                                                    title="Quản trị"
+                                                >
+                                                    <span
+                                                        className={`inline-flex h-6 w-6 items-center justify-center transition-colors
+                                                        ${
+                                                            isActive([
+                                                                "/cycles",
+                                                                "/departments",
+                                                                "/users",
+                                                            ])
+                                                                ? "text-blue-600"
+                                                                : "text-slate-500 group-hover:text-blue-600"
+                                                        }`}
+                                                    >
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-6 w-6"
+                                                            viewBox="0 0 24 24"
+                                                            fill="currentColor"
+                                                        >
+                                                            <path d="M3 4h18v2H3V4zm0 4h18v2H3V8zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
+                                                        </svg>
+                                                    </span>
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </nav>
+
                 </div>
             </div>
-            
+
             {/* Header */}
-            <div className={`${sidebarOpen ? 'ml-64' : 'ml-20'} bg-white border-b border-gray-200 px-6 py-4 transition-all duration-300`}>
+            <div
+                className={`${
+                    sidebarOpen ? "ml-72" : "ml-20"
+                } bg-white border-b border-gray-200 px-6 py-4 transition-all duration-300`}
+            >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                         <button
@@ -464,6 +791,7 @@ export default function DashboardLayout({ children, user }) {
                         </button>
                     </div>
                     <div className="flex items-center space-x-4">
+                        <NotificationBell />
                         <Dropdown
                             position="right"
                             zIndex={10000}
@@ -540,9 +868,13 @@ export default function DashboardLayout({ children, user }) {
                     </div>
                 </div>
             </div>
-            
+
             {/* Main Content */}
-            <div className={`${sidebarOpen ? 'ml-64' : 'ml-20'} transition-all duration-300`}>
+            <div
+                className={`${
+                    sidebarOpen ? "ml-72" : "ml-20"
+                } transition-all duration-300 overflow-x-auto`}
+            >
                 {children}
             </div>
         </div>
